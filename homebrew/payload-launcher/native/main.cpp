@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.1.0.
+// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.1.1.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -72,6 +72,15 @@ std::uint32_t load_png(hui::gfx::Renderer& renderer,const std::string& path,int 
     if(w>0&&h>0&&w<=limit&&h<=limit)tex=renderer.batch().create_texture(w,h,pixels);
     stbi_image_free(pixels);return tex;
 }
+std::uint32_t load_png_bytes(hui::gfx::Renderer& renderer,const std::string& png){
+    if(png.empty()||png.size()>3*1024*1024)return 0;
+    int w=0,h=0,channels=0;
+    stbi_uc* pixels=stbi_load_from_memory((const stbi_uc*)png.data(),(int)png.size(),&w,&h,&channels,4);
+    if(!pixels)return 0;
+    std::uint32_t tex=0;
+    if(w>0&&h>0&&w<=1024&&h<=1024)tex=renderer.batch().create_texture(w,h,pixels);
+    stbi_image_free(pixels);return tex;
+}
 void label(DrawList& u,const hui::gfx::Font& f,unsigned a,std::string_view s,float x,float y,float sz=22,Color color=kWhite,Align align=Align::left,float tracking=0){
     u.text(f,a,s,x,y,sz,color,align,tracking);
 }
@@ -136,7 +145,7 @@ struct App {
         if(settings.alphabetical)std::stable_sort(next.payloads.begin(),next.payloads.end(),[](const auto& a,const auto& b){return a.name<b.name;});
         for(auto& i:icons)if(i.texture){GLuint tex=i.texture;glDeleteTextures(1,&tex);}
         icons.clear();icons.reserve(next.payloads.size());
-        for(const auto& p:next.payloads)icons.push_back({p.icon,p.icon.empty()?0:load_png(r,p.icon,1024)});
+        for(const auto& p:next.payloads)icons.push_back({p.icon,!p.icon_png.empty()?load_png_bytes(r,p.icon_png):(p.icon.empty()?0:load_png(r,p.icon,1024))});
         data=std::move(next);status=data.message;selected=0;
         for(int i=0;i<(int)data.payloads.size();i++)if(data.payloads[i].folder==key)selected=i;
         scroll=std::min(scroll,std::max(0,(int)data.payloads.size()-9));
