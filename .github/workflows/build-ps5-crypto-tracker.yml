@@ -35,12 +35,21 @@ jobs:
           data["titleId"]="PPSA99442"
           data["conceptId"]="99442"
           data["contentId"]="UP9000-PPSA99442_00-PS5CRYPTOTRACKER"
-          data["contentVersion"]="01.000.001"
+          data["contentVersion"]="01.000.002"
           data["localizedParameters"]["en-US"]["titleName"]="PS5 Crypto Tracker"
           p.write_text(json.dumps(data,indent=2)+"\n")
           PY
           mkdir -p app/assets
           cp /etc/ssl/certs/ca-certificates.crt app/assets/cacert.pem
+          # Compile the trusted CA bundle into the ELF; /app0 may be unavailable
+          # to a homebrew launched from /data/homebrew via ShadowMountPlus.
+          python3 - <<'PY'
+          from pathlib import Path
+          pem=Path("app/assets/cacert.pem").read_text(encoding="ascii")
+          Path("app/src/ca_bundle.inc").write_text(
+              'static constexpr char kCaBundle[] = R"PS5CABUNDLE('
+              + pem + ')PS5CABUNDLE";\\n', encoding="ascii")
+          PY
       - name: Prepare pinned OpenGL SDK
         working-directory: app
         env:
