@@ -48,7 +48,7 @@ jobs:
           pem=Path("app/assets/cacert.pem").read_text(encoding="ascii")
           Path("app/src/ca_bundle.inc").write_text(
               'static constexpr char kCaBundle[] = R"PS5CABUNDLE('
-              + pem + ')PS5CABUNDLE";\\n', encoding="ascii")
+              + pem + ')PS5CABUNDLE";\n', encoding="ascii")
           PY
       - name: Prepare pinned OpenGL SDK
         working-directory: app
