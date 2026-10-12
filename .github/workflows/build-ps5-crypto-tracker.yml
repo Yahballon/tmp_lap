@@ -56,7 +56,7 @@ jobs:
           from pathlib import Path
           symbols=['dladdr','gmtime_r','mkstemps','mkstemp','openlog','closelog','getpwuid_r']
           Path("app/build/jb-json/posix-symbols.map").write_text(
-              "".join(f"{name} jb_sdk_{name}\\n" for name in symbols))
+              "".join(f"{name} jb_sdk_{name}\n" for name in symbols))
           PY
           llvm-objcopy-18 --redefine-syms=app/build/jb-json/posix-symbols.map app/build/jb-json/libjb-posix.a
       - name: Compile and package PS5 app
