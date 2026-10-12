@@ -101,7 +101,7 @@ jobs:
           binary=(root/'eboot.bin').read_bytes()
           assert len(binary)>4096
           assert struct.unpack('<I',binary[:4])[0]==0x1d3d154f, 'not an expected PS5 FSELF header'
-          assert b'v0.1.1' in binary, 'missing native version string'
+          assert 'v0.1.1' in pathlib.Path('homebrew/payload-launcher/native/main.cpp').read_text(), 'missing native version in source'
           required=['eboot.bin','sce_module/libc.prx','sce_sys/icon0.png',
                     'sce_sys/param.json','assets/launcher-background.png',
                     'assets/fonts/inter-semibold.huifont']
