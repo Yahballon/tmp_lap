@@ -5,6 +5,9 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <string_view>
+#include <vector>
 #include <dirent.h>
 #include <map>
 #include <string>
@@ -117,6 +120,194 @@ std::map<std::string,std::string> read_meta(const std::string& path){
 std::string get(const std::map<std::string,std::string>& m,const char* key,std::size_t limit=180){
     auto it=m.find(key);return it==m.end()?std::string():trim(it->second,limit);
 }
+
+// The native title runs in a PS5 sandbox. Even when a payload can enumerate
+// /mnt/usb0, the title might not see it. When available, PS5 websrv's local
+// filesystem endpoint provides a read-only bridge to the same USB folder.
+std::string url_path(std::string_view path) {
+    constexpr char digits[]="0123456789ABCDEF";
+    std::string result;
+    for(unsigned char c:path) {
+        if(std::isalnum(c)||c=='/'||c=='-'||c=='_'||c=='.')result.push_back((char)c);
+        else {result+='%';result+=digits[c>>4];result+=digits[c&15];}
+    }
+    return result;
+}
+bool http_get_local(int port,const std::string& route,std::size_t limit,std::string& result){
+    result.clear();
+    if(port<1||port>65535||route.empty()||route[0]!='/'||route.size()>1024)return false;
+    int sock=socket(AF_INET,SOCK_STREAM,0);
+    if(sock<0)return false;
+    struct timeval timeout{2,0};
+    setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+    setsockopt(sock,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+    sockaddr_in server{};server.sin_family=AF_INET;
+    server.sin_port=htons((uint16_t)port);
+    server.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+    if(connect(sock,(sockaddr*)&server,sizeof(server))!=0){close(sock);return false;}
+    std::string request="GET "+route+" HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+    std::size_t sent=0;
+    while(sent<request.size()){
+        ssize_t n=send(sock,request.data()+sent,request.size()-sent,0);
+        if(n<=0){close(sock);return false;}
+        sent+=(std::size_t)n;
+    }
+    std::string response;
+    char buffer[8192];
+    while(response.size()<=limit+65536){
+        ssize_t n=recv(sock,buffer,sizeof(buffer),0);
+        if(n==0)break;
+        if(n<0){close(sock);return false;}
+        response.append(buffer,(std::size_t)n);
+    }
+    close(sock);
+    if(response.size()>limit+65536)return false;
+    auto h=response.find("\r\n\r\n");
+    if(h==std::string::npos||h>16384||response.substr(0,12).find(" 200 ")==std::string::npos)return false;
+    std::string headers=response.substr(0,h);
+    for(auto& c:headers)c=(char)std::tolower((unsigned char)c);
+    std::string_view body(response.data()+h+4,response.size()-h-4);
+    if(headers.find("transfer-encoding: chunked")!=std::string::npos){
+        std::size_t pos=0;
+        for(;;){
+            std::size_t e=body.find("\r\n",pos);
+            if(e==std::string_view::npos||e-pos>24)return false;
+            std::string chunkSize(body.substr(pos,e-pos));
+            char* end=nullptr;unsigned long long size=std::strtoull(chunkSize.c_str(),&end,16);
+            if(end==chunkSize.c_str()||(*end && *end!=';'))return false;
+            pos=e+2;
+            if(size==0)return true;
+            if(size>limit-result.size()||size>body.size()-pos)return false;
+            result.append(body.substr(pos,(std::size_t)size));
+            pos+=(std::size_t)size;
+            if(pos+2>body.size()||body.substr(pos,2)!="\r\n")return false;
+            pos+=2;
+        }
+    }
+    if(body.size()>limit)return false;
+    result.assign(body);
+    return true;
+}
+struct RemoteEntry {std::string name;std::string mode;};
+std::vector<RemoteEntry> directory_json(std::string_view json){
+    std::vector<RemoteEntry> out;
+    if(json.empty()||json[0]!='[')return out;
+    std::size_t pos=0;
+    while(out.size()<kMaxEntries){
+        auto start=json.find('{',pos);
+        if(start==std::string_view::npos)break;
+        auto end=json.find('}',start);
+        if(end==std::string_view::npos)break;
+        const auto fields=Parser(json.substr(start,end-start+1)).fields();
+        const std::string name=get(fields,"name",127),mode=get(fields,"mode",2);
+        if(is_safe_filename(name))out.push_back({name,mode});
+        pos=end+1;
+    }
+    return out;
+}
+ScanResult scan_websrv(const std::string& root,int port){
+    ScanResult result;
+    std::string body;
+    if(!http_get_local(port,"/fs"+url_path(root)+"?fmt=json",128*1024,body)) {
+        result.message="Sandbox cannot read USB. Start PS5 websrv (port 8080), then press TRIANGLE.";
+        return result;
+    }
+    const auto folders=directory_json(body);
+    for(const auto& folder:folders){
+        if(folder.mode!="d"&&folder.mode!="m")continue;
+        const std::string dir=root+"/"+folder.name;
+        std::string filesJson;
+        if(!http_get_local(port,"/fs"+url_path(dir)+"?fmt=json",64*1024,filesJson))continue;
+        const auto files=directory_json(filesJson);
+        const auto has_file=[&](const std::string& target) {
+            for(const auto& f:files)if(f.name==target&&f.mode=="f")return true;
+            return false;
+        };
+        std::map<std::string,std::string> metadata;
+        std::string raw;
+        if(has_file("payload.json") && http_get_local(port,"/fs"+url_path(dir+"/payload.json"),kMaxJson,raw))
+            metadata=Parser(raw).fields();
+        std::string exe=get(metadata,"file",127);
+        if(exe.empty())exe=get(metadata,"payload",127);
+        if(!is_safe_filename(exe)||!executable_extension(exe)||!has_file(exe))exe.clear();
+        if(exe.empty()){
+            for(auto ext:{".elf",".efl",".bin"}){
+                std::string candidate=folder.name+ext;
+                if(has_file(candidate)){exe=candidate;break;}
+            }
+        }
+        if(exe.empty()){
+            std::vector<std::string> candidates;
+            for(const auto& f:files)if(f.mode=="f"&&executable_extension(f.name))candidates.push_back(f.name);
+            std::sort(candidates.begin(),candidates.end());
+            if(!candidates.empty())exe=candidates.front();
+        }
+        if(exe.empty())continue;
+        Payload p;
+        p.folder=folder.name;p.filename=exe;p.path=dir+"/"+exe;p.remote=true;
+        p.name=get(metadata,"name",64);if(p.name.empty())p.name=p.folder;
+        p.version=get(metadata,"version",20);if(p.version.empty())p.version="Unversioned";
+        p.description=get(metadata,"description",240);if(p.description.empty())p.description="Local USB payload";
+        p.author=get(metadata,"author",60);if(p.author.empty())p.author="Unknown author";
+        if(has_file("payload.png")){
+            http_get_local(port,"/fs"+url_path(dir+"/payload.png"),3*1024*1024,p.icon_png);
+        }
+        result.payloads.push_back(std::move(p));
+    }
+    result.message=result.payloads.empty()?"Websrv connected, but no ELF files found in USB subfolders":
+        "Loaded "+std::to_string(result.payloads.size())+" payload(s) via local websrv";
+    return result;
+}
+ScanResult scan_local(const std::string& visibleRoot,const std::string& canonicalRoot) {
+    ScanResult result;
+    DIR* d=opendir(visibleRoot.c_str());
+    if(!d){result.message="Cannot open "+visibleRoot+": "+std::strerror(errno);return result;}
+    std::vector<std::string> dirs;
+    while(auto* ent=readdir(d)){
+        const std::string name(ent->d_name);
+        if(!is_safe_filename(name))continue;
+        if(directory(visibleRoot+"/"+name))dirs.push_back(name);
+        if(dirs.size()>=kMaxEntries)break;
+    }
+    closedir(d);std::sort(dirs.begin(),dirs.end());
+    for(const auto& folder:dirs){
+        const std::string dir=visibleRoot+"/"+folder;
+        auto metadata=read_meta(dir+"/payload.json");
+        std::string exe=get(metadata,"file",127);
+        if(exe.empty())exe=get(metadata,"payload",127);
+        if(!is_safe_filename(exe)||!executable_extension(exe)||!regular_file(dir+"/"+exe))exe.clear();
+        if(exe.empty()){
+            for(auto ext:{".elf",".efl",".bin"}){
+                const std::string candidate=folder+ext;
+                if(regular_file(dir+"/"+candidate)){exe=candidate;break;}
+            }
+        }
+        if(exe.empty()){
+            DIR* sub=opendir(dir.c_str());
+            if(sub){
+                std::vector<std::string> candidates;
+                while(auto* e=readdir(sub)){
+                    const std::string candidate=e->d_name;
+                    if(is_safe_filename(candidate)&&executable_extension(candidate)&&regular_file(dir+"/"+candidate))candidates.push_back(candidate);
+                }
+                closedir(sub);std::sort(candidates.begin(),candidates.end());
+                if(!candidates.empty())exe=candidates.front();
+            }
+        }
+        if(exe.empty())continue;
+        Payload p;p.folder=folder;p.filename=exe;p.path=canonicalRoot+"/"+folder+"/"+exe;
+        p.remote=(visibleRoot!=canonicalRoot);
+        p.name=get(metadata,"name",64);if(p.name.empty())p.name=folder;
+        p.version=get(metadata,"version",20);if(p.version.empty())p.version="Unversioned";
+        p.description=get(metadata,"description",240);if(p.description.empty())p.description="Local USB payload";
+        p.author=get(metadata,"author",60);if(p.author.empty())p.author="Unknown author";
+        if(regular_file(dir+"/payload.png"))p.icon=dir+"/payload.png";
+        result.payloads.push_back(std::move(p));
+    }
+    result.message=result.payloads.empty()?"USB folder found, but no ELF files in subfolders":
+       "Loaded "+std::to_string(result.payloads.size())+" payload(s) from "+visibleRoot;
+    return result;
+}
 } // namespace
 bool is_safe_filename(const std::string& s) {
     if(s.empty() || s.size()>127 || s=="." || s==".." || s[0]=='.')return false;
@@ -129,51 +320,23 @@ bool is_elf_file(const std::string& path){
     return n==5 && h[0]==0x7f && h[1]=='E' && h[2]=='L' && h[3]=='F' && h[4]==2;
 }
 ScanResult scan(const std::string& root){
-    ScanResult result;
-    if(!directory(root)) {result.message="USB folder missing: " + root;return result;}
-    DIR* d=opendir(root.c_str());if(!d){result.message="Cannot read USB payload folder";return result;}
-    std::vector<std::string> dirs;
-    while(auto* ent=readdir(d)){
-        std::string name(ent->d_name);
-        if(!is_safe_filename(name))continue;
-        if(directory(root+"/"+name))dirs.push_back(name);
-        if(dirs.size()>=kMaxEntries)break;
-    }
-    closedir(d);std::sort(dirs.begin(),dirs.end());
-    for(const auto& folder:dirs){
-        const std::string dir=root+"/"+folder;
-        auto metadata=read_meta(dir+"/payload.json");
-        std::string exe=get(metadata,"file",127);
-        if(exe.empty())exe=get(metadata,"payload",127);
-        if(!is_safe_filename(exe)||!executable_extension(exe)||!regular_file(dir+"/"+exe))exe.clear();
-        if(exe.empty()){
-            // Prefer a filename that matches the containing folder.
-            for(auto ext:{".elf",".efl",".bin"}){
-                std::string candidate=folder+ext;
-                if(regular_file(dir+"/"+candidate)){exe=candidate;break;}
-            }
-        }
-        if(exe.empty()){
-            DIR* subs=opendir(dir.c_str());if(subs){std::vector<std::string> candidates;while(auto* e=readdir(subs)){
-                std::string candidate=e->d_name;
-                if(is_safe_filename(candidate)&&executable_extension(candidate)&&regular_file(dir+"/"+candidate))candidates.push_back(candidate);
-            }closedir(subs);std::sort(candidates.begin(),candidates.end());if(!candidates.empty())exe=candidates.front();}
-        }
-        if(exe.empty())continue;
-        Payload p;p.folder=folder;p.filename=exe;p.path=dir+"/"+exe;
-        p.name=get(metadata,"name",64);if(p.name.empty())p.name=folder;
-        p.version=get(metadata,"version",20);if(p.version.empty())p.version="Unversioned";
-        p.description=get(metadata,"description",240);if(p.description.empty())p.description="Local USB payload";
-        p.author=get(metadata,"author",60);if(p.author.empty())p.author="Unknown author";
-        if(regular_file(dir+"/payload.png"))p.icon=dir+"/payload.png";
-        result.payloads.push_back(std::move(p));
-    }
-    result.message=result.payloads.empty()?"No payloads found. Add a subfolder with a .elf and payload.json.":
-                   "Loaded "+std::to_string(result.payloads.size())+" payload(s) from USB";
-    return result;
+    ScanResult first=scan_local(root,root);
+    if(!first.payloads.empty())return first;
+    if(root!=kUsbRoot)return first;
+    ScanResult alias=scan_local("/usb0/payloads",root);
+    if(!alias.payloads.empty())return alias;
+    ScanResult remote=scan_websrv(root,8080);
+    if(!remote.payloads.empty())return remote;
+    if(first.message.find("Cannot open")==std::string::npos)return first;
+    return remote;
 }
 std::string request_launch(const Payload& p,int port){
-    if(p.path.rfind(std::string(kUsbRoot)+"/",0)!=0 || !regular_file(p.path) || !is_elf_file(p.path))
+    if(!is_safe_filename(p.folder)||!is_safe_filename(p.filename)||!executable_extension(p.filename) ||
+       p.path!=std::string(kUsbRoot)+"/"+p.folder+"/"+p.filename)
+        return "Invalid payload selection";
+    // Sandboxed native titles cannot always stat USB paths: the privileged
+    // elfldr independently opens and validates the ELF on the host filesystem.
+    if(!p.remote && regular_file(p.path) && !is_elf_file(p.path))
         return "Invalid payload: expected an ELF64 executable on USB";
     if(port<1 || port>65535)return "Invalid loader port";
     int fd=socket(AF_INET,SOCK_STREAM,0);
