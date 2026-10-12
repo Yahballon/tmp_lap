@@ -13,6 +13,8 @@ struct Payload {
     std::string filename;
     std::string path;
     std::string icon;
+    std::string icon_png;
+    bool remote = false;
 };
 struct ScanResult {
     std::vector<Payload> payloads;
