@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   ps5:
@@ -27,7 +27,7 @@ jobs:
           cp -a /tmp/devbridge/templates/simple-calc ./app
       - name: Install tracker sources and metadata
         run: |
-          cp native/main.cpp native/market_client.cpp native/market_client.hpp native/pin_settings.cpp native/pin_settings.hpp app/src/
+          cp native/main.cpp native/market_client.cpp native/market_client.hpp native/pin_settings.cpp native/pin_settings.hpp native/coin_logos.cpp native/coin_logos.hpp app/src/
           python3 - <<'PY'
           import json,pathlib
           p=pathlib.Path("app/sce_sys/param.json")
@@ -35,11 +35,13 @@ jobs:
           data["titleId"]="PPSA99442"
           data["conceptId"]="99442"
           data["contentId"]="UP9000-PPSA99442_00-PS5CRYPTOTRACKER"
-          data["contentVersion"]="01.000.004"
+          data["contentVersion"]="01.000.005"
           data["localizedParameters"]["en-US"]["titleName"]="Crypto Tracker"
           p.write_text(json.dumps(data,indent=2)+"\n")
           PY
           python3 native/generate_icon.py
+          git clone --depth=1 https://github.com/spothq/cryptocurrency-icons.git /tmp/cryptocurrency-icons
+          python3 native/generate_coin_atlas.py
           mkdir -p app/assets
           cp /etc/ssl/certs/ca-certificates.crt app/assets/cacert.pem
           # Compile the trusted CA bundle into the ELF; /app0 may be unavailable
@@ -84,11 +86,11 @@ jobs:
           p=root/"eboot.bin"
           assert p.is_file() and p.stat().st_size>0
           assert struct.unpack("<I",p.read_bytes()[:4])[0]==0x1D3D154F
-          for f in ["sce_sys/param.json","sce_module/libc.prx","assets/cacert.pem"]:
+          for f in ["sce_sys/param.json","sce_module/libc.prx","assets/cacert.pem","assets/coin-atlas.rgba"]:
               assert (root/f).is_file(), f
           assert json.loads((root/"sce_sys/param.json").read_text())["titleId"]=="PPSA99442"
-          assert json.loads((root/"sce_sys/param.json").read_text())["contentVersion"]=="01.000.004"
-          assert b"v0.2.0" in p.read_bytes(), "Wrong executable: version marker missing"
+          assert json.loads((root/"sce_sys/param.json").read_text())["contentVersion"]=="01.000.005"
+          assert b"v0.3.0" in p.read_bytes(), "Wrong executable: version marker missing"
           with zipfile.ZipFile("app/dist/PPSA99442.zip") as z:
               assert z.testzip() is None
               for name in ["eboot.bin","sce_module/libc.prx","assets/cacert.pem"]:
@@ -98,7 +100,38 @@ jobs:
       - name: Upload PS5 installer ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Crypto-Tracker-v0.2.0-PPSA99442
+          name: Crypto-Tracker-v0.3.0-PPSA99442
           path: app/dist/PPSA99442.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish English GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="v0.3.0"
+          notes=$(cat <<'EOF'
+          # Crypto Tracker v0.3.0
+
+          ## What\'s new
+          - Display every saved pinned coin in a scrollable, multi-row Pinned section. Use L1/R1 to page through the list.
+          - Add distinct cryptocurrency logos from the CC0 cryptocurrency-icons collection, bundled for offline rendering; unsupported tokens receive a unique ticker badge.
+          - Update the header to **CRYPTO TRACKER by YAHBALLON**, with the version shown on the far right.
+          - Continue saving favourite coins locally between app launches (SQUARE to pin or unpin).
+          - Package the latest signed PS5 homebrew folder as `PPSA99442.zip`.
+
+          ## Installation
+          Download `PPSA99442.zip`, extract it, close the previous app, replace `/data/homebrew/PPSA99442`, and re-register through ShadowMountPlus if necessary.
+
+          **Notes:** API calls need an internet connection and may be rate-limited by CoinGecko (HTTP 429). Hardware behavior should be tested on your console. Bundled third-party icon artwork: spothq/cryptocurrency-icons (CC0 1.0).
+          EOF
+          )
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; declining to modify an existing version tag."
+            exit 1
+          fi
+          gh release create "$tag" app/dist/PPSA99442.zip \\
+            --target "$GITHUB_SHA" --title "Crypto Tracker v0.3.0" \\
+            --notes "$notes" --latest
