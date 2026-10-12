@@ -35,7 +35,7 @@ jobs:
           data["titleId"]="PPSA99442"
           data["conceptId"]="99442"
           data["contentId"]="UP9000-PPSA99442_00-PS5CRYPTOTRACKER"
-          data["contentVersion"]="01.000.002"
+          data["contentVersion"]="01.000.003"
           data["localizedParameters"]["en-US"]["titleName"]="PS5 Crypto Tracker"
           p.write_text(json.dumps(data,indent=2)+"\n")
           PY
@@ -86,6 +86,8 @@ jobs:
           for f in ["sce_sys/param.json","sce_module/libc.prx","assets/cacert.pem"]:
               assert (root/f).is_file(), f
           assert json.loads((root/"sce_sys/param.json").read_text())["titleId"]=="PPSA99442"
+          assert json.loads((root/"sce_sys/param.json").read_text())["contentVersion"]=="01.000.003"
+          assert b"v0.1.3" in p.read_bytes(), "Wrong executable: version marker missing"
           with zipfile.ZipFile("app/dist/PPSA99442.zip") as z:
               assert z.testzip() is None
               for name in ["eboot.bin","sce_module/libc.prx","assets/cacert.pem"]:
@@ -95,7 +97,7 @@ jobs:
       - name: Upload PS5 installer ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PS5-Crypto-Tracker-PPSA99442
+          name: PS5-Crypto-Tracker-v0.1.3-PPSA99442
           path: app/dist/PPSA99442.zip
           if-no-files-found: error
           retention-days: 30
