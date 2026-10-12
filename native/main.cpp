@@ -98,7 +98,7 @@ int main() {
     hui::ps5::Pad pad;pad.open();
     tracker::requestMarket();
     std::string detailId;
-    bool detail=false;int selection=0;int offset=0;int tab=0;
+    bool detail=false;int selection=0;int offset=0;
     int daysIndex=0;constexpr int periods[]={1,7,30,90,365};
     unsigned prev=0;int tick=0;std::vector<int> order;
     for(;;) {
@@ -178,7 +178,7 @@ int main() {
                 if(!historic)text(ui,font,atlas,"7D sparkline preview (historical chart not loaded)",201,918,18,muted);
                 static const char* labels[]={"1D","7D","30D","90D","1Y"};
                 for(int i=0;i<5;i++) {
-                    ui.bordered_rect({194+i*105,950,88,49},12,
+                    ui.bordered_rect({194.0f+i*105.0f,950,88,49},12,
                        i==daysIndex?Color::rgb(0x383a40):panel,1,
                        i==daysIndex?accent:Color::rgb(0x25252b));
                     text(ui,font,atlas,labels[i],238+i*105,983,21,white,hui::gfx::Align::center);
