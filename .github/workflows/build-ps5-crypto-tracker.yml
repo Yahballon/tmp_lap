@@ -2,8 +2,14 @@ name: Build PS5 Crypto Tracker
 on:
   workflow_dispatch:
   pull_request:
+    paths:
+      - 'homebrew/crypto-tracker/**'
+      - '.github/workflows/build-ps5-crypto-tracker.yml'
   push:
     branches: [main]
+    paths:
+      - 'homebrew/crypto-tracker/**'
+      - '.github/workflows/build-ps5-crypto-tracker.yml'
 
 permissions:
   contents: write
@@ -27,7 +33,7 @@ jobs:
           cp -a /tmp/devbridge/templates/simple-calc ./app
       - name: Install tracker sources and metadata
         run: |
-          cp native/main.cpp native/market_client.cpp native/market_client.hpp native/pin_settings.cpp native/pin_settings.hpp native/coin_logos.cpp native/coin_logos.hpp app/src/
+          cp homebrew/crypto-tracker/native/main.cpp homebrew/crypto-tracker/native/market_client.cpp homebrew/crypto-tracker/native/market_client.hpp homebrew/crypto-tracker/native/pin_settings.cpp homebrew/crypto-tracker/native/pin_settings.hpp homebrew/crypto-tracker/native/coin_logos.cpp homebrew/crypto-tracker/native/coin_logos.hpp app/src/
           python3 - <<'PY'
           import json,pathlib
           p=pathlib.Path("app/sce_sys/param.json")
@@ -39,9 +45,9 @@ jobs:
           data["localizedParameters"]["en-US"]["titleName"]="Crypto Tracker"
           p.write_text(json.dumps(data,indent=2)+"\n")
           PY
-          python3 native/generate_icon.py
+          python3 homebrew/crypto-tracker/native/generate_icon.py
           git clone --depth=1 https://github.com/spothq/cryptocurrency-icons.git /tmp/cryptocurrency-icons
-          python3 native/generate_coin_atlas.py
+          python3 homebrew/crypto-tracker/native/generate_coin_atlas.py
           mkdir -p app/assets
           cp /etc/ssl/certs/ca-certificates.crt app/assets/cacert.pem
           # Compile the trusted CA bundle into the ELF; /app0 may be unavailable
@@ -129,7 +135,7 @@ jobs:
           EOF
           )
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release $tag already exists; declining to modify an existing version tag."
-            exit 1
+            echo "Release $tag already exists; no new version to publish."
+            exit 0
           fi
           gh release create "$tag" "app/dist/PPSA99442.zip" --target "$GITHUB_SHA" --title "Crypto Tracker v0.3.0" --notes "$notes" --latest
