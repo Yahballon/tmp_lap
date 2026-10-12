@@ -115,7 +115,7 @@ jobs:
           notes=$(cat <<'EOF'
           # Crypto Tracker v0.3.0
 
-          ## What\'s new
+          ## What's new
           - Display every saved pinned coin in a scrollable, multi-row Pinned section. Use L1/R1 to page through the list.
           - Add distinct cryptocurrency logos from the CC0 cryptocurrency-icons collection, bundled for offline rendering; unsupported tokens receive a unique ticker badge.
           - Update the header to **CRYPTO TRACKER by YAHBALLON**, with the version shown on the far right.
@@ -132,6 +132,4 @@ jobs:
             echo "Release $tag already exists; declining to modify an existing version tag."
             exit 1
           fi
-          gh release create "$tag" app/dist/PPSA99442.zip \\
-            --target "$GITHUB_SHA" --title "Crypto Tracker v0.3.0" \\
-            --notes "$notes" --latest
+          gh release create "$tag" "app/dist/PPSA99442.zip" --target "$GITHUB_SHA" --title "Crypto Tracker v0.3.0" --notes "$notes" --latest
