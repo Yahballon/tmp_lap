@@ -5,6 +5,7 @@
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "market_client.hpp"
+#include "pin_settings.hpp"
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -15,8 +16,8 @@
 using hui::gfx::Color;
 using hui::gfx::Rect;
 using hui::gfx::DrawList;
-static const Color white=Color::rgb(0xf8f9fc), muted=Color::rgb(0x858b9f),
- panel=Color::rgb(0x19191e), red=Color::rgb(0xff445a), green=Color::rgb(0x22dc91),
+static const Color white=Color::rgb(0xf8f9fc), muted=Color::rgb(0xa0b8df),
+ panel=Color::rgb(0x10254a), red=Color::rgb(0xff445a), green=Color::rgb(0x22dc91),
  accent=Color::rgb(0x57bfff);
 static std::string read(const char* file) {
     FILE* f=fopen(file,"rb");if(!f)return {};
@@ -79,7 +80,10 @@ static bool pinned(const tracker::Coin& c) {
 }
 static void card(DrawList& ui,const hui::gfx::Font& f,unsigned atlas,
  const tracker::Coin& c,float x,float y,bool selected) {
-    ui.bordered_rect({x,y,470,185},22,panel,selected?3:1,selected?accent:Color::rgb(0x25252b));
+    ui.shadow({x,y,470,185},22,22,Color::rgb(0x0060b0,0.15f));
+    ui.bordered_rect({x,y,470,185},22,panel,selected?3:1,selected?accent:Color::rgb(0x245c9b));
+    ui.bordered_rect({x+389,y+16,62,26},7,Color::rgb(0x1c3964),1,Color::rgb(0x3976b8));
+    text(ui,f,atlas,"24H",x+420,y+36,15,muted,hui::gfx::Align::center);
     coin_icon(ui,x+54,y+58,c);
     text(ui,f,atlas,c.name,x+100,y+60,26);
     text(ui,f,atlas,c.symbol,x+100,y+91,18,muted);
@@ -96,6 +100,7 @@ int main() {
     if(!font.load(fontFile))hui::sys::park();
     unsigned atlas=renderer.batch().create_font_texture(font);
     hui::ps5::Pad pad;pad.open();
+    tracker::PinSettings pins;pins.load();
     tracker::requestMarket();
     std::string detailId;
     bool detail=false;int selection=0;int offset=0;
@@ -112,8 +117,8 @@ int main() {
         auto snap=tracker::snapshot();
         // Present pinned favourites first, then rank-ordered market entries.
         order.clear();
-        for(size_t i=0;i<snap.coins.size();++i)if(pinned(snap.coins[i]))order.push_back((int)i);
-        for(size_t i=0;i<snap.coins.size();++i)if(!pinned(snap.coins[i]))order.push_back((int)i);
+        for(const auto& id:pins.ids)for(size_t i=0;i<snap.coins.size();++i)if(snap.coins[i].id==id)order.push_back((int)i);
+        for(size_t i=0;i<snap.coins.size();++i)if(!pins.contains(snap.coins[i].id))order.push_back((int)i);
         const int total=(int)order.size();
         if(!detail) {
             if(pressed&hui::pad_bits::kLeft)selection=std::max(0,selection-1);
@@ -134,32 +139,44 @@ int main() {
                 ++daysIndex;tracker::requestChart(detailId,periods[daysIndex]);
             }
         }
+        if(pressed&hui::pad_bits::kSquare) {
+            std::string id;
+            if(detail)id=detailId;
+            else if(selection>=0 && selection<total)id=snap.coins[order[selection]].id;
+            if(!id.empty() && pins.toggle(id))pins.save();
+        }
         if(pressed&hui::pad_bits::kTriangle)tracker::requestMarket();
         if(++tick>=3600){tick=0;if(!snap.busy)tracker::requestMarket();}
         DrawList ui;
-        ui.rounded_rect({0,0,1920,1080},0,Color::rgb(0x050507));
-        ui.rounded_rect({0,0,1920,52},0,Color::rgb(0x101013));
-        text(ui,font,atlas,"LIVE MARKET  -  PS5 CRYPTO TRACKER",95,36,19,accent);
+        ui.gradient_rect({0,0,1920,1080},0,Color::rgb(0x030a1c),Color::rgb(0x071b43));
+        ui.circle(1700,870,720,Color::rgb(0x07183a,0.30f));
+        ui.arc(1650,830,650,3,0,6.28f,Color::rgb(0x066aca,0.3f));
+        ui.rounded_rect({0,0,1920,52},0,Color::rgb(0x06132b));
+        ui.line(0,52,1920,52,2,accent);
+        ui.bordered_rect({66,13,29,29},6,Color::rgb(0x07315a),2,accent);
+        ui.line(72,34,81,23,3,accent);ui.line(81,23,90,29,3,accent);
+        text(ui,font,atlas,"CRYPTO TRACKER",95,36,19,accent);
         ui.bordered_rect({510,12,147,29},8,Color::rgb(0x153047),1,Color::rgb(0x398ac0));
-        text(ui,font,atlas,"v0.1.3",583,33,19,Color::rgb(0xffffff),hui::gfx::Align::center);
-        text(ui,font,atlas,"TRIANGLE Refresh    X Select    CIRCLE Back / Exit",1770,36,18,muted,hui::gfx::Align::right);
+        text(ui,font,atlas,"v0.2.0",583,33,19,Color::rgb(0xffffff),hui::gfx::Align::center);
+        text(ui,font,atlas,"TRIANGLE Refresh   X Select   SQUARE Pin / Unpin   CIRCLE Back",1770,36,18,muted,hui::gfx::Align::right);
         if(!detail) {
             text(ui,font,atlas,"Home",190,128,48);
+            ui.rounded_rect({180,87,4,47},2,accent);
             text(ui,font,atlas,snap.status,1710,123,21,snap.busy?accent:muted,hui::gfx::Align::right);
             if(total==0) {
                 text(ui,font,atlas,"Waiting for live prices from CoinGecko",960,460,32,muted,hui::gfx::Align::center);
                 text(ui,font,atlas,"An internet connection and valid TLS certificates are required",960,515,21,muted,hui::gfx::Align::center);
             } else {
-                text(ui,font,atlas,"Pinned",190,199,30,muted);
-                for(int i=0;i<total && i<3;i++)
+                text(ui,font,atlas,"Pinned ("+std::to_string(pins.ids.size())+")",190,199,30,muted);
+                for(int i=0;i<total && i<3 && i<(int)pins.ids.size();i++)
                     card(ui,font,atlas,snap.coins[order[i]],190+(i%3)*490,223,i==selection);
                 text(ui,font,atlas,"Top 100",190,467,30,muted);
                 int visible=0;
-                for(int j=std::max(3,offset);j<total && visible<6;j++,visible++) {
+                for(int j=std::max((int)pins.ids.size(),offset);j<total && visible<6;j++,visible++) {
                     const int col=visible%3,row=visible/3;
                     card(ui,font,atlas,snap.coins[order[j]],190+col*490,493+row*202,j==selection);
                 }
-                text(ui,font,atlas,"D-PAD Navigate    X Coin details    TRIANGLE Refresh",190,1041,19,muted);
+                text(ui,font,atlas,"D-PAD Navigate    X Details    SQUARE Pin / Unpin    TRIANGLE Refresh",190,1041,19,muted);
             }
         } else {
             auto it=std::find_if(snap.coins.begin(),snap.coins.end(),[&](const tracker::Coin& c){return c.id==detailId;});
@@ -170,6 +187,7 @@ int main() {
                 coin_icon(ui,225,186,coin);
                 text(ui,font,atlas,coin.name,280,196,46);
                 text(ui,font,atlas,coin.symbol,283,229,24,muted);
+                text(ui,font,atlas,pins.contains(coin.id)?"PINNED  [SQUARE TO UNPIN]":"SQUARE TO PIN",1060,196,20,pins.contains(coin.id)?accent:muted,hui::gfx::Align::right);
                 text(ui,font,atlas,cash(coin.price),190,319,57);
                 text(ui,font,atlas,pct(coin.change24h)+"  (24h)",196,363,23,coin.change24h>=0?green:red);
                 const float chartX=195,chartY=463,chartW=1000,chartH=420;
@@ -185,7 +203,7 @@ int main() {
                        i==daysIndex?accent:Color::rgb(0x25252b));
                     text(ui,font,atlas,labels[i],238+i*105,983,21,white,hui::gfx::Align::center);
                 }
-                ui.bordered_rect({1275,170,450,560},24,panel,1,Color::rgb(0x29292e));
+                ui.bordered_rect({1275,170,450,560},24,panel,2,Color::rgb(0x238eee));
                 text(ui,font,atlas,"Market Stats",1307,218,28,muted);
                 auto row=[&](std::string label,std::string value,int line){
                     float y=287+(float)line*79;
@@ -200,7 +218,7 @@ int main() {
                 row("All Time High",cash(coin.ath),4);
                 row("All Time Low",cash(coin.atl),5);
                 text(ui,font,atlas,snap.status,1278,805,20,muted);
-                text(ui,font,atlas,"LEFT/RIGHT  Chart range",193,1040,20,muted);
+                text(ui,font,atlas,"LEFT/RIGHT Chart range     SQUARE Pin / Unpin",193,1040,20,muted);
             }
         }
         renderer.begin();renderer.draw(ui);
