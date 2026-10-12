@@ -5,6 +5,8 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/pem.h>
+#include "ca_bundle.inc"
 #include <atomic>
 #include <algorithm>
 #include <cctype>
@@ -188,24 +190,23 @@ bool decode_chunks(std::string_view in,std::string& out) {
 
 bool https_get(const std::string& path,std::string& body,std::string& error) {
     const char* host="api.coingecko.com";
-    const char* caCandidates[]={
-        "/app0/assets/cacert.pem",
-        "/data/homebrew/PPSA99442/assets/cacert.pem",
-        "/mnt/sandbox/PPSA99442_000/app0/assets/cacert.pem"
-    };
-    const char* ca=nullptr;
-    for(const char* pathCandidate:caCandidates) {
-        if(::access(pathCandidate,R_OK)==0) {ca=pathCandidate;break;}
-    }
-    if(!ca) {error="TLS CA bundle not found";return false;}
-
     SSL_CTX* ctx=SSL_CTX_new(TLS_client_method());
     if(!ctx){error="TLS initialization failed";return false;}
     SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,nullptr);
     SSL_CTX_set_min_proto_version(ctx,TLS1_2_VERSION);
-    if(SSL_CTX_load_verify_locations(ctx,ca,nullptr)!=1) {
-        error="Cannot load TLS trust bundle";SSL_CTX_free(ctx);return false;
+    // Trust anchors are built into eboot.bin, independent of PS5 mounts and
+    // /app0 access rules (which vary by loader and sandbox configuration).
+    BIO* bundle=BIO_new_mem_buf(kCaBundle, -1);
+    if(!bundle){error="TLS trust bundle initialization failed";SSL_CTX_free(ctx);return false;}
+    X509_STORE* store=SSL_CTX_get_cert_store(ctx);
+    int trusted=0;
+    while(X509* cert=PEM_read_bio_X509(bundle,nullptr,nullptr,nullptr)){
+        if(X509_STORE_add_cert(store,cert)==1)++trusted;
+        X509_free(cert);
     }
+    BIO_free(bundle);
+    ERR_clear_error(); // PEM reaches EOF after the final certificate
+    if(trusted==0){error="Embedded TLS certificate bundle invalid";SSL_CTX_free(ctx);return false;}
     addrinfo hints{};
     hints.ai_family=AF_UNSPEC;
     hints.ai_socktype=SOCK_STREAM;
