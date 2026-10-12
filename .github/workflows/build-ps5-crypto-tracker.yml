@@ -1,0 +1,81 @@
+name: Build PS5 Crypto Tracker
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout tracker source
+        uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 \
+            ninja-build make wget curl unzip tar git python3 pkg-config ca-certificates
+      - name: Fetch reproducible ps5-homebrew-ui app scaffold
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          test -f /tmp/devbridge/templates/simple-calc/GNUmakefile
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+      - name: Install tracker sources and metadata
+        run: |
+          cp native/main.cpp native/market_client.cpp native/market_client.hpp app/src/
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path("app/sce_sys/param.json")
+          data=json.loads(p.read_text())
+          data["titleId"]="PPSA99442"
+          data["conceptId"]="99442"
+          data["contentId"]="UP9000-PPSA99442_00-PS5CRYPTOTRACKER"
+          data["contentVersion"]="01.000.001"
+          data["localizedParameters"]["en-US"]["titleName"]="PS5 Crypto Tracker"
+          p.write_text(json.dumps(data,indent=2)+"\n")
+          PY
+          mkdir -p app/assets
+          cp /etc/ssl/certs/ca-certificates.crt app/assets/cacert.pem
+      - name: Prepare pinned OpenGL SDK
+        working-directory: app
+        env:
+          USE_CCACHE: "0"
+          BUILD_JOBS: "4"
+          PS5_CLANG: clang-18
+        run: bash tools/prepare-opengl.sh
+      - name: Compile and package PS5 app
+        working-directory: app
+        env:
+          USE_CCACHE: "0"
+          BUILD_JOBS: "4"
+          PS5_CLANG: clang-18
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=openssl app
+      - name: Verify package
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,struct,zipfile
+          root=pathlib.Path("app/dist/PPSA99442")
+          p=root/"eboot.bin"
+          assert p.is_file() and p.stat().st_size>0
+          assert struct.unpack("<I",p.read_bytes()[:4])[0]==0x1D3D154F
+          for f in ["sce_sys/param.json","sce_module/libc.prx","assets/cacert.pem"]:
+              assert (root/f).is_file(), f
+          assert json.loads((root/"sce_sys/param.json").read_text())["titleId"]=="PPSA99442"
+          with zipfile.ZipFile("app/dist/PPSA99442.zip") as z:
+              assert z.testzip() is None
+              for name in ["eboot.bin","sce_module/libc.prx","assets/cacert.pem"]:
+                  assert "PPSA99442/"+name in z.namelist(), name
+          print("Native PS5 package verified")
+          PY
+      - name: Upload PS5 installer ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: PS5-Crypto-Tracker-PPSA99442
+          path: app/dist/PPSA99442.zip
+          if-no-files-found: error
+          retention-days: 30
