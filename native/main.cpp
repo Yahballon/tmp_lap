@@ -140,6 +140,8 @@ int main() {
         ui.rounded_rect({0,0,1920,1080},0,Color::rgb(0x050507));
         ui.rounded_rect({0,0,1920,52},0,Color::rgb(0x101013));
         text(ui,font,atlas,"LIVE MARKET  -  PS5 CRYPTO TRACKER",95,36,19,accent);
+        ui.bordered_rect({510,12,147,29},8,Color::rgb(0x153047),1,Color::rgb(0x398ac0));
+        text(ui,font,atlas,"v0.1.3",583,33,19,Color::rgb(0xffffff),hui::gfx::Align::center);
         text(ui,font,atlas,"TRIANGLE Refresh    X Select    CIRCLE Back / Exit",1770,36,18,muted,hui::gfx::Align::right);
         if(!detail) {
             text(ui,font,atlas,"Home",190,128,48);
