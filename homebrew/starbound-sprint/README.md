@@ -2,16 +2,16 @@
 
 Native 2D side-scrolling PS5 homebrew platform game using original procedural geometry. No Mario characters, maps, art or sound are included.
 
-**v0.1.0 · PPSA99641 · Content version 01.000.001**
+**v0.2.0 · PPSA99641 · Content version 01.000.002**
 
-Eight stages, platform physics, camera scrolling, collectible crystals, roaming drones, springs, checkpoints, score, lives, progressive unlocks, and saved score.
+Eight stages, two jumps per landing (double jump), HUD air-jump counter, platform physics, camera scrolling, collectible crystals, roaming drones, springs, checkpoints, score, lives, progressive unlocks, and saved score.
 
 ## Controller
 
 | Button | Use |
 | --- | --- |
 | D-pad / Left Stick | Move |
-| Cross | Jump; confirm |
+| Cross | Jump; release and press again in midair for a second jump; confirm |
 | Square | Sprint |
 | Options | Pause / resume |
 | Circle | Back; exit from title |
@@ -24,6 +24,10 @@ Download PPSA99641.zip from the versioned GitHub release, extract PPSA99641 into
 ## Build
 
 See [dedicated GitHub Actions workflow](../../.github/workflows/build-starbound-sprint.yml). Uses GPL-3.0-or-later ps5-homebrew-ui via the PS5-DevBridge simple-calc PS5 toolchain.
+
+## Double jump
+
+Press Cross once to jump, release it and press again before landing for one extra midair jump. A third press while still airborne does nothing. Both jumps recharge on landing. Launch pads and enemy stomps allow one midair jump afterward. The HUD displays the remaining jump count.
 
 ## Persistence
 

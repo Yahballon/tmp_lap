@@ -29,6 +29,7 @@ public:
     Vec2 player;
     Vec2 velocity;
     bool grounded=false, facing_right=true;
+    int jumps_remaining() const { return 2 - jumps_used_; }
     std::array<std::array<char,kColumns>,kRows> tiles{};
     std::vector<Pickup> pickups;
     std::vector<Drone> drones;
@@ -45,6 +46,7 @@ public:
 private:
     float checkpoint_x=0.f;
     bool jump_was_held=false;
+    int jumps_used_=0;  // Cleared only on landing, respawn or entering a world.
     void make_stage();
     void respawn();
     void damage();
