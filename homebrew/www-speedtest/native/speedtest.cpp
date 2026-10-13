@@ -6,6 +6,7 @@
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -32,10 +33,10 @@ static const Server serverList[]={
  {"London, United Kingdom","GB","lon.speedtest.clouvider.net","/backend"},
  {"New York, USA","US","nyc.speedtest.clouvider.net","/backend"},
  {"Los Angeles, USA","US","la.speedtest.clouvider.net","/backend"},
- {"Prague, Czechia","CZ","speedtest.cesnet.cz","/backend"},
- {"Rome, Italy","IT","st-be-rm2.infra.garr.it",""},
+ {"Bangalore, India","IN","in1.backend.librespeed.org",""},
+ {"Bari, Italy","IT","st-be-ba1.infra.garr.it",""},
  {"Tokyo, Japan","JP","librespeed.a573.net","/backend"},
- {"Singapore","SG","speedtest.dsgroupmedia.com","/backend"},
+ {"Johannesburg, South Africa","ZA","za1.backend.librespeed.org",""},
  {"Chicago, USA","US","chispeed.sharktech.net","/backend"},
  {"Amsterdam Sharktech","NL","amsspeed.sharktech.net","/backend"}
 };
@@ -78,7 +79,7 @@ struct Connection {
    close(fd);fd=-1;
   }
   freeaddrinfo(addresses);
-  if(fd<0){err="Could not connect to Cloudflare";return false;}
+  if(fd<0){err="Could not connect to selected server";return false;}
   ssl=SSL_new(ctx);
   if(!ssl){err="TLS connection allocation failed";return false;}
   SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host);SSL_set1_host(ssl,host);
@@ -94,11 +95,11 @@ struct Connection {
 };
 // Parse HTTP headers before counting payload. Stop on response size limits;
 // using Connection:close to avoid pooled response ambiguity.
-bool request(bool upload,size_t bytes,double& seconds,std::string& error) {
+bool request(bool upload,size_t bytes,double& seconds,std::string& error,size_t* actualBytes=nullptr) {
  Connection c;if(!c.open(error))return false;
  const bool cf=chosen.load()==0;
  std::string path=cf?(upload?"/__up":("/__down?bytes="+std::to_string(bytes))):
- (std::string(server().base)+(upload?"/empty.php":(bytes==0?"/empty.php":"/garbage.php?ckSize="+std::to_string((bytes+999)/1000))));
+ (std::string(server().base)+(upload?"/empty.php":(bytes==0?"/empty.php":"/garbage.php?ckSize="+std::to_string(std::max<size_t>(1,(bytes+1048575)/1048576)))));
  std::string header=(upload?"POST ":"GET ")+path+
  " HTTP/1.1\r\nHost: "+std::string(server().host)+"\r\nUser-Agent: PS5WWWSpeedtest/0.3\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
  if(upload)header+="Content-Type: application/octet-stream\r\nContent-Length: "+std::to_string(bytes)+"\r\n";
@@ -126,10 +127,10 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error) {
    for(char& ch:lower)if(ch>='A'&&ch<='Z')ch=(char)(ch+32);
    auto p=lower.find("content-length:");
    if(p!=std::string::npos){contentLength=(size_t)std::strtoull(lower.c_str()+p+15,nullptr,10);knownLength=true;}
-   if(lower.find("transfer-encoding: chunked")!=std::string::npos && !upload){error="Unexpected chunked test response";return false;}
+   // Chunked responses may include framing. Network payload is measured at HTTP transfer layer.
    received=headers.size()-(pos+4);parsed=true;headers.clear();
   }else received+=(size_t)n;
-  if(!upload&&received>bytes+4096){error="Response exceeded requested size";return false;}
+  if(!upload&&received>(cf?bytes+4096:16*1024*1024)){error="Response exceeded requested size";return false;}
   if(upload&&received>65536){error="Upload response too large";return false;}
   if(knownLength && received>=contentLength){complete=true;break;}
  }
@@ -139,6 +140,8 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error) {
  if(!upload && cf && received!=bytes){error="Incomplete download";return false;}
  if(upload && knownLength && !complete){error="Incomplete upload response";return false;}
  if(seconds<=0){error="Invalid measurement duration";return false;}
+ if(actualBytes)*actualBytes=received;
+ if(!upload && bytes>0 && received==0){error="Server returned no download data";return false;}
  return true;
 }
 void* worker(void*) {
@@ -162,11 +165,11 @@ void* worker(void*) {
   const size_t sizes[]={100000,1000000,4000000,8000000};
   double totalBytes=0,totalSec=0;
   for(int i=0;i<4;i++){
-   double sec=0;if(!request(false,sizes[i],sec,error))break;
-   totalBytes+=sizes[i];totalSec+=sec;
+   double sec=0;size_t got=0;if(!request(false,sizes[i],sec,error,&got))break;
+   totalBytes+=got;totalSec+=sec;
    std::lock_guard<std::mutex> lock(guard);
    state.down=totalBytes*8/totalSec/1e6;
-   state.downGraph.push_back(sizes[i]*8/sec/1e6);state.liveMbps=sizes[i]*8/sec/1e6;
+   state.downGraph.push_back(got*8/sec/1e6);state.liveMbps=got*8/sec/1e6;
    state.progress=.25+.35*(i+1)/4;
   }
  }
