@@ -146,11 +146,16 @@ BACKGROUND_COLOR = BLUE
 # The original command-driven scene parser may also look up World0-0 on win.
 (ROOT/"data"/"World0-0.levelproperties").write_text("LEVEL_TYPE = NONE\nNEXT_LEVEL = (0, 0)\n")
 # Licensing: Liberation Sans is under the SIL Open Font License via distro pack.
-font=Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf")
-if font.is_file():
+font_options=[
+    (Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),Path("/usr/share/doc/fonts-liberation2/copyright")),
+    (Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),Path("/usr/share/doc/fonts-dejavu-core/copyright"))
+]
+for font,licensepath in font_options:
+    if not font.is_file():continue
     dest=ROOT/"fonts"/"press-start-2p.ttf"
     dest.parent.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(font,dest)
-    licensepath=Path("/usr/share/doc/fonts-liberation2/copyright")
     if licensepath.is_file():shutil.copyfile(licensepath,ROOT/"fonts"/"FONT-LICENSE.txt")
+    break
+else:raise RuntimeError("No freely licensed system TTF font available")
 print("Generated 3 original spritesheets, 4 UI images, 27 original sound files and 32 original level sets")
