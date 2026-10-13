@@ -31,5 +31,9 @@ jobs:
           test "${#sources[@]}" -gt 20
           g++ -std=c++17 -O1 -include cstdint -Ibuild/gold872-engine/include "${sources[@]}" -o /tmp/starbound-rebased-desktop \
             $(sdl2-config --cflags --libs) -lSDL2_image -lSDL2_mixer -lSDL2_ttf -pthread
+          python3 homebrew/starbound-rebased/tools/audit-upstream-assets.py build/gold872-engine
           test -s /tmp/starbound-rebased-desktop
           echo "Real engine compilation passed; not PS5-runnable yet"
+
+# The actual PS5 cross-compile is intentionally separate from the host smoke test.
+# It must run only after a pinned SDK + PacBrew sysroot with SDL archives is provisioned.
