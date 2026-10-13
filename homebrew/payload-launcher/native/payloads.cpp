@@ -432,7 +432,20 @@ std::string request_launch(const Payload& p,int port){
         if(n<=0){close(fd);return "Loader connection failed while sending request";}
         sent+=(std::size_t)n;
     }
-    shutdown(fd,SHUT_WR);close(fd);
-    return "Submitted to ELF loader: " + p.name + " (check payload result)";
+    // Keep the request socket readable long enough to capture elfldr errors.
+    // In pipe=0 mode a successful launch can legitimately return no output.
+    struct timeval replyTimeout{1,0};
+    setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&replyTimeout,sizeof(replyTimeout));
+    char reply[256]{};
+    ssize_t received=recv(fd,reply,sizeof(reply)-1,0);
+    close(fd);
+    if(received>0){
+        std::string answer(reply,(std::size_t)received);
+        std::size_t end=answer.find_first_of("\r\n");
+        if(end!=std::string::npos)answer.resize(end);
+        if(answer.size()>140)answer.resize(140);
+        return "elfldr response: "+answer;
+    }
+    return "ELF launch sent: "+p.name+" (no loader confirmation)";
 }
 } // namespace launcher
