@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.2.3.
+// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.2.4.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -28,7 +28,7 @@ using hui::gfx::DrawList;
 using hui::gfx::Align;
 namespace {
 constexpr auto kTitle="PPSA99873";
-constexpr auto kVersion="v0.2.3";
+constexpr auto kVersion="v0.2.4";
 const Color kWhite=Color::rgb(0xf1f6ff);
 const Color kMuted=Color::rgb(0xa1bbdc);
 const Color kBlue=Color::rgb(0x119bff);
@@ -166,7 +166,7 @@ void draw_screen(DrawList& ui,App& app,const hui::gfx::Font& font,unsigned atlas
     ui.gradient_rect({0,0,1920,155},0,Color::rgb(0x020815,0.25f),Color::rgb(0x011128,0.58f));
     logo(ui,87,25,1.0f);
     label(ui,font,atlas,"Payload",222,78,43,kWhite);
-    label(ui,font,atlas,"Launcher",447,78,43,Color::rgb(0x159efe));
+    label(ui,font,atlas,"Launcher",397,78,43,Color::rgb(0x159efe));
     label(ui,font,atlas,"PS5 HOMEBREW PAYLOADS",224,113,18,Color::rgb(0x80bdff),Align::left,5.3f);
     label(ui,font,atlas,"by YAHBALLON",223,141,15,Color::rgb(0x709aca),Align::left,2.1f);
     hint(ui,font,atlas,1078,"X","Launch");
