@@ -54,23 +54,24 @@ int main(){
  hui::ps5::Pad pad;pad.open();unsigned previous=0;
  const char* menus[]={"Speed Test","Server Select","Results","Network Info","Settings","About"};
  const char* subs[]={"Test your connection","Choose test server","View test history","Show connection details","Adjust options","App information"};
- int menu=0,tab=0,historyScroll=0,graphTab=0;
+ int menu=0,tab=0,historyScroll=0,graphTab=0,serverScroll=0,serverFocus=0;
  bool measured=false,previouslyRunning=false,autoSave=true;
  std::vector<Result> history=loadHistory();
  int frame=0;
  for(;;){
   std::array<hui::PadSample,64> samples{};unsigned pressed=0;size_t n=pad.read(samples);
   for(size_t i=0;i<n;i++){pressed|=samples[i].buttons&~previous;previous=samples[i].buttons;}
-  if(pressed&hui::pad_bits::kUp){if(menu==2&&historyScroll>0)historyScroll--;else menu=(menu+5)%6;}
-  if(pressed&hui::pad_bits::kDown){if(menu==2&&historyScroll+6<(int)history.size())historyScroll++;else menu=(menu+1)%6;}
+  if(pressed&hui::pad_bits::kUp){if(menu==1){serverFocus=std::max(0,serverFocus-1);if(serverFocus<serverScroll)serverScroll=serverFocus;}else if(menu==2&&historyScroll>0)historyScroll--;else menu=(menu+5)%6;}
+  if(pressed&hui::pad_bits::kDown){if(menu==1){serverFocus=std::min(speedtest::serverCount()-1,serverFocus+1);if(serverFocus>=serverScroll+9)serverScroll=serverFocus-8;}else if(menu==2&&historyScroll+6<(int)history.size())historyScroll++;else menu=(menu+1)%6;}
   if(pressed&hui::pad_bits::kLeft)tab=(tab+3)%4;
   if(pressed&hui::pad_bits::kRight)tab=(tab+1)%4;
   if(pressed&hui::pad_bits::kL1)graphTab=(graphTab+3)%4;
   if(pressed&hui::pad_bits::kR1)graphTab=(graphTab+1)%4;
   if(pressed&hui::pad_bits::kCircle){if(menu!=0)menu=0;else {pad.close();renderer.release();display.close();hui::sys::quit();}}
   if(pressed&hui::pad_bits::kTriangle){menu=0;graphTab=0;}
+  if(pressed&hui::pad_bits::kSquare){menu=1;serverFocus=speedtest::selectedServer();serverScroll=std::max(0,serverFocus-7);}
   if(pressed&hui::pad_bits::kCross){
-   if(menu==0)speedtest::start();
+   if(menu==0)speedtest::start();else if(menu==1)speedtest::selectServer(serverFocus);
    else if(menu==4)autoSave=!autoSave;
   }
   auto s=speedtest::snapshot();
@@ -89,7 +90,7 @@ int main(){
   t(ui,font,atlas,"WWW SPEEDTEST",196,69,52);
   t(ui,font,atlas,"Test your internet speed on PS5",198,108,23,muted);
   t(ui,font,atlas,"by YAHBALLON",1580,55,18,cyan);
-  t(ui,font,atlas,"v0.2.0",1835,55,20,white,Align::right);
+  t(ui,font,atlas,"v0.3.0",1835,55,20,white,Align::right);
   panel(ui,24,161,380,848);
   const char* symbols[]={"[>]","[=]","[|]","[@]","[*]","[i]"};
   for(int i=0;i<6;i++){
@@ -113,7 +114,13 @@ int main(){
     float x2=cx+242*std::cos(angle),y2=cy+242*std::sin(angle);
     ui.line(x1,y1,x2,y2,(i%4==0)?4:2,muted);
    }
+   // Needle sweeps with each sampled throughput value.
+   const double value=s.running?s.liveMbps:(s.completed?s.down:0);
+   const double fraction=std::min(1.0,value/1000.0);
+   float needleAngle=3.53f+(8.94f-3.53f)*(float)fraction;
+   ui.line(cx,cy,cx+198*std::cos(needleAngle),cy+198*std::sin(needleAngle),7,cyan);
    ui.circle(cx,cy,139,Color::rgb(0x086fe1));ui.circle(cx,cy,132,dark);
+   if(s.running||s.completed)t(ui,font,atlas,fmt(value)+" Mbps",cx,cy+85,24,cyan,Align::center);
    t(ui,font,atlas,s.running?"TESTING":s.completed?"RESTART":"START",cx,cy-6,42,white,Align::center);
    t(ui,font,atlas,s.running?"PLEASE WAIT":"SPEED TEST",cx,cy+36,20,muted,Align::center);
    t(ui,font,atlas,"0",577,563,19);t(ui,font,atlas,"1000",1017,563,19);
@@ -127,9 +134,9 @@ int main(){
    }
    panel(ui,1195,144,696,188);
    t(ui,font,atlas,"Test Server",1260,187,25);
-   t(ui,font,atlas,"Cloudflare Edge (Auto)",1270,245,27);
-   t(ui,font,atlas,"Verified HTTPS    |    Global routing",1270,288,17,muted);
-   pill(ui,font,atlas,"Auto",1690,218,172,true);
+   t(ui,font,atlas,speedtest::servers()[speedtest::selectedServer()].name,1270,245,25);
+   t(ui,font,atlas,"Verified HTTPS   |   X on Server Select to change",1270,288,17,muted);
+   pill(ui,font,atlas,"SQUARE",1690,218,172,true);
    panel(ui,1195,340,696,374);
    const char* tabs[]={"Speed Graph","Download","Upload","Ping"};
    for(int i=0;i<4;i++)pill(ui,font,atlas,tabs[i],1212+i*167,356,155,graphTab==i);
@@ -143,14 +150,14 @@ int main(){
    t(ui,font,atlas,graphTab==0?"Download (cyan)       Upload (purple)":tabs[graphTab],1258,678,20,muted);
    panel(ui,415,727,460,283);panel(ui,890,727,455,283);panel(ui,1360,727,531,283);
    t(ui,font,atlas,"Connection Information",440,765,23);divider(ui,436,779,412);
-   t(ui,font,atlas,"Endpoint",438,816,20,muted);t(ui,font,atlas,"speed.cloudflare.com",608,816,18);
+   t(ui,font,atlas,"Endpoint",438,816,20,muted);t(ui,font,atlas,speedtest::servers()[speedtest::selectedServer()].host,608,816,16);
    t(ui,font,atlas,"Protocol",438,852,20,muted);t(ui,font,atlas,"Verified HTTPS",608,852,19);
    t(ui,font,atlas,"Connection",438,888,20,muted);t(ui,font,atlas,s.running?"Testing":s.completed?"Available":"Not tested",608,888,18);
    t(ui,font,atlas,"Latency / Jitter",438,924,19,muted);t(ui,font,atlas,fmt(s.ping)+" / "+fmt(s.jitter)+" ms",608,924,18);
    t(ui,font,atlas,"Quick Servers",915,765,23);divider(ui,910,779,413);
-   t(ui,font,atlas,"Cloudflare (automatic)",918,825,22,cyan);
-   t(ui,font,atlas,"Other cities require verified",918,862,19,muted);
-   t(ui,font,atlas,"regional test endpoints.",918,892,19,muted);
+   t(ui,font,atlas,speedtest::servers()[speedtest::selectedServer()].name,918,825,21,cyan);
+   t(ui,font,atlas,"SQUARE to choose servers",918,862,19,muted);
+   t(ui,font,atlas,"LibreSpeed server directory",918,892,19,muted);
    t(ui,font,atlas,"Recent Results",1385,765,23);divider(ui,1380,779,491);
    if(history.empty())t(ui,font,atlas,"Run a test to populate history",1390,824,20,muted);
    for(size_t i=0;i<history.size()&&i<5;i++){const auto& r=history[i];float y=816+i*35;
@@ -164,10 +171,19 @@ int main(){
    t(ui,font,atlas,menus[menu],470,231,50);
    divider(ui,465,252,1374);
    if(menu==1){
-    t(ui,font,atlas,"Available measurement endpoint",470,330,30);
-    pill(ui,font,atlas,"Cloudflare (Auto)",470,360,430,true);
-    t(ui,font,atlas,"Cloudflare chooses the edge automatically. Geographic selection is",470,468,25,muted);
-    t(ui,font,atlas,"not supported until additional real regional servers are verified.",470,509,25,muted);
+    t(ui,font,atlas,"Select real LibreSpeed measurement server (X)",470,319,28);
+    const auto* hosts=speedtest::servers();
+    for(int i=serverScroll;i<speedtest::serverCount()&&i<serverScroll+9;i++){
+      const float y=360+(i-serverScroll)*67;
+      ui.bordered_rect({470,y-33,1320,59},10,Color::rgb(i==serverFocus?0x0b4383:0x0a1a36),i==serverFocus?2:1,i==serverFocus?cyan:edge);
+      const std::string flag=hosts[i].flag;
+      if(flag=="DE"){ui.rounded_rect({488,y-17,45,13},0,Color::rgb(0x181818));ui.rounded_rect({488,y-4,45,13},0,Color::rgb(0xdd2929));ui.rounded_rect({488,y+9,45,13},0,Color::rgb(0xf9cc3d));}
+      else if(flag=="NL"){ui.rounded_rect({488,y-17,45,13},0,Color::rgb(0xc9303e));ui.rounded_rect({488,y-4,45,13},0,white);ui.rounded_rect({488,y+9,45,13},0,Color::rgb(0x224dbb));}
+      else {ui.bordered_rect({488,y-17,45,39},3,Color::rgb(0x092b67),1,cyan);t(ui,font,atlas,flag,510,y+10,14,white,Align::center);}
+      t(ui,font,atlas,hosts[i].name,558,y+9,23,i==serverFocus?white:muted);
+      if(i==speedtest::selectedServer())t(ui,font,atlas,"SELECTED",1740,y+9,18,green,Align::right);
+    }
+    t(ui,font,atlas,"Hosted servers may be unavailable. No location or speed is fabricated.",470,984,19,muted);
    }
    if(menu==2){
     t(ui,font,atlas,"Saved results: "+std::to_string(history.size()),470,323,26,muted);
@@ -181,7 +197,7 @@ int main(){
     }
    }
    if(menu==3){
-    t(ui,font,atlas,"Server: speed.cloudflare.com",475,348,29);
+    t(ui,font,atlas,std::string("Server: ")+speedtest::servers()[speedtest::selectedServer()].host,475,348,29);
     t(ui,font,atlas,"Transport: HTTPS / TLS with certificate validation",475,406,25);
     t(ui,font,atlas,"Latency includes TLS and connection setup time.",475,463,25,muted);
     t(ui,font,atlas,"IP address, ISP, DNS and NAT type are not available in this build.",475,533,23,muted);
@@ -190,16 +206,16 @@ int main(){
     t(ui,font,atlas,"Auto-save completed tests",475,355,28);
     pill(ui,font,atlas,autoSave?"ON":"OFF",1030,319,170,true);
     t(ui,font,atlas,"Press X to toggle. Up to 50 results are stored locally.",475,411,22,muted);
-    t(ui,font,atlas,"Measurement host: Cloudflare global edge",475,484,23);
+    t(ui,font,atlas,std::string("Measurement host: ")+speedtest::servers()[speedtest::selectedServer()].host,475,484,23);
    }
    if(menu==5){
     t(ui,font,atlas,"WWW SPEEDTEST by YAHBALLON",475,361,32);
-    t(ui,font,atlas,"v0.2.0 | PPSA99573 | Native C++ / OpenGL",475,426,25,muted);
+    t(ui,font,atlas,"v0.3.0 | PPSA99573 | Native C++ / OpenGL",475,426,25,muted);
     t(ui,font,atlas,"Real HTTPS measurements. No simulated network data.",475,497,24,cyan);
    }
   }
   if(s.running){ui.rounded_rect({434,1015,1450*(float)s.progress,7},3,cyan);}
-  t(ui,font,atlas,"X Select / Start    O Back    D-Pad Navigate    L1/R1 Graph Tabs    Triangle Home",47,1054,20,muted);
+  t(ui,font,atlas,"X Select / Start    O Back    D-Pad Navigate    SQUARE Servers    L1/R1 Graph Tabs",47,1054,20,muted);
   if(s.running||(!s.completed&&s.status.find("failed")!=std::string::npos))t(ui,font,atlas,s.status,1860,1052,17,s.running?cyan:purple,Align::right);
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }

@@ -24,6 +24,23 @@ namespace {
 std::mutex guard;
 Snapshot state;
 std::atomic<bool> busy{false};
+std::atomic<int> chosen{0};
+static const Server serverList[]={
+ {"Cloudflare Automatic","GLOBAL","speed.cloudflare.com",""},
+ {"Frankfurt, Germany","DE","fra.speedtest.clouvider.net","/backend"},
+ {"Amsterdam, Netherlands","NL","ams.speedtest.clouvider.net","/backend"},
+ {"London, United Kingdom","GB","lon.speedtest.clouvider.net","/backend"},
+ {"New York, USA","US","nyc.speedtest.clouvider.net","/backend"},
+ {"Los Angeles, USA","US","la.speedtest.clouvider.net","/backend"},
+ {"Prague, Czechia","CZ","speedtest.cesnet.cz","/backend"},
+ {"Rome, Italy","IT","st-be-rm2.infra.garr.it",""},
+ {"Tokyo, Japan","JP","librespeed.a573.net","/backend"},
+ {"Singapore","SG","speedtest.dsgroupmedia.com","/backend"},
+ {"Chicago, USA","US","chispeed.sharktech.net","/backend"},
+ {"Amsterdam Sharktech","NL","amsspeed.sharktech.net","/backend"}
+};
+static constexpr int count=(int)(sizeof(serverList)/sizeof(serverList[0]));
+static const Server& server(){return serverList[chosen.load()];}
 using Clock=std::chrono::steady_clock;
 double elapsed(Clock::time_point t){return std::chrono::duration<double>(Clock::now()-t).count();}
 void update(int phase,const char* message,double progress) {
@@ -34,7 +51,7 @@ struct Connection {
  SSL_CTX* ctx=nullptr; SSL* ssl=nullptr;int fd=-1;
  ~Connection(){if(ssl){SSL_shutdown(ssl);SSL_free(ssl);}if(fd>=0)close(fd);if(ctx)SSL_CTX_free(ctx);}
  bool open(std::string& err) {
-  const char* host="speed.cloudflare.com";
+  const char* host=server().host;
   ctx=SSL_CTX_new(TLS_client_method());
   if(!ctx){err="Could not initialize TLS";return false;}
   SSL_CTX_set_min_proto_version(ctx,TLS1_2_VERSION);
@@ -79,9 +96,11 @@ struct Connection {
 // using Connection:close to avoid pooled response ambiguity.
 bool request(bool upload,size_t bytes,double& seconds,std::string& error) {
  Connection c;if(!c.open(error))return false;
- std::string path=upload?"/__up":("/__down?bytes="+std::to_string(bytes));
+ const bool cf=chosen.load()==0;
+ std::string path=cf?(upload?"/__up":("/__down?bytes="+std::to_string(bytes))):
+ (std::string(server().base)+(upload?"/empty.php":(bytes==0?"/empty.php":"/garbage.php?ckSize="+std::to_string((bytes+999)/1000))));
  std::string header=(upload?"POST ":"GET ")+path+
- " HTTP/1.1\r\nHost: speed.cloudflare.com\r\nUser-Agent: PS5WWWSpeedtest/0.1\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
+ " HTTP/1.1\r\nHost: "+std::string(server().host)+"\r\nUser-Agent: PS5WWWSpeedtest/0.3\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
  if(upload)header+="Content-Type: application/octet-stream\r\nContent-Length: "+std::to_string(bytes)+"\r\n";
  header+="\r\n";
  auto began=Clock::now();
@@ -117,7 +136,7 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error) {
  seconds=elapsed(began);
  if(!parsed){error="No HTTP response";return false;}
  if(status!=200){error="Test server HTTP "+std::to_string(status);return false;}
- if(!upload && received!=bytes){error="Incomplete download";return false;}
+ if(!upload && cf && received!=bytes){error="Incomplete download";return false;}
  if(upload && knownLength && !complete){error="Incomplete upload response";return false;}
  if(seconds<=0){error="Invalid measurement duration";return false;}
  return true;
@@ -147,7 +166,7 @@ void* worker(void*) {
    totalBytes+=sizes[i];totalSec+=sec;
    std::lock_guard<std::mutex> lock(guard);
    state.down=totalBytes*8/totalSec/1e6;
-   state.downGraph.push_back(sizes[i]*8/sec/1e6);
+   state.downGraph.push_back(sizes[i]*8/sec/1e6);state.liveMbps=sizes[i]*8/sec/1e6;
    state.progress=.25+.35*(i+1)/4;
   }
  }
@@ -160,7 +179,7 @@ void* worker(void*) {
    totalBytes+=sizes[i];totalSec+=sec;
    std::lock_guard<std::mutex> lock(guard);
    state.up=totalBytes*8/totalSec/1e6;
-   state.upGraph.push_back(sizes[i]*8/sec/1e6);
+   state.upGraph.push_back(sizes[i]*8/sec/1e6);state.liveMbps=sizes[i]*8/sec/1e6;
    state.progress=.65+.35*(i+1)/4;
   }
  }
@@ -174,9 +193,13 @@ void* worker(void*) {
  return nullptr;
 }
 } // namespace
+const Server* servers(){return serverList;}
+int serverCount(){return count;}
+int selectedServer(){return chosen.load();}
+bool selectServer(int index){if(index<0||index>=count||busy.load())return false;chosen.store(index);return true;}
 bool start(){
  bool expected=false;if(!busy.compare_exchange_strong(expected,true))return false;
- {std::lock_guard<std::mutex> lock(guard);state=Snapshot{};state.running=true;state.status="Connecting to Cloudflare...";}
+ {std::lock_guard<std::mutex> lock(guard);state=Snapshot{};state.running=true;state.status=std::string("Connecting to ")+server().name+"...";}
  pthread_attr_t attrs;pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,1024*1024);
  pthread_t id{};int result=pthread_create(&id,&attrs,worker,nullptr);pthread_attr_destroy(&attrs);
  if(result!=0){std::lock_guard<std::mutex> lock(guard);state.running=false;state.status="Could not launch network thread";busy=false;return false;}
