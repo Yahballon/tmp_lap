@@ -89,7 +89,7 @@ int main(){
   if(pressed&hui::pad_bits::kTriangle){menu=0;graphTab=0;}
   if(pressed&hui::pad_bits::kSquare){menu=1;serverFocus=speedtest::selectedServer();serverScroll=std::max(0,serverFocus-7);}
   if(pressed&hui::pad_bits::kCross){
-   if(menu==0)speedtest::start();else if(menu==1)speedtest::selectServer(serverFocus);
+   if(menu==0)speedtest::start();else if(menu==1){if(speedtest::selectServer(serverFocus)){menu=0;speedtest::start();}}
    else if(menu==4)autoSave=!autoSave;
   }
   auto s=speedtest::snapshot();
