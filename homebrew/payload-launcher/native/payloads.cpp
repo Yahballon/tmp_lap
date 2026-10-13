@@ -205,7 +205,7 @@ std::vector<RemoteEntry> directory_json(std::string_view json){
     }
     return out;
 }
-ScanResult scan_websrv(const std::string& root,int port){
+[[maybe_unused]] ScanResult scan_websrv(const std::string& root,int port){
     ScanResult result;
     std::string body;
     if(!http_get_local(port,"/fs"+url_path(root)+"?fmt=json",128*1024,body)) {
@@ -349,7 +349,7 @@ ScanResult scan_embedded_helper(const std::string& root) {
     if(!sent){close(fd);result.message="Cannot submit USB helper to elfldr";return result;}
     shutdown(fd,SHUT_WR);
     std::string data;data.reserve(8192);
-    while(data.size()<8*1024*1024){
+    while(data.size()<32*1024*1024){
         ssize_t n=recv(fd,buf,sizeof(buf),0);
         if(n==0)break;
         if(n<0)break;
