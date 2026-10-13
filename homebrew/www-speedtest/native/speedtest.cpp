@@ -98,7 +98,7 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error) {
  Connection c;if(!c.open(error))return false;
  const bool cf=chosen.load()==0;
  std::string path=cf?(upload?"/__up":("/__down?bytes="+std::to_string(bytes))):
- (std::string(server().base)+(upload?"/empty.php":"/garbage.php?ckSize=4000"));
+ (std::string(server().base)+(upload?"/empty.php":(bytes==0?"/empty.php":"/garbage.php?ckSize="+std::to_string((bytes+999)/1000))));
  std::string header=(upload?"POST ":"GET ")+path+
  " HTTP/1.1\r\nHost: "+std::string(server().host)+"\r\nUser-Agent: PS5WWWSpeedtest/0.3\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
  if(upload)header+="Content-Type: application/octet-stream\r\nContent-Length: "+std::to_string(bytes)+"\r\n";
