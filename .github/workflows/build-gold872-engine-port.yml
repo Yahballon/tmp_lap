@@ -89,6 +89,9 @@ jobs:
         run: |
           python3 homebrew/starbound-rebased/tools/generate-original-media.py
           test -s homebrew/starbound-rebased/res/sprites/characters/PlayerSpriteSheet.png
+      - name: Apply PS5-specific input and resource path adapters
+        run: |
+          python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
       - name: Cross-compile original SDL2 engine as PS5 payload ELF
         env:
           PS5_PAYLOAD_SDK: /tmp/ps5-toolchain/.deps/native/ps5-payload-sdk
@@ -96,11 +99,26 @@ jobs:
           cd homebrew/starbound-rebased/ps5
           make -j4 UPSTREAM=../../../build/gold872-engine
           test -s build/starbound-gold872.elf
+      - name: Package playable-format PS5 ELF prototype with original resources
+        run: |
+          python3 - <<'PY'
+          import pathlib,zipfile
+          root=pathlib.Path("homebrew/starbound-rebased")
+          target=pathlib.Path("StarboundRebased-ELF-PROTOTYPE.zip")
+          files=[(root/"ps5/build/starbound-gold872.elf","starbound-gold872.elf")]
+          files += [(p,"STARBOUND_REBASED/"+p.relative_to(root).as_posix()) for p in (root/"res").rglob("*") if p.is_file()]
+          files.append((pathlib.Path("build/gold872-engine/LICENSE"),"STARBOUND_REBASED/UPSTREAM-MIT-LICENSE.txt"))
+          with zipfile.ZipFile(target,"w",compression=zipfile.ZIP_DEFLATED) as z:
+              for path,name in files:z.write(path,name)
+          with zipfile.ZipFile(target) as z:
+              assert z.testzip() is None
+              assert "starbound-gold872.elf" in z.namelist()
+              assert "STARBOUND_REBASED/res/sprites/characters/PlayerSpriteSheet.png" in z.namelist()
+          print("ELF prototype size",target.stat().st_size,"bytes")
+          PY
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: gold872-ps5-payload-prototype-not-release
-          path: |
-            homebrew/starbound-rebased/ps5/build/starbound-gold872.elf
-            homebrew/starbound-rebased/res/
+          path: StarboundRebased-ELF-PROTOTYPE.zip
           if-no-files-found: error
