@@ -108,12 +108,12 @@ jobs:
           root=pathlib.Path('app/dist')/title
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']==title
-          assert meta['contentVersion']=='01.000.003'
+          assert meta['contentVersion']=='01.000.004'
           assert meta['contentId']=='UP9000-PPSA99873_00-PAYLOADLAUNCHER0'
           binary=(root/'eboot.bin').read_bytes()
           assert len(binary)>4096
           assert struct.unpack('<I',binary[:4])[0]==0x1d3d154f, 'not an expected PS5 FSELF header'
-          assert 'v0.2.1' in pathlib.Path('homebrew/payload-launcher/native/main.cpp').read_text(), 'missing native version in source'
+          assert 'v0.2.2' in pathlib.Path('homebrew/payload-launcher/native/main.cpp').read_text(), 'missing native version in source'
           required=['usbscan.elf','eboot.bin','sce_module/libc.prx','sce_sys/icon0.png',
                     'sce_sys/param.json','assets/launcher-background.png',
                     'assets/fonts/inter-semibold.huifont']
@@ -126,7 +126,7 @@ jobs:
       - name: Upload installable ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Payload-Launcher-v0.2.1-PPSA99873
+          name: Payload-Launcher-v0.2.2-PPSA99873
           path: app/dist/PPSA99873.zip
           if-no-files-found: error
           retention-days: 30
@@ -136,13 +136,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag='payload-launcher-v0.2.1'
+          tag='payload-launcher-v0.2.2'
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release already exists. Not overwriting existing version."
             exit 0
           fi
           cat > /tmp/release-notes.md <<'NOTES'
-          # Payload Launcher v0.2.1 by YAHBALLON
+          # Payload Launcher v0.2.2 by YAHBALLON
 
           Native PS5 USB payload browser with a blue neon console interface.
 
@@ -161,5 +161,5 @@ jobs:
           The app submits the launch request; whether the payload ran successfully requires separate verification. USB paths depend on the console runtime, and unsupported or invalid PNG files use a fallback icon. Run only payloads you trust.
           NOTES
           gh release create "$tag" "app/dist/PPSA99873.zip" \
-             --target "$GITHUB_SHA" --title 'Payload Launcher v0.2.1' \
+             --target "$GITHUB_SHA" --title 'Payload Launcher v0.2.2' \
              --notes-file /tmp/release-notes.md
