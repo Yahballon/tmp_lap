@@ -5,6 +5,7 @@
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
