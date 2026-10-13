@@ -1,3 +1,3 @@
-# Starbound Rebased v0.1.0 (Experimental)
+# Starbound Rebased v0.1.1 – Startup Diagnostics
 
-First ShadowMount test build of the actual Gold872 MIT ECS/SDL2 engine, with all original replacement graphics, levels, music and SFX. Independent title ID PPSA99642; does not overwrite Starbound Sprint. Native console execution and DualSense compatibility remain unverified; report startup issues.
+Hardware report: PPSA99642 v0.1.0 crashed with SIGSEGV and null fault address before the game screen. This release adds persistent early-start checkpoints at `/data/starbound-rebased/boot.log`, SDL texture/icon/font null guards, nonfatal audio initialization and a bumped application content version. **Boot fix remains unverified on actual PS5 hardware.** If it crashes, please share the log file and the full crash diagnostic; it helps distinguish pre-main runtime failure from SDL setup. Original upstream code is MIT licensed; assets are independently generated.
