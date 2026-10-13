@@ -1,9 +1,9 @@
 # WWW SPEEDTEST by YAHBALLON
 
-Native PS5 homebrew internet connection tester, v0.2.0. Title ID: **PPSA99573**.
+Native PS5 homebrew internet connection tester, v0.3.0. Title ID: **PPSA99573**.
 
 ## Features
-- Screenshot-inspired six-section dashboard and selection focus
+- Animated live-speed needle and selectable LibreSpeed country servers\n- Screenshot-inspired six-section dashboard and selection focus
 - Persistent results history (up to 50 results) and auto-save toggle (session-only)
 - Tabs for throughput graphs and ping/jitter information
 - Cloudflare edge HTTPS download/upload throughput measurements
@@ -12,7 +12,7 @@ Native PS5 homebrew internet connection tester, v0.2.0. Title ID: **PPSA99573**.
 - Verified TLS using embedded CA bundle, network worker off the rendering thread
 - No dummy speed readings or account requirement
 
-**Limitations:** Cloudflare routes automatically; v0.2.0 does not offer cities as selectable test servers, IP/ISP lookup or reliable NAT detection. Results estimate application-layer throughput and are affected by TLS setup and server rate limits. Tests consume network data. Console hardware testing pending.
+**Limitations:** Cloudflare routes automatically; v0.3.0 does not guarantee availability of third-party regional test servers, IP/ISP lookup or reliable NAT detection. Results estimate application-layer throughput and are affected by TLS setup and server rate limits. Tests consume network data. Console hardware testing pending.
 
 ## Controller
 D-Pad: menu navigation · Cross: run speed test on Speed Test view · Circle: back or exit · Triangle: home.
