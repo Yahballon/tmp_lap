@@ -28,6 +28,7 @@ std::mutex guard;
 Snapshot state;
 std::atomic<bool> busy{false};
 std::atomic<int> chosen{0};
+std::atomic<int> italianMirror{0};
 static const Server serverList[]={
  {"Cloudflare Automatic","GLOBAL","speed.cloudflare.com",""},
  {"Frankfurt, Germany","DE","fra.speedtest.clouvider.net","/backend"},
@@ -44,6 +45,11 @@ static const Server serverList[]={
 };
 static constexpr int count=(int)(sizeof(serverList)/sizeof(serverList[0]));
 static const Server& server(){return serverList[chosen.load()];}
+static const char* effectiveHost(){
+ if(chosen.load()!=7)return server().host;
+ static const char* hosts[]={"st-be-bo1.infra.garr.it","st-be-ba1.infra.garr.it","st-be-rm2.infra.garr.it"};
+ int i=italianMirror.load();return hosts[i>=0&&i<3?i:0];
+}
 using Clock=std::chrono::steady_clock;
 double elapsed(Clock::time_point t){return std::chrono::duration<double>(Clock::now()-t).count();}
 void update(int phase,const char* message,double progress) {
@@ -54,7 +60,7 @@ struct Connection {
  SSL_CTX* ctx=nullptr; SSL* ssl=nullptr;int fd=-1;
  ~Connection(){if(ssl){SSL_shutdown(ssl);SSL_free(ssl);}if(fd>=0)close(fd);if(ctx)SSL_CTX_free(ctx);}
  bool open(std::string& err) {
-  const char* host=server().host;
+  const char* host=effectiveHost();
   ctx=SSL_CTX_new(TLS_client_method());
   if(!ctx){err="Could not initialize TLS";return false;}
   SSL_CTX_set_min_proto_version(ctx,TLS1_2_VERSION);
@@ -113,7 +119,7 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error,size_t*
  std::string path=cf?(upload?"/__up":("/__down?bytes="+std::to_string(bytes))):
  (std::string(server().base)+(upload?"/empty.php":(bytes==0?"/empty.php":"/garbage.php?ckSize="+std::to_string(std::max<size_t>(1,(bytes+1048575)/1048576)))));
  std::string header=(upload?"POST ":"GET ")+path+
- " HTTP/1.1\r\nHost: "+std::string(server().host)+"\r\nUser-Agent: PS5WWWSpeedtest/0.3\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
+ " HTTP/1.1\r\nHost: "+std::string(effectiveHost())+"\r\nUser-Agent: PS5WWWSpeedtest/0.3\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
  if(upload)header+="Content-Type: application/octet-stream\r\nContent-Length: "+std::to_string(bytes)+"\r\n";
  header+="\r\n";
  auto began=Clock::now();
@@ -157,12 +163,22 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error,size_t*
  return true;
 }
 void* worker(void*) {
+ const bool italy=chosen.load()==7;
+ italianMirror.store(0);
  std::string error;
  update(1,"Measuring latency...",.05);
  double last=0,total=0,jitterSum=0;int successes=0;
  for(int i=0;i<6;i++){
   double seconds=0;
-  if(!request(false,0,seconds,error))break;
+  if(!request(false,0,seconds,error)){
+   if(italy && i==0){
+     for(int mirror=1;mirror<3;mirror++){
+       italianMirror.store(mirror);error.clear();
+       if(request(false,0,seconds,error))break;
+     }
+   }
+   if(!error.empty())break;
+  }
   double ms=seconds*1000;
   if(successes>0)jitterSum+=std::fabs(ms-last);
   last=ms;total+=ms;successes++;
@@ -202,7 +218,7 @@ void* worker(void*) {
   std::lock_guard<std::mutex> lock(guard);
   state.running=false;state.completed=error.empty();state.phase=error.empty()?4:0;
   state.progress=error.empty()?1:state.progress;
-  state.status=error.empty()?"Test complete":("Test failed: "+error);
+  state.status=error.empty()?"Test complete":("Test failed ["+std::string(server().name)+"]: "+error);
  }
  busy.store(false,std::memory_order_release);
  return nullptr;
