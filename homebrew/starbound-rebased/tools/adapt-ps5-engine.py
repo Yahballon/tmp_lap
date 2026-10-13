@@ -213,4 +213,101 @@ patch("src/TextureManager.cpp",
 
 int TextureManager::Quit()''')
 
+
+# Preserve exact stage trace through the first two frames. A crash after
+# Core::run was previously indistinguishable from an SDL event pump crash.
+patch("src/Core.cpp",
+      '#include "Core.h"',
+      '''#include "Core.h"
+#ifdef __FreeBSD__
+#include <cstdio>
+#include <sys/stat.h>
+static void core_frame_trace(const char* msg) {
+    mkdir("/data/starbound-rebased", 0755);
+    if (FILE* f=fopen("/data/starbound-rebased/boot.log", "a")) {
+        fprintf(f, "%s\\n", msg); fflush(f); fclose(f);
+    }
+}
+#else
+static void core_frame_trace(const char*) {}
+#endif''')
+patch("src/Core.cpp",
+      '''   Uint64 startTicks = SDL_GetTicks64();
+   game.handleInput();
+   game.update();
+   CommandScheduler::getInstance().run();
+   limitFPS(startTicks);
+   std::cout << std::flush;''',
+      '''   static unsigned frame_number=0;
+   const bool trace=frame_number<2;
+   if (trace) core_frame_trace("LOOP01 before SDL_GetTicks64");
+   Uint64 startTicks = SDL_GetTicks64();
+   if (trace) core_frame_trace("LOOP02 before game.handleInput");
+   game.handleInput();
+   if (trace) core_frame_trace("LOOP03 after game.handleInput");
+   game.update();
+   if (trace) core_frame_trace("LOOP04 after game.update");
+   CommandScheduler::getInstance().run();
+   if (trace) core_frame_trace("LOOP05 after scheduler");
+   limitFPS(startTicks);
+   if (trace) core_frame_trace("LOOP06 first frame complete");
+   ++frame_number;
+   std::cout << std::flush;''')
+
+# The first scene uses a font and logo, so guard missing conversion results.
+patch("src/systems/RenderSystem.cpp",
+      '''      SDL_Surface* textSurface =
+          TTF_RenderText_Blended(normalFont.get(), textComponent->text.c_str(), color);''',
+      '''      if (!normalFont) return;
+      SDL_Surface* textSurface =
+          TTF_RenderText_Blended(normalFont.get(), textComponent->text.c_str(), color);
+      if (!textSurface) return;''')
+patch("src/systems/RenderSystem.cpp",
+      '''      SDL_Texture* texture =
+          SDL_CreateTextureFromSurface(TextureManager::Get().getRenderer(), textSurface);''',
+      '''      SDL_Texture* texture =
+          SDL_CreateTextureFromSurface(TextureManager::Get().getRenderer(), textSurface);
+      if (!texture) { SDL_FreeSurface(textSurface); return; }''')
+
+# Tracing GPU/software present distinguishes an SDL input crash from a
+# window framebuffer / sceVideoOutSubmitFlip failure.
+patch("src/systems/RenderSystem.cpp",
+      '#include "systems/RenderSystem.h"',
+      '''#include "systems/RenderSystem.h"
+#ifdef __FreeBSD__
+#include <cstdio>
+#include <sys/stat.h>
+static void ps5_render_trace(const char* msg) {
+    mkdir("/data/starbound-rebased", 0755);
+    if (FILE* f=fopen("/data/starbound-rebased/boot.log", "a")) {
+        fprintf(f, "%s\\n", msg); fflush(f); fclose(f);
+    }
+}
+#else
+static void ps5_render_trace(const char*) {}
+#endif''')
+patch("src/systems/RenderSystem.cpp",
+      '''void RenderSystem::tick(World* world) {
+   TextureManager::Get().Clear();''',
+      '''void RenderSystem::tick(World* world) {
+   static int traced_frames=0;
+   if (traced_frames<2) ps5_render_trace("RENDER01 begin RenderSystem::tick");
+   TextureManager::Get().Clear();
+   if (traced_frames<2) ps5_render_trace("RENDER02 cleared framebuffer");''')
+patch("src/systems/RenderSystem.cpp",
+      '''   TextureManager::Get().Display();
+}''',
+      '''   if (traced_frames<2) ps5_render_trace("RENDER03 before SDL_RenderPresent");
+   TextureManager::Get().Display();
+   if (traced_frames<2) ps5_render_trace("RENDER04 after SDL_RenderPresent");
+   ++traced_frames;
+}''')
+
+
+# Own all game-facing UI strings while retaining the upstream MIT attribution
+# in UPSTREAM-MIT-LICENSE.txt shipped with each build.
+patch("src/systems/MenuSystem.cpp",
+      '"Recreated by Gold87 using C++ and SDL2"',
+      '"A new fantasy adventure by YAHBALLON"')
+
 print("Applied path, title, DualSense/SDL controller adapters without replacing upstream ECS")

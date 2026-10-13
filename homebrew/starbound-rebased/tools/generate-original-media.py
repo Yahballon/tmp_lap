@@ -143,6 +143,24 @@ NEXT_LEVEL = ({nxt[0]}, {nxt[1]})
 BACKGROUND_COLOR = BLUE
 """
         (path/f"World{world}-{stage}.levelproperties").write_text(props)
+# A separately authored title-screen terrain. The Gold872 menu loads this
+# file before its first render; without it the entire backdrop is absent.
+menu=ROOT/"data"/"MenuBackground"
+menu.mkdir(parents=True,exist_ok=True)
+menu_rows=[[-1]*25 for _ in range(15)]
+for x in range(25):
+    menu_rows[13][x]=2+48
+    menu_rows[14][x]=3+48
+    if x in (2,5,20,23):
+        menu_rows[11][x]=48+5
+    if x in (3,21):
+        menu_rows[10][x]=144
+for x in range(25):
+    if (x*7)%11<4:
+        menu_rows[3][x]=193
+(menu/"MenuBackground_Background.csv").write_text(
+    "\n".join(",".join(map(str,row)) for row in menu_rows)+"\n")
+
 # The original command-driven scene parser may also look up World0-0 on win.
 (ROOT/"data"/"World0-0.levelproperties").write_text("LEVEL_TYPE = NONE\nNEXT_LEVEL = (0, 0)\n")
 # Licensing: Liberation Sans is under the SIL Open Font License via distro pack.
