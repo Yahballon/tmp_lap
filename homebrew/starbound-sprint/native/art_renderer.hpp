@@ -5,8 +5,8 @@
 #include <cstdint>
 
 namespace sprint_art {
-constexpr int kSpritePixels = 16;
-constexpr int kAtlasPixels = 128;
+constexpr int kSpritePixels = 64;
+constexpr int kAtlasPixels = 512;
 bool load_atlas(hui::gfx::Renderer& renderer, std::uint32_t& texture);
 bool load_backgrounds(hui::gfx::Renderer& renderer, std::uint32_t& texture);
 void release_atlas(std::uint32_t& texture);

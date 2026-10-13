@@ -1,9 +1,8 @@
-# Starbound Sprint v0.6.0 — Original Tiled-inspired Fantasy Worlds
+# Starbound Sprint v0.7.0 — Original HD Asset Pass
 
-- Data-driven CSV level importer inspired by the architecture of [Gold872/Super-Mario-Bros](https://github.com/Gold872/Super-Mario-Bros), not its copyrighted graphics or original level layouts.
-- Eight authored new areas: Aurora Grove, Prism Catacombs, Skydock Circuit, Ember Orchard, Glacier Relay, Nebula Sanctum, Solar Machinery and Last Star Gate.
-- New platform paths, crystal placements, enemy positions, hazards, moving platforms and springs.
-- Loads and validates complete 180x13 level files at native PS5 runtime. The earlier level generator remains as a compatibility fallback.
-- Maintains original character, rendering, native audio, DualSense input, double jump and save compatibility.
+- Replaces enlarged old character, enemy and crystal renderings with a new original 512x512 RGBA atlas featuring 64 antialiased hand-authored procedural sprite cells: astronaut courier animation poses, eight alien creature variations, eight crystals, biome terrain samples and magical crystal props.
+- Sprites drawn at four-times internal resolution and downsampled with Lanczos for smooth edges. No external Mario sprites or Nintendo licensed art.
+- Original eight CSV-authored levels, DualSense controls, native PS5 audio and gameplay remain intact.
+- Uses existing verified PS5 EGL/OpenGL backend because Vulkan is not available in PS5-DevBridge's current SDK; Vulkan can be investigated as an additional renderer later.
 
-Note: This is the first step of a platform architecture migration, **not a complete direct SDL2/ECS port**. Original HD character sprite animation improvements are still in development.
+This is a **first original asset pass**, not a complete Gold872 SDL2/ECS engine port. This release has not been tested visually on real PS5 hardware.

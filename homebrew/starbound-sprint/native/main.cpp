@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Starbound Sprint by YAHBALLON v0.6.0
+// Starbound Sprint by YAHBALLON v0.7.0
 #include "game.hpp"
 #include "art_renderer.hpp"
 #include "audio.hpp"
@@ -71,7 +71,7 @@ int main(){
    sprint_art::render_world(d,g,spriteTexture,backgroundTexture,frames);
    d.rounded_rect({0,0,1920,95},0,Color::rgb(0x07182c));
    t(d,font,atlas,"STARBOUND SPRINT by YAHBALLON",55,57,29,Color::rgb(0xffd45a));
-   t(d,font,atlas,"v0.6.0",1860,57,23,Color::rgb(0xffffff),Align::right);
+   t(d,font,atlas,"v0.7.0",1860,57,23,Color::rgb(0xffffff),Align::right);
    t(d,font,atlas,"WORLD "+std::to_string(g.stage+1)+": "+sprint::Game::stage_name(g.stage),55,132,24);
    t(d,font,atlas,"SCORE "+std::to_string(g.score),755,132,23);
    t(d,font,atlas,"CRYSTALS "+std::to_string(g.crystals),1010,132,23,Color::rgb(0xffd45a));
@@ -84,7 +84,7 @@ int main(){
       d.bordered_rect({440,258,1040,544},23,Color::rgb(0x122a47),3,Color::rgb(0x65edd2));
       const char* heading=g.phase==sprint::Phase::menu?"STARBOUND SPRINT":g.phase==sprint::Phase::paused?"PAUSED":g.phase==sprint::Phase::stage_clear?"WORLD COMPLETE":g.phase==sprint::Phase::game_over?"GAME OVER":"YOU WIN!";
       t(d,font,atlas,heading,960,390,59,Color::rgb(0xffd45a),Align::center);
-      const char* helper=g.phase==sprint::Phase::menu?"Explore eight pixel-art worlds with enemies, hazards and secrets":g.phase==sprint::Phase::paused?"CROSS to Resume - CIRCLE to Menu":g.phase==sprint::Phase::stage_clear?"CROSS to Continue":"CROSS to Play Again";
+      const char* helper=g.phase==sprint::Phase::menu?"Explore eight original fantasy worlds with enemies and secrets":g.phase==sprint::Phase::paused?"CROSS to Resume - CIRCLE to Menu":g.phase==sprint::Phase::stage_clear?"CROSS to Continue":"CROSS to Play Again";
       t(d,font,atlas,helper,960,484,28,Color::rgb(0xb2d8ec),Align::center);
       if(g.phase==sprint::Phase::menu){
         t(d,font,atlas,"CROSS - Start New Game",960,574,29);
