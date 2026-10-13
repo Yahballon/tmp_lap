@@ -1,6 +1,6 @@
 # Payload Launcher by YAHBALLON
 
-**Native PS5 USB payload launcher** · **v0.2.2** · **Title ID `PPSA99873`**
+**Native PS5 USB payload launcher** · **v0.2.3** · **Title ID `PPSA99873`**
 
 A controller-driven PS5 homebrew browser based on [ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-homebrew-ui), inspired by the supplied blue neon launcher reference. The list is entirely dynamic; no sample payloads or hardcoded fake metadata are bundled.
 
@@ -56,13 +56,13 @@ Example `payload.json`:
 
 Source: `homebrew/payload-launcher/native/`.
 Workflow: [`.github/workflows/build-payload-launcher.yml`](../../.github/workflows/build-payload-launcher.yml).
-Release tag: `payload-launcher-v0.2.2`.
+Release tag: `payload-launcher-v0.2.3`.
 
 The workflow copies the known-working PS5-DevBridge C++/OpenGL scaffold, supplies the app source files, downloads the pinned `stb_image.h` header for **offline PNG decoding**, generates the original launcher artwork, compiles natively and validates the release ZIP. Pull requests build only a test artifact; successful pushes to `main` can publish the versioned release. No existing app folders are modified.
 
 ## Installation
 
-1. Download `PPSA99873.zip` from a verified successful [release](https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.2.2).
+1. Download `PPSA99873.zip` from a verified successful [release](https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.2.3).
 2. Extract its `PPSA99873/` folder to `/data/homebrew/PPSA99873/` on the PS5.
 3. Register or refresh the homebrew app with ShadowMountPlus or another compatible launcher.
 4. Start a compatible PS5 ELF loader such as [ps5-payload-elfldr](https://github.com/ps5-payload-dev/elfldr) on loopback port 9021 to enable launching.
@@ -78,10 +78,14 @@ User preferences live in `/data/ps5-payload-launcher/settings.txt`, outside the 
 
 GPL-3.0-or-later source code. The project uses GPL-3.0-or-later ps5-homebrew-ui and the PS5-DevBridge scaffold. `stb_image.h` from [nothings/stb](https://github.com/nothings/stb) is supplied under the upstream's MIT/public-domain terms. Launcher branding and graphics are original. PS5 firmware files, copyrighted game content, and privileged exploit code are not included.
 
-## v0.2.2 launch fix
+## v0.2.3 launch fix
 
 The selected ELF is submitted to the existing elfldr with `pipe=0` so that the payload standard streams are detached from the application's short-lived request socket. This avoids prematurely losing the payload's standard streams when the UI closes the connection. Requires validation on firmware 5.10.
 
-## v0.2.2 diagnostics
+## v0.2.3 diagnostics
 
 On launch, display elfldr's response in the status bar. A silent response is reported as unconfirmed, not success.
+
+## v0.2.3
+
+The bundled USB scanner serves the selected ELF to the app via a restricted localhost connection. The app transfers the ELF bytes to the existing elfldr at port 9021. Firmware 5.10 hardware verification is pending.
