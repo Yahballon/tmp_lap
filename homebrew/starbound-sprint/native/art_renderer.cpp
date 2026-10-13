@@ -12,7 +12,7 @@ using namespace hui::gfx;
 namespace {
 constexpr int kAtlasBytes=kAtlasPixels*kAtlasPixels*4;
 constexpr float kScreenX=100.f,kScreenY=153.f;
-constexpr Color kWhite=Color::rgb(0xffffff);
+const Color kWhite=Color::rgb(0xffffff);
 constexpr std::array<unsigned,8> kSky={
   0x225986,0x100d42,0x613143,0x437fa8,0x0e6573,0x1d1759,0x9a3d3f,0x344e9e
 };
