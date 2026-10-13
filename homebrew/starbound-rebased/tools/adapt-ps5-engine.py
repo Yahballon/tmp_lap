@@ -303,4 +303,11 @@ patch("src/systems/RenderSystem.cpp",
    ++traced_frames;
 }''')
 
+
+# Own all game-facing UI strings while retaining the upstream MIT attribution
+# in UPSTREAM-MIT-LICENSE.txt shipped with each build.
+patch("src/systems/MenuSystem.cpp",
+      '"Recreated by Gold87 using C++ and SDL2"',
+      '"A new fantasy adventure by YAHBALLON"')
+
 print("Applied path, title, DualSense/SDL controller adapters without replacing upstream ECS")
