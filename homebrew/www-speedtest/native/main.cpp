@@ -96,7 +96,7 @@ int main(){
   auto s=speedtest::snapshot();
   if(previouslyRunning&&!s.running&&s.completed&&!measured){
    measured=true;
-   if(autoSave&&speedtest::selectedServer()!=12){Result r;r.d=s.down;r.u=s.up;r.p=s.ping;r.j=s.jitter;r.when=(long)std::time(nullptr);history.insert(history.begin(),r);if(history.size()>50)history.resize(50);saveHistory(history);}
+   if(autoSave){Result r;r.d=s.down;r.u=s.up;r.p=s.ping;r.j=s.jitter;r.when=(long)std::time(nullptr);history.insert(history.begin(),r);if(history.size()>50)history.resize(50);saveHistory(history);}
   }
   if(s.running){previouslyRunning=true;measured=false;}
   DrawList ui;
@@ -109,7 +109,7 @@ int main(){
   t(ui,font,atlas,"WWW SPEEDTEST",196,69,52);
   t(ui,font,atlas,"Test your internet speed on PS5",198,108,23,muted);
   t(ui,font,atlas,"by YAHBALLON",1580,55,18,cyan);
-  t(ui,font,atlas,"v0.4.2",1835,55,20,white,Align::right);
+  t(ui,font,atlas,"v0.4.3",1835,55,20,white,Align::right);
   panel(ui,24,161,380,848);
   const char* symbols[]={"[>]","[=]","[|]","[@]","[*]","[i]"};
   for(int i=0;i<6;i++){
@@ -147,7 +147,7 @@ int main(){
    const char* labels[]={"Download","Upload","Ping"};
    for(int i=0;i<3;i++){float x=468+i*228;double v=i==0?s.down:i==1?s.up:s.ping;
     t(ui,font,atlas,labels[i],x,630,22,i==0?cyan:i==1?purple:green);
-    t(ui,font,atlas,i==1&&speedtest::selectedServer()==12?"N/A":((s.running||s.completed)?fmt(v,i==2?0:1):"--"),x,669,34);
+    t(ui,font,atlas,(s.running||s.completed)?fmt(v,i==2?0:1):"--",x,669,34);
     t(ui,font,atlas,i==2?"ms":"Mbps",x+111,671,17,muted);
     if(i<2)ui.line(x+202,615,x+202,677,1,edge);
    }
@@ -199,7 +199,7 @@ int main(){
       t(ui,font,atlas,hosts[i].name,558,y+9,23,i==serverFocus&&serverListFocus?white:muted);
       if(i==speedtest::selectedServer())t(ui,font,atlas,"SELECTED",1740,y+9,18,green,Align::right);
     }
-    t(ui,font,atlas,"Mumbai OVH supports DOWNLOAD only; upload is not measured.",470,905,19,cyan);
+    
     t(ui,font,atlas,"Hosted servers may be unavailable. No location or speed is fabricated.",470,940,19,muted);
     t(ui,font,atlas,s.status,470,984,18,muted);
    }
