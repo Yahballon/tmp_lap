@@ -67,6 +67,7 @@ jobs:
           APP_INCLUDE_PATHS: "src"
         run: |
           bash tools/setup-pacbrew-dependencies.sh --list | grep -Ei 'sdl'
+          bash tools/setup-native-dependencies.sh
           mkdir -p build/jb-json
           cp .deps/native/ps5-payload-sdk/target/lib/libc.a build/jb-json/libjb-posix.a
           llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r build/jb-json/libjb-posix.a
