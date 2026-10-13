@@ -319,16 +319,94 @@ bool is_elf_file(const std::string& path){
     unsigned char h[5]{};std::size_t n=fread(h,1,sizeof(h),f);fclose(f);
     return n==5 && h[0]==0x7f && h[1]=='E' && h[2]=='L' && h[3]=='F' && h[4]==2;
 }
+
+ScanResult scan_embedded_helper(const std::string& root) {
+    ScanResult result;
+    FILE* helper=fopen("/app0/usbscan.elf","rb");
+    if(!helper){result.message="Bundled USB scanner unavailable in /app0";return result;}
+    int fd=socket(AF_INET,SOCK_STREAM,0);
+    if(fd<0){fclose(helper);result.message="Cannot create ELF loader socket";return result;}
+    timeval tv{5,0};
+    setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+    setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
+    sockaddr_in addr{};
+    addr.sin_family=AF_INET;addr.sin_port=htons(9021);
+    addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+    if(connect(fd,(sockaddr*)&addr,sizeof(addr))){
+        fclose(helper);close(fd);
+        result.message="USB requires running elfldr at 127.0.0.1:9021";
+        return result;
+    }
+    char buf[8192];bool sent=true;
+    for(;;){
+        std::size_t n=fread(buf,1,sizeof(buf),helper);
+        if(!n){if(ferror(helper))sent=false;break;}
+        std::size_t off=0;
+        while(off<n){ssize_t x=send(fd,buf+off,n-off,0);if(x<=0){sent=false;break;}off+=(std::size_t)x;}
+        if(!sent)break;
+    }
+    fclose(helper);
+    if(!sent){close(fd);result.message="Cannot submit USB helper to elfldr";return result;}
+    shutdown(fd,SHUT_WR);
+    std::string data;data.reserve(8192);
+    while(data.size()<8*1024*1024){
+        ssize_t n=recv(fd,buf,sizeof(buf),0);
+        if(n==0)break;
+        if(n<0)break;
+        data.append(buf,(std::size_t)n);
+        if(data.size()>=5 && data.compare(data.size()-5,5,"DONE\n")==0)break;
+    }
+    close(fd);
+    auto start=data.find("PLUSB2\n");
+    if(start==std::string::npos){
+        result.message="USB helper did not return a valid catalogue";
+        return result;
+    }
+    std::size_t pos=start+7;
+    while(pos<data.size() && result.payloads.size()<128){
+        auto e=data.find('\n',pos);
+        if(e==std::string::npos || e-pos>128)break;
+        const std::string hdr=data.substr(pos,e-pos);
+        pos=e+1;
+        if(hdr=="DONE")break;
+        if(hdr.rfind("ERROR ",0)==0){result.message=hdr;return result;}
+        std::size_t folderLen=0,fileLen=0,jsonLen=0,pngLen=0;
+        if(std::sscanf(hdr.c_str(),"ITEM %zu %zu %zu %zu",
+                       &folderLen,&fileLen,&jsonLen,&pngLen)!=4)break;
+        if(folderLen<1||folderLen>127||fileLen<1||fileLen>127||
+           jsonLen>kMaxJson||pngLen>1024*1024||
+           folderLen+fileLen+jsonLen+pngLen>data.size()-pos)break;
+        const std::string folder=data.substr(pos,folderLen);pos+=folderLen;
+        const std::string filename=data.substr(pos,fileLen);pos+=fileLen;
+        const std::string metadata=data.substr(pos,jsonLen);pos+=jsonLen;
+        const std::string icon=data.substr(pos,pngLen);pos+=pngLen;
+        if(!is_safe_filename(folder)||!is_safe_filename(filename)||
+           !executable_extension(filename))continue;
+        auto fields=Parser(metadata).fields();
+        Payload p;
+        p.folder=folder;p.filename=filename;p.path=root+"/"+folder+"/"+filename;p.remote=true;
+        p.name=get(fields,"name",64);if(p.name.empty())p.name=folder;
+        p.version=get(fields,"version",20);if(p.version.empty())p.version="Unversioned";
+        p.description=get(fields,"description",240);if(p.description.empty())p.description="Local USB payload";
+        p.author=get(fields,"author",60);if(p.author.empty())p.author="Unknown author";
+        p.icon_png=icon;
+        result.payloads.push_back(std::move(p));
+    }
+    result.message=result.payloads.empty()?"USB helper returned no usable payloads":
+        "Loaded "+std::to_string(result.payloads.size())+" payloads via bundled USB helper";
+    return result;
+}
+
 ScanResult scan(const std::string& root){
     ScanResult first=scan_local(root,root);
     if(!first.payloads.empty())return first;
     if(root!=kUsbRoot)return first;
     ScanResult alias=scan_local("/usb0/payloads",root);
     if(!alias.payloads.empty())return alias;
-    ScanResult remote=scan_websrv(root,8080);
-    if(!remote.payloads.empty())return remote;
+    ScanResult helper=scan_embedded_helper(root);
+    if(!helper.payloads.empty())return helper;
     if(first.message.find("Cannot open")==std::string::npos)return first;
-    return remote;
+    return helper;
 }
 std::string request_launch(const Payload& p,int port){
     if(!is_safe_filename(p.folder)||!is_safe_filename(p.filename)||!executable_extension(p.filename) ||
