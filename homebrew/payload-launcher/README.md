@@ -1,4 +1,4 @@
-# Payload Launcher by YAHBALLON
+# Payload LauncherX by YAHBALLON
 
 **Native PS5 USB payload launcher** · **v0.2.4** · **Title ID `PPSA99873`**
 
