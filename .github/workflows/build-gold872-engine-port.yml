@@ -1,0 +1,35 @@
+name: Build Gold872 Engine Port (source smoke test)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/starbound-rebased/**'
+      - '.github/workflows/build-gold872-engine-port.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/starbound-rebased/**'
+      - '.github/workflows/build-gold872-engine-port.yml'
+permissions:
+  contents: read
+jobs:
+  real-engine-desktop-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2 dependencies for upstream engine compilation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+      - name: Fetch pinned MIT engine source (NO Nintendo resources)
+        run: bash homebrew/starbound-rebased/tools/fetch-engine.sh
+      - name: Compile real upstream ECS/physics/scenes/SDL2 source
+        run: |
+          set -euo pipefail
+          mapfile -d '' sources < <(find build/gold872-engine/src -type f -name '*.cpp' -print0)
+          test "${#sources[@]}" -gt 20
+          g++ -std=c++17 -O1 -Ibuild/gold872-engine/include "${sources[@]}" -o /tmp/starbound-rebased-desktop \
+            $(sdl2-config --cflags --libs) -lSDL2_image -lSDL2_mixer -lSDL2_ttf -pthread
+          test -s /tmp/starbound-rebased-desktop
+          echo "Real engine compilation passed; not PS5-runnable yet"
