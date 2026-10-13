@@ -77,11 +77,13 @@ jobs:
           cp .deps/native/ps5-payload-sdk/target/lib/libc.a build/jb-json/libjb-posix.a
           llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r build/jb-json/libjb-posix.a
           mkdir -p compatlibs
-          for name in libc++.a libc++abi.a libunwind.a; do
-            test -s ".deps/native/ps5-payload-sdk/target/lib/$name"
-            ln -s "../.deps/native/ps5-payload-sdk/target/lib/$name" "compatlibs/$name"
-          done
-          make APP_INCLUDE_PATHS=src APP_SOURCE_DIR=src APP_ASSETS=assets APP_STATIC_ARCHIVES="compatlibs/libc++.a compatlibs/libc++abi.a compatlibs/libunwind.a" APP_ROOT_FILES=UPSTREAM-MIT-LICENSE.txt APP_WRAP_SYMBOLS= APP_IMPORT_STUBS= APP_RUNTIME_MODULES= APP_DEFINITIONS= USE_CCACHE=0 BUILD_JOBS=4 app
+          test -s .deps/native/ps5-payload-sdk/target/lib/libc++.a
+          test -s .deps/native/ps5-payload-sdk/target/lib/libc++abi.a
+          test -s .deps/native/ps5-payload-sdk/target/lib/libunwind.a
+          ln -s ../.deps/native/ps5-payload-sdk/target/lib/libc++.a compatlibs/libcxx.a
+          ln -s ../.deps/native/ps5-payload-sdk/target/lib/libc++abi.a compatlibs/libcxxabi.a
+          ln -s ../.deps/native/ps5-payload-sdk/target/lib/libunwind.a compatlibs/libunwind.a
+          make APP_INCLUDE_PATHS=src APP_SOURCE_DIR=src APP_ASSETS=assets APP_STATIC_ARCHIVES="compatlibs/libcxx.a compatlibs/libcxxabi.a compatlibs/libunwind.a" APP_ROOT_FILES=UPSTREAM-MIT-LICENSE.txt APP_WRAP_SYMBOLS= APP_IMPORT_STUBS= APP_RUNTIME_MODULES= APP_DEFINITIONS= USE_CCACHE=0 BUILD_JOBS=4 app
       - name: Verify new ShadowMount title ZIP
         run: |
           python3 - <<'PY'
