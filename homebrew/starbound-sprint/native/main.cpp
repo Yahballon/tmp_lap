@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Starbound Sprint by YAHBALLON v0.5.0
+// Starbound Sprint by YAHBALLON v0.6.0
 #include "game.hpp"
 #include "art_renderer.hpp"
 #include "audio.hpp"
@@ -71,7 +71,7 @@ int main(){
    sprint_art::render_world(d,g,spriteTexture,backgroundTexture,frames);
    d.rounded_rect({0,0,1920,95},0,Color::rgb(0x07182c));
    t(d,font,atlas,"STARBOUND SPRINT by YAHBALLON",55,57,29,Color::rgb(0xffd45a));
-   t(d,font,atlas,"v0.5.0",1860,57,23,Color::rgb(0xffffff),Align::right);
+   t(d,font,atlas,"v0.6.0",1860,57,23,Color::rgb(0xffffff),Align::right);
    t(d,font,atlas,"WORLD "+std::to_string(g.stage+1)+": "+sprint::Game::stage_name(g.stage),55,132,24);
    t(d,font,atlas,"SCORE "+std::to_string(g.score),755,132,23);
    t(d,font,atlas,"CRYSTALS "+std::to_string(g.crystals),1010,132,23,Color::rgb(0xffd45a));

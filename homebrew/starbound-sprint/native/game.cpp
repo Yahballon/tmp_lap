@@ -50,9 +50,77 @@ bool Game::solid_at(int col,int row) const {
     if(row<0 || row>=kRows)return false;
     return tiles[row][col]=='#'||tiles[row][col]=='=';
 }
+// This CSV importer is an independent native PS5 implementation of the
+// Tiled-style data-driven maps in Gold872/Super-Mario-Bros (MIT).
+// Do not import any Nintendo level coordinates or proprietary media.
+static bool load_original_csv(int stage,
+    std::array<std::array<char,kColumns>,kRows>& tiles,
+    std::vector<Pickup>& pickups,
+    std::vector<Drone>& drones,
+    std::vector<MovingPlatform>& platforms) {
+    char path[160];
+    std::snprintf(path,sizeof(path),"/app0/assets/levels/world_%02d.csv",stage+1);
+    FILE* file=std::fopen(path,"rb");
+    if(!file){
+        std::snprintf(path,sizeof(path),"/data/homebrew/PPSA99641/assets/levels/world_%02d.csv",stage+1);
+        file=std::fopen(path,"rb");
+    }
+    if(!file){
+        std::snprintf(path,sizeof(path),"homebrew/starbound-sprint/levels/world_%02d.csv",stage+1);
+        file=std::fopen(path,"rb");
+    }
+    if(!file)return false;
+    std::array<std::array<int,kColumns>,kRows> data{};
+    bool ok=true;char line[1200];
+    for(int row=0;row<kRows && ok;++row){
+        if(!std::fgets(line,sizeof(line),file)){ok=false;break;}
+        char* pos=line;
+        for(int col=0;col<kColumns;++col){
+            char* next=nullptr;
+            long id=std::strtol(pos,&next,10);
+            if(next==pos || id<0 || id>8){ok=false;break;}
+            data[row][col]=(int)id;
+            pos=next;
+            if(col<kColumns-1){
+                if(*pos!=','){ok=false;break;}
+                ++pos;
+            }else if(*pos!='\n' && *pos!='\r' && *pos!='\0')ok=false;
+        }
+    }
+    if(std::fgets(line,sizeof(line),file))ok=false;
+    std::fclose(file);
+    if(!ok)return false;
+    for(auto& row:tiles)row.fill('.');
+    for(int row=0;row<kRows;++row)for(int col=0;col<kColumns;++col){
+        const int id=data[row][col];
+        const float x=col*kTile*1.f,y=row*kTile*1.f;
+        switch(id){
+        case 1:tiles[row][col]='#';break;
+        case 2:tiles[row][col]='=';break;
+        case 3:pickups.push_back({{x+14.f,y+12.f},false});break;
+        case 4:drones.push_back({{x+9.f,y+17.f},col%2?1.f:-1.f,true,stage%8,y+17.f});break;
+        case 5:tiles[row][col]='S';break;
+        case 6:tiles[row][col]='^';break;
+        case 7:drones.push_back({{x+9.f,y-125.f},col%2?1.f:-1.f,true,3,y-125.f});break;
+        case 8:platforms.push_back({{x,y},x,(col%5)*.7f,80.f});break;
+        default:break;
+        }
+    }
+    return true;
+}
+
 void Game::make_stage() {
     pickups.clear();drones.clear();moving_platforms.clear();
     for(auto& row:tiles)row.fill('.');
+    // Gold872's level architecture uses Tiled CSV + entity layers.
+    // Our eight files are freshly authored, with original level geometry.
+    if(load_original_csv(stage,tiles,pickups,drones,moving_platforms)){
+        checkpoint_x=2.f*kTile;
+        player={checkpoint_x,12.f*kTile-kPlayerHeight};
+        velocity={};grounded=true;jumps_used_=0;jump_was_held=false;
+        invulnerable=0;elapsed=0;camera=0;
+        return;
+    }
 
     // Eight authored world configurations: different rhythms, obstacles and height profiles.
     // Collisions are always queried from the tile map; decoration is render-only.
