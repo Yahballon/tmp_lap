@@ -43,10 +43,10 @@ bool load_atlas(Renderer& renderer,std::uint32_t& texture){
     if(pixels.size()!=kAtlasBytes)return false;
     texture=renderer.batch().create_texture(kAtlasPixels,kAtlasPixels,pixels.data());
     if(!texture)return false;
-    // Pixel art is deliberately not blurred with bilinear sampling.
+    // Smooth original HD sprites use linear filtering.
     glBindTexture(GL_TEXTURE_2D,texture);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D,0);
     return true;
 }
@@ -204,20 +204,14 @@ void render_world(DrawList& ui,const sprint::Game& game,std::uint32_t atlas,std:
         if(!visible(x,43))continue;
         float bob=game.progress.reduced_motion?0.f:std::sin(t*3.5f+i*.57f)*5.f;
         ui.circle(x+15,y+13+bob,19,tint(0x5debff,.14f));
-        ui.star(x+15,y+13+bob,17,tint(0x36d8ff));
-        ui.star(x+15,y+13+bob,10,tint(0xc4faff));
+        sprite(ui,atlas,16+(i%8),{x-2,y-6+bob,38,39});
     }
     for(const auto& e:game.drones)if(e.alive){
         float x=100+e.pos.x-cam,y=153+e.pos.y;
         if(!visible(x,70))continue;
         float bob=game.progress.reduced_motion?0.f:std::sin(t*7+e.pos.x*.018f)*3.f;
-        unsigned shell=(e.type%3==0)?0xdb6584:(e.type%3==1)?0x8ee47d:0xffa765;
-        ui.circle(x+20,y+26+bob,27,tint(shell));
-        ui.circle(x+9,y+20+bob,10,tint(0xffffff,.48f));
-        ui.circle(x+29,y+20+bob,10,tint(0xffffff,.48f));
-        ui.circle(x+11,y+22+bob,4,tint(0x10263e));
-        ui.circle(x+29,y+22+bob,4,tint(0x10263e));
-        if(e.type%3==2)ui.line(x+10,y+45+bob,x+35,y+45+bob,3,tint(0x1c253c));
+        ui.circle(x+20,y+28+bob,29,tint(0x43dbf6,.12f));
+        sprite(ui,atlas,8+e.type%8,{x-7,y-14+bob,66,66},e.direction>=0);
     }
     float exitx=100+game.finish_x()-cam;
     if(visible(exitx,80)){
@@ -225,23 +219,17 @@ void render_world(DrawList& ui,const sprint::Game& game,std::uint32_t atlas,std:
         ui.star(exitx+20,548,45,tint(0xffd58c));
         ui.circle(exitx+20,548,57,tint(0xffd58c,.11f));
     }
-    // Hero: large smooth vector character with readable silhouette and animated stride.
+    // HD sprite sheet: original astronaut courier (independently designed).
     if(game.invulnerable==0||(frame/6)%2==0){
         const float x=100+game.player.x-cam-14;
-        const float y=153+game.player.y-23;
-        const float stride=game.grounded?std::sin(t*12)*std::min(7.f,std::fabs(game.velocity.x)):1.f;
-        ui.shadow({x+5,y+66,60,9},5,9,tint(0x07182c,.38f));
-        ui.line(x+28,y+54,x+19+stride,y+70,8,tint(0x182a49));
-        ui.line(x+39,y+54,x+50-stride,y+70,8,tint(0x182a49));
-        ui.rounded_rect({x+13,y+29,45,36},12,tint(0x202b51));
-        ui.triangle({x+(game.facing_right?8:37),y+29,47,42},tint(0xd94360));
-        ui.circle(x+34,y+20,28,tint(0xeef5ff));
-        ui.circle(x+35,y+22,22,tint(0x202c52));
-        ui.circle(x+(game.facing_right?46:24),y+19,10,tint(0x68f0fa));
-        ui.circle(x+(game.facing_right?48:26),y+17,5,tint(0xfcffff));
-        for(int i=0;i<5;++i)ui.line(x+12+i*10,y+8,x+9+i*10,y-12-i%3*5,4,tint(0xe0eaff));
-        if(!game.grounded&&game.jumps_remaining()==0)
-            for(int i=0;i<4;++i)ui.star(x+15+i*13,y+69+std::sin(t*8+i)*6,4,tint(0x7af7fb,.7f));
+        const float y=153+game.player.y-20;
+        int pose=0;
+        if(!game.grounded)pose=game.velocity.y<0?6:7;
+        else if(std::fabs(game.velocity.x)>1.f)pose=1+(frame/6)%5;
+        ui.shadow({x+6,y+64,60,12},5,10,tint(0x07182c,.32f));
+        sprite(ui,atlas,pose,{x,y,75,78},game.facing_right);
+        if(game.jumps_remaining()==0&&!game.grounded)
+            for(int i=0;i<4;++i)ui.star(x+19+i*12,y+68+std::sin(t*8+i)*7,4,tint(0x7af7fb,.65f));
     }
     ui.pop_clip();
 }
