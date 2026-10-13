@@ -1,10 +1,9 @@
-# Starbound Sprint v0.5.0 — Native Music & Sound
+# Starbound Sprint v0.6.0 — Original Tiled-inspired Fantasy Worlds
 
-- Native PlayStation 5 stereo audio engine with a dedicated output/mixing thread.
-- Four original procedural stage soundtrack patterns with bass accompaniment.
-- Sound effects for jumps, double jumps, crystals, enemy stomps, damage, spring launches, UI, stage clear, game over and victory.
-- TRIANGLE toggles mute during gameplay.
-- No unlicensed music or downloaded commercial game samples.
-- Audio automatically disables if `libSceAudioOut` cannot initialize; PS5 hardware validation remains required.
+- Data-driven CSV level importer inspired by the architecture of [Gold872/Super-Mario-Bros](https://github.com/Gold872/Super-Mario-Bros), not its copyrighted graphics or original level layouts.
+- Eight authored new areas: Aurora Grove, Prism Catacombs, Skydock Circuit, Ember Orchard, Glacier Relay, Nebula Sanctum, Solar Machinery and Last Star Gate.
+- New platform paths, crystal placements, enemy positions, hazards, moving platforms and springs.
+- Loads and validates complete 180x13 level files at native PS5 runtime. The earlier level generator remains as a compatibility fallback.
+- Maintains original character, rendering, native audio, DualSense input, double jump and save compatibility.
 
-Install PPSA99641.zip to `/data/homebrew/`, preserving `starbound-progress.cfg`.
+Note: This is the first step of a platform architecture migration, **not a complete direct SDL2/ECS port**. Original HD character sprite animation improvements are still in development.
