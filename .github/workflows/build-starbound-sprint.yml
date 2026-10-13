@@ -39,6 +39,8 @@ jobs:
           d["localizedParameters"]["en-US"]["titleName"]=m["name"]
           p.write_text(json.dumps(d,indent=2)+"\n")
           PY
+      - name: Generate original launcher icon
+        run: python3 homebrew/starbound-sprint/generate_icon.py
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
