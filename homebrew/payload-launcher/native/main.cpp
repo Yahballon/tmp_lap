@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.1.1.
+// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.2.0.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
