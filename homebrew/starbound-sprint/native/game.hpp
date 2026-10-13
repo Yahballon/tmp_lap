@@ -7,12 +7,13 @@
 namespace sprint {
 constexpr int kTile = 60;
 constexpr int kRows = 13;
-constexpr int kColumns = 120;
+constexpr int kColumns = 180;
 constexpr int kStages = 8;
 enum class Phase { menu, playing, paused, stage_clear, game_over, victory };
 struct Vec2 { float x=0.f, y=0.f; };
 struct Pickup { Vec2 pos; bool taken=false; };
-struct Drone { Vec2 pos; float direction=1.f; bool alive=true; };
+struct Drone { Vec2 pos; float direction=1.f; bool alive=true; int type=0; float home_y=0; };
+struct MovingPlatform { Vec2 pos; float anchor=0.f, phase=0.f, range=0.f; };
 struct Control { float horizontal=0.f; bool jump=false; bool sprint=false; };
 struct Progress {
     int unlocked=0;
@@ -33,6 +34,7 @@ public:
     std::array<std::array<char,kColumns>,kRows> tiles{};
     std::vector<Pickup> pickups;
     std::vector<Drone> drones;
+    std::vector<MovingPlatform> moving_platforms;
     Progress progress;
     Game();
     void new_run(int first_stage);
@@ -43,6 +45,7 @@ public:
     bool solid_at(int col,int row) const;
     float finish_x() const { return static_cast<float>((kColumns-5)*kTile); }
     static const char* stage_name(int index);
+    int tileset_theme() const { return stage % 4; }
 private:
     float checkpoint_x=0.f;
     bool jump_was_held=false;
