@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include <netdb.h>
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -34,7 +35,7 @@ static const Server serverList[]={
  {"New York, USA","US","nyc.speedtest.clouvider.net","/backend"},
  {"Los Angeles, USA","US","la.speedtest.clouvider.net","/backend"},
  {"Bangalore, India","IN","in1.backend.librespeed.org",""},
- {"Bari, Italy","IT","st-be-ba1.infra.garr.it",""},
+ {"Bologna, Italy","IT","st-be-bo1.infra.garr.it",""},
  {"Tokyo, Japan","JP","librespeed.a573.net","/backend"},
  {"Johannesburg, South Africa","ZA","za1.backend.librespeed.org",""},
  {"Chicago, USA","US","chispeed.sharktech.net","/backend"},
@@ -83,6 +84,16 @@ struct Connection {
   ssl=SSL_new(ctx);
   if(!ssl){err="TLS connection allocation failed";return false;}
   SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host);SSL_set1_host(ssl,host);
+  sockaddr_storage local{},peer{};socklen_t ll=sizeof(local),pl=sizeof(peer);
+  auto iptext=[](const sockaddr_storage& a)->std::string{
+   char out[INET6_ADDRSTRLEN]={};
+   if(a.ss_family==AF_INET){const auto* v=(const sockaddr_in*)&a;return inet_ntop(AF_INET,&v->sin_addr,out,sizeof(out))?out:"Unknown";}
+   if(a.ss_family==AF_INET6){const auto* v=(const sockaddr_in6*)&a;return inet_ntop(AF_INET6,&v->sin6_addr,out,sizeof(out))?out:"Unknown";}
+   return "Unknown";
+  };
+  std::string localIp=getsockname(fd,(sockaddr*)&local,&ll)==0?iptext(local):"Unknown";
+  std::string remoteIp=getpeername(fd,(sockaddr*)&peer,&pl)==0?iptext(peer):"Unknown";
+  {std::lock_guard<std::mutex> lock(guard);state.localIp=localIp;state.remoteIp=remoteIp;}
   if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){
     err="TLS handshake or hostname verification failed";return false;
   }
