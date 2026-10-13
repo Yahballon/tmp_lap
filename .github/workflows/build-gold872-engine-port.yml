@@ -21,9 +21,27 @@ jobs:
       - name: Install SDL2 dependencies for upstream engine compilation
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends g++ libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+          sudo apt-get install -y --no-install-recommends g++ libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev python3-pil fonts-liberation2
       - name: Fetch pinned MIT engine source (NO Nintendo resources)
         run: bash homebrew/starbound-rebased/tools/fetch-engine.sh
+      - name: Generate and verify original media and 32 replacement levels
+        run: |
+          python3 homebrew/starbound-rebased/tools/generate-original-media.py
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          root=Path("homebrew/starbound-rebased/res")
+          assert Image.open(root/"sprites/characters/PlayerSpriteSheet.png").size==(400,256)
+          assert Image.open(root/"sprites/characters/EnemySpriteSheet.png").size==(560,240)
+          assert Image.open(root/"sprites/blocks/BlockTileSheet.png").size==(768,352)
+          assert len(list((root/"data").glob("World*-*/World*-*.levelproperties")))==32
+          assert len(list((root/"sounds").rglob("*.wav")))==27
+          assert (root/"fonts/press-start-2p.ttf").is_file()
+          for path in (root/"data").rglob("*.csv"):
+              rows=[line.split(",") for line in path.read_text().splitlines()]
+              assert len(rows)==15 and all(len(row)==128 for row in rows),path
+          print("32 original levels, 27 tracks/effects, image dimensions and font verified")
+          PY
       - name: Compile real upstream ECS/physics/scenes/SDL2 source
         run: |
           set -euo pipefail
@@ -46,7 +64,7 @@ jobs:
       - name: Install PS5 SDK prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git pkg-config python3
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git pkg-config python3 python3-pil fonts-liberation2
       - name: Fetch pinned source and verified native PS5 SDK
         run: |
           bash homebrew/starbound-rebased/tools/fetch-engine.sh
@@ -67,6 +85,10 @@ jobs:
           for lib in libSDL2.a libSDL2main.a libSDL2_image.a libSDL2_ttf.a libSDL2_mixer.a; do
             test -s "$SYS/lib/$lib" || (echo "Missing PacBrew archive: $lib"; exit 1)
           done
+      - name: Generate original replacement resources
+        run: |
+          python3 homebrew/starbound-rebased/tools/generate-original-media.py
+          test -s homebrew/starbound-rebased/res/sprites/characters/PlayerSpriteSheet.png
       - name: Cross-compile original SDL2 engine as PS5 payload ELF
         env:
           PS5_PAYLOAD_SDK: /tmp/ps5-toolchain/.deps/native/ps5-payload-sdk
@@ -74,3 +96,11 @@ jobs:
           cd homebrew/starbound-rebased/ps5
           make -j4 UPSTREAM=../../../build/gold872-engine
           test -s build/starbound-gold872.elf
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: gold872-ps5-payload-prototype-not-release
+          path: |
+            homebrew/starbound-rebased/ps5/build/starbound-gold872.elf
+            homebrew/starbound-rebased/res/
+          if-no-files-found: error
