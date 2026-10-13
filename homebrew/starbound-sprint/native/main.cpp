@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Starbound Sprint by YAHBALLON v0.4.0
+// Starbound Sprint by YAHBALLON v0.5.0
 #include "game.hpp"
 #include "art_renderer.hpp"
+#include "audio.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -25,18 +26,22 @@ int main(){
  if(!sprint_art::load_atlas(render,spriteTexture))hui::sys::park();
  std::uint32_t backgroundTexture=0;
  if(!sprint_art::load_backgrounds(render,backgroundTexture))hui::sys::park();
- hui::ps5::Pad pad;pad.open();sprint::Game g;unsigned previous=0;int frames=0;bool suppressJumpUntilRelease=false;
+ hui::ps5::Pad pad;pad.open();sprint::Game g;
+ sprint_audio::Engine audio;audio.start();unsigned previous=0;int frames=0;bool suppressJumpUntilRelease=false;
  for(;;){
    std::array<hui::PadSample,64> samples{};size_t n=pad.read(samples);
    unsigned pressed=0,held=previous;float stick=0;
    for(size_t i=0;i<n;i++){pressed|=samples[i].buttons&~held;held=samples[i].buttons;stick=((int)samples[i].left_x-128)/127.f;}
    previous=held;
-   if(pressed&hui::pad_bits::kCircle){if(g.phase==sprint::Phase::menu){pad.close();sprint_art::release_atlas(spriteTexture);sprint_art::release_atlas(backgroundTexture);render.release();screen.close();hui::sys::quit();}g.reset_to_menu();}
+   if(pressed&hui::pad_bits::kTriangle && g.phase==sprint::Phase::playing){
+     audio.mute(!audio.muted());audio.play(sprint_audio::Sfx::menu);
+   }
+   if(pressed&hui::pad_bits::kCircle){if(g.phase==sprint::Phase::menu){audio.stop();pad.close();sprint_art::release_atlas(spriteTexture);sprint_art::release_atlas(backgroundTexture);render.release();screen.close();hui::sys::quit();}g.reset_to_menu();}
    if(pressed&hui::pad_bits::kOptions){if(g.phase==sprint::Phase::playing)g.set_pause(true);else if(g.phase==sprint::Phase::paused)g.set_pause(false);}
    if(pressed&hui::pad_bits::kCross){
-     if(g.phase==sprint::Phase::menu||g.phase==sprint::Phase::game_over||g.phase==sprint::Phase::victory){g.new_run(0);suppressJumpUntilRelease=true;}
-     else if(g.phase==sprint::Phase::paused){g.set_pause(false);suppressJumpUntilRelease=true;}
-     else if(g.phase==sprint::Phase::stage_clear){g.next_stage();suppressJumpUntilRelease=true;}
+     if(g.phase==sprint::Phase::menu||g.phase==sprint::Phase::game_over||g.phase==sprint::Phase::victory){g.new_run(0);suppressJumpUntilRelease=true;audio.play(sprint_audio::Sfx::menu);}
+     else if(g.phase==sprint::Phase::paused){g.set_pause(false);suppressJumpUntilRelease=true;audio.play(sprint_audio::Sfx::pause);}
+     else if(g.phase==sprint::Phase::stage_clear){g.next_stage();suppressJumpUntilRelease=true;audio.play(sprint_audio::Sfx::clear);}
    }
    if((pressed&hui::pad_bits::kTriangle)&&g.phase==sprint::Phase::menu)g.new_run(g.progress.unlocked);
    sprint::Control input;input.horizontal=std::fabs(stick)>.2f?stick:0;
@@ -45,19 +50,35 @@ int main(){
    if(!(held&hui::pad_bits::kCross))suppressJumpUntilRelease=false;
    input.jump=(held&hui::pad_bits::kCross)!=0 && !suppressJumpUntilRelease;
    input.sprint=(held&hui::pad_bits::kSquare)!=0;
+   const sprint::Phase beforePhase=g.phase;
+   const int beforeScore=g.score,beforeCrystals=g.crystals,beforeLives=g.lives;
+   const int beforeJumps=g.jumps_remaining();
+   const float beforeVertical=g.velocity.y;
    g.step(input);++frames;
+   if(g.phase==sprint::Phase::playing){
+     if(input.jump && g.jumps_remaining()<beforeJumps)
+       audio.play(beforeJumps==2?sprint_audio::Sfx::jump:sprint_audio::Sfx::double_jump);
+     if(g.crystals>beforeCrystals)audio.play(sprint_audio::Sfx::crystal);
+     if(g.lives<beforeLives)audio.play(sprint_audio::Sfx::hurt);
+     if(g.score-beforeScore>=250 && g.crystals==beforeCrystals)audio.play(sprint_audio::Sfx::stomp);
+     if(g.velocity.y<-18.f && beforeVertical>=-18.f)audio.play(sprint_audio::Sfx::spring);
+   }
+   if(beforePhase==sprint::Phase::playing && g.phase==sprint::Phase::stage_clear)audio.play(sprint_audio::Sfx::clear);
+   if(beforePhase==sprint::Phase::playing && g.phase==sprint::Phase::game_over)audio.play(sprint_audio::Sfx::death);
+   if(g.phase==sprint::Phase::victory && beforePhase!=g.phase)audio.play(sprint_audio::Sfx::victory);
+   audio.set_scene(g.stage,g.phase!=sprint::Phase::playing);
    DrawList d;
    sprint_art::render_world(d,g,spriteTexture,backgroundTexture,frames);
    d.rounded_rect({0,0,1920,95},0,Color::rgb(0x07182c));
    t(d,font,atlas,"STARBOUND SPRINT by YAHBALLON",55,57,29,Color::rgb(0xffd45a));
-   t(d,font,atlas,"v0.4.0",1860,57,23,Color::rgb(0xffffff),Align::right);
+   t(d,font,atlas,"v0.5.0",1860,57,23,Color::rgb(0xffffff),Align::right);
    t(d,font,atlas,"WORLD "+std::to_string(g.stage+1)+": "+sprint::Game::stage_name(g.stage),55,132,24);
    t(d,font,atlas,"SCORE "+std::to_string(g.score),755,132,23);
    t(d,font,atlas,"CRYSTALS "+std::to_string(g.crystals),1010,132,23,Color::rgb(0xffd45a));
    t(d,font,atlas,"JUMPS "+std::to_string(g.jumps_remaining())+"/2",1370,132,23,Color::rgb(0x65f2df));
    t(d,font,atlas,"LIVES "+std::to_string(g.lives),1630,132,23);
    d.rounded_rect({45,962,1830,90},16,Color::rgb(0x08182d));
-   t(d,font,atlas,"D-PAD / STICK MOVE       X  DOUBLE JUMP       SQUARE  SPRINT       OPTIONS  PAUSE       O  BACK",960,1018,22,Color::rgb(0xa8c4de),Align::center);
+   t(d,font,atlas,"D-PAD MOVE   X DOUBLE JUMP   SQUARE SPRINT   TRIANGLE MUTE   OPTIONS PAUSE   O BACK",960,1018,22,Color::rgb(0xa8c4de),Align::center);
    if(g.phase!=sprint::Phase::playing){
       d.rounded_rect({0,151,1920,795},0,Color::rgb(0x050d20,.75f));
       d.bordered_rect({440,258,1040,544},23,Color::rgb(0x122a47),3,Color::rgb(0x65edd2));

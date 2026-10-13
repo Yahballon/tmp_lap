@@ -1,9 +1,10 @@
-# Starbound Sprint v0.4.0 — Fantasy Visual Remaster
+# Starbound Sprint v0.5.0 — Native Music & Sound
 
-Replaces low-resolution magnified gameplay sprites and tiles with higher-resolution procedural fantasy scenery inspired by the approved mockup. Adds a moonlit sky, layered clouds, floating islands, distant castle silhouettes, waterfalls, lanterns, richly shaded cliffs, glowing crystal collectibles, and a new explorer silhouette with running and double-jump effects. World collision, enemy logic, eight levels and existing save files are preserved.
+- Native PlayStation 5 stereo audio engine with a dedicated output/mixing thread.
+- Four original procedural stage soundtrack patterns with bass accompaniment.
+- Sound effects for jumps, double jumps, crystals, enemy stomps, damage, spring launches, UI, stage clear, game over and victory.
+- TRIANGLE toggles mute during gameplay.
+- No unlicensed music or downloaded commercial game samples.
+- Audio automatically disables if `libSceAudioOut` cannot initialize; PS5 hardware validation remains required.
 
-## Known limitations
-A convincing playable design interpretation, not a pixel-for-pixel recreation of a static screenshot. Proper hand-painted layered art, more character animation frames, audio and physical PS5 testing are still needed.
-
-## Install
-Extract PPSA99641.zip to /data/homebrew/, preserving starbound-progress.cfg before overwriting.
+Install PPSA99641.zip to `/data/homebrew/`, preserving `starbound-progress.cfg`.

@@ -6,9 +6,9 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
-| Crypto Tracker | [homebrew/crypto-tracker](homebrew/crypto-tracker/) | [Build Crypto Tracker](.github/workflows/build-ps5-crypto-tracker.yml) | [v0.4.0](https://github.com/Yahballon/tmp_lap/releases/tag/v0.3.0) |
+| Crypto Tracker | [homebrew/crypto-tracker](homebrew/crypto-tracker/) | [Build Crypto Tracker](.github/workflows/build-ps5-crypto-tracker.yml) | [v0.5.0](https://github.com/Yahballon/tmp_lap/releases/tag/v0.3.0) |
 | WWW Speedtest | [homebrew/www-speedtest](homebrew/www-speedtest/) | [Build WWW Speedtest](.github/workflows/build-www-speedtest.yml) | Pending v0.1.0 |
-| Starbound Sprint | [homebrew/starbound-sprint](homebrew/starbound-sprint/) | [Build Starbound Sprint](.github/workflows/build-starbound-sprint.yml) | [v0.3.0](https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.4.0) |
+| Starbound Sprint | [homebrew/starbound-sprint](homebrew/starbound-sprint/) | [Build Starbound Sprint](.github/workflows/build-starbound-sprint.yml) | [v0.3.0](https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.5.0) |
 | Payload LauncherX | [homebrew/payload-launcher](homebrew/payload-launcher/) | [Build Payload LauncherX](.github/workflows/build-payload-launcher.yml) | [v0.2.4](https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.2.4) |
 
 ## Layout
