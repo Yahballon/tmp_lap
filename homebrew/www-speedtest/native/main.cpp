@@ -109,7 +109,7 @@ int main(){
   t(ui,font,atlas,"WWW SPEEDTEST",196,69,52);
   t(ui,font,atlas,"Test your internet speed on PS5",198,108,23,muted);
   t(ui,font,atlas,"by YAHBALLON",1580,55,18,cyan);
-  t(ui,font,atlas,"v0.3.2",1835,55,20,white,Align::right);
+  t(ui,font,atlas,"v0.4.0",1835,55,20,white,Align::right);
   panel(ui,24,161,380,848);
   const char* symbols[]={"[>]","[=]","[|]","[@]","[*]","[i]"};
   for(int i=0;i<6;i++){
@@ -171,7 +171,7 @@ int main(){
    t(ui,font,atlas,"Connection Information",440,765,23);divider(ui,436,779,412);
    t(ui,font,atlas,"Endpoint",438,816,20,muted);t(ui,font,atlas,speedtest::servers()[speedtest::selectedServer()].host,608,816,16);
    t(ui,font,atlas,"Protocol",438,852,20,muted);t(ui,font,atlas,"Verified HTTPS",608,852,19);
-   t(ui,font,atlas,"Connection",438,888,20,muted);t(ui,font,atlas,s.running?"Testing":s.completed?"Available":"Not tested",608,888,18);
+   t(ui,font,atlas,"Local IP",438,888,20,muted);t(ui,font,atlas,s.localIp,608,888,18);
    t(ui,font,atlas,"Latency / Jitter",438,924,19,muted);t(ui,font,atlas,fmt(s.ping)+" / "+fmt(s.jitter)+" ms",608,924,18);
    t(ui,font,atlas,"Quick Servers",915,765,23);divider(ui,910,779,413);
    t(ui,font,atlas,speedtest::servers()[speedtest::selectedServer()].name,918,825,21,cyan);
@@ -216,7 +216,9 @@ int main(){
     t(ui,font,atlas,std::string("Server: ")+speedtest::servers()[speedtest::selectedServer()].host,475,348,29);
     t(ui,font,atlas,"Transport: HTTPS / TLS with certificate validation",475,406,25);
     t(ui,font,atlas,"Latency includes TLS and connection setup time.",475,463,25,muted);
-    t(ui,font,atlas,"IP address, ISP, DNS and NAT type are not available in this build.",475,533,23,muted);
+    t(ui,font,atlas,"Local PS5 IP: "+s.localIp,475,533,25,cyan);
+    t(ui,font,atlas,"Remote server IP: "+s.remoteIp,475,590,25,cyan);
+    t(ui,font,atlas,"These are socket addresses; public IP and NAT type are not detected.",475,650,22,muted);
    }
    if(menu==4){
     t(ui,font,atlas,"Auto-save completed tests",475,355,28);
