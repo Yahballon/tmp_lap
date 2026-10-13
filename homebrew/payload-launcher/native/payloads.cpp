@@ -425,27 +425,54 @@ std::string request_launch(const Payload& p,int port){
     struct sockaddr_in endpoint{};endpoint.sin_family=AF_INET;endpoint.sin_port=htons((uint16_t)port);
     endpoint.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
     if(connect(fd,(const struct sockaddr*)&endpoint,sizeof(endpoint))!=0){close(fd);return "No local ELF loader on 127.0.0.1:"+std::to_string(port);}
-    const std::string command="file:"+p.path+"?pipe=0\n";
-    std::size_t sent=0;
-    while(sent<command.size()){
-        ssize_t n=send(fd,command.data()+sent,command.size()-sent,0);
-        if(n<=0){close(fd);return "Loader connection failed while sending request";}
-        sent+=(std::size_t)n;
+
+    // Native app cannot read USB directly. Our bounded read-only scanner
+    // exposes the selected ELF to localhost on 9174 after discovery.
+    int bridge=socket(AF_INET,SOCK_STREAM,0);
+    if(bridge<0){close(fd);return "USB transfer socket failed";}
+    struct timeval timeout{5,0};
+    setsockopt(bridge,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+    setsockopt(bridge,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+    sockaddr_in usb{};
+    usb.sin_family=AF_INET;usb.sin_port=htons(9174);
+    usb.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+    if(connect(bridge,(sockaddr*)&usb,sizeof(usb))){
+        close(bridge);close(fd);return "USB helper port 9174 not ready - refresh with TRIANGLE";
     }
-    // Keep the request socket readable long enough to capture elfldr errors.
-    // In pipe=0 mode a successful launch can legitimately return no output.
-    struct timeval replyTimeout{1,0};
-    setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&replyTimeout,sizeof(replyTimeout));
-    char reply[256]{};
-    ssize_t received=recv(fd,reply,sizeof(reply)-1,0);
+    const std::string fetch="FETCH "+p.folder+"/"+p.filename+"\n";
+    if(send(bridge,fetch.data(),fetch.size(),0)!=(ssize_t)fetch.size()){
+        close(bridge);close(fd);return "USB helper request failed";
+    }
+    char line[80]{};
+    std::size_t len=0;
+    for(;len<sizeof(line)-1;len++){
+        char c=0;
+        if(recv(bridge,&c,1,0)!=1)break;
+        if(c=='\n')break;
+        line[len]=c;
+    }
+    unsigned long long expected=0;
+    if(std::sscanf(line,"DATA %llu",&expected)!=1 || expected<64 || expected>32ULL*1024*1024){
+        close(bridge);close(fd);return "USB helper could not read selected ELF";
+    }
+    char bytes[16384];
+    unsigned long long transferred=0;
+    while(transferred<expected){
+        const std::size_t size=(std::size_t)std::min<unsigned long long>(sizeof(bytes),expected-transferred);
+        ssize_t n=recv(bridge,bytes,size,0);
+        if(n<=0)break;
+        std::size_t off=0;
+        while(off<(std::size_t)n){
+            ssize_t wrote=send(fd,bytes+off,(std::size_t)n-off,0);
+            if(wrote<=0)break;
+            off+=(std::size_t)wrote;
+        }
+        if(off!=(std::size_t)n)break;
+        transferred+=(unsigned long long)n;
+    }
+    close(bridge);
     close(fd);
-    if(received>0){
-        std::string answer(reply,(std::size_t)received);
-        std::size_t end=answer.find_first_of("\r\n");
-        if(end!=std::string::npos)answer.resize(end);
-        if(answer.size()>140)answer.resize(140);
-        return "elfldr response: "+answer;
-    }
-    return "ELF launch sent: "+p.name+" (no loader confirmation)";
+    if(transferred!=expected)return "ELF transfer interrupted: "+std::to_string(transferred)+"/"+std::to_string(expected);
+    return "ELF bytes sent: "+p.name+" ("+std::to_string(expected)+" bytes; unconfirmed)";
 }
 } // namespace launcher
