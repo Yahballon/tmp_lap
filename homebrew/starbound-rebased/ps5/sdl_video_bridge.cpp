@@ -8,5 +8,9 @@ extern "C" {
 int __wrap_PS5_Remote_Init(void) { return 0; }
 int __wrap_PS5_Keyboard_Init(void) { return 0; }
 int __wrap_PS5_Keyboard_Open(void) { return 0; }
+// SDL video PumpEvents calls this even with the keyboard initializer disabled.
+// Its original implementation invokes sceImeDialogGetStatus unconditionally,
+// which may be unavailable in unsigned homebrew and can jump to NULL.
+int __wrap_PS5_Keyboard_PumpEvents(void) { return 0; }
 int __wrap_sceSystemServiceHideSplashScreen(void) { return 0; }
 }
