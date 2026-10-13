@@ -1,0 +1,97 @@
+name: Build Starbound Rebased (ShadowMount test)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/starbound-rebased/**'
+      - '.github/workflows/build-starbound-rebased.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/starbound-rebased/**'
+      - '.github/workflows/build-starbound-rebased.yml'
+permissions:
+  contents: write
+jobs:
+  native-title:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget unzip tar git pkg-config python3 python3-pil fonts-liberation2
+      - name: Fetch MIT engine and native app scaffold
+        run: |
+          bash homebrew/starbound-rebased/tools/fetch-engine.sh
+          python3 homebrew/starbound-rebased/tools/audit-upstream-assets.py
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/ps5-devbridge
+          cp -a /tmp/ps5-devbridge/templates/simple-calc app
+      - name: Generate original replacement assets
+        run: |
+          python3 homebrew/starbound-rebased/tools/generate-original-media.py
+          python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
+          # Current GCC relied on transitive cstdint includes; Clang 18 requires this explicit include.
+          sed -i '1a #include <cstdint>' build/gold872-engine/include/ECS/ECS.h
+          cp -a build/gold872-engine/src/. app/src/
+          cp -a build/gold872-engine/include/. app/src/
+          cp -a homebrew/starbound-rebased/res app/res
+          mkdir -p app/assets
+          cp -a app/res/. app/assets/
+          cp build/gold872-engine/LICENSE app/UPSTREAM-MIT-LICENSE.txt
+          python3 - <<'PY'
+          import json,pathlib
+          path=pathlib.Path('app/sce_sys/param.json')
+          data=json.loads(path.read_text())
+          data['titleId']='PPSA99642'
+          data['conceptId']='99642'
+          data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
+          data['contentVersion']='01.000.001'
+          data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
+          path.write_text(json.dumps(data,indent=2)+'\n')
+          PY
+          cp app/res/sprites/icons/windowicon.png app/sce_sys/icon0.png
+      - name: Compile and package native app
+        working-directory: app
+        env:
+          USE_CCACHE: "0"
+          BUILD_JOBS: "4"
+          PS5_CLANG: clang-18
+          PACBREW_PACKAGES: "sdl2 SDL2_image SDL2_mixer SDL2_ttf"
+          PACBREW_INCLUDE_PATHS: "include"
+          APP_INCLUDE_PATHS: "src"
+        run: |
+          bash tools/setup-pacbrew-dependencies.sh --list | grep -Ei 'sdl'
+          make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify new ShadowMount title ZIP
+        run: |
+          python3 - <<'PY'
+          import json,zipfile,pathlib,struct
+          p=pathlib.Path('app/dist/PPSA99642.zip')
+          assert p.is_file() and p.stat().st_size>500000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=set(z.namelist())
+              root='PPSA99642/'
+              assert root+'eboot.bin' in names
+              assert root+'sce_sys/param.json' in names
+              assert root+'sce_sys/icon0.png' in names
+              assert root+'assets/sprites/characters/PlayerSpriteSheet.png' in names
+              assert root+'assets/data/World1-1/World1-1_Foreground.csv' in names
+              data=json.loads(z.read(root+'sce_sys/param.json'))
+              assert data['titleId']=='PPSA99642'
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Starbound-Rebased-PPSA99642
+          path: app/dist/PPSA99642.zip
+          if-no-files-found: error
+      - name: Publish TESTBUILDS release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=starbound-rebased-v0.1.0
+          if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.0 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
