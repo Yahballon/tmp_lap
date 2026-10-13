@@ -89,7 +89,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p=Path('homebrew/payload-launcher/helper/usbscan.elf')
-          assert p.read_bytes()[:6]==b'\\x7fELF\\x02\\x01', 'USB helper must be ELF64'
+          assert p.read_bytes()[:6]==b'\x7fELF\x02\x01', 'USB helper must be ELF64'
           print('Bundled read-only helper verified')
           PY
           cp homebrew/payload-launcher/helper/usbscan.elf app/usbscan.elf
