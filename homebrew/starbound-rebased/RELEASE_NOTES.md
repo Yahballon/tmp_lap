@@ -1,3 +1,3 @@
-# Starbound Rebased v0.1.2 – SDL initialization crash investigation
+# Starbound Rebased v0.1.3 — SDL subsystem isolation
 
-User-confirmed v0.1.1 crash happens inside Core::init() after entering it, before finishing TextureManager::Init(). The update adds precise persisted TM01–TM12 checkpoints around SDL_Init, IMG_Init, TTF_Init, window creation, and renderer creation, and falls back to SDL software rendering if acceleration fails. Starts video separately from audio to reduce failure coupling. Early trace in `/data/starbound-rebased/boot.log` is essential for diagnosing the remaining PS5 runtime issue; **hardware boot is not yet confirmed**.
+Hardware evidence confirms a null-address SIGSEGV inside `SDL_Init` (last checkpoint TM01). This update initializes SDL core, timer, events and video separately, persisting checkpoints `TM01a`–`TM01g` and `TM02` to `/data/starbound-rebased/boot.log`. This narrows which PS5 SDL2 subsystem triggers the crash and does **not** claim a hardware-verified fix.
