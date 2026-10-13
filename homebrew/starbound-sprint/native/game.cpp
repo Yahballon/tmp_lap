@@ -51,35 +51,63 @@ bool Game::solid_at(int col,int row) const {
     return tiles[row][col]=='#'||tiles[row][col]=='=';
 }
 void Game::make_stage() {
-    pickups.clear();drones.clear();
+    pickups.clear();drones.clear();moving_platforms.clear();
     for(auto& row:tiles)row.fill('.');
-    // Every stage has its own gap rhythm; no maps are copied from another game.
-    const int shift=stage%4;
-    for(int c=0;c<kColumns;c++)tiles[kRows-1][c]='#';
-    const int holes[4]={21+shift,43-shift,70+shift,94-shift};
-    for(int i=0;i<4;i++) {
-        int size=(i%2==0)?2:3;
-        for(int c=holes[i];c<holes[i]+size;c++)tiles[kRows-1][c]='.';
+
+    // Eight authored world configurations: different rhythms, obstacles and height profiles.
+    // Collisions are always queried from the tile map; decoration is render-only.
+    const int theme=stage%4;
+    for(int x=0;x<kColumns;++x)tiles[kRows-1][x]='#';
+    for(int sector=0;sector<6;++sector){
+        const int pit=23+sector*27+(stage+sector*3)%6;
+        const int width=2+(stage+sector)%3;
+        for(int c=pit;c<pit+width;++c)tiles[kRows-1][c]='.';
+        // A logical route above every dangerous gap, with two possible jump arcs.
+        const int bridge_row=7+((sector+stage)%3);
+        for(int c=pit-3;c<pit+width+3;++c)if(c>=1&&c<kColumns-6)
+            tiles[bridge_row][c]='=';
     }
-    for(int i=0;i<13;i++){
-        int column=9+i*8+(stage*3+i)%4;
-        int row= (i%3==0)?7:((i%3==1)?9:8);
-        int length=3+(i+stage)%4;
-        for(int x=column;x<std::min(kColumns-7,column+length);x++)tiles[row][x]='=';
-        pickups.push_back({{(column+1.f)*kTile,(row-1.f)*kTile+6},false});
-        if(i%3==0)pickups.push_back({{(column+2.f)*kTile,(row-2.f)*kTile+3},false});
+    for(int part=0;part<20;++part){
+        const int begin=7+part*8+(part*3+stage)%3;
+        const int row=6+((part*7+stage*3)%5);
+        const int length=2+((part+stage)%4);
+        for(int c=begin;c<begin+length && c<kColumns-4;++c)
+            if(tiles[row][c]=='.')tiles[row][c]='=';
+        pickups.push_back({{(begin+1.f)*kTile,(row-1.f)*kTile+10.f},false});
+        if(part%2==0)
+            pickups.push_back({{(begin+2.f)*kTile,(row-2.f)*kTile+8.f},false});
     }
-    // Low crystals and airborne gems guide the player over original obstacles.
-    for(int c=5;c<kColumns-7;c+=5){
-        bool safe=tiles[kRows-1][c]=='#';
-        if(safe)pickups.push_back({{c*kTile+16.f,11*kTile+8.f},false});
+    // Crystal paths guide exploration and teach timing around hazards.
+    for(int col=5;col<kColumns-6;col+=4){
+        if(tiles[kRows-1][col]=='#'){
+            int elevated=(col/4+stage)%4==0;
+            pickups.push_back({{col*kTile+14.f,(elevated?9.f:11.f)*kTile+9.f},false});
+        }
     }
-    for(int i=0;i<10;i++){
-        int col=15+i*10+(stage+i)%3;
-        if(tiles[kRows-1][col]=='#')drones.push_back({{col*kTile+10.f,12*kTile-42.f},i%2?1.f:-1.f,true});
+    for(int i=0;i<16;++i){
+        const int col=13+i*10+(stage+i*2)%4;
+        const int type=(i+stage*2)%8;
+        const bool flying=(type==3||type==4||type==7);
+        if(flying||tiles[kRows-1][col]=='#'){
+            float y=flying?9.4f*kTile:12.f*kTile-42.f;
+            drones.push_back({{col*kTile+10.f,y},i%2?1.f:-1.f,true,type,y});
+        }
     }
-    for(int c=36;c<kColumns-15;c+=32){
-        if(tiles[kRows-1][c]=='#')tiles[11][c]='S'; // launch pads, nonblocking
+    for(int i=0;i<4;++i){
+        int col=29+i*38+(stage*3)%8;
+        if(tiles[kRows-1][col]=='#')tiles[11][col]='S';
+    }
+    for(int i=0;i<7;++i){
+        int col=18+i*22+(stage*2+i)%4;
+        if(col<kColumns-5 && tiles[kRows-1][col]=='#' &&
+           tiles[11][col]=='.' && tiles[10][col]=='.'){
+            tiles[11][col]='^';
+        }
+    }
+    if(theme==1||theme==3)for(int i=0;i<4;++i){
+        float x=(35+i*34)*kTile*1.f;
+        float y=(7+(i+stage)%3)*kTile*1.f;
+        moving_platforms.push_back({{x,y},x,i*1.3f,90.f+(i%2)*30.f});
     }
     checkpoint_x=2.f*kTile;
     player={checkpoint_x,12.f*kTile-kPlayerHeight};
@@ -147,6 +175,14 @@ void Game::step(const Control& input) {
     if(phase!=Phase::playing)return;
     elapsed+=1.f/60.f;
     if(invulnerable>0)--invulnerable;
+    // Moving platforms carry the player and provide actual one-way collision.
+    for(auto& p:moving_platforms){
+        const float last=p.pos.x;
+        p.pos.x=p.anchor+std::sin(elapsed*1.3f+p.phase)*p.range;
+        const bool riding=std::fabs(player.y+kPlayerHeight-p.pos.y)<3.f &&
+            player.x+kPlayerWidth>last && player.x<last+3.f*kTile && grounded;
+        if(riding)player.x+=p.pos.x-last;
+    }
     float target=clampf(input.horizontal,-1.f,1.f)*(input.sprint?7.4f:5.2f);
     velocity.x+=(target-velocity.x)*0.24f;
     if(std::fabs(input.horizontal)>.1f)facing_right=input.horizontal>0;
@@ -165,6 +201,15 @@ void Game::step(const Control& input) {
     move_x(velocity.x);
     float beforeBottom=player.y+kPlayerHeight;
     move_y(velocity.y);
+    if(velocity.y>=0.f){
+        for(auto& p:moving_platforms){
+            if(beforeBottom<=p.pos.y+8.f && player.y+kPlayerHeight>=p.pos.y &&
+               player.x+kPlayerWidth>p.pos.x+4.f && player.x<p.pos.x+3.f*kTile-4.f){
+                player.y=p.pos.y-kPlayerHeight;
+                velocity.y=0;grounded=true;break;
+            }
+        }
+    }
     if(grounded)jumps_used_=0; // Restore both jumps on ground or a platform.
     for(int c=std::max(0,static_cast<int>(player.x/kTile)-1);
         c<=std::min(kColumns-1,static_cast<int>((player.x+kPlayerWidth)/kTile)+1);c++) {
@@ -176,17 +221,28 @@ void Game::step(const Control& input) {
             velocity.y=-20.5f;grounded=false;jumps_used_=1; // One midair jump after a launch pad.
         }
     }
+    int leftHazard=std::max(0,(int)(player.x/kTile));
+    int rightHazard=std::min(kColumns-1,(int)((player.x+kPlayerWidth-1.f)/kTile));
+    for(int col=leftHazard;col<=rightHazard;++col){
+        if(tiles[11][col]=='^' &&
+           overlap(player.x,player.y,kPlayerWidth,kPlayerHeight,
+                   col*kTile*1.f,11.f*kTile+13.f,kTile*1.f,kTile-13.f)){
+            damage();return;
+        }
+    }
     if(player.y>kRows*kTile+140.f){damage();return;}
     if(player.x>checkpoint_x+31.f*kTile)checkpoint_x=std::min(player.x,90.f*kTile);
     for(auto& p:pickups)if(!p.taken && overlap(player.x,player.y,kPlayerWidth,kPlayerHeight,p.pos.x,p.pos.y,28.f,32.f)) {
         p.taken=true;crystals++;score+=100;
     }
     for(auto& d:drones)if(d.alive){
-        float ahead=d.pos.x+d.direction*1.45f;
+        float ahead=d.pos.x+d.direction*(d.type==3||d.type==7?2.1f:1.45f);
         int floorcol=static_cast<int>((ahead+(d.direction>0?35.f:0.f))/kTile);
         int floorrow=12;
-        if(!solid_at(floorcol,floorrow) || ahead<5*kTile || ahead>(kColumns-8)*kTile) d.direction=-d.direction;
+        const bool airborne=d.type==3||d.type==4||d.type==7;
+        if((!airborne&&!solid_at(floorcol,floorrow)) || ahead<5*kTile || ahead>(kColumns-8)*kTile) d.direction=-d.direction;
         else d.pos.x=ahead;
+        d.pos.y=airborne?d.home_y+std::sin(elapsed*3.f+d.pos.x*.018f)*22.f:d.home_y;
         if(overlap(player.x,player.y,kPlayerWidth,kPlayerHeight,d.pos.x,d.pos.y,42.f,40.f)){
             if(velocity.y>1.f && beforeBottom<=d.pos.y+13.f){
                 d.alive=false;velocity.y=-10.8f;score+=250;grounded=false;jumps_used_=1; // Stomp bounce restores an air jump.

@@ -1,38 +1,45 @@
-# Starbound Sprint
+# Starbound Sprint v0.3.0
 
-Native 2D side-scrolling PS5 homebrew platform game using original procedural geometry. No Mario characters, maps, art or sound are included.
+Original cosmic platform adventure for the homebrew-enabled PlayStation 5. Eight extended worlds, 16-bit-inspired pixel art extracted from the **original generated Starbound Sprint concept atlas** supplied in the project, with no commercial Nintendo assets.
 
-**v0.2.0 · PPSA99641 · Content version 01.000.002**
+**Title ID:** PPSA99641 — **Content Version:** 01.000.003 — **Author:** YAHBALLON
 
-Eight stages, two jumps per landing (double jump), HUD air-jump counter, platform physics, camera scrolling, collectible crystals, roaming drones, springs, checkpoints, score, lives, progressive unlocks, and saved score.
+## Gameplay
 
-## Controller
+- Eight extended stages with four full sprite-art biomes: Overworld, Crystal Cave, Magma Fortress and Cloud Ruins (including advanced remixes).
+- 64 atlas frames: 8 player animation poses, 8 enemy types, 8 pickups, 32 environment tiles and 8 props, plus four panoramic concept backgrounds.
+- Enhanced original tile map with staggered platforms, pits, springs, spike traps, collectable paths and moving platforms.
+- Camera-follow, layered parallax scenes, animated collectibles, hazards, creature movement and HUD.
+- Classic acceleration and gravity, double-jump (Cross twice), stamina-free sprint, enemy stomps, score and checkpoints.
+- Existing progress format and Title ID are unchanged: `/data/homebrew/PPSA99641/starbound-progress.cfg`.
 
-| Button | Use |
+## DualSense Controls
+
+| Control | Action |
 | --- | --- |
-| D-pad / Left Stick | Move |
-| Cross | Jump; release and press again in midair for a second jump; confirm |
+| D-Pad / Left Stick | Move |
+| Cross | Jump / second airborne jump; confirm on menus |
 | Square | Sprint |
 | Options | Pause / resume |
-| Circle | Back; exit from title |
-| Triangle | Continue from most recently unlocked world |
+| Circle | Return to title; exit from title screen |
+| Triangle | Continue unlocked progress from title screen |
 
-## Installation
+## Art pipeline
 
-Download PPSA99641.zip from the versioned GitHub release, extract PPSA99641 into /data/homebrew/, and register with ShadowMountPlus or a compatible PS5 homebrew loader.
+`assets/sprite-atlas.b85` stores 64 cropped and re-quantized sprites derived from the project's originally generated concept image. `prepare_assets.py` decodes the indexed atlas once **at build time** to `app/assets/starbound-sprites.rgba` (128×128 pixels, RGBA8). Four concept backdrops are independently decoded to \`starbound-backgrounds.rgba\` and GPU-uploaded at initialization. No costly per-frame PNG decoding takes place on PS5; the atlas is uploaded once and rendered as batched texture quads with nearest-neighbor filtering. The art is a cohesive first playable conversion of the approved concept; original individual sprite source drawings may be expanded in later updates.
 
 ## Build
 
-See [dedicated GitHub Actions workflow](../../.github/workflows/build-starbound-sprint.yml). Uses GPL-3.0-or-later ps5-homebrew-ui via the PS5-DevBridge simple-calc PS5 toolchain.
+[Build Starbound Sprint](../../.github/workflows/build-starbound-sprint.yml) compiles with PS5-DevBridge and ps5-homebrew-ui, runs host physics/level tests, verifies `eboot.bin`, native libraries and the actual compiled asset data, then creates `PPSA99641.zip`.
 
-## Double jump
+## Installation
 
-Press Cross once to jump, release it and press again before landing for one extra midair jump. A third press while still airborne does nothing. Both jumps recharge on landing. Launch pads and enemy stomps allow one midair jump afterward. The HUD displays the remaining jump count.
+Get [the v0.3.0 release](https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.3.0), extract the `PPSA99641` folder into `/data/homebrew/` and register with a compatible homebrew launcher. **Back up `starbound-progress.cfg` before replacing the app folder.**
 
-## Persistence
+## Known limitations
 
-Progress is stored in /data/homebrew/PPSA99641/starbound-progress.cfg. Preserve that file when replacing the application directory during upgrades.
+No music / sound effects yet; frame timing currently targets 60 Hz. Tests validate the PS5 build and independent gameplay logic, not operation on physical PS5 hardware.
 
-## Limitations
+## License
 
-No audio, animated sprite sheet or real-PS5 hardware testing yet. The first release uses native procedurally drawn shapes. License: GPL-3.0-or-later.
+GPL-3.0-or-later, preserving upstream framework attribution.
