@@ -75,7 +75,13 @@ for name,size in [("icons/logo.png",(460,96)),("icons/optionsbackground.png",(80
         d.ellipse((i,size[1]//2-4,i+3,size[1]//2-1),fill="#43e6e9")
     if size[0]>100:
         d.rounded_rectangle((10,10,size[0]-10,size[1]-10),radius=20,outline="#3ac8d5",width=3)
-    im.save(ROOT/"sprites"/name)
+    out=ROOT/"sprites"/name
+    out.parent.mkdir(parents=True,exist_ok=True)
+    if name=="icons/logo.png":
+        from PIL import ImageFont
+        font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",33)
+        d.text((30,29),"STARBOUND REBASED",fill="#dffbff",font=font)
+    im.save(out)
 # Sound is newly synthesized with an independent melody, not copied from game ROMs.
 effects="blockbreak blockhit bowserfall bowserfire cannonfire castleclear coin death fireball flagraise gameover jump kick oneup pause pipe powerupappear powerupcollect shrink stomp timertick".split()
 musics="castle gamewon overworld superstar underground underwater".split()
