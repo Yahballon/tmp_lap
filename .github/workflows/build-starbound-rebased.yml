@@ -67,7 +67,10 @@ jobs:
           APP_INCLUDE_PATHS: "src"
         run: |
           bash tools/setup-pacbrew-dependencies.sh --list | grep -Ei 'sdl'
-          make APP_INCLUDE_PATHS=src APP_SOURCE_DIR=src APP_ASSETS=assets USE_CCACHE=0 BUILD_JOBS=4 app
+          mkdir -p build/jb-json
+          cp .deps/native/ps5-payload-sdk/target/lib/libc.a build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r build/jb-json/libjb-posix.a
+          make APP_INCLUDE_PATHS=src APP_SOURCE_DIR=src APP_ASSETS=assets APP_STATIC_ARCHIVES= APP_IMPORT_STUBS= APP_RUNTIME_MODULES= APP_DEFINITIONS= USE_CCACHE=0 BUILD_JOBS=4 app
       - name: Verify new ShadowMount title ZIP
         run: |
           python3 - <<'PY'
