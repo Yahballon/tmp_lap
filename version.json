@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "c8d9d3c4e2cf24d604644d57361071ea070c2fa5ab54b64b9f9bf2ac6b357403",
+  "version": "87fed4fc8e0f1fa7695e6942802176226f7abcce7f3487dcdf26a13d11436321",
   "repository": "Yahballon/tmp_lap",
   "app_count": 4,
   "apps": [
@@ -34,14 +34,14 @@
       "name": "Starbound Sprint",
       "slug": "starbound-sprint",
       "title_id": "PPSA99641",
-      "version": "0.6.0",
-      "tag": "starbound-sprint-v0.6.0",
+      "version": "0.7.0",
+      "tag": "starbound-sprint-v0.7.0",
       "zip_name": "PPSA99641.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-sprint-v0.6.0/PPSA99641.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.6.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-sprint-v0.7.0/PPSA99641.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.7.0",
       "source": "homebrew/starbound-sprint",
-      "size_bytes": 6058524,
-      "published_at": "2026-10-13T20:15:34Z"
+      "size_bytes": 6111755,
+      "published_at": "2026-10-13T20:24:21Z"
     },
     {
       "name": "Payload LauncherX",
