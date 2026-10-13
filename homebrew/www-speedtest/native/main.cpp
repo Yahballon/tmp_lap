@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <sys/stat.h>
