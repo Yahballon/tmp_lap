@@ -24,6 +24,6 @@ build:
 # -include cstdint compensates for a missing header in the pinned upstream source.
 build/starbound-gold872.elf: $(SOURCES) | build check-deps
 	$(CXX) -std=c++17 -O1 -include cstdint $(INC) -o $@ $(SOURCES) \
-	  $(SDL_ARCHIVES) -lbz2 -lpng -liconv -lm -lz $(SYSLIBS)
+	  $(SDL_ARCHIVES) -lwebpdemux -lwebp -lbz2 -lpng -liconv -lm -lz $(SYSLIBS)
 clean:
 	rm -rf build
