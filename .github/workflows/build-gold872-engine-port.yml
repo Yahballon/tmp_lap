@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           mapfile -d '' sources < <(find build/gold872-engine/src -type f -name '*.cpp' -print0)
           test "${#sources[@]}" -gt 20
-          g++ -std=c++17 -O1 -Ibuild/gold872-engine/include "${sources[@]}" -o /tmp/starbound-rebased-desktop \
+          g++ -std=c++17 -O1 -include cstdint -Ibuild/gold872-engine/include "${sources[@]}" -o /tmp/starbound-rebased-desktop \
             $(sdl2-config --cflags --libs) -lSDL2_image -lSDL2_mixer -lSDL2_ttf -pthread
           test -s /tmp/starbound-rebased-desktop
           echo "Real engine compilation passed; not PS5-runnable yet"
