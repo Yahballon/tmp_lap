@@ -44,6 +44,7 @@ jobs:
           cp -a build/gold872-engine/src/. app/src/
           cp -a build/gold872-engine/include/. app/src/
           cp homebrew/starbound-rebased/ps5/sdl_video_bridge.cpp app/src/sdl_video_bridge.cpp
+          test -s homebrew/starbound-rebased/res/data/MenuBackground/MenuBackground_Background.csv
           cp -a homebrew/starbound-rebased/res app/res
           mkdir -p app/assets
           cp -a app/res/. app/assets/
@@ -55,7 +56,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.005'
+          data['contentVersion']='01.000.006'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -86,7 +87,7 @@ jobs:
           ln -s ../.deps/native/ps5-payload-sdk/target/lib/libc++.a compatlibs/libcxx.a
           ln -s ../.deps/native/ps5-payload-sdk/target/lib/libc++abi.a compatlibs/libcxxabi.a
           ln -s ../.deps/native/ps5-payload-sdk/target/lib/libunwind.a compatlibs/libunwind.a
-          make APP_INCLUDE_PATHS=src APP_SOURCE_DIR=src APP_ASSETS=assets APP_STATIC_ARCHIVES="compatlibs/libcxx.a compatlibs/libcxxabi.a compatlibs/libunwind.a" APP_ROOT_FILES=UPSTREAM-MIT-LICENSE.txt APP_WRAP_SYMBOLS="PS5_Remote_Init PS5_Keyboard_Init PS5_Keyboard_Open sceSystemServiceHideSplashScreen" APP_IMPORT_STUBS= APP_RUNTIME_MODULES= APP_DEFINITIONS= USE_CCACHE=0 BUILD_JOBS=4 app
+          make APP_INCLUDE_PATHS=src APP_SOURCE_DIR=src APP_ASSETS=assets APP_STATIC_ARCHIVES="compatlibs/libcxx.a compatlibs/libcxxabi.a compatlibs/libunwind.a" APP_ROOT_FILES=UPSTREAM-MIT-LICENSE.txt APP_WRAP_SYMBOLS="PS5_Remote_Init PS5_Keyboard_Init PS5_Keyboard_Open PS5_Keyboard_PumpEvents sceSystemServiceHideSplashScreen" APP_IMPORT_STUBS= APP_RUNTIME_MODULES= APP_DEFINITIONS= USE_CCACHE=0 BUILD_JOBS=4 app
       - name: Verify new ShadowMount title ZIP
         run: |
           python3 - <<'PY'
@@ -115,6 +116,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.4
+          tag=starbound-rebased-v0.1.5
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.4 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.5 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
