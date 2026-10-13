@@ -26,6 +26,10 @@ jobs:
         run: |
           clang++-18 -std=c++20 -O2 -Wall -Wextra -Werror -Ihomebrew/starbound-sprint/native homebrew/starbound-sprint/native/game.cpp homebrew/starbound-sprint/native/tests/test_double_jump.cpp -o /tmp/starbound-double-jump-tests
           /tmp/starbound-double-jump-tests
+      - name: Verify world layouts and dynamic hazards (host)
+        run: |
+          clang++-18 -std=c++20 -O2 -Wall -Wextra -Werror -Ihomebrew/starbound-sprint/native homebrew/starbound-sprint/native/game.cpp homebrew/starbound-sprint/native/tests/test_worlds.cpp -o /tmp/starbound-world-tests
+          /tmp/starbound-world-tests
       - name: Fetch native PS5 scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -43,8 +47,10 @@ jobs:
           d["localizedParameters"]["en-US"]["titleName"]=m["name"]
           p.write_text(json.dumps(d,indent=2)+"\n")
           PY
-      - name: Generate original launcher icon
-        run: python3 homebrew/starbound-sprint/generate_icon.py
+      - name: Generate texture atlas and matching launcher icon
+        run: |
+          python3 homebrew/starbound-sprint/prepare_assets.py
+          test -s app/assets/starbound-sprites.rgba
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
@@ -73,19 +79,21 @@ jobs:
           exe=root/"eboot.bin"
           assert exe.is_file() and exe.stat().st_size>4096
           assert struct.unpack("<I",exe.read_bytes()[:4])[0]==0x1D3D154F
-          assert b"v0.2.0" in exe.read_bytes()
+          assert b"v0.3.0" in exe.read_bytes()
           assert (root/"sce_module/libc.prx").is_file()
           assert (root/"sce_sys/icon0.png").is_file()
+          atlas=root/"assets/starbound-sprites.rgba"
+          assert atlas.is_file() and atlas.stat().st_size==128*128*4
           m=json.loads((root/"sce_sys/param.json").read_text())
-          assert m["titleId"]==title and m["contentVersion"]=="01.000.002"
+          assert m["titleId"]==title and m["contentVersion"]=="01.000.003"
           with zipfile.ZipFile("app/dist/"+title+".zip") as z:
               assert z.testzip() is None
-              for part in ["eboot.bin","sce_module/libc.prx","sce_sys/param.json"]:
+              for part in ["eboot.bin","sce_module/libc.prx","sce_sys/param.json","sce_sys/icon0.png","assets/starbound-sprites.rgba"]:
                   assert title+"/"+part in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Starbound-Sprint-v0.2.0-PPSA99641
+          name: Starbound-Sprint-v0.3.0-PPSA99641
           path: app/dist/PPSA99641.zip
           if-no-files-found: error
       - name: Publish release
@@ -93,6 +101,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="starbound-sprint-v0.2.0"
+          tag="starbound-sprint-v0.3.0"
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99641.zip --target "$GITHUB_SHA" --title "Starbound Sprint v0.2.0" --notes-file homebrew/starbound-sprint/RELEASE_NOTES.md
+          gh release create "$tag" app/dist/PPSA99641.zip --target "$GITHUB_SHA" --title "Starbound Sprint v0.3.0" --notes-file homebrew/starbound-sprint/RELEASE_NOTES.md
