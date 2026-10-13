@@ -6,6 +6,12 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <signal.h>
+#include <errno.h>
 #define ROOT "/mnt/usb0/payloads"
 static int safe(const char *s) {
   if(!s || !*s || s[0]=='.' || strlen(s)>127) return 0;
@@ -37,6 +43,61 @@ static unsigned char *file_read(const char *path,size_t max,size_t *size) {
   if(fread(s,1,(size_t)n,f)!=(size_t)n){free(s);fclose(f);return NULL;}
   fclose(f);s[n]=0;*size=(size_t)n;return s;
 }
+
+static int send_exact(int sock,const void* data,size_t size){
+  const char* p=(const char*)data;
+  while(size){ssize_t got=send(sock,p,size,0);if(got<=0)return 0;p+=got;size-=(size_t)got;}
+  return 1;
+}
+static void transfer_selected(int sock){
+  char request[300]={0};
+  int n=recv(sock,request,sizeof(request)-1,0);
+  if(n<=0 || n>=299)return;
+  char folder[128]={0},filename[128]={0};
+  if(sscanf(request,"FETCH %127[^/]/%127s",folder,filename)!=2)return;
+  if(!safe(folder)||!safe(filename)||!executable(filename))return;
+  char path[640];
+  if(snprintf(path,sizeof(path),"%s/%s/%s",ROOT,folder,filename)>=(int)sizeof(path))return;
+  struct stat st;
+  if(lstat(path,&st)||!S_ISREG(st.st_mode)||st.st_size<64||st.st_size>32*1024*1024)return;
+  FILE* file=fopen(path,"rb");if(!file)return;
+  unsigned char magic[4];
+  if(fread(magic,1,4,file)!=4||memcmp(magic,"\177ELF",4)){fclose(file);return;}
+  rewind(file);
+  char header[64];
+  n=snprintf(header,sizeof(header),"DATA %lld\n",(long long)st.st_size);
+  if(n<=0 || !send_exact(sock,header,(size_t)n)){fclose(file);return;}
+  char chunk[16384];
+  size_t got;
+  while((got=fread(chunk,1,sizeof(chunk),file))>0)
+    if(!send_exact(sock,chunk,got))break;
+  fclose(file);
+}
+static void wait_for_requests(void){
+  signal(SIGPIPE,SIG_IGN);
+  int listener=socket(AF_INET,SOCK_STREAM,0);
+  if(listener<0)return;
+  int yes=1;setsockopt(listener,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(yes));
+  struct sockaddr_in addr={0};
+  addr.sin_family=AF_INET;
+  addr.sin_port=htons(9174);
+  addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+  if(bind(listener,(struct sockaddr*)&addr,sizeof(addr)) || listen(listener,4)){close(listener);return;}
+  for(int count=0;count<40;count++){
+    fd_set sockets;
+    FD_ZERO(&sockets);FD_SET(listener,&sockets);
+    struct timeval timeout={15,0};
+    if(select(listener+1,&sockets,NULL,NULL,&timeout)<=0)break;
+    int client=accept(listener,NULL,NULL);
+    if(client<0)break;
+    struct timeval deadline={6,0};
+    setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&deadline,sizeof(deadline));
+    setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&deadline,sizeof(deadline));
+    transfer_selected(client);close(client);
+  }
+  close(listener);
+}
+
 int main(void) {
   setvbuf(stdout,NULL,_IONBF,0);
   puts("PLUSB2");
@@ -73,5 +134,6 @@ int main(void) {
   }
   closedir(root);
   puts("DONE");
+  wait_for_requests();
   return 0;
 }
