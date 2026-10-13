@@ -1,3 +1,3 @@
-# Starbound Rebased v0.1.3 — SDL subsystem isolation
+# Starbound Rebased v0.1.4 – SDL2 video driver startup compatibility
 
-Hardware evidence confirms a null-address SIGSEGV inside `SDL_Init` (last checkpoint TM01). This update initializes SDL core, timer, events and video separately, persisting checkpoints `TM01a`–`TM01g` and `TM02` to `/data/starbound-rebased/boot.log`. This narrows which PS5 SDL2 subsystem triggers the crash and does **not** claim a hardware-verified fix.
+Based on hardware boot logs stopping inside `SDL_InitSubSystem(SDL_INIT_VIDEO)`, this test build bypasses **optional** remote-control, on-screen-keyboard and splash-screen initializers in the PacBrew SDL2 PS5 video startup path. The actual PS5 VideoOut backend and SDL GameController remain enabled. These wrappers are linked only for this app. This is an experimental hypothesis about unavailable/invalid PS5 service imports; only the next hardware log can confirm it.
