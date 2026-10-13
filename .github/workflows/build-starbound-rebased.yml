@@ -28,6 +28,9 @@ jobs:
           python3 homebrew/starbound-rebased/tools/audit-upstream-assets.py
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/ps5-devbridge
           cp -a /tmp/ps5-devbridge/templates/simple-calc app
+          # PacBrew's SDL2 pkg-config erroneously places -D_THREAD_SAFE in Libs.
+          # This belongs in compiler flags, never in the native linker arguments.
+          sed -i 's/if flag == "-pthread":/if flag == "-pthread" or flag.startswith("-D"):/g' app/tools/setup-pacbrew-dependencies.sh
       - name: Generate original replacement assets
         run: |
           python3 homebrew/starbound-rebased/tools/generate-original-media.py
