@@ -34,6 +34,8 @@ jobs:
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
           # Current GCC relied on transitive cstdint includes; Clang 18 requires this explicit include.
           sed -i '1a #include <cstdint>' build/gold872-engine/include/ECS/ECS.h
+          rm -rf app/src
+          mkdir -p app/src
           cp -a build/gold872-engine/src/. app/src/
           cp -a build/gold872-engine/include/. app/src/
           cp -a homebrew/starbound-rebased/res app/res
