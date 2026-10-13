@@ -81,13 +81,25 @@ jobs:
             --redefine-sym=mkstemps=jb_sdk_mkstemps \
             --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r \
             app/build/jb-json/libjb-posix.a
+      - name: Compile bundled PS5 USB helper
+        run: |
+          make -C homebrew/payload-launcher/helper \
+            PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          test -s homebrew/payload-launcher/helper/usbscan.elf
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homebrew/payload-launcher/helper/usbscan.elf')
+          assert p.read_bytes()[:6]==b'\\x7fELF\\x02\\x01', 'USB helper must be ELF64'
+          print('Bundled read-only helper verified')
+          PY
+          cp homebrew/payload-launcher/helper/usbscan.elf app/usbscan.elf
       - name: Build and package native PS5 app
         working-directory: app
         env:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 APP_ROOT_FILES=usbscan.elf app
       - name: Validate PS5 ZIP, assets and executable
         run: |
           python3 - <<'PY'
@@ -96,13 +108,13 @@ jobs:
           root=pathlib.Path('app/dist')/title
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']==title
-          assert meta['contentVersion']=='01.000.001'
+          assert meta['contentVersion']=='01.000.002'
           assert meta['contentId']=='UP9000-PPSA99873_00-PAYLOADLAUNCHER0'
           binary=(root/'eboot.bin').read_bytes()
           assert len(binary)>4096
           assert struct.unpack('<I',binary[:4])[0]==0x1d3d154f, 'not an expected PS5 FSELF header'
-          assert 'v0.1.1' in pathlib.Path('homebrew/payload-launcher/native/main.cpp').read_text(), 'missing native version in source'
-          required=['eboot.bin','sce_module/libc.prx','sce_sys/icon0.png',
+          assert 'v0.2.0' in pathlib.Path('homebrew/payload-launcher/native/main.cpp').read_text(), 'missing native version in source'
+          required=['usbscan.elf','eboot.bin','sce_module/libc.prx','sce_sys/icon0.png',
                     'sce_sys/param.json','assets/launcher-background.png',
                     'assets/fonts/inter-semibold.huifont']
           for f in required:assert (root/f).is_file(),f
@@ -114,7 +126,7 @@ jobs:
       - name: Upload installable ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Payload-Launcher-v0.1.1-PPSA99873
+          name: Payload-Launcher-v0.2.0-PPSA99873
           path: app/dist/PPSA99873.zip
           if-no-files-found: error
           retention-days: 30
@@ -124,13 +136,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag='payload-launcher-v0.1.1'
+          tag='payload-launcher-v0.2.0'
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release already exists. Not overwriting existing version."
             exit 0
           fi
           cat > /tmp/release-notes.md <<'NOTES'
-          # Payload Launcher v0.1.1 by YAHBALLON
+          # Payload Launcher v0.2.0 by YAHBALLON
 
           Native PS5 USB payload browser with a blue neon console interface.
 
@@ -149,5 +161,5 @@ jobs:
           The app submits the launch request; whether the payload ran successfully requires separate verification. USB paths depend on the console runtime, and unsupported or invalid PNG files use a fallback icon. Run only payloads you trust.
           NOTES
           gh release create "$tag" "app/dist/PPSA99873.zip" \
-             --target "$GITHUB_SHA" --title 'Payload Launcher v0.1.1' \
+             --target "$GITHUB_SHA" --title 'Payload Launcher v0.2.0' \
              --notes-file /tmp/release-notes.md
