@@ -36,7 +36,7 @@ jobs:
           d["titleId"]="PPSA99573"
           d["conceptId"]="99573"
           d["contentId"]="UP9000-PPSA99573_00-WWWSPEEDTESTPS5A"
-          d["contentVersion"]="01.000.004"
+          d["contentVersion"]="01.001.000"
           d["localizedParameters"]["en-US"]["titleName"]="WWW Speedtest"
           p.write_text(json.dumps(d,indent=2)+"\n")
           ca=pathlib.Path("/etc/ssl/certs/ca-certificates.crt").read_text()
@@ -75,14 +75,14 @@ jobs:
               assert (root/f).is_file(),f
           meta=json.loads((root/"sce_sys/param.json").read_text())
           assert meta["titleId"]=="PPSA99573"
-          assert b"v0.3.2" in p.read_bytes()
+          assert b"v0.4.0" in p.read_bytes()
           with zipfile.ZipFile("app/dist/PPSA99573.zip") as z:
               assert z.testzip() is None
               assert "PPSA99573/eboot.bin" in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: WWW-Speedtest-v0.3.2-PPSA99573
+          name: WWW-Speedtest-v0.4.0-PPSA99573
           path: app/dist/PPSA99573.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -90,5 +90,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view www-speedtest-v0.3.2 >/dev/null 2>&1; then exit 0; fi
-          gh release create www-speedtest-v0.3.2 app/dist/PPSA99573.zip --target "$GITHUB_SHA" --title "WWW Speedtest v0.3.2" --notes "Native PS5 Cloudflare HTTPS speedtest. Download/upload speed, connection latency, jitter, live graphs and DualSense navigation. Extract ZIP to /data/homebrew/. Requires jailbreak/homebrew loader. Real PS5 hardware testing pending. Real locally saved test history and screenshot-inspired dashboard. Geographic LibreSpeed server options available with server-side uptime limitations. IP/ISP detection unavailable."
+          if gh release view www-speedtest-v0.4.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create www-speedtest-v0.4.0 app/dist/PPSA99573.zip --target "$GITHUB_SHA" --title "WWW Speedtest v0.4.0" --notes "Native PS5 Cloudflare HTTPS speedtest. Download/upload speed, connection latency, jitter, live graphs and DualSense navigation. Extract ZIP to /data/homebrew/. Requires jailbreak/homebrew loader. Real PS5 hardware testing pending. Real locally saved test history and screenshot-inspired dashboard. Geographic LibreSpeed server options available with server-side uptime limitations. IP/ISP detection unavailable."
