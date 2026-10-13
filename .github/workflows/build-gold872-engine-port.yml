@@ -61,7 +61,9 @@ jobs:
           SYS=/tmp/ps5-toolchain/.deps/pacbrew/v0.40.2/sysroot/user/homebrew
           test -d "$SYS/lib" && test -d "$SYS/include"
           mkdir -p "$SDK/target/user"
-          ln -sfn "$SYS" "$SDK/target/user/homebrew"
+          rm -rf "$SDK/target/user/homebrew"
+          ln -s "$SYS" "$SDK/target/user/homebrew"
+          ls -lah "$SDK/target/user/homebrew/lib"/libSDL2*.a
           for lib in libSDL2.a libSDL2main.a libSDL2_image.a libSDL2_ttf.a libSDL2_mixer.a; do
             test -s "$SYS/lib/$lib" || (echo "Missing PacBrew archive: $lib"; exit 1)
           done

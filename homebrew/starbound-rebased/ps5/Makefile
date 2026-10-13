@@ -22,7 +22,7 @@ build:
 	mkdir -p build
 # The original Gold872 engine is compiled, NOT recreated.
 # -include cstdint compensates for a missing header in the pinned upstream source.
-build/starbound-gold872.elf: $(SOURCES) | build
+build/starbound-gold872.elf: $(SOURCES) | build check-deps
 	$(CXX) -std=c++17 -O1 -include cstdint $(INC) -o $@ $(SOURCES) \
 	  $(SDL_ARCHIVES) -lbz2 -lpng -liconv -lm -lz $(SYSLIBS)
 clean:
