@@ -425,7 +425,7 @@ std::string request_launch(const Payload& p,int port){
     struct sockaddr_in endpoint{};endpoint.sin_family=AF_INET;endpoint.sin_port=htons((uint16_t)port);
     endpoint.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
     if(connect(fd,(const struct sockaddr*)&endpoint,sizeof(endpoint))!=0){close(fd);return "No local ELF loader on 127.0.0.1:"+std::to_string(port);}
-    const std::string command="file:"+p.path+"\n";
+    const std::string command="file:"+p.path+"?pipe=0\n";
     std::size_t sent=0;
     while(sent<command.size()){
         ssize_t n=send(fd,command.data()+sent,command.size()-sent,0);
