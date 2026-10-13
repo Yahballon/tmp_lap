@@ -131,4 +131,68 @@ patch("src/Core.cpp",
    }
    srand(time(NULL));''')
 
+
+# Persist individual SDL startup checkpoints before touching each subsystem.
+patch("src/TextureManager.cpp",
+      'TextureManager TextureManager::instance;',
+      '''TextureManager TextureManager::instance;
+#ifdef __FreeBSD__
+#include <cstdio>
+#include <sys/stat.h>
+static void sdl_boot_mark(const char* text) {
+    mkdir("/data/starbound-rebased",0755);
+    if(FILE* f=fopen("/data/starbound-rebased/boot.log","a")) {
+        fprintf(f,"%s\\n",text); fflush(f); fclose(f);
+    }
+}
+#else
+static void sdl_boot_mark(const char*) {}
+#endif''')
+patch("src/TextureManager.cpp",
+      '   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {',
+      '''   sdl_boot_mark("TM01 before SDL_Init");
+   // Initialize video separately: PS5 SDL2 audio drivers may fail independently.
+   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
+      sdl_boot_mark("TM02 SDL_Init returned error");''')
+patch("src/TextureManager.cpp",
+      '   if (IMG_Init(IMG_INIT_PNG) < 0) {',
+      '''   sdl_boot_mark("TM02 SDL_Init success");
+   sdl_boot_mark("TM03 before IMG_Init");
+   if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0) {
+      sdl_boot_mark("TM04 IMG_Init failed");''')
+patch("src/TextureManager.cpp",
+      '   if (TTF_Init() != 0) {',
+      '''   sdl_boot_mark("TM04 IMG_Init success");
+   sdl_boot_mark("TM05 before TTF_Init");
+   if (TTF_Init() != 0) {
+      sdl_boot_mark("TM06 TTF_Init failed");''')
+patch("src/TextureManager.cpp",
+      '   window = SDL_CreateWindow("Starbound Rebased",',
+      '''   sdl_boot_mark("TM06 TTF_Init success");
+   sdl_boot_mark("TM07 before SDL_CreateWindow");
+   window = SDL_CreateWindow("Starbound Rebased",''')
+patch("src/TextureManager.cpp",
+      '   SDL_Surface* iconSurface = IMG_Load("res/sprites/icons/windowicon.png");',
+      '''   sdl_boot_mark("TM08 SDL_CreateWindow success");
+   SDL_Surface* iconSurface = IMG_Load("res/sprites/icons/windowicon.png");''')
+patch("src/TextureManager.cpp",
+      '   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);',
+      '''   sdl_boot_mark("TM09 before SDL_CreateRenderer");
+   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+   if (!renderer) {
+      sdl_boot_mark("TM10 hardware renderer unavailable, trying software");
+      renderer=SDL_CreateRenderer(window,-1,SDL_RENDERER_SOFTWARE);
+   }''')
+patch("src/TextureManager.cpp",
+      '   if (SDL_SetRenderDrawColor(renderer, 92, 148, 252, 255) != 0) {',
+      '''   sdl_boot_mark("TM11 SDL renderer success");
+   if (SDL_SetRenderDrawColor(renderer, 92, 148, 252, 255) != 0) {''')
+patch("src/TextureManager.cpp",
+      '   return 0;\n}\n\nint TextureManager::Quit()',
+      '''   sdl_boot_mark("TM12 TextureManager init complete");
+   return 0;
+}
+
+int TextureManager::Quit()''')
+
 print("Applied path, title, DualSense/SDL controller adapters without replacing upstream ECS")
