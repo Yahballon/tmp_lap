@@ -1,8 +1,8 @@
-# Starbound Sprint v0.4.0
+# Starbound Sprint v0.5.0
 
 Original cosmic platform adventure for the homebrew-enabled PlayStation 5. Eight extended worlds, 16-bit-inspired pixel art extracted from the **original generated Starbound Sprint concept atlas** supplied in the project, with no commercial Nintendo assets.
 
-**Title ID:** PPSA99641 — **Content Version:** 01.000.004 — **Author:** YAHBALLON
+**Title ID:** PPSA99641 — **Content Version:** 01.000.005 — **Author:** YAHBALLON
 
 ## Gameplay
 
@@ -34,7 +34,7 @@ Original cosmic platform adventure for the homebrew-enabled PlayStation 5. Eight
 
 ## Installation
 
-Get [the v0.4.0 release](https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.4.0), extract the `PPSA99641` folder into `/data/homebrew/` and register with a compatible homebrew launcher. **Back up `starbound-progress.cfg` before replacing the app folder.**
+Get [the v0.5.0 release](https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.5.0), extract the `PPSA99641` folder into `/data/homebrew/` and register with a compatible homebrew launcher. **Back up `starbound-progress.cfg` before replacing the app folder.**
 
 ## Known limitations
 
@@ -44,6 +44,10 @@ No music / sound effects yet; frame timing currently targets 60 Hz. Tests valida
 
 GPL-3.0-or-later, preserving upstream framework attribution.
 
-## Fantasy visual remaster (v0.4.0)
+## Fantasy visual remaster (v0.5.0)
 
 Removes heavily magnified 16-pixel terrain and character art from gameplay. Renders original native-resolution 1080p shapes instead: moonlit scene, multi-layer parallax clouds, floating islands and castles, light shafts, animated waterfalls, lit lanterns, grass-covered rocky cliffs, crystal particles and a larger white-haired explorer. All platforms and enemies still follow real physics/collision objects; saved progress and controls are unchanged. This is a code-driven playable interpretation of the reference illustration, **not an identical reproduction of the single flattened image**. The old low-res atlases remain in the package temporarily for compatibility, but they are no longer rendered during gameplay. Real PS5 visual testing and higher-resolution authored art remain future work.
+
+## Sound system (v0.5.0)
+
+Native PS5 `libSceAudioOut` (48 kHz stereo signed 16-bit, 256 frames per output block) with a dedicated mixer thread. Original synthesized chiptune music varies across four biomes; gameplay sound effects include first jump, double jump, crystals, enemy stomp, hurt, spring, menu, pause, stage clear, death, win and checkpoint. Triangle during gameplay toggles mute. Audio gracefully disables itself if the native module is unavailable; real hardware audio behavior needs PS5 verification.

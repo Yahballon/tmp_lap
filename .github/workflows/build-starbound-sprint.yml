@@ -79,7 +79,7 @@ jobs:
           exe=root/"eboot.bin"
           assert exe.is_file() and exe.stat().st_size>4096
           assert struct.unpack("<I",exe.read_bytes()[:4])[0]==0x1D3D154F
-          assert b"v0.4.0" in exe.read_bytes()
+          assert b"v0.5.0" in exe.read_bytes()
           assert (root/"sce_module/libc.prx").is_file()
           assert (root/"sce_sys/icon0.png").is_file()
           atlas=root/"assets/starbound-sprites.rgba"
@@ -87,7 +87,7 @@ jobs:
           backdrop=root/"assets/starbound-backgrounds.rgba"
           assert backdrop.is_file() and backdrop.stat().st_size==256*43*4
           m=json.loads((root/"sce_sys/param.json").read_text())
-          assert m["titleId"]==title and m["contentVersion"]=="01.000.004"
+          assert m["titleId"]==title and m["contentVersion"]=="01.000.005"
           with zipfile.ZipFile("app/dist/"+title+".zip") as z:
               assert z.testzip() is None
               for part in ["eboot.bin","sce_module/libc.prx","sce_sys/param.json","sce_sys/icon0.png","assets/starbound-sprites.rgba","assets/starbound-backgrounds.rgba"]:
@@ -95,7 +95,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Starbound-Sprint-v0.4.0-PPSA99641
+          name: Starbound-Sprint-v0.5.0-PPSA99641
           path: app/dist/PPSA99641.zip
           if-no-files-found: error
       - name: Publish release
@@ -103,6 +103,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="starbound-sprint-v0.4.0"
+          tag="starbound-sprint-v0.5.0"
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99641.zip --target "$GITHUB_SHA" --title "Starbound Sprint v0.4.0" --notes-file homebrew/starbound-sprint/RELEASE_NOTES.md
+          gh release create "$tag" app/dist/PPSA99641.zip --target "$GITHUB_SHA" --title "Starbound Sprint v0.5.0" --notes-file homebrew/starbound-sprint/RELEASE_NOTES.md
