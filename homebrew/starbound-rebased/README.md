@@ -19,3 +19,7 @@ A playable installable PS5 ZIP must not be published until 1) platform backend w
 
 ## CI
 `Build Gold872 Engine Port (source smoke test)` validates that the precise upstream engine can compile. It does not download Nintendo assets or publish any APK/PKG/ZIP.
+
+## v0.1.6 resource layout
+
+The native engine resolves `res/...` paths from its runtime working directory. With `chdir("/app0/assets")`, the installable ZIP must contain `PPSA99642/assets/res/{sprites,fonts,data,sounds}/...`. This layout is asserted during CI and the PS5 app reports `ASSET00`–`ASSET04` in its boot log. Do not flatten the `res` directory into `assets`.

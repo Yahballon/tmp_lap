@@ -46,8 +46,14 @@ jobs:
           cp homebrew/starbound-rebased/ps5/sdl_video_bridge.cpp app/src/sdl_video_bridge.cpp
           test -s homebrew/starbound-rebased/res/data/MenuBackground/MenuBackground_Background.csv
           cp -a homebrew/starbound-rebased/res app/res
-          mkdir -p app/assets
-          cp -a app/res/. app/assets/
+          # Keep the original Gold872 "res/..." relative paths intact.
+          # The app runtime chdirs to /app0/assets (or the ShadowMount equivalent),
+          # so it must contain the directory "res" rather than bare "sprites".
+          mkdir -p app/assets/res
+          cp -a app/res/. app/assets/res/
+          test -s app/assets/res/sprites/icons/logo.png
+          test -s app/assets/res/fonts/press-start-2p.ttf
+          test -s app/assets/res/data/MenuBackground/MenuBackground_Background.csv
           cp build/gold872-engine/LICENSE app/UPSTREAM-MIT-LICENSE.txt
           python3 - <<'PY'
           import json,pathlib
@@ -56,7 +62,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.006'
+          data['contentVersion']='01.000.007'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -101,8 +107,26 @@ jobs:
               assert root+'eboot.bin' in names
               assert root+'sce_sys/param.json' in names
               assert root+'sce_sys/icon0.png' in names
-              assert root+'assets/sprites/characters/PlayerSpriteSheet.png' in names
-              assert root+'assets/data/World1-1/World1-1_Foreground.csv' in names
+              assert root+'assets/res/sprites/characters/PlayerSpriteSheet.png' in names
+              assert root+'assets/res/data/World1-1/World1-1_Foreground.csv' in names
+              assert root+'assets/res/sprites/icons/logo.png' in names
+              assert root+'assets/res/fonts/press-start-2p.ttf' in names
+              assert root+'assets/res/data/MenuBackground/MenuBackground_Background.csv' in names
+              assert root+'assets/res/sounds/effects/jump.wav' in names
+              assert root+'assets/res/sounds/music/overworld.wav' in names
+              for required in (
+                  'res/sprites/characters/PlayerSpriteSheet.png',
+                  'res/sprites/icons/logo.png',
+                  'res/fonts/press-start-2p.ttf',
+                  'res/data/MenuBackground/MenuBackground_Background.csv',
+                  'res/sounds/effects/jump.wav',
+              ):
+                  assert root+'assets/'+required in names,required
+              menu=z.read(root+'assets/res/data/MenuBackground/MenuBackground_Background.csv').decode()
+              rows=[r.split(',') for r in menu.strip().splitlines()]
+              assert len(rows)==15 and all(len(row)==25 for row in rows)
+              assert any(int(x)>=0 for row in rows for x in row)
+              print('Validated every exact game-relative path under /app0/assets')
               data=json.loads(z.read(root+'sce_sys/param.json'))
               assert data['titleId']=='PPSA99642'
           PY
@@ -116,6 +140,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.5
+          tag=starbound-rebased-v0.1.6
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.5 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.6 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
