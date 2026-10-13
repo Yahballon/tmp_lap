@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "87fed4fc8e0f1fa7695e6942802176226f7abcce7f3487dcdf26a13d11436321",
+  "version": "eb7f2a1fead8c492b400386f8303b8b3648de4929265fb7b324dde9d464353cf",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 4,
+  "app_count": 5,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -42,6 +42,19 @@
       "source": "homebrew/starbound-sprint",
       "size_bytes": 6111755,
       "published_at": "2026-10-13T20:24:21Z"
+    },
+    {
+      "name": "Starbound Rebased",
+      "slug": "starbound-rebased",
+      "title_id": "PPSA99642",
+      "version": "0.1.0",
+      "tag": "starbound-rebased-v0.1.0",
+      "zip_name": "PPSA99642.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-rebased-v0.1.0/PPSA99642.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-rebased-v0.1.0",
+      "source": "homebrew/starbound-rebased",
+      "size_bytes": 7015816,
+      "published_at": "2026-10-13T21:29:39Z"
     },
     {
       "name": "Payload LauncherX",
