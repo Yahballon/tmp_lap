@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Starbound Sprint by YAHBALLON v0.3.0
+// Starbound Sprint by YAHBALLON v0.4.0
 #include "game.hpp"
 #include "art_renderer.hpp"
 #include "gfx/renderer.hpp"
@@ -50,14 +50,14 @@ int main(){
    sprint_art::render_world(d,g,spriteTexture,backgroundTexture,frames);
    d.rounded_rect({0,0,1920,95},0,Color::rgb(0x07182c));
    t(d,font,atlas,"STARBOUND SPRINT by YAHBALLON",55,57,29,Color::rgb(0xffd45a));
-   t(d,font,atlas,"v0.3.0",1860,57,23,Color::rgb(0xffffff),Align::right);
+   t(d,font,atlas,"v0.4.0",1860,57,23,Color::rgb(0xffffff),Align::right);
    t(d,font,atlas,"WORLD "+std::to_string(g.stage+1)+": "+sprint::Game::stage_name(g.stage),55,132,24);
    t(d,font,atlas,"SCORE "+std::to_string(g.score),755,132,23);
    t(d,font,atlas,"CRYSTALS "+std::to_string(g.crystals),1010,132,23,Color::rgb(0xffd45a));
    t(d,font,atlas,"JUMPS "+std::to_string(g.jumps_remaining())+"/2",1370,132,23,Color::rgb(0x65f2df));
    t(d,font,atlas,"LIVES "+std::to_string(g.lives),1630,132,23);
    d.rounded_rect({45,962,1830,90},16,Color::rgb(0x08182d));
-   t(d,font,atlas,"D-PAD / STICK Move     X Jump x2     SQUARE Sprint     OPTIONS Pause     O Back",960,1018,22,Color::rgb(0xa8c4de),Align::center);
+   t(d,font,atlas,"D-PAD / STICK MOVE       X  DOUBLE JUMP       SQUARE  SPRINT       OPTIONS  PAUSE       O  BACK",960,1018,22,Color::rgb(0xa8c4de),Align::center);
    if(g.phase!=sprint::Phase::playing){
       d.rounded_rect({0,151,1920,795},0,Color::rgb(0x050d20,.75f));
       d.bordered_rect({440,258,1040,544},23,Color::rgb(0x122a47),3,Color::rgb(0x65edd2));
