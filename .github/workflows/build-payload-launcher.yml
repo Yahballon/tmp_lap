@@ -1,4 +1,4 @@
-name: Build PS5 Payload Launcher
+name: Build PS5 Payload LauncherX
 on:
   workflow_dispatch:
   pull_request:
@@ -142,7 +142,7 @@ jobs:
             exit 0
           fi
           cat > /tmp/release-notes.md <<'NOTES'
-          # Payload Launcher v0.2.4 by YAHBALLON
+          # Payload LauncherX v0.2.4 by YAHBALLON
 
           Native PS5 USB payload browser with a blue neon console interface.
 
@@ -161,5 +161,5 @@ jobs:
           The app submits the launch request; whether the payload ran successfully requires separate verification. USB paths depend on the console runtime, and unsupported or invalid PNG files use a fallback icon. Run only payloads you trust.
           NOTES
           gh release create "$tag" "app/dist/PPSA99873.zip" \
-             --target "$GITHUB_SHA" --title 'Payload Launcher v0.2.4' \
+             --target "$GITHUB_SHA" --title 'Payload LauncherX v0.2.4' \
              --notes-file /tmp/release-notes.md
