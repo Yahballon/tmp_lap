@@ -37,3 +37,38 @@ jobs:
 
 # The actual PS5 cross-compile is intentionally separate from the host smoke test.
 # It must run only after a pinned SDK + PacBrew sysroot with SDL archives is provisioned.
+
+  ps5-payload-crossbuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 SDK prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git pkg-config python3
+      - name: Fetch pinned source and verified native PS5 SDK
+        run: |
+          bash homebrew/starbound-rebased/tools/fetch-engine.sh
+          python3 homebrew/starbound-rebased/tools/audit-upstream-assets.py
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/ps5-devbridge
+          cp -a /tmp/ps5-devbridge/templates/simple-calc /tmp/ps5-toolchain
+          BUILD_JOBS=4 bash /tmp/ps5-toolchain/tools/setup-native-dependencies.sh
+      - name: Fetch verified PacBrew SDL2 and addons
+        run: |
+          bash /tmp/ps5-toolchain/tools/setup-pacbrew-dependencies.sh --all
+          SDK=/tmp/ps5-toolchain/.deps/native/ps5-payload-sdk
+          SYS=/tmp/ps5-toolchain/.deps/pacbrew/v0.40.2/sysroot/user/homebrew
+          test -d "$SYS/lib" && test -d "$SYS/include"
+          mkdir -p "$SDK/target/user"
+          ln -sfn "$SYS" "$SDK/target/user/homebrew"
+          for lib in libSDL2.a libSDL2main.a libSDL2_image.a libSDL2_ttf.a libSDL2_mixer.a; do
+            test -s "$SYS/lib/$lib" || (echo "Missing PacBrew archive: $lib"; exit 1)
+          done
+      - name: Cross-compile original SDL2 engine as PS5 payload ELF
+        env:
+          PS5_PAYLOAD_SDK: /tmp/ps5-toolchain/.deps/native/ps5-payload-sdk
+        run: |
+          cd homebrew/starbound-rebased/ps5
+          make -j4 UPSTREAM=../../../build/gold872-engine
+          test -s build/starbound-gold872.elf
