@@ -1,13 +1,13 @@
 # Payload Launcher by YAHBALLON
 
-**Native PS5 USB payload launcher** · **v0.1.1** · **Title ID `PPSA99873`**
+**Native PS5 USB payload launcher** · **v0.2.0** · **Title ID `PPSA99873`**
 
 A controller-driven PS5 homebrew browser based on [ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-homebrew-ui), inspired by the supplied blue neon launcher reference. The list is entirely dynamic; no sample payloads or hardcoded fake metadata are bundled.
 
 ## Features
 
 - Discovers payloads from one USB folder per executable in `/mnt/usb0/payloads/`.
-- Tries direct native mount access, `/usb0/payloads`, and local PS5 `websrv` at `127.0.0.1:8080` when the native title's sandbox cannot enumerate USB. Start `websrv` before launching the app, and press Triangle to rescan. This is not the same as the separate third-party web-file-manager.
+- Tries direct native mount access and `/usb0/payloads`, then streams the bundled, read-only `usbscan.elf` to an already running elfldr on `127.0.0.1:9021`. No websrv is needed. Firmware 5.10 behavior has not been hardware tested.
 - Reads **`payload.json`** for each item's name, description, version, author and optional explicit executable filename.
 - Uses **`payload.png`** as the row thumbnail with a fallback icon when absent or invalid.
 - Accepts ELF64 files with `.elf`, `.efl`, and `.bin` names (the actual bytes must contain an ELF64 magic header).
@@ -56,13 +56,13 @@ Example `payload.json`:
 
 Source: `homebrew/payload-launcher/native/`.
 Workflow: [`.github/workflows/build-payload-launcher.yml`](../../.github/workflows/build-payload-launcher.yml).
-Release tag: `payload-launcher-v0.1.1`.
+Release tag: `payload-launcher-v0.2.0`.
 
 The workflow copies the known-working PS5-DevBridge C++/OpenGL scaffold, supplies the app source files, downloads the pinned `stb_image.h` header for **offline PNG decoding**, generates the original launcher artwork, compiles natively and validates the release ZIP. Pull requests build only a test artifact; successful pushes to `main` can publish the versioned release. No existing app folders are modified.
 
 ## Installation
 
-1. Download `PPSA99873.zip` from a verified successful [release](https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.1.1).
+1. Download `PPSA99873.zip` from a verified successful [release](https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.2.0).
 2. Extract its `PPSA99873/` folder to `/data/homebrew/PPSA99873/` on the PS5.
 3. Register or refresh the homebrew app with ShadowMountPlus or another compatible launcher.
 4. Start a compatible PS5 ELF loader such as [ps5-payload-elfldr](https://github.com/ps5-payload-dev/elfldr) on loopback port 9021 to enable launching.
