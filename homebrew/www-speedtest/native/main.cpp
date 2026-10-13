@@ -109,7 +109,7 @@ int main(){
   t(ui,font,atlas,"WWW SPEEDTEST",196,69,52);
   t(ui,font,atlas,"Test your internet speed on PS5",198,108,23,muted);
   t(ui,font,atlas,"by YAHBALLON",1580,55,18,cyan);
-  t(ui,font,atlas,"v0.4.0",1835,55,20,white,Align::right);
+  t(ui,font,atlas,"v0.4.1",1835,55,20,white,Align::right);
   panel(ui,24,161,380,848);
   const char* symbols[]={"[>]","[=]","[|]","[@]","[*]","[i]"};
   for(int i=0;i<6;i++){
@@ -199,7 +199,8 @@ int main(){
       t(ui,font,atlas,hosts[i].name,558,y+9,23,i==serverFocus&&serverListFocus?white:muted);
       if(i==speedtest::selectedServer())t(ui,font,atlas,"SELECTED",1740,y+9,18,green,Align::right);
     }
-    t(ui,font,atlas,"Hosted servers may be unavailable. No location or speed is fabricated.",470,984,19,muted);
+    t(ui,font,atlas,"Hosted servers may be unavailable. No location or speed is fabricated.",470,940,19,muted);
+    t(ui,font,atlas,s.status,470,984,18,muted);
    }
    if(menu==2){
     t(ui,font,atlas,"Saved results: "+std::to_string(history.size()),470,323,26,muted);
@@ -219,6 +220,7 @@ int main(){
     t(ui,font,atlas,"Local PS5 IP: "+s.localIp,475,533,25,cyan);
     t(ui,font,atlas,"Remote server IP: "+s.remoteIp,475,590,25,cyan);
     t(ui,font,atlas,"These are socket addresses; public IP and NAT type are not detected.",475,650,22,muted);
+    t(ui,font,atlas,"Last test: "+s.status,475,720,19,muted);
    }
    if(menu==4){
     t(ui,font,atlas,"Auto-save completed tests",475,355,28);
