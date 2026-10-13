@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "3572e811700c1a8f679086111cb2f25003cd22382cb6e7a92a2e5532ae1a47b2",
+  "version": "bfd452e32f733503144c4b2cd8f607bf5cca6c5743e27ecd624945345cf2bbeb",
   "repository": "Yahballon/tmp_lap",
   "app_count": 5,
   "apps": [
@@ -47,14 +47,14 @@
       "name": "Starbound Rebased",
       "slug": "starbound-rebased",
       "title_id": "PPSA99642",
-      "version": "0.1.5",
-      "tag": "starbound-rebased-v0.1.5",
+      "version": "0.1.6",
+      "tag": "starbound-rebased-v0.1.6",
       "zip_name": "PPSA99642.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-rebased-v0.1.5/PPSA99642.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-rebased-v0.1.5",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-rebased-v0.1.6/PPSA99642.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-rebased-v0.1.6",
       "source": "homebrew/starbound-rebased",
-      "size_bytes": 7017781,
-      "published_at": "2026-10-13T22:47:11Z"
+      "size_bytes": 7020588,
+      "published_at": "2026-10-13T22:55:13Z"
     },
     {
       "name": "Payload LauncherX",
