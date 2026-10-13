@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.2.0.
+// (AI-assisted) Native PS5 USB Payload Launcher by YAHBALLON, v0.2.1.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -28,7 +28,7 @@ using hui::gfx::DrawList;
 using hui::gfx::Align;
 namespace {
 constexpr auto kTitle="PPSA99873";
-constexpr auto kVersion="v0.1.0";
+constexpr auto kVersion="v0.2.1";
 const Color kWhite=Color::rgb(0xf1f6ff);
 const Color kMuted=Color::rgb(0xa1bbdc);
 const Color kBlue=Color::rgb(0x119bff);
