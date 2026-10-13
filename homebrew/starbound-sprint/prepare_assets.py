@@ -28,6 +28,22 @@ dest.parent.mkdir(parents=True, exist_ok=True)
 dest.write_bytes(pixels)
 assert dest.stat().st_size == SIZE * SIZE * 4
 print(f"Created {dest} ({SIZE}x{SIZE} RGBA8; 64 frames)")
+# Four panoramic concept scenes are separately stored in an indexed texture.
+# Their own texture permits a slower parallax rate than gameplay geometry.
+back_source = HERE / "assets" / "backgrounds.b85"
+back_width, back_height = 256, 43
+back_packed = zlib.decompress(base64.b85decode(back_source.read_text().strip()))
+if len(back_packed) != 1024 + back_width * back_height:
+    raise ValueError(f"Invalid backdrop payload length: {len(back_packed)}")
+back_pal, back_indices = back_packed[:1024], back_packed[1024:]
+back_pixels = bytearray(back_width*back_height*4)
+for i, index in enumerate(back_indices):
+    back_pixels[i*4:i*4+4] = back_pal[index*4:index*4+4]
+back_path=APP / "assets" / "starbound-backgrounds.rgba"
+back_path.write_bytes(back_pixels)
+assert back_path.stat().st_size == back_width*back_height*4
+print(f"Created {back_path} (four panoramic scenes)")
+
 
 # Generate the in-game-branded icon from exactly the same player sprite.
 atlas = Image.frombytes("RGBA", (SIZE, SIZE), bytes(pixels))

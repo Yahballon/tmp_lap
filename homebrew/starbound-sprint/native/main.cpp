@@ -23,15 +23,15 @@ int main(){
  unsigned atlas=render.batch().create_font_texture(font);
  std::uint32_t spriteTexture=0;
  if(!sprint_art::load_atlas(render,spriteTexture))hui::sys::park();
+ std::uint32_t backgroundTexture=0;
+ if(!sprint_art::load_backgrounds(render,backgroundTexture))hui::sys::park();
  hui::ps5::Pad pad;pad.open();sprint::Game g;unsigned previous=0;int frames=0;bool suppressJumpUntilRelease=false;
- const unsigned palette[8]={0x092a4f,0x251340,0x16445d,0x52213b,0x0e344f,0x290c4d,0x501d36,0x122d4b};
- const unsigned ground[8]={0x38c5b3,0xb08bff,0xecc67b,0xf78d72,0x7be3f2,0xc679ff,0xf1a85a,0x83d8ee};
  for(;;){
    std::array<hui::PadSample,64> samples{};size_t n=pad.read(samples);
    unsigned pressed=0,held=previous;float stick=0;
    for(size_t i=0;i<n;i++){pressed|=samples[i].buttons&~held;held=samples[i].buttons;stick=((int)samples[i].left_x-128)/127.f;}
    previous=held;
-   if(pressed&hui::pad_bits::kCircle){if(g.phase==sprint::Phase::menu){pad.close();sprint_art::release_atlas(spriteTexture);render.release();screen.close();hui::sys::quit();}g.reset_to_menu();}
+   if(pressed&hui::pad_bits::kCircle){if(g.phase==sprint::Phase::menu){pad.close();sprint_art::release_atlas(spriteTexture);sprint_art::release_atlas(backgroundTexture);render.release();screen.close();hui::sys::quit();}g.reset_to_menu();}
    if(pressed&hui::pad_bits::kOptions){if(g.phase==sprint::Phase::playing)g.set_pause(true);else if(g.phase==sprint::Phase::paused)g.set_pause(false);}
    if(pressed&hui::pad_bits::kCross){
      if(g.phase==sprint::Phase::menu||g.phase==sprint::Phase::game_over||g.phase==sprint::Phase::victory){g.new_run(0);suppressJumpUntilRelease=true;}
@@ -47,7 +47,7 @@ int main(){
    input.sprint=(held&hui::pad_bits::kSquare)!=0;
    g.step(input);++frames;
    DrawList d;
-   sprint_art::render_world(d,g,spriteTexture,frames);
+   sprint_art::render_world(d,g,spriteTexture,backgroundTexture,frames);
    d.rounded_rect({0,0,1920,95},0,Color::rgb(0x07182c));
    t(d,font,atlas,"STARBOUND SPRINT by YAHBALLON",55,57,29,Color::rgb(0xffd45a));
    t(d,font,atlas,"v0.3.0",1860,57,23,Color::rgb(0xffffff),Align::right);

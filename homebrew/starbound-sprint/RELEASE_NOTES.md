@@ -4,7 +4,7 @@
 - Replace the placeholder vector characters, terrain and props with **64 original pixel-art sprites** extracted from the new Starbound Sprint concept asset sheet.
 - A single hardware-native nearest-neighbor RGBA texture atlas with real player running/jumping/falling poses, eight creature styles, energy items, four world tilesets and themed props.
 - Eight extended worlds with platform courses, varied pit sizes, crystal paths, hazards, automated enemies and moving/rideable platforms.
-- Parallax layers, motion effects, sparkling collectibles, animated opponents and double-jump energy effects.
+- Four original concept-painting panoramas with slower parallax layers, motion effects, sparkling collectibles, animated opponents and double-jump energy effects.
 - Same DualSense controls and persistent saves as earlier releases; no Title ID changes.
 - Native PS5 build now verifies the real asset file and runs double-jump/world structure tests.
 

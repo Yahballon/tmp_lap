@@ -50,6 +50,31 @@ bool load_atlas(Renderer& renderer,std::uint32_t& texture){
     glBindTexture(GL_TEXTURE_2D,0);
     return true;
 }
+bool load_backgrounds(Renderer& renderer,std::uint32_t& texture){
+    constexpr int kWidth=256,kHeight=43,kBytes=kWidth*kHeight*4;
+    constexpr const char* paths[]={
+       "/app0/assets/starbound-backgrounds.rgba",
+       "/data/homebrew/PPSA99641/assets/starbound-backgrounds.rgba"
+    };
+    std::vector<std::uint8_t> pixels(kBytes);
+    bool valid=false;
+    for(const char* path:paths){
+        FILE* f=fopen(path,"rb");if(!f)continue;
+        if(fseek(f,0,SEEK_END)!=0){fclose(f);continue;}
+        long length=ftell(f);rewind(f);
+        if(length==kBytes)valid=fread(pixels.data(),1,kBytes,f)==kBytes;
+        fclose(f);
+        if(valid)break;
+    }
+    if(!valid)return false;
+    texture=renderer.batch().create_texture(kWidth,kHeight,pixels.data());
+    if(!texture)return false;
+    glBindTexture(GL_TEXTURE_2D,texture);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D,0);
+    return true;
+}
 void release_atlas(std::uint32_t& texture){
     if(texture){GLuint id=texture;glDeleteTextures(1,&id);texture=0;}
 }
@@ -62,10 +87,20 @@ void sprite(DrawList& draw,std::uint32_t texture,int index,Rect rect,bool facing
             facing_right?left+step-pad:left+pad,top+step-pad};
     draw.image(texture,rect,uv,kWhite.with_alpha(alpha));
 }
-void render_world(DrawList& ui,const sprint::Game& game,std::uint32_t atlas,int frame){
+void render_world(DrawList& ui,const sprint::Game& game,std::uint32_t atlas,std::uint32_t background,int frame){
     int theme=game.tileset_theme();
     const float cam=game.camera;
     ui.gradient_rect({0,0,1920,1080},0,tint(kSky[game.stage]),tint(0x081223));
+    if(background){
+        // Every world now uses its own original painted concept panorama.
+        // Sampling remains within its quarter of the four-scene texture atlas.
+        const float u0=(theme+0.0001f)/4.f,u1=(theme+0.9999f)/4.f;
+        const float drift=std::fmod(cam*.075f,1190.f);
+        for(int i=-1;i<3;++i){
+            float x=i*1190.f-drift;
+            ui.image(background,{x,148,1192,812},{u0,0,u1,1},tint(0xffffff,.76f));
+        }
+    }
     // Three parallax scenery layers; generated geometrically, not scaled full-screen bitmaps.
     // Slow moving cloud halos, floating distant ruins and sparkling stars.
     for(int i=0;i<80;++i){

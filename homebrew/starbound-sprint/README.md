@@ -7,7 +7,7 @@ Original cosmic platform adventure for the homebrew-enabled PlayStation 5. Eight
 ## Gameplay
 
 - Eight extended stages with four full sprite-art biomes: Overworld, Crystal Cave, Magma Fortress and Cloud Ruins (including advanced remixes).
-- 64 atlas frames: 8 player animation poses, 8 enemy types, 8 pickups, 32 environment tiles and 8 props.
+- 64 atlas frames: 8 player animation poses, 8 enemy types, 8 pickups, 32 environment tiles and 8 props, plus four panoramic concept backgrounds.
 - Enhanced original tile map with staggered platforms, pits, springs, spike traps, collectable paths and moving platforms.
 - Camera-follow, layered parallax scenes, animated collectibles, hazards, creature movement and HUD.
 - Classic acceleration and gravity, double-jump (Cross twice), stamina-free sprint, enemy stomps, score and checkpoints.
@@ -26,7 +26,7 @@ Original cosmic platform adventure for the homebrew-enabled PlayStation 5. Eight
 
 ## Art pipeline
 
-`assets/sprite-atlas.b85` stores 64 cropped and re-quantized sprites derived from the project's originally generated concept image. `prepare_assets.py` decodes the indexed atlas once **at build time** to `app/assets/starbound-sprites.rgba` (128×128 pixels, RGBA8). No costly per-frame PNG decoding takes place on PS5; the atlas is uploaded once and rendered as batched texture quads with nearest-neighbor filtering. The art is a cohesive first playable conversion of the approved concept; original individual sprite source drawings may be expanded in later updates.
+`assets/sprite-atlas.b85` stores 64 cropped and re-quantized sprites derived from the project's originally generated concept image. `prepare_assets.py` decodes the indexed atlas once **at build time** to `app/assets/starbound-sprites.rgba` (128×128 pixels, RGBA8). Four concept backdrops are independently decoded to \`starbound-backgrounds.rgba\` and GPU-uploaded at initialization. No costly per-frame PNG decoding takes place on PS5; the atlas is uploaded once and rendered as batched texture quads with nearest-neighbor filtering. The art is a cohesive first playable conversion of the approved concept; original individual sprite source drawings may be expanded in later updates.
 
 ## Build
 

@@ -84,11 +84,13 @@ jobs:
           assert (root/"sce_sys/icon0.png").is_file()
           atlas=root/"assets/starbound-sprites.rgba"
           assert atlas.is_file() and atlas.stat().st_size==128*128*4
+          backdrop=root/"assets/starbound-backgrounds.rgba"
+          assert backdrop.is_file() and backdrop.stat().st_size==256*43*4
           m=json.loads((root/"sce_sys/param.json").read_text())
           assert m["titleId"]==title and m["contentVersion"]=="01.000.003"
           with zipfile.ZipFile("app/dist/"+title+".zip") as z:
               assert z.testzip() is None
-              for part in ["eboot.bin","sce_module/libc.prx","sce_sys/param.json","sce_sys/icon0.png","assets/starbound-sprites.rgba"]:
+              for part in ["eboot.bin","sce_module/libc.prx","sce_sys/param.json","sce_sys/icon0.png","assets/starbound-sprites.rgba","assets/starbound-backgrounds.rgba"]:
                   assert title+"/"+part in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
