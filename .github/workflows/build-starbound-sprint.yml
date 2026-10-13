@@ -1,0 +1,94 @@
+name: Build Starbound Sprint
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/starbound-sprint/**'
+      - '.github/workflows/build-starbound-sprint.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/starbound-sprint/**'
+      - '.github/workflows/build-starbound-sprint.yml'
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 pkg-config ca-certificates python3-pil
+      - name: Fetch native PS5 scaffold
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+      - name: Install app sources and metadata
+        run: |
+          cp homebrew/starbound-sprint/native/*.cpp homebrew/starbound-sprint/native/*.hpp app/src/
+          python3 - <<'PY'
+          import json,pathlib
+          m=json.loads(pathlib.Path("homebrew/starbound-sprint/app.json").read_text())
+          p=pathlib.Path("app/sce_sys/param.json")
+          d=json.loads(p.read_text())
+          for k in ["titleId","conceptId","contentId","contentVersion"]:
+              d[k]=m[k]
+          d["localizedParameters"]["en-US"]["titleName"]=m["name"]
+          p.write_text(json.dumps(d,indent=2)+"\n")
+          PY
+      - name: Generate original launcher icon
+        run: python3 homebrew/starbound-sprint/generate_icon.py
+      - name: Prepare native OpenGL SDK
+        working-directory: app
+        env:
+          USE_CCACHE: "0"
+          BUILD_JOBS: "4"
+          PS5_CLANG: clang-18
+        run: bash tools/prepare-opengl.sh
+      - name: Resolve SDK symbol collisions
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Compile and package
+        working-directory: app
+        env:
+          USE_CCACHE: "0"
+          BUILD_JOBS: "4"
+          PS5_CLANG: clang-18
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify installable ZIP
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,struct,zipfile
+          title="PPSA99641"
+          root=pathlib.Path("app/dist")/title
+          exe=root/"eboot.bin"
+          assert exe.is_file() and exe.stat().st_size>4096
+          assert struct.unpack("<I",exe.read_bytes()[:4])[0]==0x1D3D154F
+          assert b"v0.1.0" in exe.read_bytes()
+          assert (root/"sce_module/libc.prx").is_file()
+          assert (root/"sce_sys/icon0.png").is_file()
+          m=json.loads((root/"sce_sys/param.json").read_text())
+          assert m["titleId"]==title and m["contentVersion"]=="01.000.001"
+          with zipfile.ZipFile("app/dist/"+title+".zip") as z:
+              assert z.testzip() is None
+              for part in ["eboot.bin","sce_module/libc.prx","sce_sys/param.json"]:
+                  assert title+"/"+part in z.namelist()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Starbound-Sprint-v0.1.0-PPSA99641
+          path: app/dist/PPSA99641.zip
+          if-no-files-found: error
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="starbound-sprint-v0.1.0"
+          if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
+          gh release create "$tag" app/dist/PPSA99641.zip --target "$GITHUB_SHA" --title "Starbound Sprint v0.1.0" --notes-file homebrew/starbound-sprint/RELEASE_NOTES.md
