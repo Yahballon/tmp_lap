@@ -73,23 +73,24 @@ int main(){
  const char* menus[]={"Speed Test","Server Select","Results","Network Info","Settings","About"};
  const char* subs[]={"Test your connection","Choose test server","View test history","Show connection details","Adjust options","App information"};
  int menu=0,tab=0,historyScroll=0,graphTab=0,serverScroll=0,serverFocus=0;
+ bool serverListFocus=false;
  bool measured=false,previouslyRunning=false,autoSave=true;
  std::vector<Result> history=loadHistory();
  int frame=0;
  for(;;){
   std::array<hui::PadSample,64> samples{};unsigned pressed=0;size_t n=pad.read(samples);
   for(size_t i=0;i<n;i++){pressed|=samples[i].buttons&~previous;previous=samples[i].buttons;}
-  if(pressed&hui::pad_bits::kUp){if(menu==1){serverFocus=std::max(0,serverFocus-1);if(serverFocus<serverScroll)serverScroll=serverFocus;}else if(menu==2&&historyScroll>0)historyScroll--;else menu=(menu+5)%6;}
-  if(pressed&hui::pad_bits::kDown){if(menu==1){serverFocus=std::min(speedtest::serverCount()-1,serverFocus+1);if(serverFocus>=serverScroll+9)serverScroll=serverFocus-8;}else if(menu==2&&historyScroll+6<(int)history.size())historyScroll++;else menu=(menu+1)%6;}
+  if(pressed&hui::pad_bits::kUp){if(menu==1&&serverListFocus){serverFocus=std::max(0,serverFocus-1);if(serverFocus<serverScroll)serverScroll=serverFocus;}else if(menu==2&&historyScroll>0)historyScroll--;else menu=(menu+5)%6;}
+  if(pressed&hui::pad_bits::kDown){if(menu==1&&serverListFocus){serverFocus=std::min(speedtest::serverCount()-1,serverFocus+1);if(serverFocus>=serverScroll+9)serverScroll=serverFocus-8;}else if(menu==2&&historyScroll+6<(int)history.size())historyScroll++;else menu=(menu+1)%6;}
   if(pressed&hui::pad_bits::kLeft)tab=(tab+3)%4;
   if(pressed&hui::pad_bits::kRight)tab=(tab+1)%4;
   if(pressed&hui::pad_bits::kL1)graphTab=(graphTab+3)%4;
   if(pressed&hui::pad_bits::kR1)graphTab=(graphTab+1)%4;
-  if(pressed&hui::pad_bits::kCircle){if(menu!=0)menu=0;else {pad.close();renderer.release();display.close();hui::sys::quit();}}
-  if(pressed&hui::pad_bits::kTriangle){menu=0;graphTab=0;}
-  if(pressed&hui::pad_bits::kSquare){menu=1;serverFocus=speedtest::selectedServer();serverScroll=std::max(0,serverFocus-7);}
+  if(pressed&hui::pad_bits::kCircle){if(menu==1&&serverListFocus)serverListFocus=false;else if(menu!=0)menu=0;else {pad.close();renderer.release();display.close();hui::sys::quit();}}
+  if(pressed&hui::pad_bits::kTriangle){menu=0;graphTab=0;serverListFocus=false;}
+  if(pressed&hui::pad_bits::kSquare){menu=1;serverListFocus=true;serverFocus=speedtest::selectedServer();serverScroll=std::max(0,serverFocus-7);}
   if(pressed&hui::pad_bits::kCross){
-   if(menu==0)speedtest::start();else if(menu==1){if(speedtest::selectServer(serverFocus)){menu=0;speedtest::start();}}
+   if(menu==0)speedtest::start();else if(menu==1){if(!serverListFocus){serverListFocus=true;serverFocus=speedtest::selectedServer();}else if(speedtest::selectServer(serverFocus)){serverListFocus=false;menu=0;speedtest::start();}}
    else if(menu==4)autoSave=!autoSave;
   }
   auto s=speedtest::snapshot();
@@ -108,7 +109,7 @@ int main(){
   t(ui,font,atlas,"WWW SPEEDTEST",196,69,52);
   t(ui,font,atlas,"Test your internet speed on PS5",198,108,23,muted);
   t(ui,font,atlas,"by YAHBALLON",1580,55,18,cyan);
-  t(ui,font,atlas,"v0.3.1",1835,55,20,white,Align::right);
+  t(ui,font,atlas,"v0.3.2",1835,55,20,white,Align::right);
   panel(ui,24,161,380,848);
   const char* symbols[]={"[>]","[=]","[|]","[@]","[*]","[i]"};
   for(int i=0;i<6;i++){
@@ -189,13 +190,13 @@ int main(){
    t(ui,font,atlas,menus[menu],470,231,50);
    divider(ui,465,252,1374);
    if(menu==1){
-    t(ui,font,atlas,"Select real LibreSpeed measurement server (X)",470,319,28);
+    t(ui,font,atlas,serverListFocus?"Server list focus: X select, O return to sidebar":"Press X to browse servers; D-Pad navigates sidebar",470,319,26);
     const auto* hosts=speedtest::servers();
     for(int i=serverScroll;i<speedtest::serverCount()&&i<serverScroll+9;i++){
       const float y=360+(i-serverScroll)*67;
-      ui.bordered_rect({470,y-33,1320,59},10,Color::rgb(i==serverFocus?0x0b4383:0x0a1a36),i==serverFocus?2:1,i==serverFocus?cyan:edge);
+      ui.bordered_rect({470,y-33,1320,59},10,Color::rgb(i==serverFocus&&serverListFocus?0x0b4383:0x0a1a36),i==serverFocus&&serverListFocus?2:1,i==serverFocus&&serverListFocus?cyan:edge);
       flag(ui,font,atlas,hosts[i].flag,488,y-16);
-      t(ui,font,atlas,hosts[i].name,558,y+9,23,i==serverFocus?white:muted);
+      t(ui,font,atlas,hosts[i].name,558,y+9,23,i==serverFocus&&serverListFocus?white:muted);
       if(i==speedtest::selectedServer())t(ui,font,atlas,"SELECTED",1740,y+9,18,green,Align::right);
     }
     t(ui,font,atlas,"Hosted servers may be unavailable. No location or speed is fabricated.",470,984,19,muted);
@@ -225,12 +226,12 @@ int main(){
    }
    if(menu==5){
     t(ui,font,atlas,"WWW SPEEDTEST by YAHBALLON",475,361,32);
-    t(ui,font,atlas,"v0.3.1 | PPSA99573 | Native C++ / OpenGL",475,426,25,muted);
+    t(ui,font,atlas,"v0.3.2 | PPSA99573 | Native C++ / OpenGL",475,426,25,muted);
     t(ui,font,atlas,"Real HTTPS measurements. No simulated network data.",475,497,24,cyan);
    }
   }
   if(s.running){ui.rounded_rect({434,1015,1450*(float)s.progress,7},3,cyan);}
-  t(ui,font,atlas,"X Select / Start    O Back    D-Pad Navigate    SQUARE Servers    L1/R1 Graph Tabs",47,1054,20,muted);
+  t(ui,font,atlas,"X Select / Start    O Sidebar    D-Pad Navigate    SQUARE Servers    L1/R1 Tabs",47,1054,20,muted);
   if(s.running||(!s.completed&&s.status.find("failed")!=std::string::npos))t(ui,font,atlas,s.status,1860,1052,17,s.running?cyan:purple,Align::right);
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
