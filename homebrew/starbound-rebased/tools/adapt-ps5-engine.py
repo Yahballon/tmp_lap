@@ -310,4 +310,30 @@ patch("src/systems/MenuSystem.cpp",
       '"Recreated by Gold87 using C++ and SDL2"',
       '"A new fantasy adventure by YAHBALLON"')
 
+
+# The container has /app0/assets/res/{sprites,data,fonts,sounds}; the original
+# engine resolves every path as res/..., relative to /app0/assets. Log actual
+# filesystem presence on real PS5 to catch broken mounts and packaging.
+patch("src/main.cpp",
+      '   boot_trace("01: main entered");',
+      '''#ifdef __FreeBSD__
+   char wd[512] = {};
+   if (getcwd(wd,sizeof(wd))) {
+       char info[640] = {};
+       snprintf(info,sizeof(info),"ASSET00 cwd=%s",wd);
+       boot_trace(info);
+   } else {
+       boot_trace("ASSET00 cwd unavailable");
+   }
+   boot_trace(access("res/sprites/icons/logo.png",R_OK)==0
+              ? "ASSET01 menu logo found" : "ASSET01 ERROR menu logo missing");
+   boot_trace(access("res/fonts/press-start-2p.ttf",R_OK)==0
+              ? "ASSET02 font found" : "ASSET02 ERROR font missing");
+   boot_trace(access("res/data/MenuBackground/MenuBackground_Background.csv",R_OK)==0
+              ? "ASSET03 menu map found" : "ASSET03 ERROR menu map missing");
+   boot_trace(access("res/sounds/music/overworld.wav",R_OK)==0
+              ? "ASSET04 music found" : "ASSET04 ERROR music missing");
+#endif
+   boot_trace("01: main entered");''')
+
 print("Applied path, title, DualSense/SDL controller adapters without replacing upstream ECS")
