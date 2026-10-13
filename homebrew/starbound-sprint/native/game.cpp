@@ -83,7 +83,7 @@ void Game::make_stage() {
     }
     checkpoint_x=2.f*kTile;
     player={checkpoint_x,12.f*kTile-kPlayerHeight};
-    velocity={};grounded=false;invulnerable=0;elapsed=0;camera=0;
+    velocity={};grounded=true;jumps_used_=0;jump_was_held=false;invulnerable=0;elapsed=0;camera=0;
 }
 void Game::new_run(int first_stage) {
     stage=std::max(0,std::min(progress.unlocked,first_stage));
@@ -101,7 +101,7 @@ void Game::set_pause(bool paused){
 }
 void Game::respawn(){
     player={checkpoint_x,12.f*kTile-kPlayerHeight};
-    velocity={};invulnerable=110;grounded=false;
+    velocity={};invulnerable=110;grounded=true;jumps_used_=0;jump_was_held=false;
 }
 void Game::damage(){
     if(invulnerable>0||phase!=Phase::playing)return;
@@ -152,13 +152,20 @@ void Game::step(const Control& input) {
     if(std::fabs(input.horizontal)>.1f)facing_right=input.horizontal>0;
     bool triggered=input.jump&&!jump_was_held;
     jump_was_held=input.jump;
-    if(triggered&&grounded){velocity.y=-15.4f;grounded=false;}
+    // Cross must be released between jumps; at most two launches per landing.
+    if(grounded)jumps_used_=0;
+    if(triggered&&jumps_used_<2){
+        velocity.y=jumps_used_==0?-15.4f:-13.2f;
+        ++jumps_used_;
+        grounded=false;
+    }
     // Slightly shorter jump on early release, plus gravity.
     if(!input.jump&&velocity.y<-6.f)velocity.y+=0.43f;
     velocity.y=std::min(17.f,velocity.y+0.68f);
     move_x(velocity.x);
     float beforeBottom=player.y+kPlayerHeight;
     move_y(velocity.y);
+    if(grounded)jumps_used_=0; // Restore both jumps on ground or a platform.
     for(int c=std::max(0,static_cast<int>(player.x/kTile)-1);
         c<=std::min(kColumns-1,static_cast<int>((player.x+kPlayerWidth)/kTile)+1);c++) {
         if(tiles[11][c]=='S' && velocity.y>=0 &&
@@ -166,7 +173,7 @@ void Game::step(const Control& input) {
            player.y+kPlayerHeight>=11.f*kTile &&
            overlap(player.x,player.y,kPlayerWidth,kPlayerHeight,
                    c*kTile*1.f,11.f*kTile,1.f*kTile,22.f)){
-            velocity.y=-20.5f;grounded=false;
+            velocity.y=-20.5f;grounded=false;jumps_used_=1; // One midair jump after a launch pad.
         }
     }
     if(player.y>kRows*kTile+140.f){damage();return;}
@@ -182,7 +189,7 @@ void Game::step(const Control& input) {
         else d.pos.x=ahead;
         if(overlap(player.x,player.y,kPlayerWidth,kPlayerHeight,d.pos.x,d.pos.y,42.f,40.f)){
             if(velocity.y>1.f && beforeBottom<=d.pos.y+13.f){
-                d.alive=false;velocity.y=-10.8f;score+=250;grounded=false;
+                d.alive=false;velocity.y=-10.8f;score+=250;grounded=false;jumps_used_=1; // Stomp bounce restores an air jump.
             }else{damage();if(phase!=Phase::playing)return;}
         }
     }

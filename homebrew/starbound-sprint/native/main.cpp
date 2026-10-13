@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Starbound Sprint by YAHBALLON v0.1.0
+// Starbound Sprint by YAHBALLON v0.2.0
 #include "game.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -20,7 +20,7 @@ int main(){
  if(bytes.empty())bytes=read_file("/data/homebrew/PPSA99641/assets/fonts/inter-semibold.huifont");
  if(!font.load(bytes))hui::sys::park();
  unsigned atlas=render.batch().create_font_texture(font);
- hui::ps5::Pad pad;pad.open();sprint::Game g;unsigned previous=0;int frames=0;
+ hui::ps5::Pad pad;pad.open();sprint::Game g;unsigned previous=0;int frames=0;bool suppressJumpUntilRelease=false;
  const unsigned palette[8]={0x092a4f,0x251340,0x16445d,0x52213b,0x0e344f,0x290c4d,0x501d36,0x122d4b};
  const unsigned ground[8]={0x38c5b3,0xb08bff,0xecc67b,0xf78d72,0x7be3f2,0xc679ff,0xf1a85a,0x83d8ee};
  for(;;){
@@ -31,15 +31,17 @@ int main(){
    if(pressed&hui::pad_bits::kCircle){if(g.phase==sprint::Phase::menu){pad.close();render.release();screen.close();hui::sys::quit();}g.reset_to_menu();}
    if(pressed&hui::pad_bits::kOptions){if(g.phase==sprint::Phase::playing)g.set_pause(true);else if(g.phase==sprint::Phase::paused)g.set_pause(false);}
    if(pressed&hui::pad_bits::kCross){
-     if(g.phase==sprint::Phase::menu||g.phase==sprint::Phase::game_over||g.phase==sprint::Phase::victory)g.new_run(0);
-     else if(g.phase==sprint::Phase::paused)g.set_pause(false);
-     else if(g.phase==sprint::Phase::stage_clear)g.next_stage();
+     if(g.phase==sprint::Phase::menu||g.phase==sprint::Phase::game_over||g.phase==sprint::Phase::victory){g.new_run(0);suppressJumpUntilRelease=true;}
+     else if(g.phase==sprint::Phase::paused){g.set_pause(false);suppressJumpUntilRelease=true;}
+     else if(g.phase==sprint::Phase::stage_clear){g.next_stage();suppressJumpUntilRelease=true;}
    }
    if((pressed&hui::pad_bits::kTriangle)&&g.phase==sprint::Phase::menu)g.new_run(g.progress.unlocked);
    sprint::Control input;input.horizontal=std::fabs(stick)>.2f?stick:0;
    if(held&hui::pad_bits::kLeft)input.horizontal=-1;
    if(held&hui::pad_bits::kRight)input.horizontal=1;
-   input.jump=(held&hui::pad_bits::kCross)!=0;input.sprint=(held&hui::pad_bits::kSquare)!=0;
+   if(!(held&hui::pad_bits::kCross))suppressJumpUntilRelease=false;
+   input.jump=(held&hui::pad_bits::kCross)!=0 && !suppressJumpUntilRelease;
+   input.sprint=(held&hui::pad_bits::kSquare)!=0;
    g.step(input);++frames;
    DrawList d;int idx=g.stage%8;
    d.gradient_rect({0,0,1920,1080},0,Color::rgb(palette[idx]),Color::rgb(0x061021));
@@ -78,13 +80,14 @@ int main(){
    d.pop_clip();
    d.rounded_rect({0,0,1920,95},0,Color::rgb(0x07182c));
    t(d,font,atlas,"STARBOUND SPRINT by YAHBALLON",55,57,29,Color::rgb(0xffd45a));
-   t(d,font,atlas,"v0.1.0",1860,57,23,Color::rgb(0xffffff),Align::right);
+   t(d,font,atlas,"v0.2.0",1860,57,23,Color::rgb(0xffffff),Align::right);
    t(d,font,atlas,"WORLD "+std::to_string(g.stage+1)+": "+sprint::Game::stage_name(g.stage),55,132,24);
    t(d,font,atlas,"SCORE "+std::to_string(g.score),755,132,23);
-   t(d,font,atlas,"CRYSTALS "+std::to_string(g.crystals),1125,132,23,Color::rgb(0xffd45a));
-   t(d,font,atlas,"LIVES "+std::to_string(g.lives),1590,132,23);
+   t(d,font,atlas,"CRYSTALS "+std::to_string(g.crystals),1020,132,23,Color::rgb(0xffd45a));
+   t(d,font,atlas,"JUMPS "+std::to_string(g.jumps_remaining())+"/2",1370,132,23,Color::rgb(0x65f2df));
+   t(d,font,atlas,"LIVES "+std::to_string(g.lives),1630,132,23);
    d.rounded_rect({45,962,1830,90},16,Color::rgb(0x08182d));
-   t(d,font,atlas,"D-PAD / STICK Move     X Jump     SQUARE Sprint     OPTIONS Pause     O Back",960,1018,22,Color::rgb(0xa8c4de),Align::center);
+   t(d,font,atlas,"D-PAD / STICK Move     X Jump x2     SQUARE Sprint     OPTIONS Pause     O Back",960,1018,22,Color::rgb(0xa8c4de),Align::center);
    if(g.phase!=sprint::Phase::playing){
       d.rounded_rect({0,151,1920,795},0,Color::rgb(0x050d20,.75f));
       d.bordered_rect({440,258,1040,544},23,Color::rgb(0x122a47),3,Color::rgb(0x65edd2));
