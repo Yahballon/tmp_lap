@@ -88,121 +88,160 @@ void sprite(DrawList& draw,std::uint32_t texture,int index,Rect rect,bool facing
     draw.image(texture,rect,uv,kWhite.with_alpha(alpha));
 }
 void render_world(DrawList& ui,const sprint::Game& game,std::uint32_t atlas,std::uint32_t background,int frame){
-    int theme=game.tileset_theme();
-    const float cam=game.camera;
-    ui.gradient_rect({0,0,1920,1080},0,tint(kSky[game.stage]),tint(0x081223));
-    if(background){
-        // Every world now uses its own original painted concept panorama.
-        // Sampling remains within its quarter of the four-scene texture atlas.
-        const float u0=(theme+0.0001f)/4.f,u1=(theme+0.9999f)/4.f;
-        const float drift=std::fmod(cam*.075f,1190.f);
-        for(int i=-1;i<3;++i){
-            float x=i*1190.f-drift;
-            ui.image(background,{x,148,1192,812},{u0,0,u1,1},tint(0xffffff,.76f));
-        }
+    (void)background;
+    const float cam=game.camera,t=game.elapsed;
+    const int theme=game.tileset_theme();
+    const Color white=tint(0xf6fcff);
+    const unsigned night[4]={0x09142f,0x100b31,0x211329,0x13233f};
+    ui.gradient_rect({0,145,1920,818},0,tint(night[theme]),tint(0x3c82b9));
+    // High-resolution native geometry replaces enlarged 16-pixel background sprites.
+    const float moonX=700.f-cam*.032f;
+    ui.circle(moonX,285,145,tint(0x7dccff,.09f));
+    ui.circle(moonX,285,112,tint(0xb9e8ff,.17f));
+    ui.circle(moonX,285,86,tint(0xdcecff,.94f));
+    ui.circle(moonX-22,265,24,tint(0x88b9dc,.26f));
+    ui.circle(moonX+35,302,18,tint(0x88b9dc,.20f));
+    for(int i=0;i<115;++i){
+        float sx=std::fmod(i*193.3f-cam*.018f+23000.f,2020.f)-30.f;
+        float sy=167.f+std::fmod(i*59.7f,430.f);
+        float glow=.36f+.35f*std::sin(t*(game.progress.reduced_motion?0.f:1.8f)+i);
+        ui.circle(sx,sy,1.3f+(i%4)*.48f,tint(0xecfcff,glow));
     }
-    // Three parallax scenery layers; generated geometrically, not scaled full-screen bitmaps.
-    // Slow moving cloud halos, floating distant ruins and sparkling stars.
-    for(int i=0;i<80;++i){
-        float px=fract(i*.6180339887f+.11f)*2200.f;
-        float x=std::fmod(px-cam*.11f+5000.f,2200.f)-100.f;
-        float y=146.f+fract(i*.37123f)*660.f;
-        float pulse=.45f+.35f*std::sin(game.elapsed*1.4f+i*1.83f);
-        ui.circle(x,y,1.5f+i%3,tint(0xe2fbff,pulse));
+    // Cloud banks in three distinct parallax planes.
+    for(int layer=0;layer<3;++layer)for(int i=0;i<19;++i){
+        float speed=.07f+layer*.11f;
+        float x=std::fmod(i*193.f-cam*speed+6000.f,3650.f)-350.f;
+        float y=354.f+layer*114.f+(i*43%91);
+        Color color=tint(layer==0?0x8eacdb:layer==1?0x648fb8:0x4775a0,.21f+layer*.03f);
+        ui.circle(x,y,84+layer*18,color);
+        ui.circle(x+90,y-27,107+layer*11,color);
+        ui.circle(x+185,y+4,79+layer*15,color);
     }
-    for(int i=0;i<17;++i){
-        float x=std::fmod(180.f+i*198.f-cam*.16f+4400.f,3400.f)-260.f;
-        float y=550.f+(i*71%160);
-        ui.triangle({x,y,400,410},tint(kHorizon[game.stage],.18f));
-        ui.circle(x+215.f,y+215.f,76.f,tint(kHorizon[game.stage],.10f));
-    }
+    // Far-off castle towers and dramatic floating islands.
     for(int i=0;i<12;++i){
-        float x=std::fmod(i*305.f-cam*.30f+7000.f,4000.f)-240.f;
-        float y=750.f+(i%4)*18.f;
-        ui.rounded_rect({x,y,245,240},100,tint(kHorizon[game.stage],.13f));
+        float x=std::fmod(170.f+i*332.f-cam*.19f+9400.f,4180.f)-310.f;
+        float y=605.f+(i*37%105);
+        ui.triangle({x-60,y-290,220,310},tint(0x183e69,.55f));
+        ui.rounded_rect({x+25,y-195,44,210},5,tint(0x1f4779,.65f));
+        ui.triangle({x+13,y-230,68,65},tint(0x245084,.77f));
+        ui.rounded_rect({x+41,y-135,10,28},4,tint(0xffd8ab,.38f));
     }
-    ui.push_clip({43,150,1835,795});
-    int first=std::max(0,static_cast<int>(cam/sprint::kTile)-3);
-    int last=std::min(sprint::kColumns-1,first+36);
-    // Only render map cells inside camera's view (always fewer than 500).
+    for(int i=0;i<8;++i){
+        float x=std::fmod(i*470.f-cam*.29f+5200.f,3900.f)-300.f;
+        float y=570.f+(i*59%130);
+        ui.triangle({x,y,330,155},tint(0x1b3556,.78f));
+        ui.rounded_rect({x+37,y-6,254,23},10,tint(0x4a9379,.68f));
+        for(int j=0;j<7;++j)
+            ui.line(x+40+j*39,y+15,x+37+j*40,y+47+(j%3)*12,2,tint(0x63caad,.39f));
+    }
+    // Waterfalls with animated light ripples (geometry stays crisp at 1080p).
+    for(int i=0;i<4;++i){
+        float x=std::fmod(760+i*730.f-cam*.38f+9200.f,4400.f)-100.f;
+        float y=630.f+(i%2)*100;
+        ui.rounded_rect({x,y,71,270},18,tint(0x4a9fd8,.33f));
+        for(int k=0;k<6;++k)ui.line(x+7+k*10,y+8,x+12+k*9,y+262,2,
+                  tint(0xd0f9ff,.16f+.09f*std::sin(t*3+k+i)));
+    }
+    ui.gradient_rect({0,748,1920,205},0,tint(0x145474,.06f),tint(0x173c57,.56f));
+    // Interactive terrain is built from the REAL physics tile map, not baked into the backdrop.
+    ui.push_clip({45,151,1830,804});
+    const int first=std::max(0,(int)(cam/sprint::kTile)-2);
+    const int last=std::min(sprint::kColumns-1,first+35);
+    auto grass=[&ui,theme](float x,float y,float width){
+        const Color moss=tint(theme==1?0x71e5eb:theme==2?0xe9aa62:0x6de8a0);
+        ui.rounded_rect({x,y,width,12},3,tint(0x1e4c40));
+        ui.rounded_rect({x,y-4,width,9},4,moss);
+        ui.line(x+4,y+4,x+width-4,y+4,2,tint(0xc7ffa0,.51f));
+        for(int i=0;i<(int)(width/13);++i){
+            float px=x+6+i*13;
+            ui.line(px,y-3,px+3,y-10-(i%3)*3,2,moss);
+        }
+    };
     for(int r=0;r<sprint::kRows;++r)for(int c=first;c<=last;++c){
-        char type=game.tiles[r][c];if(type=='.')continue;
-        float x=kScreenX+c*sprint::kTile-cam;
-        float y=kScreenY+r*sprint::kTile;
-        int base=24+theme*8;
-        if(type=='#'){
-            int tile=base+(r==sprint::kRows-1?((c+game.stage)%3):((c*3+r)%8));
-            sprite(ui,atlas,tile,{x,y,60,60});
-        }else if(type=='='){
-            sprite(ui,atlas,base+(2+((c+game.stage)%3)),{x,y,60,26});
-            ui.rounded_rect({x+3,y+21,54,4},2,tint(0x07121f,.28f));
-        }else if(type=='S'){
-            sprite(ui,atlas,62,{x+4,y+12,52,50});
-            ui.circle(x+30,y+14,8.f+4.f*std::sin(game.elapsed*4.f),tint(0xffcc6f,.45f));
-        }else if(type=='^'){
-            sprite(ui,atlas,42,{x+4,y+13,52,52});
-            ui.triangle({x+12,y+6,35,34},tint(0xff637d,.8f));
+        char tile=game.tiles[r][c];if(tile=='.')continue;
+        float x=100.f+c*sprint::kTile-cam,y=153.f+r*sprint::kTile;
+        if(tile=='#'){
+            ui.rounded_rect({x,y,60,62},3,tint(0x223348));
+            ui.rounded_rect({x+3,y+5,54,53},3,tint(theme==2?0x785064:0x3b485d));
+            for(int k=0;k<3;++k)
+                ui.line(x+6+(k*17+c*3)%43,y+12+k*16,
+                        x+16+(k*19+c*3)%40,y+14+k*16,2,tint(0x8595b1,.36f));
+            if(r==0||game.tiles[r-1][c]!='#')grass(x,y,60);
+        }else if(tile=='='){
+            ui.shadow({x,y,60,23},5,9,tint(0x000b29,.35f));
+            ui.rounded_rect({x,y+3,60,24},6,tint(0x34485e));
+            grass(x,y,60);
+            for(int z=0;z<3;++z)ui.line(x+8+z*18,y+24,x+12+z*17,y+35+z*4,2,tint(0x67bb85,.7f));
+        }else if(tile=='S'){
+            ui.rounded_rect({x+5,y+33,50,17},6,tint(0xffaf64));
+            ui.ring(x+30,y+23,13,4,tint(0xffe1a4,.8f));
+        }else if(tile=='^'){
+            for(int k=0;k<3;++k)ui.triangle({x+3+k*18,y+15,20,39},tint(0xe87f9a));
         }
     }
-    // Frame-based scenery draws from the approved concept art atlas.
-    for(int i=0;i<sprint::kColumns/8;++i){
-        int col=i*8+5;
-        float x=kScreenX+col*sprint::kTile-cam;
-        if(!visible(x,170.f))continue;
-        if(game.tiles[12][col]=='#' && i%4!=1){
-            float size=(i%3==0)?150.f:112.f;
-            sprite(ui,atlas,56+(i+theme)%8,{x,153+12*sprint::kTile-size+18,size,size});
-        }
+    // Wooden posts, glowing lanterns and floral vegetation.
+    for(int c=5;c<sprint::kColumns;c+=17){
+        float x=100.f+c*sprint::kTile-cam;
+        if(!visible(x,120)||game.tiles[12][c]!='#')continue;
+        float foot=153.f+12*sprint::kTile;
+        ui.line(x+27,foot-8,x+27,foot-112,11,tint(0x6c4a42));
+        ui.line(x+27,foot-93,x+82,foot-93,7,tint(0x946955));
+        ui.line(x+78,foot-93,x+78,foot-58,3,tint(0xe0bd75));
+        ui.circle(x+78,foot-50,21,tint(0xffc06c,.14f));
+        ui.rounded_rect({x+63,foot-69,30,35},7,tint(0xb87847));
+        ui.rounded_rect({x+69,foot-63,18,23},4,tint(0xffd18b,.86f));
     }
-    for(const auto& p:game.moving_platforms){
-        float x=kScreenX+p.pos.x-cam,y=kScreenY+p.pos.y;
-        if(!visible(x,180.f))continue;
-        ui.shadow({x,y,180,27},8,10,tint(0x00142b,.24f));
-        for(int i=0;i<3;++i)sprite(ui,atlas,25+theme*8,{x+i*60.f,y,60,36});
-        ui.line(x+8,y+33,x+172,y+33,2,tint(0xf4ecb4,.65f));
+    for(const auto& plat:game.moving_platforms){
+        float x=100+plat.pos.x-cam,y=153+plat.pos.y;
+        if(!visible(x,180))continue;
+        ui.shadow({x,y,180,37},10,17,tint(0x020a17,.45f));
+        ui.rounded_rect({x,y,180,33},10,tint(0x344157));
+        grass(x,y,180);
     }
-    // Collectible animations and pulsing pickup rings.
     for(size_t i=0;i<game.pickups.size();++i){
         const auto& p=game.pickups[i];if(p.taken)continue;
-        float x=kScreenX+p.pos.x-cam,y=kScreenY+p.pos.y;
-        if(!visible(x,40.f))continue;
-        float bounce=std::sin(game.elapsed*3.9f+static_cast<float>(i)*.9f)*7.f;
-        int index=(i%9==0)?17:(i%17==0)?23:16;
-        ui.circle(x+17,y+14+bounce,19,tint(0x5bf5ff,.16f));
-        sprite(ui,atlas,index,{x,y-4+bounce,34,34});
-        if(i%4==0)ui.star(x+37,y+bounce,4.f+2.f*std::sin(game.elapsed*5+i),tint(0xffe8af));
+        float x=100+p.pos.x-cam,y=153+p.pos.y;
+        if(!visible(x,43))continue;
+        float bob=game.progress.reduced_motion?0.f:std::sin(t*3.5f+i*.57f)*5.f;
+        ui.circle(x+15,y+13+bob,19,tint(0x5debff,.14f));
+        ui.star(x+15,y+13+bob,17,tint(0x36d8ff));
+        ui.star(x+15,y+13+bob,10,tint(0xc4faff));
     }
-    // Three animation behaviors: land patrol, flying bob, hazard rover.
-    for(const auto& e:game.drones){
-        if(!e.alive)continue;
-        float x=kScreenX+e.pos.x-cam,y=kScreenY+e.pos.y;
-        if(!visible(x,66))continue;
-        float bob=std::sin(game.elapsed*8.f+e.pos.x*.02f)*3.f;
-        int frameId=8+(e.type%8);
-        if(e.type==3||e.type==7)bob*=2.f;
-        sprite(ui,atlas,frameId,{x-6,y-8+bob,60,60},e.direction>=0);
-        if(e.type==1)ui.circle(x+22,y+7,9,tint(0xffe57c,.24f));
+    for(const auto& e:game.drones)if(e.alive){
+        float x=100+e.pos.x-cam,y=153+e.pos.y;
+        if(!visible(x,70))continue;
+        float bob=game.progress.reduced_motion?0.f:std::sin(t*7+e.pos.x*.018f)*3.f;
+        unsigned shell=(e.type%3==0)?0xdb6584:(e.type%3==1)?0x8ee47d:0xffa765;
+        ui.circle(x+20,y+26+bob,27,tint(shell));
+        ui.circle(x+9,y+20+bob,10,tint(0xffffff,.48f));
+        ui.circle(x+29,y+20+bob,10,tint(0xffffff,.48f));
+        ui.circle(x+11,y+22+bob,4,tint(0x10263e));
+        ui.circle(x+29,y+22+bob,4,tint(0x10263e));
+        if(e.type%3==2)ui.line(x+10,y+45+bob,x+35,y+45+bob,3,tint(0x1c253c));
     }
-    const float exitX=kScreenX+game.finish_x()-cam;
-    if(visible(exitX,100.f)){
-        sprite(ui,atlas,60,{exitX-25,535,116,380});
-        ui.ring(exitX+29,618,23,5,tint(0x92fff4,.9f));
+    float exitx=100+game.finish_x()-cam;
+    if(visible(exitx,80)){
+        ui.line(exitx+20,540,exitx+20,910,9,tint(0xe7d4a6));
+        ui.star(exitx+20,548,45,tint(0xffd58c));
+        ui.circle(exitx+20,548,57,tint(0xffd58c,.11f));
     }
-    // Animated player sprite selection, including special airborne states and walk cycle.
-    if(game.invulnerable==0||(frame/5)%2==0){
-        int pose=0;
-        if(!game.grounded)pose=(game.velocity.y<0)?(game.jumps_remaining()==0?6:6):7;
-        else if(std::fabs(game.velocity.x)>1.f)
-            pose=1+((frame/(std::fabs(game.velocity.x)>5.5f?5:9))%5);
-        float x=kScreenX+game.player.x-cam-9,y=kScreenY+game.player.y-9;
-        if(game.jumps_remaining()==0&&!game.grounded){
-            ui.circle(x+35,y+52,33,tint(0x00ddfa,.16f));
-            for(int i=0;i<5;++i){
-                float angle=game.elapsed*7.f+i*6.28318f/5.f;
-                ui.star(x+33+std::cos(angle)*30.f,y+41+std::sin(angle)*27.f,4.f,tint(0x7bfff3,.75f));
-            }
-        }
-        sprite(ui,atlas,pose,{x,y,68,73},game.facing_right);
+    // Hero: large smooth vector character with readable silhouette and animated stride.
+    if(game.invulnerable==0||(frame/6)%2==0){
+        const float x=100+game.player.x-cam-14;
+        const float y=153+game.player.y-23;
+        const float stride=game.grounded?std::sin(t*12)*std::min(7.f,std::fabs(game.velocity.x)):1.f;
+        ui.shadow({x+5,y+66,60,9},5,9,tint(0x07182c,.38f));
+        ui.line(x+28,y+54,x+19+stride,y+70,8,tint(0x182a49));
+        ui.line(x+39,y+54,x+50-stride,y+70,8,tint(0x182a49));
+        ui.rounded_rect({x+13,y+29,45,36},12,tint(0x202b51));
+        ui.triangle({x+(game.facing_right?8:37),y+29,47,42},tint(0xd94360));
+        ui.circle(x+34,y+20,28,tint(0xeef5ff));
+        ui.circle(x+35,y+22,22,tint(0x202c52));
+        ui.circle(x+(game.facing_right?46:24),y+19,10,tint(0x68f0fa));
+        ui.circle(x+(game.facing_right?48:26),y+17,5,tint(0xfcffff));
+        for(int i=0;i<5;++i)ui.line(x+12+i*10,y+8,x+9+i*10,y-12-i%3*5,4,tint(0xe0eaff));
+        if(!game.grounded&&game.jumps_remaining()==0)
+            for(int i=0;i<4;++i)ui.star(x+15+i*13,y+69+std::sin(t*8+i)*6,4,tint(0x7af7fb,.7f));
     }
     ui.pop_clip();
 }
