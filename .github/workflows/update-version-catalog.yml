@@ -1,0 +1,47 @@
+name: Update TESTBUILDS Catalog
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/update-version-catalog.yml'
+      - 'tools/update-version.py'
+  release:
+    types: [published]
+  workflow_run:
+    workflows: [Build Crypto Tracker, Build Starbound Sprint, Build WWW Speedtest, Build Payload LauncherX]
+    types: [completed]
+  schedule:
+    - cron: '17 * * * *'
+permissions:
+  contents: write
+concurrency:
+  group: testbuilds-version-catalog
+  cancel-in-progress: false
+jobs:
+  catalog:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Refresh stable TESTBUILDS JSON
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+      - name: Commit new version.json
+        run: |
+          if [ -z "$(git status --porcelain -- version.json)" ]; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore: update TESTBUILDS catalog [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            git push origin HEAD:main && exit 0
+            sleep 3
+          done
+          exit 1
