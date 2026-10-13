@@ -28,6 +28,24 @@ static void plot(DrawList& ui,const std::vector<double>& v,float x,float y,float
  for(size_t i=0;i<v.size();i++){float xx=x+(i+1)*(w/(float)v.size());float yy=y+h-(float)std::min(1.0,v[i]/maximum)*h;
  ui.line(lastX,lastY,xx,yy,3,col);ui.circle(xx,yy,4,col);lastX=xx;lastY=yy;}
 }
+
+static void flag(DrawList& ui,const Font& font,unsigned atlas,const std::string& code,float x,float y){
+ auto rect=[&](float xx,float yy,float w,float h,unsigned c){ui.rounded_rect({xx,yy,w,h},0,Color::rgb(c));};
+ rect(x,y,48,30,0xf1f3f8);
+ auto horizontal=[&](unsigned a,unsigned b,unsigned c){rect(x,y,48,10,a);rect(x,y+10,48,10,b);rect(x,y+20,48,10,c);};
+ if(code=="DE")horizontal(0x161616,0xdd2525,0xf2cd32);
+ else if(code=="NL")horizontal(0xbd2433,0xffffff,0x204eab);
+ else if(code=="IT"){rect(x,y,16,30,0x159447);rect(x+32,y,16,30,0xd6333b);}
+ else if(code=="GB"){rect(x,y,48,30,0x23448b);ui.line(x,y,x+48,y+30,6,white);ui.line(x+48,y,x,y+30,6,white);rect(x+19,y,10,30,0xd62838);rect(x,y+10,48,10,0xd62838);}
+ else if(code=="US"){for(int i=0;i<7;i++)rect(x,y+i*4.3f,48,2.4f,0xc62b3a);rect(x,y,23,17,0x24458d);for(int k=0;k<5;k++)ui.circle(x+4+(k%3)*7,y+4+(k/3)*7,1.3f,white);}
+ else if(code=="JP"){ui.circle(x+24,y+15,9,Color::rgb(0xc72e41));}
+ else if(code=="SG"){horizontal(0xe23e43,0xe23e43,0xffffff);ui.circle(x+12,y+7,5,white);ui.circle(x+15,y+5,4,Color::rgb(0xe23e43));}
+ else if(code=="IN")horizontal(0xef9235,0xffffff,0x249451);
+ else if(code=="ZA"){rect(x,y,48,15,0xd53937);rect(x,y+15,48,15,0x14498b);ui.line(x,y+15,x+48,y+15,8,white);ui.line(x,y+15,x+48,y+15,5,Color::rgb(0x249a4b));}
+ else if(code=="CZ"){horizontal(0xffffff,0xffffff,0xd43645);ui.line(x,y+1,x+24,y+15,4,Color::rgb(0x2354a0));ui.line(x,y+29,x+24,y+15,4,Color::rgb(0x2354a0));}
+ else {rect(x,y,48,30,0x12417a);t(ui,font,atlas,code,x+24,y+22,15,white,Align::center);}
+ ui.bordered_rect({x,y,48,30},1,Color::rgb(0x04152c,0.01f),1,Color::rgb(0x426ba3));
+}
 struct Result {double d=0,u=0,p=0,j=0;long when=0;};
 static const char* historyPath="/data/homebrew/PPSA99573/speedtest-history.csv";
 static std::vector<Result> loadHistory(){
@@ -90,7 +108,7 @@ int main(){
   t(ui,font,atlas,"WWW SPEEDTEST",196,69,52);
   t(ui,font,atlas,"Test your internet speed on PS5",198,108,23,muted);
   t(ui,font,atlas,"by YAHBALLON",1580,55,18,cyan);
-  t(ui,font,atlas,"v0.3.0",1835,55,20,white,Align::right);
+  t(ui,font,atlas,"v0.3.1",1835,55,20,white,Align::right);
   panel(ui,24,161,380,848);
   const char* symbols[]={"[>]","[=]","[|]","[@]","[*]","[i]"};
   for(int i=0;i<6;i++){
@@ -176,10 +194,7 @@ int main(){
     for(int i=serverScroll;i<speedtest::serverCount()&&i<serverScroll+9;i++){
       const float y=360+(i-serverScroll)*67;
       ui.bordered_rect({470,y-33,1320,59},10,Color::rgb(i==serverFocus?0x0b4383:0x0a1a36),i==serverFocus?2:1,i==serverFocus?cyan:edge);
-      const std::string flag=hosts[i].flag;
-      if(flag=="DE"){ui.rounded_rect({488,y-17,45,13},0,Color::rgb(0x181818));ui.rounded_rect({488,y-4,45,13},0,Color::rgb(0xdd2929));ui.rounded_rect({488,y+9,45,13},0,Color::rgb(0xf9cc3d));}
-      else if(flag=="NL"){ui.rounded_rect({488,y-17,45,13},0,Color::rgb(0xc9303e));ui.rounded_rect({488,y-4,45,13},0,white);ui.rounded_rect({488,y+9,45,13},0,Color::rgb(0x224dbb));}
-      else {ui.bordered_rect({488,y-17,45,39},3,Color::rgb(0x092b67),1,cyan);t(ui,font,atlas,flag,510,y+10,14,white,Align::center);}
+      flag(ui,font,atlas,hosts[i].flag,488,y-16);
       t(ui,font,atlas,hosts[i].name,558,y+9,23,i==serverFocus?white:muted);
       if(i==speedtest::selectedServer())t(ui,font,atlas,"SELECTED",1740,y+9,18,green,Align::right);
     }
@@ -210,7 +225,7 @@ int main(){
    }
    if(menu==5){
     t(ui,font,atlas,"WWW SPEEDTEST by YAHBALLON",475,361,32);
-    t(ui,font,atlas,"v0.3.0 | PPSA99573 | Native C++ / OpenGL",475,426,25,muted);
+    t(ui,font,atlas,"v0.3.1 | PPSA99573 | Native C++ / OpenGL",475,426,25,muted);
     t(ui,font,atlas,"Real HTTPS measurements. No simulated network data.",475,497,24,cyan);
    }
   }
