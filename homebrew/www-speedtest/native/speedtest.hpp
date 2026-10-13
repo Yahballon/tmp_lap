@@ -9,6 +9,7 @@ struct Snapshot {
   double ping=0, jitter=0, down=0, up=0, progress=0, liveMbps=0;
   std::vector<double> downGraph, upGraph;
   std::string status="Ready. Press X to start a real network test.";
+  std::string localIp="Not connected", remoteIp="Not connected";
 };
 struct Server { const char* name; const char* flag; const char* host; const char* base; }; 
 const Server* servers();
