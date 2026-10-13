@@ -67,7 +67,7 @@ jobs:
           APP_INCLUDE_PATHS: "src"
         run: |
           bash tools/setup-pacbrew-dependencies.sh --list | grep -Ei 'sdl'
-          make USE_CCACHE=0 BUILD_JOBS=4 app
+          make APP_INCLUDE_PATHS=src APP_SOURCE_DIR=src APP_ASSETS=assets USE_CCACHE=0 BUILD_JOBS=4 app
       - name: Verify new ShadowMount title ZIP
         run: |
           python3 - <<'PY'
