@@ -7,7 +7,7 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
 | Crypto Tracker | [homebrew/crypto-tracker](homebrew/crypto-tracker/) | [Build Crypto Tracker](.github/workflows/build-ps5-crypto-tracker.yml) | [v0.3.0](https://github.com/Yahballon/tmp_lap/releases/tag/v0.3.0) |
-| Payload Launcher | [homebrew/payload-launcher](homebrew/payload-launcher/) | [Build Payload Launcher](.github/workflows/build-payload-launcher.yml) | [v0.2.1](https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.2.1) |
+| Payload LauncherX | [homebrew/payload-launcher](homebrew/payload-launcher/) | [Build Payload LauncherX](.github/workflows/build-payload-launcher.yml) | [v0.2.4](https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.2.4) |
 
 ## Layout
 
