@@ -51,7 +51,11 @@ jobs:
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
-          cp app/res/sprites/icons/windowicon.png app/sce_sys/icon0.png
+          python3 - <<'PY'
+          from PIL import Image
+          im=Image.open('app/res/sprites/icons/windowicon.png').convert('RGBA')
+          im.resize((512,512),Image.Resampling.LANCZOS).save('app/sce_sys/icon0.png')
+          PY
       - name: Compile and package native app
         working-directory: app
         env:
