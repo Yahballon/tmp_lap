@@ -36,18 +36,16 @@ static const Server serverList[]={
  {"London, United Kingdom","GB","lon.speedtest.clouvider.net","/backend"},
  {"New York, USA","US","nyc.speedtest.clouvider.net","/backend"},
  {"Los Angeles, USA","US","la.speedtest.clouvider.net","/backend"},
- {"Bangalore, India","IN","in1.backend.librespeed.org",""},
  {"Bologna, Italy","IT","st-be-bo1.infra.garr.it",""},
  {"Tokyo, Japan","JP","librespeed.a573.net","/backend"},
  {"Johannesburg, South Africa","ZA","za1.backend.librespeed.org",""},
  {"Chicago, USA","US","chispeed.sharktech.net","/backend"},
  {"Amsterdam Sharktech","NL","amsspeed.sharktech.net","/backend"},
- {"Mumbai, India (OVH - Download)","IN","bom1-ynm1.speedtest.network.ovh.net",""}
 };
 static constexpr int count=(int)(sizeof(serverList)/sizeof(serverList[0]));
 static const Server& server(){return serverList[chosen.load()];}
 static const char* effectiveHost(){
- if(chosen.load()!=7)return server().host;
+ if(chosen.load()!=6)return server().host;
  static const char* hosts[]={"st-be-bo1.infra.garr.it","st-be-ba1.infra.garr.it","st-be-rm2.infra.garr.it"};
  int i=italianMirror.load();return hosts[i>=0&&i<3?i:0];
 }
@@ -117,11 +115,10 @@ struct Connection {
 bool request(bool upload,size_t bytes,double& seconds,std::string& error,size_t* actualBytes=nullptr) {
  Connection c;if(!c.open(error))return false;
  const bool cf=chosen.load()==0;
- const bool mumbai=chosen.load()==12;
- if(mumbai&&upload){error="Mumbai OVH supports download only";return false;}
- std::string path=mumbai?"/files/100Mb.dat":cf?(upload?"/__up":("/__down?bytes="+std::to_string(bytes))):
+
+ std::string path=cf?(upload?"/__up":("/__down?bytes="+std::to_string(bytes))):
  (std::string(server().base)+(upload?"/empty.php":(bytes==0?"/empty.php":"/garbage.php?ckSize="+std::to_string(std::max<size_t>(1,(bytes+1048575)/1048576)))));
- std::string header=(upload?"POST ":(mumbai&&bytes==0?"HEAD ":"GET "))+path+
+ std::string header=(upload?"POST ":"GET ")+path+
  " HTTP/1.1\r\nHost: "+std::string(effectiveHost())+"\r\nUser-Agent: PS5WWWSpeedtest/0.3\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
  if(upload)header+="Content-Type: application/octet-stream\r\nContent-Length: "+std::to_string(bytes)+"\r\n";
  header+="\r\n";
@@ -151,7 +148,7 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error,size_t*
    // Chunked responses may include framing. Network payload is measured at HTTP transfer layer.
    received=headers.size()-(pos+4);parsed=true;headers.clear();
   }else received+=(size_t)n;
-  if(!upload&&received>(mumbai?150*1024*1024:(cf?bytes+4096:16*1024*1024))){error="Response exceeded requested size";return false;}
+  if(!upload&&received>(cf?bytes+4096:16*1024*1024)){error="Response exceeded requested size";return false;}
   if(upload&&received>65536){error="Upload response too large";return false;}
   if(knownLength && received>=contentLength){complete=true;break;}
  }
@@ -166,8 +163,7 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error,size_t*
  return true;
 }
 void* worker(void*) {
- const bool italy=chosen.load()==7;
- const bool mumbai=chosen.load()==12;
+ const bool italy=chosen.load()==6;
  italianMirror.store(0);
  std::string error;
  update(1,"Measuring latency...",.05);
@@ -195,7 +191,7 @@ void* worker(void*) {
  if(error.empty()){
   update(2,"Testing download...",.25);
   const size_t sizes[]={100000,1000000,4000000,8000000};
-  const int samples=mumbai?1:4;
+  const int samples=4;
   double totalBytes=0,totalSec=0;
   for(int i=0;i<samples;i++){
    double sec=0;size_t got=0;if(!request(false,sizes[i],sec,error,&got))break;
@@ -206,7 +202,7 @@ void* worker(void*) {
    state.progress=.25+.35*(i+1)/samples;
   }
  }
- if(error.empty()&&!mumbai){
+ if(error.empty()){
   update(3,"Testing upload...",.65);
   const size_t sizes[]={100000,500000,1000000,2000000};
   double totalBytes=0,totalSec=0;
@@ -223,7 +219,7 @@ void* worker(void*) {
   std::lock_guard<std::mutex> lock(guard);
   state.running=false;state.completed=error.empty();state.phase=error.empty()?4:0;
   state.progress=error.empty()?1:state.progress;
-  state.status=error.empty()?(mumbai?"Mumbai download complete (upload unavailable)":"Test complete"):("Test failed ["+std::string(server().name)+"]: "+error);
+  state.status=error.empty()?"Test complete":("Test failed ["+std::string(server().name)+"]: "+error);
  }
  busy.store(false,std::memory_order_release);
  return nullptr;
