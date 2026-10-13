@@ -28,7 +28,7 @@ jobs:
           ref: main
       - name: Refresh stable TESTBUILDS JSON
         env:
-          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 tools/update-version.py
           python3 -m json.tool version.json >/dev/null
