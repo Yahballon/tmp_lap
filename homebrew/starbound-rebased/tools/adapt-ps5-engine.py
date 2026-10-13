@@ -151,12 +151,30 @@ static void sdl_boot_mark(const char*) {}
 patch("src/TextureManager.cpp",
       '   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {',
       '''   sdl_boot_mark("TM01 before SDL_Init");
-   // Initialize video separately: PS5 SDL2 audio drivers may fail independently.
-   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
-      sdl_boot_mark("TM02 SDL_Init returned error");''')
+   // First isolate SDL core initialization from each hardware subsystem.
+   // This distinguishes a broken C runtime/SDL constructor from PS5 video driver startup.
+   sdl_boot_mark("TM01a before SDL_Init(0)");
+   if (SDL_Init(0) != 0) {
+      sdl_boot_mark("TM01b SDL_Init(0) returned error");
+      return -1;
+   }
+   sdl_boot_mark("TM01b SDL_Init(0) successful");
+   sdl_boot_mark("TM01c before SDL_INIT_TIMER");
+   if (SDL_InitSubSystem(SDL_INIT_TIMER) != 0) {
+      sdl_boot_mark("TM01d timer init failed"); return -1;
+   }
+   sdl_boot_mark("TM01d timer init successful");
+   sdl_boot_mark("TM01e before SDL_INIT_EVENTS");
+   if (SDL_InitSubSystem(SDL_INIT_EVENTS) != 0) {
+      sdl_boot_mark("TM01f event init failed"); return -1;
+   }
+   sdl_boot_mark("TM01f event init successful");
+   sdl_boot_mark("TM01g before SDL_INIT_VIDEO");
+   if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
+      sdl_boot_mark("TM02 video init returned error");''')
 patch("src/TextureManager.cpp",
       '   if (IMG_Init(IMG_INIT_PNG) < 0) {',
-      '''   sdl_boot_mark("TM02 SDL_Init success");
+      '''   sdl_boot_mark("TM02 SDL video initialization successful");
    sdl_boot_mark("TM03 before IMG_Init");
    if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0) {
       sdl_boot_mark("TM04 IMG_Init failed");''')
