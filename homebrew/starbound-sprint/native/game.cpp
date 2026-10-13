@@ -12,8 +12,8 @@ constexpr float kPlayerWidth=42.f, kPlayerHeight=54.f;
 constexpr char kProgressFile[]="/data/homebrew/PPSA99641/starbound-progress.cfg";
 constexpr char kProgressTemp[]="/data/homebrew/PPSA99641/starbound-progress.tmp";
 constexpr const char* kNames[kStages] = {
-    "MOONLIT MEADOW", "CRYSTAL RIFT", "CLOUD CIRCUIT", "EMBER GARDEN",
-    "FROST ENGINE", "VIOLET VOID", "SOLAR FOUNDRY", "STARLIGHT SUMMIT"
+    "AURORA GROVE", "PRISM CATACOMBS", "SKYDOCK CIRCUIT", "EMBER ORCHARD",
+    "GLACIER RELAY", "NEBULA SANCTUM", "SOLAR MACHINERY", "LAST STAR GATE"
 };
 bool overlap(float ax,float ay,float aw,float ah,float bx,float by,float bw,float bh) {
     return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
