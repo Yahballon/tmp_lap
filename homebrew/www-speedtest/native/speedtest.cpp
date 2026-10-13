@@ -121,7 +121,7 @@ bool request(bool upload,size_t bytes,double& seconds,std::string& error,size_t*
  if(mumbai&&upload){error="Mumbai OVH supports download only";return false;}
  std::string path=mumbai?"/files/100Mb.dat":cf?(upload?"/__up":("/__down?bytes="+std::to_string(bytes))):
  (std::string(server().base)+(upload?"/empty.php":(bytes==0?"/empty.php":"/garbage.php?ckSize="+std::to_string(std::max<size_t>(1,(bytes+1048575)/1048576)))));
- std::string header=(upload?"POST ":"GET ")+path+
+ std::string header=(upload?"POST ":(mumbai&&bytes==0?"HEAD ":"GET "))+path+
  " HTTP/1.1\r\nHost: "+std::string(effectiveHost())+"\r\nUser-Agent: PS5WWWSpeedtest/0.3\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
  if(upload)header+="Content-Type: application/octet-stream\r\nContent-Length: "+std::to_string(bytes)+"\r\n";
  header+="\r\n";
