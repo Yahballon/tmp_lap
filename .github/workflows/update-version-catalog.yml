@@ -1,6 +1,11 @@
 name: Update TESTBUILDS Catalog
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/update-version-catalog.yml'
+      - 'tools/update-version.py'
   release:
     types: [published]
   workflow_run:
