@@ -19,7 +19,7 @@ patch("src/main.cpp",
 #ifdef __FreeBSD__
    // ELF loader does not guarantee the game's working directory.
    if (access("res/sprites/characters/PlayerSpriteSheet.png", F_OK) != 0) {
-      if (chdir("/app0") != 0 && chdir("/data/homebrew/PPSA99642") != 0)
+      if (chdir("/app0/assets") != 0 && chdir("/data/homebrew/PPSA99642/assets") != 0)
          chdir("/mnt/usb0/STARBOUND_REBASED");
    }
 #endif''')
