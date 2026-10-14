@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -106,7 +107,7 @@ int dial(const std::string& host,int port,int seconds){
  int fd=-1;
  for(auto* a=head;a;a=a->ai_next){
   char address[INET_ADDRSTRLEN]={};
-  if(a->ai_family==AF_INET)inet_ntop(AF_INET,&((sockaddr_in*)a->ai_addr)->sin_addr,address,sizeof(address));
+  if(a->ai_family==AF_INET)inet_ntop(AF_INET,&((struct sockaddr_in*)a->ai_addr)->sin_addr,address,sizeof(address));
   trace("Connecting TCP "+std::string(address)+":"+p);
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
   if(fd<0){trace("Socket creation FAILED errno="+std::to_string(errno));continue;}
