@@ -1,0 +1,86 @@
+name: Build Hallo IPA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ipa_tests/hello-ipa/**"
+      - ".github/workflows/build-hello-ipa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hello-ipa-build
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: Build unsigned iPhone IPA
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Display Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ipa_tests/hello-ipa
+        run: xcodegen generate
+
+      - name: Build for real iPhones (unsigned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ipa_tests/hello-ipa/HalloIPA.xcodeproj \
+            -scheme HalloIPA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/hello-ipa-derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package Payload into IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/hello-ipa-derived/Build/Products/Release-iphoneos/HalloIPA.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          mkdir -p "$RUNNER_TEMP/hello-ipa-package/Payload" dist
+          ditto "$APP" "$RUNNER_TEMP/hello-ipa-package/Payload/HalloIPA.app"
+          (
+            cd "$RUNNER_TEMP/hello-ipa-package"
+            zip -qry "$GITHUB_WORKSPACE/dist/Hallo-IPA-unsigned.ipa" Payload
+          )
+          unzip -t "dist/Hallo-IPA-unsigned.ipa"
+
+      - name: Upload IPA as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hallo-IPA-unsigned
+          path: dist/Hallo-IPA-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish test IPA as GitHub prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "hello-ipa-build-$GITHUB_RUN_NUMBER" \
+            "dist/Hallo-IPA-unsigned.ipa" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Hallo IPA - test build $GITHUB_RUN_NUMBER" \
+            --notes "Unsigned iPhone test IPA. Sign and install locally with Sideloadly using your own Apple ID. No Apple credentials are stored in GitHub." \
+            --prerelease
