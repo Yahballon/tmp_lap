@@ -1,4 +1,4 @@
-# Ebook Reader v0.1.1
+# Ebook Reader v0.1.2
 Native PS5 bookshelf inspired by the uploaded wooden-themed React eBook Reader, built on blackbearreloaded/ps5-homebrew-ui.
 
 ## Features
@@ -17,9 +17,12 @@ D-pad navigates; Cross opens/next page; Circle back/exit; L1/R1 switches library
 Put .epub or .pdf books in /data/ebooks, or /mnt/usb0/Books (including author subdirectories). Press Triangle to display USB path diagnostics or Options to rescan the whole library. Import copies the source to /data/ebooks. 128 MiB file cap and 12 MiB single decompressed EPUB entry cap. DRM, scanned PDFs, EPUB graphics, complex EPUB formatting, embedded PDF font encoding, and full PDF rendering are not supported. The EPUB reflow is text-only. This is a native reimplementation, NOT a pixel-exact 1:1 browser port. On-device PS5 testing is outstanding.
 
 ## Build and install
-The dedicated build-ebook-reader.yml workflow uses PS5-DevBridge, zlib and a PS5 OpenGL SDK. After a successful verified main-branch build, the ZIP should be published under tag ebook-reader-v0.1.1. Download PPSA99741.zip, extract PPSA99741 to /data/homebrew and register with a compatible PS5 homebrew launcher.
+The dedicated build-ebook-reader.yml workflow uses PS5-DevBridge, zlib and a PS5 OpenGL SDK. After a successful verified main-branch build, the ZIP should be published under tag ebook-reader-v0.1.2. Download PPSA99741.zip, extract PPSA99741 to /data/homebrew and register with a compatible PS5 homebrew launcher.
 
 Source license: GPL-3.0-or-later. Respect dependency licenses.
 
 ## USB troubleshooting
 On the library screen press **Triangle**, then check **USB PATH STATUS**. A path reading `ERROR: No such file or directory` means it is not visible from this app runtime; try a different USB mount / reconnect the drive and press Triangle again. `0 books, N files` means the folder opened but no supported EPUB/PDF was accepted at that level. Maximum single file: 128 MiB. The scanner reads files directly on the USB; import is optional.
+
+## Sandboxed USB drives
+A PS5 loader may deny direct `/mnt/usb0` access with `EPERM (Operation not permitted)`. The v0.1.2 app provides an app-local alternative: place `.epub` or `.pdf` books using your FTP/file manager into `/data/homebrew/PPSA99741/assets/Books/`. In the app this is `/app0/assets/Books/`. Restart Ebook Reader, then press OPTIONS to rescan. Book files are not included in the release; do not delete your personal books during upgrades. The app also scans `/download0/Books` and `/download0/ebooks` where available. This release does not bypass PS5 filesystem permissions.

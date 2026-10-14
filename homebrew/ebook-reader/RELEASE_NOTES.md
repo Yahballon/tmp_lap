@@ -1,10 +1,15 @@
-# Ebook Reader v0.1.1
+# Ebook Reader v0.1.2
 
-- Fix missing EPUB/PDF files on USB folders, including `/mnt/usb0/Books` and nested author directories.
-- Expand USB mount scanning, extension matching and readable-file fallbacks for unreliable `stat` results.
-- Add USB PATH STATUS diagnostics in the import view, and expose counts after rescan.
-- Keep existing local favorites and reading progress across the update.
+- Add an app-owned EPUB/PDF library at `/app0/assets/Books/`.
+- Create the matching installation folder under `/data/homebrew/PPSA99741/assets/Books/`.
+- Scan additional title-local `/download0/Books` and `/download0/ebooks` sources.
+- Prefer writable per-app download storage when importing books.
+- Retain saved reading progress and the original Title ID `PPSA99741`.
 
-**Install:** Extract `PPSA99741.zip` into `/data/homebrew/`, replace the previous application files without deleting your reading data, then refresh the homebrew launcher.
+## Usage
 
-**Known limitations:** This is a native EPUB text reader; PDF remains a best-effort text preview. PS5 USB mount accessibility depends on your jailbreak/loader; diagnostics now show mount errors instead of silently appearing empty.
+The USB screenshot showed `Operation not permitted` for `/mnt/usb0`. That means direct browsing is restricted by the PS5 app sandbox. Copy EPUB files to the app's `assets/Books` directory using an already-authorized FTP/file manager, restart Ebook Reader, and press OPTIONS to rescan. Back up your book files before updating.
+
+## Known limitations
+
+The native app does not modify its filesystem privileges. Direct USB browsing remains unavailable if the loader denies it. PDF text extraction is limited. On-console testing is still required.

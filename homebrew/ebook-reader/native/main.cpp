@@ -43,7 +43,7 @@ void book(DrawList& d,const Font& f,unsigned atlas,const ebook::BookEntry& b,flo
  d.rounded_rect({x+35,y+248,139,5},2,Color::rgb(0x130908));
  d.rounded_rect({x+35,y+248,std::min(139.f,139.f*(float)b.progress/10000.f),5},2,gold);
 }
-std::vector<std::string> dirs(){return {"/data/ebooks","/download0/ebooks","/mnt/usb0/Books","/mnt/usb1/Books","/mnt/usb0","/mnt/usb1","/mnt/usb2"};}
+std::vector<std::string> dirs(){return {"/app0/assets/Books","/app0/assets/books","/app0/Books","/download0/Books","/download0/ebooks","/data/ebooks","/mnt/usb0/Books","/mnt/usb1/Books","/mnt/usb0","/mnt/usb1","/mnt/usb2"};}
 }
 int main(){
  hui::ps5::Display display;if(!display.open())hui::sys::park();
@@ -58,7 +58,7 @@ int main(){
  ebook::Document document;
  bool reader=false,list=false,confirmDelete=false;
  int selected=0,filter=0,readerPage=0,libraryScroll=0,importSelect=0;
- bool importer=false;std::string message="Select a book to read, or press TRIANGLE to import from USB.";
+ bool importer=false;std::string message="USB access can be sandboxed. Put EPUBs in app assets/Books via FTP if USB access is denied.";
  const char* names[]={"All","Comics","Fiction","Novels","Favorites"};
  unsigned held=0;int repeatDelay=0;
  for(;;){
@@ -109,7 +109,7 @@ int main(){
    }
   }else{
    if(pressed&hui::pad_bits::kTriangle){importer=true;ebook::scan_imports(imports);importSelect=0;}
-   if(pressed&hui::pad_bits::kOptions){ebook::scan_books(dirs(),books);ebook::scan_imports(imports);selected=0;message="Library scanned: "+std::to_string(books.size())+" books / "+std::to_string(imports.size())+" USB files";}
+   if(pressed&hui::pad_bits::kOptions){ebook::scan_books(dirs(),books);ebook::scan_imports(imports);selected=0;message="Library scanned: "+std::to_string(books.size())+" books / "+std::to_string(imports.size())+" source entries";}
    if(pressed&hui::pad_bits::kR1){filter=(filter+1)%5;selected=0;}
    if(pressed&hui::pad_bits::kL1){filter=(filter+4)%5;selected=0;}
    if(pressed&hui::pad_bits::kR2)list=!list;
@@ -145,7 +145,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.1",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.2",1873,57,22,gold,Align::right);
   if(reader){
    txt(d,font,atlas,cut(document.title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
@@ -163,9 +163,9 @@ int main(){
    txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(document.pageCount()),960,913,18,ink,Align::center);
    txt(d,font,atlas,"L1/R1  Turn page    L2/R2  Jump 10    TRIANGLE First    SQUARE Last    CIRCLE Bookshelf",960,1037,20,cream,Align::center);
   }else if(importer){
-   txt(d,font,atlas,"IMPORT BOOKS FROM USB",95,161,36);
-   txt(d,font,atlas,"USB0/Books and nested folders are scanned. Books can also be opened directly from the shelf.",95,211,19,muted);
-   if(imports.empty())txt(d,font,atlas,"No readable EPUB / PDF found. Check USB path status on the right.",96,312,23,gold);
+   txt(d,font,atlas,"BROWSE STORAGE SOURCES",95,161,36);
+   txt(d,font,atlas,"USB may be blocked by the PS5 sandbox. Local app Books can be opened directly.",95,211,19,muted);
+   if(imports.empty())txt(d,font,atlas,"No accessible EPUB / PDF found. Check folder status and local Books.",96,312,23,gold);
    int begin=std::max(0,importSelect-9);
    for(int i=begin;i<(int)imports.size()&&i<begin+9;++i){
     float y=249+(i-begin)*74.f;panel(d,92,y,1168,65,i==importSelect);
@@ -173,7 +173,7 @@ int main(){
     txt(d,font,atlas,imports[i].format,1234,y+38,20,gold,Align::right);
    }
    panel(d,1280,249,562,693);
-   txt(d,font,atlas,"USB PATH STATUS",1310,295,24,gold);
+   txt(d,font,atlas,"STORAGE PATH STATUS",1310,295,24,gold);
    const auto& checks=ebook::last_scan_report();
    for(size_t i=0;i<checks.size()&&i<9;i++){
       const auto& check=checks[i];float y=339+(float)i*65;
@@ -181,7 +181,7 @@ int main(){
       const std::string result=check.opened?std::to_string(check.books)+" books, "+std::to_string(check.candidates)+" files":("ERROR: "+check.error);
       txt(d,font,atlas,cut(result,47),1310,y+24,15,check.opened?gold:Color::rgb(0xffa785));
    }
-   txt(d,font,atlas,"X Import selected    TRIANGLE Rescan    CIRCLE Back",95,1038,21,cream);
+   txt(d,font,atlas,"X Copy selected    TRIANGLE Rescan    CIRCLE Back",95,1038,21,cream);
   }else{
    const int count=(int)visible.size();
    d.rounded_rect({53,116,1814,92},9,Color::rgb(0x371c0a));
@@ -199,8 +199,8 @@ int main(){
     d.line(65,y+160,1848,y+160,3,Color::rgb(0xc48943));
    }
    if(count==0){
-      txt(d,font,atlas,"No books in this collection.",960,481,29,muted,Align::center);
-      txt(d,font,atlas,"Press TRIANGLE to check USB paths, or OPTIONS to rescan.",960,530,22,gold,Align::center);
+      txt(d,font,atlas,"No accessible books in this collection.",960,481,29,muted,Align::center);
+      txt(d,font,atlas,"If USB is denied, copy EPUBs into app assets/Books using FTP.",960,530,22,gold,Align::center);
    }
    if(count>0){
     int pageSize=list?9:15;
@@ -220,7 +220,7 @@ int main(){
    }
    txt(d,font,atlas,"COLLECTION: "+std::string(names[filter])+"     "+std::to_string(count)+" books      "+std::to_string(libraryScroll+1)+" / "+std::to_string(std::max(1,(count+(list?8:14))/(list?9:15))),90,995,18,muted);
    txt(d,font,atlas,confirmDelete?"DELETE SELECTED BOOK?   X Confirm   CIRCLE Cancel":
-    "X Open   D-PAD Navigate   L1/R1 Collections   R2 List/Grid   SQUARE Favourite   TRIANGLE Import   OPTIONS Scan   L3 Delete",88,1044,18,cream);
+    "X Read  L1/R1 Collection  SQUARE Favourite  TRIANGLE Storage  OPTIONS Rescan  R2 View  L3 Delete",88,1044,18,cream);
   }
   if(!message.empty()){d.rounded_rect({410,1010,1100,35},9,Color::rgb(0x49250f));txt(d,font,atlas,cut(message,118),960,1036,17,gold,Align::center);}
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
