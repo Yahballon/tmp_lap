@@ -40,7 +40,9 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
-      - name: Stage six official popular Linux torrents
+      - name: Stage six current and six archived legacy Linux torrents
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           cp homebrew/ps5-torrent/native/*.cpp homebrew/ps5-torrent/native/*.hpp app/src/
           mkdir -p app/assets/test
@@ -64,6 +66,31 @@ jobs:
           curl -fLsS --retry 3 --connect-timeout 12 --max-time 90 \
             'https://cdimage.ubuntu.com/lubuntu/releases/26.04/release/lubuntu-26.04.1-desktop-amd64.iso.torrent' \
             -o app/assets/test/lubuntu-26.04.1-desktop-amd64.iso.torrent
+          # Restore historical metadata from our own previously released build.
+          # The files are verified byte-for-byte against the v0.1.2 SHA256 pins.
+          # This preserves the *infohashes* of unfinished jobs across upgrades.
+          mkdir -p /tmp/torrent-flow-legacy
+          gh release download ps5-torrent-v0.2.0 --repo Yahballon/tmp_lap \
+            --pattern PPSA99684.zip --dir /tmp/torrent-flow-legacy
+          python3 - <<'PY'
+          import pathlib,zipfile
+          original=pathlib.Path('/tmp/torrent-flow-legacy/PPSA99684.zip')
+          targets=(
+            'debian-13.7.0-amd64-netinst.iso.torrent',
+            'ubuntu-24.04.5-live-server-amd64.iso.torrent',
+            'ubuntu-26.04.1-live-server-amd64.iso.torrent',
+            'linuxmint-22.3-cinnamon-64bit.iso.torrent',
+            'linuxmint-22.3-xfce-64bit.iso.torrent',
+            'linuxmint-22.3-mate-64bit.iso.torrent',
+          )
+          with zipfile.ZipFile(original) as z:
+            for name in targets:
+              candidates=[n for n in z.namelist() if n.endswith('/assets/test/'+name)]
+              assert len(candidates)==1,(name,candidates)
+              data=z.read(candidates[0])
+              assert 100<=len(data)<=1048576,(name,len(data))
+              pathlib.Path('app/assets/test',name).write_bytes(data)
+          PY
           python3 homebrew/ps5-torrent/tests/verify_test_torrents.py app/assets/test
           # Bundle system CA roots for PS5 HTTPS tracker TLS verification.
           python3 - <<'PY'
@@ -123,14 +150,14 @@ jobs:
           spec.loader.exec_module(mod)
           mod.validate(root/'assets/test')
           assert json.loads((root/'sce_sys/param.json').read_text())['titleId']=='PPSA99684'
-          assert len(list((root/'assets/test').glob('*.torrent')))==6
+          assert len(list((root/'assets/test').glob('*.torrent')))==12
           with zipfile.ZipFile('app/dist/PPSA99684.zip') as z:
               assert z.testzip() is None
               assert 'PPSA99684/eboot.bin' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Torrent-Flow-v0.4.4-PPSA99684
+          name: Torrent-Flow-v0.4.5-PPSA99684
           path: app/dist/PPSA99684.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -138,5 +165,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-torrent-v0.4.4 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.4.4 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.4.4" --notes "Up to nine concurrent downloads selectable in PS5 Settings and max_active_downloads=1..9; cap per-torrent peers to roughly 27 simultaneous workers at nine jobs. Preserve verified metadata per infohash in /data/ps5-torrent/cache/metainfo so interrupted downloads survive vanished original .torrent paths; recover older queue entries from matching bundled or watched torrents. Cleanup source and cached metadata only after verified completion. Integration tests cover nine simultaneous torrents and missing source metadata recovery. Hardware verification remains necessary."
+          if gh release view ps5-torrent-v0.4.5 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.4.5 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.4.5" --notes "Fix PS5 SIGPIPE crash when a peer disconnects while writing (ignore SIGPIPE at app entry, use MSG_NOSIGNAL/SO_NOSIGPIPE where supported); bound unexpected PIECE frames. Restore the six v0.2.0 archived official .torrent fixtures with pinned checksums beside six current torrents, allowing older queue entries to be recovered by exact infohash. Triangle in Downloads retries all failed entries whose original metadata can be restored. Existing ISO files/resume data remain intact. CI native tests and PS5 compilation passed; physical console retest needed."

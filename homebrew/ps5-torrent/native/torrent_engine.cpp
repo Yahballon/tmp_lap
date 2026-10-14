@@ -66,6 +66,12 @@ const char* kUsb="/mnt/usb0/ps5-torrent";
 const char* kTest="ubuntu-26.04.1-desktop-amd64.iso.torrent";
 struct TestInfo {const char* file;const char* display;const char* size;};
 const TestInfo kTests[]={
+ {"debian-13.7.0-amd64-netinst.iso.torrent","Debian 13.7 Netinstall (Legacy)","~756 MiB"},
+ {"ubuntu-24.04.5-live-server-amd64.iso.torrent","Ubuntu 24.04.5 Server (Legacy)","~3.8 GiB"},
+ {"ubuntu-26.04.1-live-server-amd64.iso.torrent","Ubuntu 26.04.1 Server (Legacy)","~2.7 GiB"},
+ {"linuxmint-22.3-cinnamon-64bit.iso.torrent","Linux Mint 22.3 Cinnamon (Legacy)","~2.9 GiB"},
+ {"linuxmint-22.3-xfce-64bit.iso.torrent","Linux Mint 22.3 XFCE (Legacy)","~2.8 GiB"},
+ {"linuxmint-22.3-mate-64bit.iso.torrent","Linux Mint 22.3 MATE (Legacy)","~2.9 GiB"},
  {"ubuntu-26.04.1-desktop-amd64.iso.torrent","Ubuntu 26.04.1 LTS Desktop","~6.0 GiB"},
  {"ubuntu-24.04.5.1-desktop-amd64.iso.torrent","Ubuntu 24.04.5.1 LTS Desktop","~5.8 GiB"},
  {"Fedora-Workstation-Live-x86_64-44.torrent","Fedora Workstation 44 (Multi-file)","~2.7 GiB"},
@@ -418,6 +424,11 @@ int dial(const std::string& host,int port,int seconds){
    inet_ntop(AF_INET,&((const struct sockaddr_in*)a->ai_addr)->sin_addr,ip,sizeof(ip));
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
   if(fd<0){trace("TCP socket() FAILED errno="+std::to_string(errno));continue;}
+#ifdef SO_NOSIGPIPE
+  // FreeBSD: also protect OpenSSL's internal socket writes from SIGPIPE.
+  int preventPipe=1;
+  setsockopt(fd,SOL_SOCKET,SO_NOSIGPIPE,&preventPipe,sizeof(preventPipe));
+#endif
   if(!registerSocket(fd)){fd=-1;break;}
   // PS5 hardware log: FIONBIO(1) fails with EACCES, SOCK_NONBLOCK
   // connects but FIONBIO(0) also fails. Previously this discarded every
@@ -487,7 +498,20 @@ int dial(const std::string& host,int port,int seconds){
  freeaddrinfo(head);
  return fd;
 }
-bool sendAll(int fd,const void* data,size_t n){auto* p=(const char*)data;while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
+bool sendAll(int fd,const void* data,size_t n){
+ auto* p=(const char*)data;
+ while(n){
+#ifdef MSG_NOSIGNAL
+  const int flags=MSG_NOSIGNAL;
+#else
+  const int flags=0; // SIGPIPE is ignored at PS5 application entry.
+#endif
+  ssize_t k=send(fd,p,n,flags);
+  if(k<=0){trace("Peer send failed errno="+std::to_string(errno));return false;}
+  p+=k;n-=(size_t)k;
+ }
+ return true;
+}
 bool recvAll(int fd,void* data,size_t n){auto* p=(char*)data;while(n){ssize_t k=recv(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
 uint32_t be32(const char* p){return (uint32_t(uint8_t(p[0]))<<24)|(uint32_t(uint8_t(p[1]))<<16)|(uint32_t(uint8_t(p[2]))<<8)|uint8_t(p[3]);}
 void store32(char* p,uint32_t n){for(int i=0;i<4;i++)p[i]=(char)(n>>(24-8*i));}
@@ -562,7 +586,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60"+(initial?"&event=started":"");
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.4\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.5\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -776,6 +800,7 @@ bool downloadPiece(Session& s,const Meta& m,uint32_t idx,std::string& output,std
  output.assign(n,'\0');
  std::vector<uint8_t> sent(blockCount,0),received(blockCount,0);
  size_t done=0,outstanding=0;
+ unsigned unexpectedPieces=0;
  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(35);
  int frames=0;
  while(!cancelled.load()&&std::chrono::steady_clock::now()<deadline&&frames++<4096){
@@ -795,7 +820,12 @@ bool downloadPiece(Session& s,const Meta& m,uint32_t idx,std::string& output,std
   if(frame.id==7){
    if(frame.payload.size()<8){trace("Invalid PIECE frame "+s.address);return false;}
    uint32_t piece=be32(frame.payload.data()),offset=be32(frame.payload.data()+4);
-   if(piece!=idx){trace("Unexpected PIECE index from "+s.address);continue;}
+   if(piece!=idx){
+    // Stale data from a previous cancelled piece is tolerable. A flood of
+    // wrong indexes is not: disconnect the peer instead of spinning forever.
+    if(++unexpectedPieces>=16){trace("Peer sent too many unexpected PIECE indexes "+s.address);return false;}
+    continue;
+   }
    uint32_t amount=(uint32_t)frame.payload.size()-8;
    if(offset>=n||offset%blockSize||amount!=std::min(blockSize,n-offset)){
     trace("Invalid PIECE block bounds from "+s.address);return false;
@@ -828,7 +858,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.4 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.5 initialized - log file: "+logPath());}
 Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
 bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){
