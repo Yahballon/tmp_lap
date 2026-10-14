@@ -1,0 +1,1478 @@
+{
+  "title": "Relayfall",
+  "version": 1,
+  "levels": [
+    {
+      "id": "World1-1",
+      "sector": "Landing Reach",
+      "title": "Arrival",
+      "width": 192,
+      "next": [
+        1,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "steps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "reward",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "patrol",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "steps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "reward",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "patrol",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World1-2",
+      "sector": "Landing Reach",
+      "title": "Supply Trail",
+      "width": 192,
+      "next": [
+        1,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "gaps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "steps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "reward",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "gaps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "steps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "reward",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World1-3",
+      "sector": "Landing Reach",
+      "title": "Survey Ridge",
+      "width": 192,
+      "next": [
+        1,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "patrol",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "steps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "patrol",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "steps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World1-4",
+      "sector": "Landing Reach",
+      "title": "First Relay",
+      "width": 192,
+      "next": [
+        2,
+        1
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "steps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "gaps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "patrol",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "steps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "gaps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "patrol",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World2-1",
+      "sector": "Crystal Quarry",
+      "title": "Fault Line",
+      "width": 196,
+      "next": [
+        2,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "gaps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "steps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "gaps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "steps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World2-2",
+      "sector": "Crystal Quarry",
+      "title": "Crystal Steps",
+      "width": 196,
+      "next": [
+        2,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "steps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "reward",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "steps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "steps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "reward",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "steps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World2-3",
+      "sector": "Crystal Quarry",
+      "title": "Cache Run",
+      "width": 196,
+      "next": [
+        2,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "gaps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "patrol",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "gaps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "patrol",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World2-4",
+      "sector": "Crystal Quarry",
+      "title": "Quarry Relay",
+      "width": 196,
+      "next": [
+        3,
+        1
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "gaps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "steps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "patrol",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "gaps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "steps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "patrol",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World3-1",
+      "sector": "Spore Gardens",
+      "title": "Green Frontier",
+      "width": 200,
+      "next": [
+        3,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "patrol",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "reward",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "steps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "patrol",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "reward",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "steps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World3-2",
+      "sector": "Spore Gardens",
+      "title": "Crawler Beds",
+      "width": 200,
+      "next": [
+        3,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "steps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "patrol",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "patrol",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "steps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "patrol",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "patrol",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World3-3",
+      "sector": "Spore Gardens",
+      "title": "Canopy Cache",
+      "width": 200,
+      "next": [
+        3,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "steps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "steps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World3-4",
+      "sector": "Spore Gardens",
+      "title": "Garden Relay",
+      "width": 200,
+      "next": [
+        4,
+        1
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "patrol",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "gaps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "steps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "patrol",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "gaps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "steps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World4-1",
+      "sector": "Cargo Ring",
+      "title": "Dock Approach",
+      "width": 204,
+      "next": [
+        4,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "steps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "gaps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "patrol",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "steps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "gaps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "patrol",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World4-2",
+      "sector": "Cargo Ring",
+      "title": "Lift Yard",
+      "width": 204,
+      "next": [
+        4,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "lift",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "steps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "lift",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "lift",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "steps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "lift",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World4-3",
+      "sector": "Cargo Ring",
+      "title": "Upper Cargo",
+      "width": 204,
+      "next": [
+        4,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "lift",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "lift",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World4-4",
+      "sector": "Cargo Ring",
+      "title": "Freight Relay",
+      "width": 204,
+      "next": [
+        5,
+        1
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "lift",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "patrol",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "steps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "lift",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "patrol",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "steps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World5-1",
+      "sector": "Dark Observatory",
+      "title": "Night Watch",
+      "width": 208,
+      "next": [
+        5,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "patrol",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "steps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "patrol",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "steps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World5-2",
+      "sector": "Dark Observatory",
+      "title": "Armored Gallery",
+      "width": 208,
+      "next": [
+        5,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "armor",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "gaps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "armor",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "armor",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "gaps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "armor",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World5-3",
+      "sector": "Dark Observatory",
+      "title": "Signal Cache",
+      "width": 208,
+      "next": [
+        5,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "armor",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "steps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "armor",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "steps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World5-4",
+      "sector": "Dark Observatory",
+      "title": "Lens Relay",
+      "width": 208,
+      "next": [
+        6,
+        1
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "armor",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "lift",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "armor",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "lift",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World6-1",
+      "sector": "Ion Foundry",
+      "title": "Cooling Trench",
+      "width": 212,
+      "next": [
+        6,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "gaps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "armor",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "steps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "gaps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "armor",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "steps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World6-2",
+      "sector": "Ion Foundry",
+      "title": "Machine Floor",
+      "width": 212,
+      "next": [
+        6,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "armor",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "lift",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "patrol",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "armor",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "lift",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "patrol",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World6-3",
+      "sector": "Ion Foundry",
+      "title": "Maintenance Route",
+      "width": 212,
+      "next": [
+        6,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "gaps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "lift",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "gaps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "lift",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World6-4",
+      "sector": "Ion Foundry",
+      "title": "Forge Relay",
+      "width": 212,
+      "next": [
+        7,
+        1
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "lift",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "armor",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "lift",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "armor",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World7-1",
+      "sector": "Storm Array",
+      "title": "Broken Links",
+      "width": 216,
+      "next": [
+        7,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "gaps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "lift",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "armor",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "gaps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "lift",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "armor",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World7-2",
+      "sector": "Storm Array",
+      "title": "High Voltage",
+      "width": 216,
+      "next": [
+        7,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "steps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "armor",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "steps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "armor",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World7-3",
+      "sector": "Storm Array",
+      "title": "Hidden Frequency",
+      "width": 216,
+      "next": [
+        7,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "lift",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "armor",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "lift",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "armor",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World7-4",
+      "sector": "Storm Array",
+      "title": "Storm Relay",
+      "width": 216,
+      "next": [
+        8,
+        1
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "armor",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "gaps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "lift",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "armor",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "gaps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "lift",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World8-1",
+      "sector": "Relay Core",
+      "title": "Core Approach",
+      "width": 220,
+      "next": [
+        8,
+        2
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "armor",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "steps",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "lift",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "armor",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "steps",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "lift",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World8-2",
+      "sector": "Relay Core",
+      "title": "Security Grid",
+      "width": 220,
+      "next": [
+        8,
+        3
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "lift",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "armor",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "lift",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "armor",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World8-3",
+      "sector": "Relay Core",
+      "title": "Reserve Cells",
+      "width": 220,
+      "next": [
+        8,
+        4
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "reward",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "armor",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "gaps",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "reward",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "armor",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "gaps",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    },
+    {
+      "id": "World8-4",
+      "sector": "Relay Core",
+      "title": "Signal Restored",
+      "width": 220,
+      "next": [
+        0,
+        0
+      ],
+      "checkpoint": [
+        98,
+        12
+      ],
+      "encounters": [
+        {
+          "kind": "gaps",
+          "x": 26,
+          "end": 46
+        },
+        {
+          "kind": "armor",
+          "x": 50,
+          "end": 70
+        },
+        {
+          "kind": "lift",
+          "x": 74,
+          "end": 94
+        },
+        {
+          "kind": "gaps",
+          "x": 98,
+          "end": 118
+        },
+        {
+          "kind": "armor",
+          "x": 122,
+          "end": 142
+        },
+        {
+          "kind": "lift",
+          "x": 146,
+          "end": 166
+        }
+      ]
+    }
+  ]
+}

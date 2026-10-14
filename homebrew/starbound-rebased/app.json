@@ -1,10 +1,10 @@
 {
   "name": "Starbound Rebased",
-  "version": "0.1.18",
+  "version": "0.1.20",
   "titleId": "PPSA99642",
   "conceptId": "99642",
   "contentId": "UP9000-PPSA99642_00-STARBOUNDREBASE1",
-  "contentVersion": "01.000.019",
+  "contentVersion": "01.000.021",
   "author": "YAHBALLON",
   "license": "MIT (upstream engine) + original assets"
 }

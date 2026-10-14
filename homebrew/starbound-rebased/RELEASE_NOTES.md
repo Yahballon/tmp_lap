@@ -1,3 +1,17 @@
+# v0.1.20 — Relayfall campaign TESTBUILD
+
+- Replaced all 32 level layouts with an original ordered sci-fi campaign.
+- Restored the full 8x4 level menu and sequential sector transitions.
+- Added session checkpoints with safe large-player spawn/camera restoration.
+- Added optional lift/cache routes, meaningful item placement, real enemy IDs,
+  conservative difficulty progression and a final signal-restored prompt.
+- Corrected CAMERA_MAX authoring to use the absolute map boundary.
+- Added map semantics, static small/large route checks, negative regression tests
+  and packaged-map parity gates before the prerelease TESTBUILD publication.
+- Preserved player animation/growth fixes, HD media, controls and physics.
+- PS5 hardware playtesting remains required; see CAMPAIGN.md.
+
+
 # Starbound Rebased v0.1.12 — World 1-1 compatibility test
 
 This is a **temporary technical reference build** for diagnosing the broken v0.1.11 environment art and misaligned asset IDs. 
