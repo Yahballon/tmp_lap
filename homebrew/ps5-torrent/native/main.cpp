@@ -256,14 +256,14 @@ int main(){
    card(d,386,125,1496,866);
    text(d,font,atlas,"ABOUT TORRENT FLOW",429,213,43);
    const char* lines[]={
-    "v0.3.2 / PPSA99684  |  Independent BitTorrent v1 client",
+    "v0.3.2 / PPSA99684  |  BitTorrent v1 / Multi-file support",
     "Multi-download queue with independent cancel per torrent",
     "Persistent queue stored in /data/ps5-torrent/cache/queue.db",
     "Automatic folder: /data/ps5-torrent/torrents",
     "INI settings: /data/ps5-torrent/settings.ini",
     "Safe cleanup: user-supplied .torrent deleted only after completion",
     "HTTP / HTTPS / UDP trackers, per-piece SHA-1 integrity",
-    "No DHT, magnets, multi-file torrents or seeding yet"
+    "No DHT, magnets, v2-only torrents or seeding yet"
    };
    for(int i=0;i<8;i++)text(d,font,atlas,lines[i],431,299+i*78,23,i==7?gold:muted);
   }
