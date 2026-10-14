@@ -34,6 +34,8 @@ Engine& engine();
 const char* sampleTorrentName();
 const char* sampleTorrentPath();
 std::vector<std::string> discoverTorrents();
+std::string testDisplayName(const std::string& path);
+std::string testSizeHint(const std::string& path);
 bool createDirectories(const std::string& path);
 std::string logPath();
 std::vector<std::string> recentLogs();
