@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Compact BitTorrent v1 single-file downloader for PS5. SHA-1 piece verification;
+// BitTorrent v1 single- and multi-file downloader for PS5. SHA-1 piece verification;
 // HTTP tracker + IPv4 TCP peers. The SHA-1 hash is required by the protocol.
 #include "torrent_engine.hpp"
 #include <openssl/sha.h>
@@ -123,18 +123,95 @@ bool parse(const std::string& s,size_t& pos,B& out,int depth=0){
 }
 std::string hex(const unsigned char* p,size_t n){static const char* digits="0123456789abcdef";std::string v;for(size_t i=0;i<n;i++){v+=digits[p[i]>>4];v+=digits[p[i]&15];}return v;}
 std::string enc(const unsigned char* p,size_t n){static const char* digits="0123456789ABCDEF";std::string v;for(size_t i=0;i<n;i++){unsigned char c=p[i];if((c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='-'||c=='_'||c=='.'||c=='~')v+=char(c);else{v+='%';v+=digits[c>>4];v+=digits[c&15];}}return v;}
-struct Meta {std::string name,announce,hash,pieces;std::vector<std::string> trackers;uint64_t bytes=0;uint32_t piece=0;};
+struct FileEntry{
+ std::string path;
+ uint64_t start=0,length=0;
+};
+struct Meta{
+ std::string name,announce,hash,pieces;
+ std::vector<std::string> trackers;
+ std::vector<FileEntry> files;
+ uint64_t bytes=0;
+ uint32_t piece=0;
+ bool multi=false;
+};
+// BEP 3 paths are *advisory*. Never allow a torrent to escape our folder.
+bool safePart(const std::string& s){
+ if(s.empty()||s.size()>180||s=="."||s==".."||s.find("..")!=std::string::npos)return false;
+ for(unsigned char c:s)if(c<' '||c==127||c=='/'||c=='\\'||c==':')return false;
+ return true;
+}
 bool metadata(const std::string& path,Meta& m,std::string& error){
- std::string raw;if(!readAll(path,raw)){error="Cannot read .torrent metadata";return false;}
- B root;size_t pos=0;if(!parse(raw,pos,root)||pos!=raw.size()||root.type!='d'){error="Invalid bencoded torrent";return false;}
+ std::string raw;
+ if(!readAll(path,raw)){error="Cannot read .torrent metadata";return false;}
+ B root;size_t pos=0;
+ if(!parse(raw,pos,root)||pos!=raw.size()||root.type!='d'){
+  error="Invalid bencoded torrent";return false;
+ }
  const B& info=root.get("info");
+ if(info.type!='d'){error="Missing info dictionary";return false;}
  m.name=info.get("name").v;m.announce=root.get("announce").v;
- m.bytes=(uint64_t)std::max<int64_t>(0,info.get("length").number());
  m.piece=(uint32_t)std::max<int64_t>(0,info.get("piece length").number());
  m.pieces=info.get("pieces").v;
- if(info.type!='d'||info.get("files").type=='l'){error="Only single-file v1 torrents supported";return false;}
- if(m.name.empty()||m.name=="."||m.name==".."||m.name.find('/')!=std::string::npos||m.name.find('\\')!=std::string::npos||m.name.find("..")!=std::string::npos||m.name.find('\0')!=std::string::npos||m.name.size()>180){error="Unsafe torrent filename";return false;}
- if(!m.bytes||m.bytes>16ULL*1024*1024*1024||m.piece<16384||m.piece>4*1024*1024||m.pieces.size()%20||m.pieces.size()/20!=(m.bytes+m.piece-1)/m.piece){error="Invalid torrent size or piece hashes";return false;}
+ if(!safePart(m.name)){error="Unsafe torrent name";return false;}
+ const bool hasFiles=info.dict.count("files")!=0;
+ const bool hasLength=info.dict.count("length")!=0;
+ if(hasFiles==hasLength){error="Torrent must contain files OR length";return false;}
+ if(hasFiles){
+  m.multi=true;
+  const B& list=info.get("files");
+  if(list.type!='l'||list.list.empty()||list.list.size()>2048){
+   error="Invalid multi-file list (max 2048 files)";return false;
+  }
+  std::vector<std::string> seenPaths;
+  for(const auto& record:list.list){
+   if(record.type!='d'||record.get("length").type!='i'){
+    error="Multi-file record missing length";return false;
+   }
+   const int64_t count=record.get("length").number(-1);
+   if(count<0||uint64_t(count)>16ULL*1024*1024*1024-m.bytes){
+    error="Invalid file size / total torrent exceeds 16 GiB";return false;
+   }
+   const B& pathList=record.get("path");
+   if(pathList.type!='l'||pathList.list.empty()||pathList.list.size()>16){
+    error="Invalid multi-file path";return false;
+   }
+   std::string rel;
+   for(const auto& component:pathList.list){
+    if(component.type!='s'||!safePart(component.v)){
+     error="Unsafe path component in multi-file torrent";return false;
+    }
+    if(!rel.empty())rel+="/";
+    rel+=component.v;
+   }
+   // Reserve enough path length for /data/ps5-torrent/downloads/<root>/.
+   if(rel.size()>220||std::find(seenPaths.begin(),seenPaths.end(),rel)!=seenPaths.end()){
+    error="Duplicate or overlong torrent file path";return false;
+   }
+   seenPaths.push_back(rel);
+   m.files.push_back({rel,m.bytes,(uint64_t)count});
+   m.bytes+=(uint64_t)count;
+  }
+  // Reject a regular file that would also be used as a directory prefix.
+  for(const auto& a:seenPaths)for(const auto& b:seenPaths){
+   if(a!=b&&b.size()>a.size()&&b.compare(0,a.size(),a)==0&&b[a.size()]=='/'){
+    error="Conflicting file/directory paths in torrent";return false;
+   }
+  }
+ }else{
+  const int64_t length=info.get("length").number(-1);
+  if(length<=0||uint64_t(length)>16ULL*1024*1024*1024){
+   error="Invalid single-file length";return false;
+  }
+  m.bytes=(uint64_t)length;
+  m.files.push_back({m.name,0,m.bytes});
+ }
+ if(!m.bytes||m.bytes>16ULL*1024*1024*1024||
+    m.piece<16384||m.piece>4*1024*1024||
+    m.pieces.size()%20||
+    m.pieces.size()/20!=(m.bytes+m.piece-1)/m.piece){
+  error="Invalid total length or SHA-1 piece hashes";return false;
+ }
  auto addTracker=[&](const std::string& url){
   if((url.rfind("http://",0)==0||url.rfind("https://",0)==0||url.rfind("udp://",0)==0)&&url.size()<1000&&
      std::find(m.trackers.begin(),m.trackers.end(),url)==m.trackers.end()&&m.trackers.size()<12)m.trackers.push_back(url);
