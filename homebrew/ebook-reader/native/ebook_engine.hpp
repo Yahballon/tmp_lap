@@ -21,6 +21,15 @@ struct BookEntry {
     bool favorite=false;
     size_t progress=0;
 };
+struct ScanSource {
+    std::string path;
+    std::string error;
+    int books=0;
+    int folders=0;
+    int candidates=0;
+    bool opened=false;
+};
+const std::vector<ScanSource>& last_scan_report();
 bool read_document(const std::string& path, Document& out);
 std::string clean_title(std::string name);
 bool scan_books(const std::vector<std::string>& dirs, std::vector<BookEntry>& books);
