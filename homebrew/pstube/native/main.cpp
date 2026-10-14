@@ -105,7 +105,7 @@ int main(){
  if(!font.load(bytes))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();pad.set_light_bar(0,125,230);
- pstube::Service service;pstube::MediaPlayer player;State s;unsigned prev=0;int repeat=0;
+ pstube::Service service;pstube::MediaPlayer player;State s;unsigned prev=0,stick_prev=0;int repeat=0;
  unsigned video_texture=0;int texture_w=0,texture_h=0;uint64_t last_frame=0;
  std::map<std::string,unsigned> thumb_textures;
  service.trending();
@@ -113,7 +113,16 @@ int main(){
   std::array<hui::PadSample,64> samples{};size_t n=pad.read(samples);
   unsigned pressed=0,now=prev;
   for(size_t i=0;i<n;++i){pressed|=samples[i].buttons&~now;now=samples[i].buttons;}
-  prev=now;if(--repeat<=0){if(now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;if(now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;if(now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;repeat=12;}
+  prev=now;
+  unsigned stick=0;
+  if(n){const auto& last=samples[n-1];
+   if(last.left_x<60)stick|=hui::pad_bits::kLeft;
+   if(last.left_x>195)stick|=hui::pad_bits::kRight;
+   if(last.left_y<60)stick|=hui::pad_bits::kUp;
+   if(last.left_y>195)stick|=hui::pad_bits::kDown;
+  }
+  pressed|=stick&~stick_prev;stick_prev=stick;
+  if(--repeat<=0){pressed|=stick;if(now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;if(now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;if(now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;repeat=12;}
   auto snapshot=service.snapshot();
   std::vector<pstube::Video> videos=snapshot.videos;
   if(s.page==3)videos=service.favorite_videos();
@@ -154,6 +163,7 @@ int main(){
    if(pressed&hui::pad_bits::kL1){s.page=(s.page+6)%7;s.focus=0;s.selected=s.offset=0;if(s.page==2)service.trending();}
    if(pressed&hui::pad_bits::kR1){s.page=(s.page+1)%7;s.focus=0;s.selected=s.offset=0;if(s.page==2)service.trending();}
    if(pressed&hui::pad_bits::kTriangle){s.keyboard=true;s.page=1;s.focus=1;}
+   if(pressed&hui::pad_bits::kOptions){s.page=6;s.focus=1;s.selected=0;}
    if(s.focus==0){
     if(pressed&hui::pad_bits::kUp)s.nav=std::max(0,s.nav-1);
     if(pressed&hui::pad_bits::kDown)s.nav=std::min(6,s.nav+1);
