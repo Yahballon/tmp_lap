@@ -93,6 +93,7 @@ static int emit_catalog(int fd){
  }
  return write_all(fd,"DONE\n",5);
 }
+#ifndef EBOOK_USB_TEST
 static void fetch(int client,const char *name){
  if(!*selected_root)scan();
  const struct Item *item=NULL;
@@ -128,7 +129,6 @@ static void fetch(int client,const char *name){
  }
  fclose(f);
 }
-#ifndef EBOOK_USB_TEST
 static void serve(void){
  signal(SIGPIPE,SIG_IGN);
  int s=socket(AF_INET,SOCK_STREAM,0);if(s<0)return;
