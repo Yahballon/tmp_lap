@@ -73,6 +73,7 @@ jobs:
           # must never overwrite the authored campaign shipped in this build.
           python3 homebrew/starbound-rebased/tools/install-campaign.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/install-deep-signal.py build/gold872-engine
+          python3 homebrew/starbound-rebased/tools/install-moving-frontiers.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/check-campaign.py homebrew/starbound-rebased/res/data
           python3 - <<'PY'
           from pathlib import Path
@@ -125,6 +126,9 @@ jobs:
           python3 homebrew/starbound-rebased/tools/test-sentry-lifetime.py build/gold872-engine /tmp/test-sentry.cpp
           clang++-18 -std=c++17 -include cstdint -Ibuild/gold872-engine/include $(pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf) /tmp/test-sentry.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/systems/CallbackSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp build/gold872-engine/src/AABBCollision.cpp -o /tmp/test-sentry $(pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf)
           /tmp/test-sentry
+          python3 homebrew/starbound-rebased/tools/test-moving-platforms.py build/gold872-engine /tmp/test-moving.cpp
+          clang++-18 -std=c++17 -include cstdint -Ibuild/gold872-engine/include $(pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf) /tmp/test-moving.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp build/gold872-engine/src/AABBCollision.cpp -o /tmp/test-moving $(pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf)
+          /tmp/test-moving
           cp app/src/startup.cpp /tmp/starbound-startup.cpp
           rm -rf app/src
           mkdir -p app/src
@@ -150,7 +154,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.023'
+          data['contentVersion']='01.000.024'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased HD'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -227,7 +231,7 @@ jobs:
                   assert old.size==got.size and old.tobytes()!=got.tobytes(), ('Unmodified Mario atlas',rel)
               tiles=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).convert('RGBA')
               # Foreground semantic IDs must be visible in their exact 17px pitch.
-              for tile_id in (192,197,289,384,385,144,149,152,609,400,401,416,417,912,913,213,229,725,392,339,240):
+              for tile_id in (192,197,289,384,385,144,149,152,609,809,400,401,416,417,912,913,213,229,725,392,339,240):
                   sx,sy=1+(tile_id%48)*17,1+(tile_id//48)*17
                   assert tiles.crop((sx,sy,sx+16,sy+16)).getchannel('A').getbbox(),tile_id
               # SourceRect gutters outside every cell remain transparent.
@@ -290,6 +294,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.22
+          tag=starbound-rebased-v0.1.23
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.22 - Deep Signal Biomes and Bosses TESTBUILD" --notes-file homebrew/starbound-rebased/TESTBUILD_NOTES.md --prerelease
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.23 - Moving Frontiers and Dense Encounters TESTBUILD" --notes-file homebrew/starbound-rebased/TESTBUILD_NOTES.md --prerelease

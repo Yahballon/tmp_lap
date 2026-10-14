@@ -44,3 +44,7 @@ inspected; PS5 animation/timing acceptance is still required.
 
 Placed sentries wait offscreen and only enable departure culling after activation.
 A compiled test exercises their actual spawn/physics/callback code.
+
+Moving Frontiers draws platform761/809 as continuous 32/48px native source
+rectangles, including internal atlas gutters. Their cyan top rails show the full
+64/96px collision deck. Existing player/enemy source art and biome PNGs are retained.

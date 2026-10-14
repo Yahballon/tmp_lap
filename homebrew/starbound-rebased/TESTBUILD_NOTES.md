@@ -1,24 +1,23 @@
-# Starbound Rebased v0.1.22 — Deep Signal TESTBUILD
+# Starbound Rebased v0.1.23 — Moving Frontiers TESTBUILD
 
-Relayfall now has 32 larger, deliberately sequenced stages, with unique six-bay
-encounter plans instead of repeated half-level templates.
+- 10–19 enemies in every stage: 421 authored spawns across 32 levels, with approach
+  patrols, exit patrols, elevated guards and denser submerged encounters. Entry,
+  checkpoint, boarding and landing buffers remain clear.
+- 54 real moving platforms. All 28 dry stages require boarding a lift, riding
+  upward and jumping onto a high ledge.12 cargo/storm/core stages additionally
+  require a horizontal ferry across a 28-tile fissure.
+- Replaced static 609 campaign tiles with genuine three-tile 809 platform entities.
+  Also repaired the engine's one-tile609 factory for future compatible maps.
+- Platforms clamp at their endpoints and keep cycling off-camera so a missed
+  ferry returns. Horizontal shuttles move faster; vertical lifts remain gentle.
+- Player transport uses actual displacement and top contact. Side contact no
+  longer drags the player, and descending lifts retain grounded jump input.
+- Continuous native48px deck artwork makes the entire96px landing area visible.
+- Route checks require dynamic boarding/ride/exit paths and reject dry-level
+  completion with movement disabled. Compiled engine tests cover both axes,
+  both player sizes, entity ordering, reversals, jump-off and off-camera cycling.
 
-- Four underwater observatory stages with actual repeated-jump swimming, coral
-  channels, submerged caches and surface airlocks. Swimming now survives damage,
-  checkpoint death and transitions between dry and submerged sectors.
-- Two reactor-sentinel arenas (6-4 and 8-4). Reach the marked cut-off terminal
-  via the upper maintenance route to collapse the bridge and shut down the boss.
-- Newly introduced glow rays, jelly drones, animated air sentries and a connected
-  32x32 reactor sentinel, with original generated/normalized sprite artwork.
-- Three original biome backdrops and distinct quarry/coral/reactor terrain.
-- New tunnel, island-valley, sky-bridge and drone encounters, safe checkpoint
-  buffers and optional reward routes.
-- Existing player walking/growth fixes, native atlas geometry and controls retained.
-- Fixed placed sentries being culled before the camera reaches them. The actual
-  spawn block, PhysicsSystem and CallbackSystem have an executable regression test.
-- Automated map, swim-corridor, boss-assembly, actual parser and packaged-art gates.
-
-Install PPSA99642.zip with the existing ShadowMount workflow. Hardware testing is
-required for underwater damage/retries, swim-to-dry transitions, enemy animation,
-cut-off terminal timing and the final confirmation back to the menu. Keep v0.1.20
-available for rollback. See CAMPAIGN.md, DESIGN_RESEARCH.md and ASSET_NOTES.md.
+Controls, repaired walking/growth sprites, biome backdrops, underwater mode,
+checkpoints and sentinel shutdowns are retained. Install PPSA99642.zip through
+ShadowMount; keep v0.1.22 for rollback. Hardware-test boarding, waiting for the
+ferry to return, large-player headroom, descending-lift jumps and enemy pacing.

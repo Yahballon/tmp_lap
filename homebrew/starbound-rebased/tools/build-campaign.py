@@ -28,12 +28,13 @@ SECTORS = (
 )
 
 def build(destination):
-    manifest = {'title': 'Relayfall - Deep Signal', 'version': 2, 'levels': []}
+    manifest = {'title': 'Relayfall - Moving Frontiers', 'version': 3, 'levels': []}
     for world, (sector, titles, plans) in enumerate(SECTORS, 1):
         for stage, (title, plan) in enumerate(zip(titles, plans), 1):
             water = world == 5
             boss = (world, stage) in ((6, 4), (8, 4))
-            width = (264 if boss else 224) + (world - 1) * 4 + (stage - 1) * 6
+            ferry = world in (4,7,8)
+            width = (264 if boss else 224) + (world - 1) * 4 + (stage - 1) * 6 + (64 if ferry else 0)
             biome = 'underwater' if water else ('reactor' if world in (6, 8) else ('crystal' if world == 2 else 'surface'))
             ground = {'surface':384, 'crystal':400, 'underwater':416, 'reactor':912}[biome]
             panel = {'surface':197, 'crystal':213, 'underwater':229, 'reactor':725}[biome]
@@ -57,9 +58,19 @@ def build(destination):
             coins(16, 10, 3)
             encounters = []
             moving = []
+            movers = []
+            def mover(x,y,axis,minimum,maximum,required=False):
+                # 809 is a real three-tile platform; 609 was a static block.
+                block(x,y,809)
+                direction='UP' if axis=='vertical' else 'RIGHT'
+                moving.append(f'({x}, {y}) BACK_AND_FORTH {direction} ({minimum}, {maximum+2 if axis=="horizontal" else maximum}) FALSE')
+                movers.append({'x':x,'y':y,'axis':axis,'min':minimum,'max':maximum,
+                               'width':3,'required':required})
             # Six fixed bays: introduction, development, checkpoint, mastery.
             sequence = plan.split()
             assert len(sequence) == 6
+            if not water:
+                sequence[3]='lift_gate'
             for bay, kind in enumerate(sequence):
                 x = (26, 52, 78, 112, 140, 168)[bay] + (stage - 1 if bay != 2 else 0)
                 if kind == 'gaps':
@@ -95,12 +106,22 @@ def build(destination):
                     # Hidden reserve life above the reward shelf, never mandatory.
                     items[6][x + 10] = 52
                 elif kind == 'lift':
-                    # Optional lift over a safe floor: waiting is never required.
-                    block(x + 7, 10, 609)
-                    moving.append(f'({x + 7}, 10) BACK_AND_FORTH UP (7, 11) FALSE')
+                    mover(x+7,10,'vertical',7,10)
                     for xx in range(x + 13, x + 18):
                         block(xx, 8)
                     coins(x + 13, 6, 5)
+                elif kind == 'lift_gate':
+                    # Seven-to-nine-tile rises exceed a ground jump. Board
+                    # the lift from its bottom phase, ride up, jump to the ledge.
+                    for xx in range(x+1,x+24):
+                        for yy in range(2,13):
+                            fg[yy][xx]=items[yy][xx]=enemies[yy][xx]=-1
+                    ledge_top=4+(world+stage)%3
+                    mover(x+7+stage%2,12,'vertical',ledge_top+1,12,True)
+                    for xx in range(x+14,x+18):
+                        for yy in range(ledge_top,15): block(xx,yy)
+                    for xx in range(x+18,x+22): block(xx,8)
+                    coins(x+14,ledge_top-2,4)
                 elif kind == 'valley':
                     for offset in (4, 11):
                         for xx in range(x + offset, x + offset + 3):
@@ -148,6 +169,44 @@ def build(destination):
                 else:
                     raise ValueError(kind)
                 encounters.append({'kind': kind, 'x': x, 'end': x + 20})
+            # Each ordinary bay gets an approach and exit patrol. Patrol species
+            # escalate by sector, but mandatory boarding/landing zones stay clear.
+            for bay, encounter in enumerate(encounters):
+                x,kind=encounter['x'],encounter['kind']
+                if kind=='lift_gate': continue
+                for offset in (1,20):
+                    xx=x+offset
+                    if water:
+                        yy,eid=(8,81)
+                        if fg[yy][xx] != -1: continue
+                    else:
+                        eid=38 if world>=3 and bay%2 else (87 if world>=6 else 70)
+                        yy=11 if eid==38 else 12
+                        if fg[13][xx] not in (384,400,416,912) or any(fg[y][xx]!=-1 for y in range(yy,13)):
+                            continue
+                    if enemies[yy][xx]==-1: enemies[yy][xx]=eid
+            ferry_span=None
+            if ferry:
+                left=width-(102 if boss else 78)
+                right=left+28
+                for xx in range(left-3,right+3):
+                    for yy in range(2,13):
+                        fg[yy][xx]=items[yy][xx]=enemies[yy][xx]=-1
+                for xx in range(left,right):
+                    fg[13][xx]=fg[14][xx]=-1
+                mover(left-2,11,'horizontal',left-2,right-1,True)
+                coins(left,7,5)
+                coins(right-5,7,5)
+                ferry_span=[left,right]
+            # A pre-checkpoint perch patrol and short tail encounters prevent
+            # quiet half-screens without crowding the actual checkpoint/exit.
+            for xx in [88]+list(range(200,width-58,18)):
+                if ferry_span and ferry_span[0]-4<=xx<ferry_span[1]+4: continue
+                if water:
+                    if fg[8][xx]==-1: enemies[8][xx]=81
+                else:
+                    floor=next((yy for yy in range(3,14) if fg[yy][xx] not in (-1,144,809)),None)
+                    if floor is not None and fg[floor-1][xx] in (-1,144): enemies[floor-1][xx]=70
             # A cleared service pad separates the two halves. Checkpoint is only
             # activated on this pad, with room for a full-size player.
             checkpoint = 98
@@ -187,6 +246,10 @@ def build(destination):
             if water:
                 texts[3] = (gate-8,4,'SURFACE AIRLOCK')
                 texts.append((12,6,'TAP JUMP TO SWIM'))
+            else:
+                texts.append((encounters[3]['x']+1,6,'BOARD LIFT THEN JUMP'))
+            if ferry:
+                texts.append((ferry_span[0]-8,6,'JUMP ON THE MOVING FERRY'))
             if boss:
                 texts[3] = (width-57,4,'REACTOR CUTOFF AHEAD')
                 texts.append((width-54,5,'TAKE THE UPPER ROUTE'))
@@ -202,13 +265,15 @@ def build(destination):
             path = destination / name
             path.mkdir(parents=True, exist_ok=True)
             for layer, rows in layers.items():
-                (path / f'{name}_{layer}.csv').write_text('\n'.join(','.join(map(str, row)) for row in rows) + '\n', encoding='utf-8')
-            (path / f'{name}.levelproperties').write_text(props, encoding='utf-8')
+                (path / f'{name}_{layer}.csv').write_text('\n'.join(','.join(map(str, row)) for row in rows) + '\n', encoding='utf-8',newline='\n')
+            (path / f'{name}.levelproperties').write_text(props, encoding='utf-8',newline='\n')
             manifest['levels'].append({'id': name, 'sector': sector, 'title': title, 'width': width,
                                        'next': list(nxt), 'checkpoint': [checkpoint, 12],
                                        'biome':biome, 'level_type':level_type, 'boss':boss,
+                                       'movers':movers,'ferry_span':ferry_span,
+                                       'enemy_count':sum(n!=-1 for row in enemies for n in row),
                                        'encounters': encounters})
-    (destination / 'campaign.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    (destination / 'campaign.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8',newline='\n')
     return manifest
 
 if __name__ == '__main__':
@@ -216,4 +281,4 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, default=ROOT / 'campaign')
     args = parser.parse_args()
     build(args.output)
-    print('Authored Deep Signal: 32 stages, four water levels, two sentinel arenas, distinct six-bay plans')
+    print('Authored Moving Frontiers: dense encounters, 28 required lifts and 12 mandatory ferries')

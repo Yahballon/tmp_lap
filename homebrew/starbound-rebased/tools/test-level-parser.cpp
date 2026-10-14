@@ -21,13 +21,16 @@ int main(int argc, char** argv) {
          assert(data.checkpoint == Vector2i(98, 12));
          const bool water = world == 5;
          const bool boss = stage == 4 && (world == 6 || world == 8);
-         assert(data.cameraMax == (boss ? 263 : 223) + (world - 1) * 4 + (stage - 1) * 6);
+         const bool ferry = world == 4 || world == 7 || world == 8;
+         assert(data.cameraMax == (boss ? 263 : 223) + (world - 1) * 4 + (stage - 1) * 6 + (ferry ? 64 : 0));
          assert(data.levelType == (water ? LevelType::UNDERWATER : (boss ? LevelType::CASTLE : LevelType::OVERWORLD)));
          assert(data.levelBackgroundColor == BackgroundColor::BLUE);
          const Vector2i next = stage < 4 ? Vector2i(world, stage + 1)
                                         : (world < 8 ? Vector2i(world + 1, 1) : Vector2i(0, 0));
          assert(data.nextLevel == next);
-         assert(data.floatingTextLocations.size() == (world == 1 && stage == 1 ? 6 : (water || boss ? 5 : 4)));
+         const size_t expectedTexts = 5 + (boss ? 1 : 0) +
+                                      (ferry ? 1 : 0) + (world == 1 && stage == 1 ? 2 : 0);
+         assert(data.floatingTextLocations.size() == expectedTexts);
          assert(std::get<1>(data.floatingTextLocations[2]) == "SERVICE CHECKPOINT");
          assert(data.warpPipeLocations.empty());
          assert(data.platformLevelLocations.empty());
@@ -42,8 +45,8 @@ int main(int argc, char** argv) {
          assert(data.movingPlatformDirections.size() == expectedLifts);
          for (const auto& lift : data.movingPlatformDirections) {
             assert(std::get<1>(lift) == PlatformMotionType::BACK_AND_FORTH);
-            assert(std::get<2>(lift) == Direction::UP);
-            assert(std::get<3>(lift) == Vector2i(7, 11));
+            assert(std::get<2>(lift) == Direction::UP || std::get<2>(lift) == Direction::RIGHT);
+            assert(std::get<3>(lift).x < std::get<3>(lift).y);
          }
          level.clearLevelData();
          assert(level.getData().checkpoint == Vector2i(0, 0));

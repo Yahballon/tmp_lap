@@ -3,6 +3,7 @@
 import contextlib
 import importlib.util
 import io
+import json
 import tempfile
 from pathlib import Path
 from build_campaign_import import build
@@ -39,6 +40,20 @@ with tempfile.TemporaryDirectory() as tmp:
         else:
             raise AssertionError(f'Validator accepted broken tile {old}')
     fg.write_text(original)
+    # Removing movement must genuinely break dry traversal; a flat-floor or
+    # fake-static-platform route is no longer accepted as campaign validation.
+    rows=[[int(n) for n in line.split(',')] for line in original.splitlines()]
+    assert not checker.reachable(rows,1)
+    assert not checker.reachable(rows,2)
+    manifest=json.loads((root/'campaign.json').read_text())
+    manifest['levels'][0]['movers']=[]
+    (root/'campaign.json').write_text(json.dumps(manifest))
+    try:
+        checker.validate(root,reproducible=False)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError('Validator accepted disabled mandatory lift')
     wall = [[-1]*60 for _ in range(15)]
     for x in range(60):
         wall[13][x] = 384

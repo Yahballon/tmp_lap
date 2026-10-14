@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Validate actual CSV semantics and conservative, static small/large routes.
+"""Validate CSV semantics, swim clearance and moving-platform phase routes.
 
-The reachability model uses the pinned jump/gravity constants. It excludes
-enemies, moving platforms and destructible shortcuts; hardware playtests are
-still required for timing, enemy AI and input feel.
+The route model uses pinned jump/gravity constants and boarding/ride/exit edges.
+It excludes enemy AI and frame-perfect multi-platform timing; compiled physics
+regressions and PS5 hardware playtests provide complementary coverage.
 """
 import argparse
 import csv
@@ -15,7 +15,7 @@ from pathlib import Path
 from build_campaign_import import build, LAYERS
 
 ROOT = Path(__file__).resolve().parents[1]
-NON_SOLID = {-1, 144, 149, 152, 609, 240, 339}
+NON_SOLID = {-1, 144, 149, 152, 609, 761, 809, 240, 339}
 
 def swim_reachable(fg, height):
     """Static 4-connected swim corridor with actual one/two-tile body clearance."""
@@ -33,22 +33,36 @@ def swim_reachable(fg, height):
             queue.append(node)
     return False
 
-def reachable(fg, height):
+def reachable(fg, height, movers=()):
     width = len(fg[0])
     # Standing states are feet coordinates at each accessible tile top.
     nodes = {(x, y) for y in range(2, 14) for x in range(width)
              if fg[y][x] not in NON_SOLID and
              all(fg[yy][x] in NON_SOLID for yy in range(y-height, y))}
     start = (2, 13)
+    # Boarding/ride/exit graph over real platform phases. Riding connects only
+    # clear phases of the SAME platform, never a phantom static bridge.
+    ride_edges={}
+    for platform in movers:
+        states=set()
+        for phase in range(platform['min'],platform['max']+1):
+            left=phase if platform['axis']=='horizontal' else platform['x']
+            top=phase if platform['axis']=='vertical' else platform['y']
+            for xx in range(left,left+platform['width']):
+                if 0<=xx<width and top>=height and all(fg[yy][xx] in NON_SOLID for yy in range(top-height,top)):
+                    states.add((xx,top))
+        for state in states:
+            ride_edges.setdefault(state,set()).update(states)
+    landing_nodes=nodes|ride_edges.keys()
     seen, queue = {start}, deque([start])
     while queue:
         x, y = queue.popleft()
         if x >= width - 12:
             return True
-        candidates = {(x + 1, y)} & nodes
+        candidates = ({(x + 1, y)} & landing_nodes) | ride_edges.get((x,y),set())
         # Held-jump trajectory: native 32px tiles, gravity .575, held -.412,
         # initial velocity -7.3 and fall cap 7.5. Forward movement is bounded.
-        for speed in (3.0, 5.0, 7.0):
+        for speed in (3.0, 5.0, 7.0, 10.0):
             px, feet, vy = x*32.0, y*32.0, -7.3
             for frame in range(120):
                 prev = feet
@@ -67,7 +81,7 @@ def reachable(fg, height):
                         break
                 if vy > 0:
                     landed = next(((xx, yy) for yy in range(2,14)
-                                   if (xx,yy) in nodes and prev <= yy*32 <= feet), None)
+                                   if (xx,yy) in landing_nodes and prev <= yy*32 <= feet), None)
                     if landed:
                         candidates.add(landed)
                         break
@@ -93,7 +107,7 @@ def validate(data, reproducible=True):
             assert len(rows) == 15 and all(len(row) == width for row in rows), path
             layers[layer] = rows
         fg, items, enemies = (layers[n] for n in ('Foreground','Collectibles','Enemies'))
-        assert set(n for row in fg for n in row) <= {-1,144,149,152,192,197,213,229,725,384,385,400,401,416,417,912,913,609,240,339,392}
+        assert set(n for row in fg for n in row) <= {-1,144,149,152,192,197,213,229,725,384,385,400,401,416,417,912,913,809,240,339,392}
         assert set(n for row in enemies for n in row) <= {-1,38,70,87,90,81,48,61}
         assert set(n for row in items for n in row) <= {-1,52,96,608}
         props = (data/name/f'{name}.levelproperties').read_text()
@@ -132,13 +146,24 @@ def validate(data, reproducible=True):
             for x,item in enumerate(row):
                 if item != -1:
                     assert fg[y][x] == 192 or (item == 52 and fg[y][x] == -1)
-        lifts = [(x,y) for y,row in enumerate(fg) for x,tile in enumerate(row) if tile == 609]
-        for x,y in lifts:
-            assert f'({x}, {y}) BACK_AND_FORTH UP (7, 11) FALSE' in props
+        movers=entry['movers']
+        lifts = {(x,y) for y,row in enumerate(fg) for x,tile in enumerate(row) if tile == 809}
+        assert lifts=={(m['x'],m['y']) for m in movers}
+        for m in movers:
+            direction='UP' if m['axis']=='vertical' else 'RIGHT'
+            maximum=m['max']+2 if m['axis']=='horizontal' else m['max']
+            assert f"({m['x']}, {m['y']}) BACK_AND_FORTH {direction} ({m['min']}, {maximum}) FALSE" in props
+            assert m['width']==3 and m['min']<m['max']
         assert len(re.findall(r'BACK_AND_FORTH', props)) == len(lifts)
+        assert entry['enemy_count']==sum(n!=-1 for row in enemies for n in row)
+        assert entry['enemy_count']>=10, (name,'enemy density too low',entry['enemy_count'])
         for size in (1,2):
-            route=swim_reachable if entry['level_type']=='UNDERWATER' else reachable
-            assert route(fg,size), (name,'no static route',size)
+            if entry['level_type']=='UNDERWATER':
+                assert swim_reachable(fg,size), (name,'no swim route',size)
+            else:
+                assert reachable(fg,size,movers), (name,'no boarding/ride/exit route',size)
+                assert not reachable(fg,size), (name,'required platforms can be bypassed',size)
+                assert any(m['required'] for m in movers)
         fingerprint = tuple(tuple(row) for row in fg)
         fingerprints.add(fingerprint)
     assert len(fingerprints) == 32, 'Duplicate level geometry'
@@ -151,7 +176,7 @@ def validate(data, reproducible=True):
                     assert source.read_bytes() == (data/source.relative_to(generated)).read_bytes(), source
     assert sum(entry['boss'] for entry in levels)==2
     assert sum(entry['level_type']=='UNDERWATER' for entry in levels)==4
-    print('PASS: 32 unique maps, 4 swim stages, 2 complete boss assemblies, IDs/links/pads/lifts; 64 routes')
+    print('PASS: 32 dense maps, 64 routes; dry stages require actual platform boarding/ride/exit')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

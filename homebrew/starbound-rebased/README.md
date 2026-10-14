@@ -1,6 +1,10 @@
 # Starbound Rebased — Gold872 engine port (work in progress)
 
-## Current TESTBUILD: v0.1.22 Deep Signal
+## Current TESTBUILD: v0.1.23 Moving Frontiers
+
+Moving Frontiers adds 421 authored enemy spawns, 54 actual moving platforms,
+28 mandatory lift gates and 12 mandatory ferry crossings. Dry routes now require
+platform boarding and exit jumps. See CAMPAIGN.md for the dynamic route contract.
 
 The current PS5 test campaign replaces the reference World 1-1 and randomized
 maps with 32 original stages across eight sci-fi sectors. All stages are

@@ -251,6 +251,16 @@ def draw_tiles():
         # Completely new art within the 16x16 source cell, ORIGINAL index.
         dest.paste(tile,(x,y))
         made+=1
+    # Wide decks are sampled as ONE continuous 32/48px source rectangle. Draw
+    # across their internal atlas gutters, rather than three unrelated squares.
+    decks=ImageDraw.Draw(dest)
+    for eid,width in ((761,32),(809,48)):
+        x,y=1+(eid%48)*17,1+(eid//48)*17
+        decks.rectangle((x,y,x+width-1,y+15),fill=(18,31,62,255))
+        decks.rectangle((x,y,x+width-1,y+3),fill=CYAN)
+        decks.line((x,y+15,x+width-1,y+15),fill=PINK,width=2)
+        for xx in range(x+4,x+width-4,8):
+            decks.polygon([(xx,y+6),(xx+4,y+6),(xx+2,y+11)],fill=WHITE)
     dest.save(SPR/'blocks/BlockTileSheet.png',optimize=True)
     assert dest.size==(817,375)
     for idx in (384,192,197,289,149,150):
