@@ -2,6 +2,7 @@
 // Host-side regression tests for USB-style nested folders and extension matching.
 #include "ebook_engine.hpp"
 #include <cassert>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <string>
