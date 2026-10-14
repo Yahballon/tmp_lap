@@ -25,7 +25,7 @@ int main(){
  hui::ps5::Display display;if(!display.open())hui::sys::park();hui::gfx::Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;std::string fontBytes=load("/app0/assets/fonts/inter-semibold.huifont");if(fontBytes.empty())fontBytes=load("/data/homebrew/PPSA99684/assets/fonts/inter-semibold.huifont");if(!font.load(fontBytes))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);hui::ps5::Pad pad;pad.open();
- auto& engine=torrent::engine();int page=0,selected=0,scroll=0;unsigned previous=0;std::string notice="Ready to download a legal test torrent.";auto library=torrent::discoverTorrents();
+ auto& engine=torrent::engine();int page=0,selected=0;unsigned previous=0;std::string notice="Ready to download a legal test torrent.";auto library=torrent::discoverTorrents();
  const char* tabs[]={"Dashboard","Torrent Library","Storage & Settings","Logs","About"};
  for(;;){
   std::array<hui::PadSample,64> samples{};unsigned pressed=0;size_t n=pad.read(samples);
