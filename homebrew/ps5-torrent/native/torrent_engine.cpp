@@ -437,7 +437,8 @@ bool updatePeer(Session& s,const Frame& f,uint32_t pieceCount){
  }
 }
 bool handshake(Session& s,const Meta& m,const std::string& peerId){
- char h[68]={19};memcpy(h+1,"BitTorrent protocol",19);memcpy(h+28,m.hash.data(),20);memcpy(h+48,peerId.data(),20);
+ char h[68]={19};memcpy(h+1,"BitTorrent protocol",19);h[27]=0x04; // BEP-6 Fast Extension (HAVE_ALL/HAVE_NONE)
+ memcpy(h+28,m.hash.data(),20);memcpy(h+48,peerId.data(),20);
  char response[68];
  if(!sendAll(s.fd,h,sizeof(h))||!recvAll(s.fd,response,sizeof(response))||uint8_t(response[0])!=19||
     memcmp(response+1,"BitTorrent protocol",19)!=0||memcmp(response+28,m.hash.data(),20)!=0){
@@ -466,12 +467,12 @@ bool downloadPiece(Session& s,const Meta& m,uint32_t idx,std::string& output,std
  output.assign(n,'\0');
  std::vector<uint8_t> sent(blockCount,0),received(blockCount,0);
  size_t done=0,outstanding=0;
- const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(55);
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(35);
  int frames=0;
  while(!cancelled.load()&&std::chrono::steady_clock::now()<deadline&&frames++<4096){
   if(s.availability&&!hasPiece(s.pieces,idx)){trace("Peer lost requested piece "+std::to_string(idx));return false;}
   if(!s.choked){
-   for(size_t b=0;b<blockCount&&outstanding<8;b++){
+   for(size_t b=0;b<blockCount&&outstanding<16;b++){
     if(sent[b]||received[b])continue;
     const uint32_t offset=(uint32_t)b*blockSize,length=std::min(blockSize,n-offset);
     std::string request(12,'\0');
@@ -691,6 +692,10 @@ void Engine::run(std::string path){
   peers.erase(std::unique(peers.begin(),peers.end(),[](const Peer& a,const Peer& b){
    return a.port==b.port&&a.ip==b.ip;
   }),peers.end());
+  uint32_t orderSeed=0;
+  memcpy(&orderSeed,randomness,sizeof(orderSeed));
+  std::shuffle(peers.begin(),peers.end(),std::mt19937(orderSeed+(uint32_t)round));
+
   {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
   trace("Discovery round "+std::to_string(round)+": "+std::to_string(peers.size())+" unique peers");
   if(peers.empty()){
@@ -700,7 +705,7 @@ void Engine::run(std::string path){
   }
   const int startPieces=completeCount.load();
   std::atomic<size_t> nextPeer{0};
-  constexpr int maxWorkers=4;
+  constexpr int maxWorkers=8;
   std::vector<std::thread> workers;
   workers.reserve(maxWorkers);
   for(int workerId=0;workerId<maxWorkers;workerId++){
@@ -716,7 +721,7 @@ void Engine::run(std::string path){
      Session session;
      session.address=p.ip+":"+std::to_string(p.port);
      // Keep PS5-compatible BLOCKING sockets; fcntl(O_NONBLOCK) fails with EACCES.
-     session.fd=dial(p.ip,p.port,7);
+     session.fd=dial(p.ip,p.port,4);
      if(session.fd<0)continue;
      if(!handshake(session,m,peerId)){closeSocket(session.fd);continue;}
      {std::lock_guard<std::mutex> g(mutex_);state_.activePeers++;}
@@ -741,8 +746,10 @@ void Engine::run(std::string path){
        {
         std::lock_guard<std::mutex> g(stateGuard);
         verified[(size_t)idx]=true;
-        states[(size_t)idx]=2;  // Mark verified only AFTER persistent file write.
-        saveState(resume,verified);
+        states[(size_t)idx]=2;  // Mark verified only AFTER successful file flush.
+        // Rehash on restart is authoritative. Snapshot less frequently to
+        // avoid rewriting a large bitmap on every small piece.
+        if((completeCount.load()%32)==0)saveState(resume,verified);
        }
        completeCount.fetch_add(1);
        {std::lock_guard<std::mutex> g(mutex_);
@@ -774,6 +781,7 @@ void Engine::run(std::string path){
    });
   }
   for(auto& worker:workers)worker.join();
+  {std::lock_guard<std::mutex> g(stateGuard);saveState(resume,verified);}
   if(completeCount.load()>startPieces){emptyRounds=0;trace("Round "+std::to_string(round)+" advanced "+std::to_string(completeCount.load()-startPieces)+" pieces");}
   else{emptyRounds++;trace("No verified pieces in round "+std::to_string(round));}
   if(!cancelled()&&completeCount.load()<(int)pieceCount){
