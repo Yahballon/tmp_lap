@@ -187,7 +187,7 @@ jobs:
               for rel,size in (
                    ('blocks/BlockTileSheet.png',(817,375)),
                    ('characters/PlayerSpriteSheet.png',(403,266)),
-                   ('characters/EnemySpriteSheet.png',(560,240)),
+                   ('characters/EnemySpriteSheet.png',(562,242)),
               ):
                   ref=Image.open('build/gold872-reference/res/sprites/'+rel).convert('RGBA')
                   got=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/'+rel))).convert('RGBA')
@@ -211,7 +211,7 @@ jobs:
               assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(817,375)
               assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(403,266)
               enemy_img=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/EnemySpriteSheet.png')))
-              assert enemy_img.size==(560,240)
+              assert enemy_img.size==(562,242)
               for required in (
                   'res/sprites/characters/PlayerSpriteSheet.png',
                   'res/sprites/icons/logo.png',

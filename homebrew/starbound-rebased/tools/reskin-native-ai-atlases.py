@@ -40,7 +40,7 @@ background_ids |= ids(ref / "data/MenuBackground/MenuBackground_Background.csv")
 
 atlases = [
     ("characters/PlayerSpriteSheet.png", (403, 266), 25, 16, 16, 16, 1, 9),
-    ("characters/EnemySpriteSheet.png", (560, 240), 35, 15, 16, 16, 1, 1),
+    ("characters/EnemySpriteSheet.png", (562, 242), 35, 15, 16, 16, 1, 1),
     ("blocks/BlockTileSheet.png", (817, 375), 48, 22, 17, 17, 1, 1),
 ]
 
