@@ -4,7 +4,9 @@
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "ebook_engine.hpp"
+#include "usb_bridge.hpp"
 #include <algorithm>
+#include <cctype>
 #include <array>
 #include <cstdio>
 #include <string>
@@ -54,11 +56,27 @@ int main(){
  auto atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  std::vector<ebook::BookEntry> books,imports;
- ebook::scan_books(dirs(),books);ebook::scan_imports(imports);
+ usbbooks::Catalog usbCatalog;
+ auto refresh=[&](){
+   ebook::scan_books(dirs(),books);
+   usbCatalog=usbbooks::scan();
+   for(const auto& item:usbCatalog.books){
+     ebook::BookEntry b;
+     b.path=usbbooks::remote_path(item);
+     b.title=ebook::clean_title(item.relative);
+     b.format=item.relative.size()>=4 && item.relative.substr(item.relative.size()-4)==".pdf"?"PDF":"EPUB";
+     b.collection="Fiction";b.author="USB Storage";
+     books.push_back(std::move(b));
+   }
+   ebook::load_state(books);
+   std::sort(books.begin(),books.end(),[](const ebook::BookEntry& a,const ebook::BookEntry& b){return a.title<b.title;});
+   ebook::scan_imports(imports);
+ };
+ refresh();
  ebook::Document document;
  bool reader=false,list=false,confirmDelete=false;
  int selected=0,filter=0,readerPage=0,libraryScroll=0,importSelect=0;
- bool importer=false;std::string message="USB access can be sandboxed. Put EPUBs in app assets/Books via FTP if USB access is denied.";
+ bool importer=false;std::string message="USB EPUB reader via elfldr 9021 (same bridge as Payload LauncherX).";
  const char* names[]={"All","Comics","Fiction","Novels","Favorites"};
  unsigned held=0;int repeatDelay=0;
  for(;;){
@@ -100,16 +118,16 @@ int main(){
        ebook::save_state(books);
    }
   }else if(importer){
-   if(pressed&hui::pad_bits::kTriangle){ebook::scan_imports(imports);importSelect=0;}
+   if(pressed&hui::pad_bits::kTriangle){refresh();importSelect=0;message=usbCatalog.message;}
    if(pressed&hui::pad_bits::kDown)importSelect=std::min((int)imports.size()-1,importSelect+1);
    if(pressed&hui::pad_bits::kUp)importSelect=std::max(0,importSelect-1);
    if((pressed&hui::pad_bits::kCross)&&!imports.empty()){
     ebook::import_to_library(imports[(size_t)importSelect].path,message);
-    ebook::scan_books(dirs(),books);ebook::scan_imports(imports);selected=0;
+    refresh();selected=0;
    }
   }else{
-   if(pressed&hui::pad_bits::kTriangle){importer=true;ebook::scan_imports(imports);importSelect=0;}
-   if(pressed&hui::pad_bits::kOptions){ebook::scan_books(dirs(),books);ebook::scan_imports(imports);selected=0;message="Library scanned: "+std::to_string(books.size())+" books / "+std::to_string(imports.size())+" source entries";}
+   if(pressed&hui::pad_bits::kTriangle){importer=true;refresh();importSelect=0;message=usbCatalog.message;}
+   if(pressed&hui::pad_bits::kOptions){refresh();selected=0;message="Library: "+std::to_string(books.size())+" books. USB bridge: "+usbCatalog.message;}
    if(pressed&hui::pad_bits::kR1){filter=(filter+1)%5;selected=0;}
    if(pressed&hui::pad_bits::kL1){filter=(filter+4)%5;selected=0;}
    if(pressed&hui::pad_bits::kR2)list=!list;
@@ -125,13 +143,25 @@ int main(){
     if(confirmDelete){
      if(ebook::erase_imported(books[visible[selected]]))message="Book removed from /data/ebooks";
      else message="Only imported library files can be deleted";
-     confirmDelete=false;ebook::scan_books(dirs(),books);
+     confirmDelete=false;refresh();
     }else{
      const auto& b=books[visible[selected]];
-     if(ebook::read_document(b.path,document)){
-      reader=true;readerPage=std::min<int>((int)document.pageCount()-1,(int)(b.progress*document.pageCount()/10000));
-      message="";
-     }else message="Cannot open "+b.title+": "+document.error;
+     std::string source=b.path;
+     bool available=true;
+     if(usbbooks::is_remote(source)){
+       usbbooks::Entry remote;
+       if(!usbbooks::entry_from_remote(source,remote)){
+         available=false;message="USB book not in latest catalogue. Press OPTIONS to rescan.";
+       }else if(!usbbooks::fetch(remote,source,message)){
+         available=false;
+       }
+     }
+     if(available){
+       if(ebook::read_document(source,document)){
+        reader=true;readerPage=std::min<int>((int)document.pageCount()-1,(int)(b.progress*document.pageCount()/10000));
+        message="";
+       }else message="Cannot open "+b.title+": "+document.error;
+     }
     }
    }
    if(pressed&hui::pad_bits::kL3)confirmDelete=!confirmDelete;
@@ -145,7 +175,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.2",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.3",1873,57,22,gold,Align::right);
   if(reader){
    txt(d,font,atlas,cut(document.title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
@@ -181,7 +211,8 @@ int main(){
       const std::string result=check.opened?std::to_string(check.books)+" books, "+std::to_string(check.candidates)+" files":("ERROR: "+check.error);
       txt(d,font,atlas,cut(result,47),1310,y+24,15,check.opened?gold:Color::rgb(0xffa785));
    }
-   txt(d,font,atlas,"X Copy selected    TRIANGLE Rescan    CIRCLE Back",95,1038,21,cream);
+   txt(d,font,atlas,"USB helper: "+cut(usbCatalog.message,83),92,964,17,gold);
+   txt(d,font,atlas,"X Copy local file    TRIANGLE Rescan bridge    CIRCLE Back",95,1038,21,cream);
   }else{
    const int count=(int)visible.size();
    d.rounded_rect({53,116,1814,92},9,Color::rgb(0x371c0a));
@@ -200,7 +231,7 @@ int main(){
    }
    if(count==0){
       txt(d,font,atlas,"No accessible books in this collection.",960,481,29,muted,Align::center);
-      txt(d,font,atlas,"If USB is denied, copy EPUBs into app assets/Books using FTP.",960,530,22,gold,Align::center);
+      txt(d,font,atlas,"USB bridge: "+cut(usbCatalog.message,70),960,530,22,gold,Align::center);
    }
    if(count>0){
     int pageSize=list?9:15;
