@@ -5,6 +5,9 @@
 ## Features
 - Search using a public Invidious API over HTTPS with hostname and CA verification.
 - Live Trending search; selectable public instance from Settings using Cross.
+- Native background thumbnail downloads from the public image CDN and a disk-backed JPEG cache.
+- Persistent favourites with title/author metadata, and watch history preserved across app updates.
+- Left-stick navigation and Options shortcut to Settings.
 - DualSense-driven onscreen keyboard and selection navigation.
 - Persistent favourites and saved downloads stored outside app folder.
 - Query video details, select a **combined MP4** stream, download with progress into a .part file and atomic rename.
