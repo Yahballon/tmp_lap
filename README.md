@@ -6,7 +6,7 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
-| PSTUBE (search alpha) | [homebrew/pstube](homebrew/pstube/) | [Build PSTUBE](.github/workflows/build-pstube.yml) | Pending validated CI (tag: pstube-v0.1.0) |\n| Ebook Reader | [homebrew/ebook-reader](homebrew/ebook-reader/) | [Build Ebook Reader](.github/workflows/build-ebook-reader.yml) | [v0.1.0 (after validated CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.0) |
+| PSTUBE (playback beta) | [homebrew/pstube](homebrew/pstube/) | [Build PSTUBE](.github/workflows/build-pstube.yml) | [v0.2.0 (after validated CI)](https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.2.0) |\n| Ebook Reader | [homebrew/ebook-reader](homebrew/ebook-reader/) | [Build Ebook Reader](.github/workflows/build-ebook-reader.yml) | [v0.1.0 (after validated CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.0) |
 | Torrent Flow | [homebrew/ps5-torrent](homebrew/ps5-torrent/) | [Build Torrent Flow](.github/workflows/build-ps5-torrent.yml) | [v0.4.4](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-torrent-v0.4.5) |
 | Crypto Tracker | [homebrew/crypto-tracker](homebrew/crypto-tracker/) | [Build Crypto Tracker](.github/workflows/build-ps5-crypto-tracker.yml) | [v0.4.2](https://github.com/Yahballon/tmp_lap/releases/tag/v0.3.0) |
 | WWW Speedtest | [homebrew/www-speedtest](homebrew/www-speedtest/) | [Build WWW Speedtest](.github/workflows/build-www-speedtest.yml) | [v0.4.3](https://github.com/Yahballon/tmp_lap/releases/tag/www-speedtest-v0.4.3) |
