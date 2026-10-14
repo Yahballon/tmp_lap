@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.4.4 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.4.5 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -20,7 +20,15 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
 
-## Nine concurrent downloads and persistent .torrent metadata (v0.4.4)
+## PS5 SIGPIPE stability and legacy queue recovery (v0.4.5)
+
+**Signal 13 / SIGPIPE:** Network peers may disconnect while the client sends REQUEST messages, or while OpenSSL is writing to a tracker. The PS5 entrypoint now ignores SIGPIPE so send() and SSL_write() can report their errors to the transfer engine instead of terminating the process. Socket-level NO-SIGPIPE protection is applied where available, and peers sending repeated unexpected PIECE indexes are disconnected after 16 frames.
+
+**Legacy metadata:** The original six .torrent files from the v0.2.0 official release are now bundled again in their exact historical byte format (SHA-256 verified), in addition to the six newer official distributions. On the console, old saved jobs are recovered by **matching exact infohash** and re-cached in `/data/ps5-torrent/cache/metainfo/`. Files already partially downloaded remain untouched.
+
+In the Downloads tab press **TRIANGLE — Retry all failed** after an upgrade and any crash recovery acknowledgment. The nine-download limit still applies. If a user-supplied third-party torrent has lost *all* metadata, import the original .torrent manually.
+
+## Nine concurrent downloads and persistent .torrent metadata (v0.4.5)
 
 Settings now supports `max_active_downloads=1..9` (existing user configurations remain unchanged); toggle **Simultaneous Downloads** with X to reach nine. To avoid launching 72 peer workers, at nine transfers each Engine gets three peer workers; existing running jobs keep current worker counts until restart.
 
