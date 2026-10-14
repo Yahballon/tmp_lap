@@ -47,14 +47,11 @@ bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return f
 
 std::mutex logMutex;
 std::vector<std::string> logRing;
-std::string chosenLog;
 std::string ensureLogPath(){
- if(!chosenLog.empty())return chosenLog;
- // Prefer a log folder alongside the installed homebrew app.
- if(mkdirs("/data/homebrew/PPSA99684/logs"))chosenLog="/data/homebrew/PPSA99684/logs/torrent.log";
- else if(mkdirs("/data/ps5-torrent/logs"))chosenLog="/data/ps5-torrent/logs/torrent.log";
- else chosenLog="/data/ps5-torrent/torrent.log";
- return chosenLog;
+ // Persist logs outside the install folder so updates never redirect them.
+ // Always use this path, even if directory creation fails, for diagnostics.
+ mkdirs("/data/ps5-torrent/logs");
+ return "/data/ps5-torrent/logs/torrent.log";
 }
 void trace(const std::string& message){
  std::lock_guard<std::mutex> guard(logMutex);
@@ -376,7 +373,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.1.3 initialized - log file: "+logPath());}
+Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.1.4 initialized - log file: "+logPath());}
 Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
