@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.1.2 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.1.3 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -30,6 +30,12 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 | Linux Mint 22.3 MATE | 2.9 GiB | [Mint release post](https://blog.linuxmint.com/?p=4981) |
 
 Only .torrent metadata files are packaged. The ISO files themselves are downloaded over BitTorrent upon selection. Tracker/peer connectivity remains hardware-untested.
+
+## PS5 TCP connectivity fix (v0.1.3)
+
+The prior versions used `fcntl(fd, F_SETFL, flags | O_NONBLOCK)`. Real PS5 logs showed this returned **EACCES / errno=13 for every single peer**, preventing any download. Torrent Flow now uses normal blocking TCP sockets with SO_SNDTIMEO and SO_RCVTIMEO set before connecting, matching the known working PS5 WWW Speedtest client. This avoids the forbidden `fcntl` path while preserving connection failure logs and verified torrent pieces.
+
+The provided PS5 log confirmed that the Debian UDP tracker returned 64 peers, proving tracker discovery worked but connections could not start. Real PS5 transfer of v0.1.3 remains to be tested.
 
 ## Important known limitations
 
