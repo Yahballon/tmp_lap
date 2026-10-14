@@ -12,8 +12,10 @@ class Service {
  public:
  Service();~Service();
  bool search(const std::string& query);
+ bool trending();
  bool details(const std::string& id);
  bool download(const Video& video);
+ std::string local_path(const std::string& videoId) const;
  Snapshot snapshot() const;
  std::vector<std::string> favourites()const;
  bool toggle_favourite(const std::string& id);
@@ -22,7 +24,9 @@ class Service {
  std::string instance()const;
  private:
  mutable std::mutex mutex_;
- std::atomic<bool> busy_{false},stop_{false};
+ std::atomic<bool> busy_{false},downloading_{false};
+ std::atomic<int> download_progress_{0};
+ std::string downloading_id_;
  std::string instance_="yewtu.be";
  std::vector<std::string> fav_;
  Snapshot state_;
