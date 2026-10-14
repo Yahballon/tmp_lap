@@ -53,7 +53,7 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: |
-          sed -i 's@APP_STATIC_ARCHIVES := \(.*\)@APP_STATIC_ARCHIVES := \1 .deps/pacbrew/target/lib/libz.a@' GNUmakefile
+          # zlib is linked through the tested PacBrew pkg-config resolver.
           make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=zlib app
       - name: Validate installer
         run: |
