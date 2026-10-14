@@ -29,6 +29,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <dirent.h>
 #include <unistd.h>
 namespace torrent {
 namespace {
@@ -461,7 +462,8 @@ const char* sampleTorrentName(){return kTest;}
 const char* sampleTorrentPath(){return "/app0/assets/test/debian-13.7.0-amd64-netinst.iso.torrent";}
 std::string testDisplayName(const std::string& path){
  for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.display;
- return path;
+ const size_t slash=path.find_last_of('/');
+ return slash==std::string::npos?path:path.substr(slash+1);
 }
 std::string testSizeHint(const std::string& path){
  for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.size;
@@ -469,13 +471,31 @@ std::string testSizeHint(const std::string& path){
 }
 std::vector<std::string> discoverTorrents(){
  std::vector<std::string> out;
- const std::string roots[]={"/app0/assets/test","/data/homebrew/PPSA99684/assets/test","/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
+ const std::string roots[]={"/app0/assets/test","/data/homebrew/PPSA99684/assets/test",
+                            "/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
  for(const auto& t:kTests)for(const auto& root:roots){
   std::string path=root+"/"+t.file;
   struct stat st{};
   if(stat(path.c_str(),&st)==0&&S_ISREG(st.st_mode)&&st.st_size>0&&st.st_size<=1024*1024){
    out.push_back(path);break;
   }
+ }
+ // In addition to the six bundled Linux tests, the library now discovers any
+ // user-imported single-file .torrent placed in the cache directories via FTP/USB.
+ for(const auto& root:{std::string("/data/ps5-torrent/cache"),std::string("/mnt/usb0/ps5-torrent/cache")}){
+  DIR* dir=opendir(root.c_str());
+  if(!dir)continue;
+  struct dirent* entry=nullptr;
+  while(out.size()<96&&(entry=readdir(dir))!=nullptr){
+   const std::string name=entry->d_name;
+   if(name.size()<=8||name.size()>200||name.find('/')!=std::string::npos||
+      name=="."||name==".."||name.compare(name.size()-8,8,".torrent")!=0)continue;
+   const std::string path=root+"/"+name;
+   struct stat st{};
+   if(stat(path.c_str(),&st)!=0||!S_ISREG(st.st_mode)||st.st_size<100||st.st_size>1024*1024)continue;
+   if(std::find(out.begin(),out.end(),path)==out.end())out.push_back(path);
+  }
+  closedir(dir);
  }
  return out;
 }
