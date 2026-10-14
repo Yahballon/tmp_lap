@@ -24,7 +24,7 @@ public:
  ~DownloadManager();
  DownloadManager(const DownloadManager&)=delete;
  DownloadManager& operator=(const DownloadManager&)=delete;
- bool enqueue(const std::string& path,std::string* error=nullptr);
+ bool enqueue(const std::string& path,std::string* error=nullptr,bool retryExisting=true);
  int enqueueAll(const std::vector<std::string>& paths);
  void tick();
  void scan(bool force=false);
