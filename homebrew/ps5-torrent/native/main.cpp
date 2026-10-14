@@ -34,9 +34,9 @@ int main(){
   if(pressed&hui::pad_bits::kR1)page=(page+1)%5;
   if(pressed&hui::pad_bits::kUp){if(page==1&&selected>0)selected--;else if(page==0)page=(page+4)%5;}
   if(pressed&hui::pad_bits::kDown){if(page==1&&selected+1<(int)library.size())selected++;else if(page==0)page=(page+1)%5;}
-  if(pressed&hui::pad_bits::kCircle){if(page!=0)page=0;else if(engine.snapshot().running){engine.stop();notice="Stopping transfer safely - press O again when idle";}else{pad.close();renderer.release();display.close();hui::sys::quit();}}
+  if(pressed&hui::pad_bits::kCircle){if(page!=0)page=0;else if(engine.snapshot().running){engine.stop();notice="Cancelling active sockets - please wait for idle";}else{pad.close();renderer.release();display.close();hui::sys::quit();}}
   if(pressed&hui::pad_bits::kTriangle){library=torrent::discoverTorrents();selected=std::max(0,std::min(selected,(int)library.size()-1));notice="Torrent library refreshed"; }
-  if(pressed&hui::pad_bits::kSquare){engine.stop();notice="Stop requested"; }
+  if(pressed&hui::pad_bits::kSquare){engine.stop();notice="Cancelling active sockets..."; }
   if(pressed&hui::pad_bits::kCross){
    if(page==0||page==1){auto list=torrent::discoverTorrents();if(list.empty())notice="Test torrent is missing from package";else{int index=page==1?std::min(selected,(int)list.size()-1):0;if(engine.start(list[index])){notice="Loading "+list[index];page=0;}else notice="A transfer is already running";}}
    else if(page==2){if(engine.snapshot().running)notice="Stop transfer before switching storage";else{engine.setUsb(!engine.usingUsb());notice=engine.usingUsb()?"USB download storage selected":"Internal storage selected";}}
@@ -47,7 +47,7 @@ int main(){
   d.rounded_rect({0,0,1920,102},0,Color::rgb(0x0d1b2d));d.circle(79,51,28,mint);d.circle(79,51,18,Color::rgb(0x0d1b2d));d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",464,54,21,mint);
-  text(d,font,atlas,"v0.2.0",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.2.1",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<5;i++){
    float y=149+i*104;card(d,43,y,302,88,page==i);
@@ -88,7 +88,7 @@ int main(){
    text(d,font,atlas,"SQUARE  Stop transfer",1403,731,23);
    text(d,font,atlas,"TRIANGLE  Refresh library",1403,790,22);
    text(d,font,atlas,"R1  Next screen",1403,847,23);
-   text(d,font,atlas,"Four worker connections / verified resume",1403,919,17,muted);
+   text(d,font,atlas,"8 peer workers / fast cancellation",1403,919,17,muted);
   }else if(page==1){
    card(d,386,125,1495,866);text(d,font,atlas,"TORRENT LIBRARY",429,206,43);
    text(d,font,atlas,std::to_string(library.size())+" torrents (6 bundled + cache imports) | X Download",429,257,22,muted);
@@ -128,7 +128,7 @@ int main(){
   }else{
    card(d,386,125,1495,866);text(d,font,atlas,"ABOUT TORRENT FLOW",429,210,43);
    text(d,font,atlas,"Native PS5 BitTorrent test client  /  PPSA99684",431,288,26,mint);
-   const char* lines[]={"BitTorrent v1 single-file, verified HTTP/HTTPS/UDP trackers","Four parallel peer workers with 16 KiB pipelined block requests","SHA-1 verified disk pieces and automatic crash-safe rechecking","Six bundled ISO tests plus imported .torrent cache files","Experimental: no DHT, magnets, multi-file torrents or seeding","Stop safely with SQUARE or O on the Dashboard","BitFiend studied as a design reference; no upstream code copied."};
+   const char* lines[]={"BitTorrent v1 single-file, verified HTTP/HTTPS/UDP trackers","Eight peer workers / 16 KiB pipelined block requests","SHA-1 verified disk pieces and automatic crash-safe rechecking","Six bundled ISO tests plus imported .torrent cache files","Experimental: no DHT, magnets, multi-file torrents or seeding","Stop safely with SQUARE or O on the Dashboard","BitFiend studied as a design reference; no upstream code copied."};
    for(int i=0;i<7;i++)text(d,font,atlas,lines[i],434,369+i*72,22,i==4?gold:muted);
   }
   d.rounded_rect({25,1007,1870,53},12,Color::rgb(0x102237));
