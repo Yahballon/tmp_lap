@@ -32,8 +32,13 @@
 #include <unistd.h>
 namespace torrent {
 namespace {
+#ifdef TORRENT_HOST_TEST
+const char* kHome="/tmp/torrent-flow-host-test";
+const char* kUsb="/tmp/torrent-flow-host-test-usb";
+#else
 const char* kHome="/data/ps5-torrent";
 const char* kUsb="/mnt/usb0/ps5-torrent";
+#endif
 const char* kTest="debian-13.7.0-amd64-netinst.iso.torrent";
 struct TestInfo {const char* file;const char* display;const char* size;};
 const TestInfo kTests[]={
@@ -50,10 +55,14 @@ bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return f
 std::mutex logMutex;
 std::vector<std::string> logRing;
 std::string ensureLogPath(){
+#ifdef TORRENT_HOST_TEST
+ mkdirs("/tmp/torrent-flow-host-test/logs");
+ return "/tmp/torrent-flow-host-test/logs/torrent.log";
+#else
  // Persist logs outside the install folder so updates never redirect them.
- // Always use this path, even if directory creation fails, for diagnostics.
  mkdirs("/data/ps5-torrent/logs");
  return "/data/ps5-torrent/logs/torrent.log";
+#endif
 }
 void trace(const std::string& message){
  std::lock_guard<std::mutex> guard(logMutex);
@@ -619,12 +628,11 @@ void Engine::run(std::string path){
      {std::lock_guard<std::mutex> g(mutex_);state_.activePeers++;}
      trace("Worker "+std::to_string(workerId)+" connected "+session.address);
      if(awaitPeerReady(session,m,cancellation_)){
-      int noPieces=0;
       while(!cancelled()&&!storageFailure.load()&&completeCount.load()<(int)pieceCount){
        int idx=reserve(session);
        if(idx<0){
         trace("Peer has no further needed pieces "+session.address);
-        noPieces++;break;
+        break;
        }
        std::string piece;
        const auto begun=Clock::now();
@@ -662,7 +670,7 @@ void Engine::run(std::string path){
        }
        if((idx%16)==0||completeCount.load()==(int)pieceCount)
         trace("SHA1 verified piece="+std::to_string(idx)+" total="+std::to_string(completeCount.load())+"/"+std::to_string(pieceCount));
-       (void)begun;(void)noPieces;
+       (void)begun;
       }
      }else trace("Peer did not become ready "+session.address);
      close(session.fd);
