@@ -87,7 +87,7 @@ jobs:
       - name: Publish verified release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view ps5-torrent-v0.1.0 >/dev/null 2>&1; then exit 0; fi
           gh release create ps5-torrent-v0.1.0 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.1.0" --notes "Native PS5 experimental BitTorrent v1 downloader with separate cache and downloads, SHA-1 verified pieces and bundled Debian torrent. Hardware test pending."
