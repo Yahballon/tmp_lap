@@ -41,7 +41,7 @@ std::string DownloadManager::iniPath()const{return storageRoot()+"/settings.ini"
 std::string DownloadManager::queuePath()const{return storageRoot()+"/cache/queue.db";}
 DownloadManager::DownloadManager(){
  createDirectories(storageRoot());
- createDirectories(torrentDirectory());
+ mkdir(torrentDirectory().c_str(),0755);
  loadSettings();loadQueue();
  lastScan_=std::chrono::steady_clock::now()-std::chrono::seconds(settings_.scanSeconds+2);
 }
@@ -113,6 +113,10 @@ bool DownloadManager::enqueue(const std::string& path,std::string* error){
  // Do not let two different torrent hashes corrupt the same destination file.
  for(auto& existing:jobs_){
   if(existing->hash==info.infoHash){
+   // A copied duplicate of an already completed torrent must not loop forever
+   // in the watched inbox. Only remove metadata from our dedicated inbox.
+   if(existing->state=="done"&&settings_.deleteCompletedTorrents&&
+      startsWith(path,torrentDirectory()+"/"))safeDeleteSource(path);
    if(existing->state=="failed"||existing->state=="cancelled"){
     existing->path=path;existing->state="queued";existing->message="Queued";saveQueue();return true;
    }
