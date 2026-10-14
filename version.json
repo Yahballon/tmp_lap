@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "5a6e6c9d1ee6c316a4b289863205d5a94d23a6a2678e77217e9a50d557968336",
+  "version": "cd8822c350c94661e18ee805afa6f538885cdced96f5d14ef973cdd1f315fbb6",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 6,
+  "app_count": 7,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -68,6 +68,19 @@
       "source": "homebrew/ps5-torrent",
       "size_bytes": 11436041,
       "published_at": "2026-10-14T12:21:40Z"
+    },
+    {
+      "name": "Ebook Reader",
+      "slug": "ebook-reader",
+      "title_id": "PPSA99741",
+      "version": "0.1.0",
+      "tag": "ebook-reader-v0.1.0",
+      "zip_name": "PPSA99741.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ebook-reader-v0.1.0/PPSA99741.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.0",
+      "source": "homebrew/ebook-reader",
+      "size_bytes": 6086840,
+      "published_at": "2026-10-14T22:22:05Z"
     },
     {
       "name": "Payload LauncherX",
