@@ -124,7 +124,6 @@ bool fetch_mp4(const std::string& input,const std::string& output,std::atomic<in
  std::string url=input;
  for(int i=0;i<4;i++){
   Url target;
-  if(!parse_url(url)||!allowed_host(target.host)){/* Parsed below to avoid accepting untrusted host */}
   if(!parse_url(url,target)||!allowed_host(target.host)){error="Media URL host is not trusted";return false;}
   std::string redirect;
   if(once(target,output,progress,error,redirect))return true;
