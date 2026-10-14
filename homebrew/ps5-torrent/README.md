@@ -9,7 +9,7 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 ## Features
 
 - Five controller-accessible views: Dashboard, Torrent Library, Storage & Settings, Logs, About.
-- HTTP BitTorrent tracker announce, Debian test-only UDP fallback via opentrackr, and IPv4 TCP peer connections. New fixtures may use different trackers; log diagnostics identify unsupported tracker protocols.
+- HTTP, certificate-verified HTTPS and UDP BitTorrent trackers (including announce-list fallbacks) and IPv4 TCP peer connections. Debian includes an optional OpenTrackr fallback.
 - SHA-1 integrity verification per piece, independent of progress claims.
 - Restart/resume by rehashing existing output file; cache includes a per-torrent resume snapshot.
 - Persistent separate cache and download directories.
@@ -33,7 +33,7 @@ Only .torrent metadata files are packaged. The ISO files themselves are download
 
 ## Important known limitations
 
-- Single-file BitTorrent v1 only. No multi-file torrents, magnet links, DHT, PEX, HTTPS or general-purpose UDP tracker support (only the Debian test fallback).
+- Single-file BitTorrent v1 only. No multi-file torrents, magnet links, DHT, PEX, or peer encryption. HTTP/HTTPS/UDP trackers are supported; only IPv4 peers are used.
 - Single peer connection at a time; transfer throughput and swarm availability may be limited.
 - Incoming connections, true seeding, upload speeds, pause/resume while open, and arbitrary torrent picker are not supported in the first build. SQUARE cancels the transfer and verified data remains on disk.
 - Peer logic now respects CHOKE/UNCHOKE and requests pieces in a bounded pipeline; peer compatibility and complete download on an actual PS5 remain **unverified**.
@@ -74,6 +74,8 @@ The six .torrent fixtures ship under assets/test and are selected with the contr
 | L1/R1 | Switch pages |
 
 ## Build
+
+The native client uses a PEM trust bundle built into the executable for HTTPS tracker certificate and hostname validation. Torrent metadata SHA-256 is pinned for the six official test torrents.
 
 The independent GitHub Actions workflow is stored at [build-ps5-torrent.yml](../../.github/workflows/build-ps5-torrent.yml). It fetches the native PS5 scaffold, copies this project's source, retrieves and SHA-256 checks the original Debian test torrent, fetches five new official test torrents and verifies their single-file v1 metadata, compiles with the OpenGL SDK and OpenSSL, verifies a PS5 executable and uploads the installable ZIP.
 
