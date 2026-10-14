@@ -136,31 +136,41 @@ bool url(const std::string& input,Url& out){
 }
 int dial(const std::string& host,int port,int seconds){
  trace("DNS lookup "+host+":"+std::to_string(port));
- struct addrinfo hints{},*head=nullptr;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;
- char p[16];snprintf(p,sizeof(p),"%d",port);
- int code=getaddrinfo(host.c_str(),p,&hints,&head);
- if(code!=0){trace("DNS FAILED "+host+" getaddrinfo="+std::to_string(code));return -1;}
+ struct addrinfo hints{},*head=nullptr;
+ hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;
+ char portText[16];snprintf(portText,sizeof(portText),"%d",port);
+ const int dns=getaddrinfo(host.c_str(),portText,&hints,&head);
+ if(dns!=0){trace("DNS FAILED host="+host+" getaddrinfo="+std::to_string(dns));return -1;}
  int fd=-1;
- for(auto* a=head;a;a=a->ai_next){
+ for(const addrinfo* a=head;a;a=a->ai_next){
   char address[INET_ADDRSTRLEN]={};
-  if(a->ai_family==AF_INET)inet_ntop(AF_INET,&((struct sockaddr_in*)a->ai_addr)->sin_addr,address,sizeof(address));
-  trace("Connecting TCP "+std::string(address)+":"+p);
+  if(a->ai_family==AF_INET){
+   inet_ntop(AF_INET,&((const struct sockaddr_in*)a->ai_addr)->sin_addr,address,sizeof(address));
+  }
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
-  if(fd<0){trace("Socket creation FAILED errno="+std::to_string(errno));continue;}
-  int flags=fcntl(fd,F_GETFL,0);if(flags<0||fcntl(fd,F_SETFL,flags|O_NONBLOCK)!=0){trace("Nonblocking socket FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
-  int ret=connect(fd,a->ai_addr,a->ai_addrlen);
-  if(ret<0&&errno!=EINPROGRESS){trace("TCP connect FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
-  fd_set w;FD_ZERO(&w);FD_SET(fd,&w);struct timeval tv{seconds,0};
-  int selected=select(fd+1,nullptr,&w,nullptr,&tv);
-  if(selected<=0){trace("TCP connect timeout/select FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
-  int err=0;socklen_t z=sizeof(err);
-  if(getsockopt(fd,SOL_SOCKET,SO_ERROR,&err,&z)!=0||err){trace("TCP connection refused/FAILED errno="+std::to_string(err?err:errno));close(fd);fd=-1;continue;}
-  fcntl(fd,F_SETFL,flags);
-  struct timeval t{seconds,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t));
-  trace("TCP connected "+std::string(address)+":"+p);
+  if(fd<0){trace("TCP socket() FAILED errno="+std::to_string(errno));continue;}
+  // PS5 homebrew sandbox: fcntl(F_SETFL,O_NONBLOCK) returned EACCES (errno=13)
+  // for every peer. Use the blocking socket pattern already working in our
+  // PS5 WWW Speedtest app. Install send/receive timeouts BEFORE connecting.
+  struct timeval timeout{seconds,0};
+  const int so=setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+  const int ro=setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+  if(so!=0||ro!=0){
+   trace("TCP socket timeout options FAILED errno="+std::to_string(errno));
+   close(fd);fd=-1;continue;
+  }
+  trace("TCP connecting (PS5 blocking socket) "+std::string(address)+":"+portText);
+  const int ret=connect(fd,a->ai_addr,a->ai_addrlen);
+  if(ret<0){
+   const int error=errno;
+   trace("TCP connect FAILED "+std::string(address)+":"+portText+" errno="+std::to_string(error));
+   close(fd);fd=-1;continue;
+  }
+  trace("TCP CONNECTED "+std::string(address)+":"+portText);
   break;
  }
  freeaddrinfo(head);
+ if(fd<0)trace("No TCP connection could be established for "+host+":"+portText);
  return fd;
 }
 bool sendAll(int fd,const void* data,size_t n){auto* p=(const char*)data;while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
@@ -238,7 +248,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.2\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.3\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -366,7 +376,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.1.1 initialized - log file: "+logPath());}
+Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.1.3 initialized - log file: "+logPath());}
 Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
