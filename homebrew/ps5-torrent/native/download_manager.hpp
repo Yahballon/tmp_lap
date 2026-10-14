@@ -30,6 +30,7 @@ public:
  void scan(bool force=false);
  void cancel(size_t index);
  void retry(size_t index);
+ int retryAllFailed();
  void stopAll();
  bool isRecoveryMode() const {return recoveryMode_;}
  bool resumeAfterRecovery();
