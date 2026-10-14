@@ -422,9 +422,9 @@ bool scan_books(const std::vector<std::string>& dirs,std::vector<BookEntry>& boo
 bool scan_imports(std::vector<BookEntry>& found){
  std::set<std::string> seen;found.clear();lastReport.clear();
  for(const char* root:{
+     "/app0/assets/Books","/download0/Books","/download0/ebooks",
      "/mnt/usb0/Books","/mnt/usb0/books","/mnt/usb0/BOOKS",
-     "/mnt/usb1/Books","/mnt/usb1/books","/mnt/usb1/BOOKS",
-     "/mnt/usb0","/mnt/usb1","/mnt/usb2"}) {
+     "/mnt/usb0","/mnt/usb1/Books","/mnt/usb1","/mnt/usb2"}) {
     ScanSource status;status.path=root;size_t remaining=12000;
     collect(root,found,seen,status,remaining);
     lastReport.push_back(std::move(status));
