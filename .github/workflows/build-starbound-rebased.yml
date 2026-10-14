@@ -47,6 +47,8 @@ jobs:
           # Replace the recognizable Mario-style environment and remaining
           # character frames with ORIGINAL sci-fi artwork in native 1x slots.
           python3 homebrew/starbound-rebased/tools/remaster-starbound-world.py build/gold872-reference
+          # Apply the Gold872 player frame fix AFTER the world remaster, which recreates the atlases.
+          python3 homebrew/starbound-rebased/tools/fix-player-sprites.py
           # Stop showing the original NES-looking Press Start font.
           replacement_font="$(find /usr/share/fonts -type f \( -iname '*sans*bold*.ttf' -o -iname '*sans*bold*.otf' \) -print -quit)"
           if [ -n "$replacement_font" ] && [ -s "$replacement_font" ]; then
@@ -133,7 +135,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.019'
+          data['contentVersion']='01.000.020'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased HD'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -265,6 +267,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.18
+          tag=starbound-rebased-v0.1.19
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.18 - Original Sci-Fi Art Remaster" --notes "Full original scene redesign instead of Mario NES recolor: hand-authored sci-fi crystalline ground, energy crates replacing ? blocks, glowing conduit towers replacing pipe art, futuristic industrial platforms, original alien night sky with ringed planet and monoliths, complete pink/cyan AI character atlases, cyan energy-ball projectile graphics. Preserves native Gold872 1x sprite geometry and existing gameplay/map physics. HUD uses SECTOR instead of WORLD and a modern readable font. CI compares all packaged textures byte-for-byte against generated originals and checks important atlas IDs. Experimental PS5 TESTBUILDS; verify visuals on console."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.19 - Player Animation and Mushroom Fix" --notes "Fixes spinning astronaut during walking: all movement states use a single side-facing pose with a three-frame boot cycle and native SDL left/right mirroring. Fixes doubled avatar after mushroom: the large super sprite and fire sprite are complete single 16x32 frames in the correct source rows (1 and 9), with 16x32 fireflower transforms. Retains original sci-fi art, levels, physics, and projectile frames. Experimental PS5 TESTBUILD: requires hardware confirmation."
