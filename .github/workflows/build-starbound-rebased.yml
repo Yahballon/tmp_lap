@@ -44,7 +44,11 @@ jobs:
           python3 homebrew/starbound-rebased/tools/native-ai-characters.py
           cp homebrew/starbound-rebased/hd-assets/icons/logo.png homebrew/starbound-rebased/res/sprites/icons/logo.png
           cp homebrew/starbound-rebased/hd-assets/icons/windowicon.png homebrew/starbound-rebased/res/sprites/icons/windowicon.png
-          cp homebrew/starbound-rebased/hd-assets/backgrounds/alien_sky.png homebrew/starbound-rebased/res/sprites/backgrounds/alien_sky.png
+          # Replace the recognizable Mario-style environment and remaining
+          # character frames with ORIGINAL sci-fi artwork in native 1x slots.
+          python3 homebrew/starbound-rebased/tools/remaster-starbound-world.py build/gold872-reference
+          # Stop showing the original NES-looking Press Start font.
+          cp /usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf homebrew/starbound-rebased/res/fonts/press-start-2p.ttf
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
           cp homebrew/starbound-rebased/ps5/StarboundAssetPaths.hpp build/gold872-engine/include/StarboundAssetPaths.hpp
           python3 homebrew/starbound-rebased/tools/resolve-resource-paths.py build/gold872-engine
@@ -123,7 +127,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.018'
+          data['contentVersion']='01.000.019'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased HD'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -182,35 +186,40 @@ jobs:
               hd_root=pathlib.Path('homebrew/starbound-rebased/hd-assets')
               hd_pngs=sorted(hd_root.rglob('*.png'))
               assert len(hd_pngs)==6, hd_pngs
-              # The original reference PNG is the formal atlas contract.
-              # No guessed frame placement: all 1x native dimensions and every
-              # source alpha byte must match Gold872 exactly.
+              # Exact NATIVE canvas dimensions and SDL 1px/17px grid survive.
+              # Old Mario bitmap masks are deliberately NOT preserved: these
+              # assets are new graphics, rather than a palette-only recolor.
               for rel,size in (
                    ('blocks/BlockTileSheet.png',(817,375)),
                    ('characters/PlayerSpriteSheet.png',(403,266)),
                    ('characters/EnemySpriteSheet.png',(562,242)),
               ):
-                  ref=Image.open('build/gold872-reference/res/sprites/'+rel).convert('RGBA')
-                  got=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/'+rel))).convert('RGBA')
-                  assert ref.size==got.size==size, rel
-                  if rel.startswith('blocks/'):
-                      assert got.getchannel('A').tobytes()==ref.getchannel('A').tobytes(), ('Atlas alpha changed',rel)
-                  import numpy as np
-                  a=np.asarray(ref)
-                  b=np.asarray(got)
-                  keyed=(147,187,236)
-                  if rel.startswith('blocks/'):
-                      assert np.array_equal(np.all(a[:,:,:3]==keyed,axis=2),np.all(b[:,:,:3]==keyed,axis=2)), ('SDL color-key mask changed',rel)
-                  else:
-                      assert got.getchannel('A').getbbox(), ('empty AI sprites',rel)
-                  assert got.tobytes()!=ref.tobytes(), ('Missing original pink/cyan reskin',rel)
-              # Logo, window icon and sky come unchanged from uploaded user art.
-              for rel in ('icons/logo.png','icons/windowicon.png','backgrounds/alien_sky.png'):
-                  orig=hd_root/rel
-                  assert z.read(root+'assets/res/sprites/'+rel)==orig.read_bytes(), ('HD artwork missing',rel)
-              assert 'native' in 'native'
-              print('PASS: exact native Gold872 UV, size and alpha parity for ALL cells and animated frames')
-
+                  source=pathlib.Path('homebrew/starbound-rebased/res/sprites')/rel
+                  packed=z.read(root+'assets/res/sprites/'+rel)
+                  assert packed==source.read_bytes(), ('Stale sprites in PS5 ZIP',rel)
+                  got=Image.open(io.BytesIO(packed)).convert('RGBA')
+                  assert got.size==size, ('Wrong original canvas size',rel,got.size)
+                  assert got.getchannel('A').getbbox(), ('Entire sprite blank',rel)
+                  old=Image.open('build/gold872-reference/res/sprites/'+rel).convert('RGBA')
+                  assert old.size==got.size and old.tobytes()!=got.tobytes(), ('Unmodified Mario atlas',rel)
+              tiles=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).convert('RGBA')
+              # Foreground semantic IDs must be visible in their exact 17px pitch.
+              for tile_id in (192,197,289,384,149,150):
+                  sx,sy=1+(tile_id%48)*17,1+(tile_id//48)*17
+                  assert tiles.crop((sx,sy,sx+16,sy+16)).getchannel('A').getbbox(),tile_id
+              # SourceRect gutters outside every cell remain transparent.
+              for col in (0,2,17,47):
+                  assert tiles.getpixel((col*17,20))[3]==0,col
+              # The old generated sky must not leak into the shipping package.
+              sky=z.read(root+'assets/res/sprites/backgrounds/alien_sky.png')
+              assert sky==pathlib.Path('homebrew/starbound-rebased/res/sprites/backgrounds/alien_sky.png').read_bytes()
+              bg=Image.open(io.BytesIO(sky)).convert('RGBA')
+              assert bg.size==(800,480)
+              assert bg.getpixel((20,20))[2]>bg.getpixel((20,20))[0]
+              for rel in ('icons/logo.png','icons/windowicon.png'):
+                  original=hd_root/rel
+                  assert z.read(root+'assets/res/sprites/'+rel)==original.read_bytes(), rel
+              print('PASS: original Starbound sci-fi atlases, sky, HUD and 1x layout packaged')
               from PIL import Image
               import io
               assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(817,375)
@@ -250,6 +259,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.17
+          tag=starbound-rebased-v0.1.18
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.17 Native AI Sprite Atlas" --notes "Exact native Gold872 dimensions (player 403x266, enemy 562x242, block 817x375). User-provided HD pixel-art astronaut animations occupy proper small 16x16 and big continuous 16x32 player source slots; projectile IDs 246/247 now cyan energy balls, enemy IDs 70/71 pink slimes and 38/39 armoured crawlers. Block map source transparency and color-key are byte-exact preserved; HD sky and logo included. PS5 hardware screenshots required to verify the appearance."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.18 - Original Sci-Fi Art Remaster" --notes "Full original scene redesign instead of Mario NES recolor: hand-authored sci-fi crystalline ground, energy crates replacing ? blocks, glowing conduit towers replacing pipe art, futuristic industrial platforms, original alien night sky with ringed planet and monoliths, complete pink/cyan AI character atlases, cyan energy-ball projectile graphics. Preserves native Gold872 1x sprite geometry and existing gameplay/map physics. HUD uses SECTOR instead of WORLD and a modern readable font. CI compares all packaged textures byte-for-byte against generated originals and checks important atlas IDs. Experimental PS5 TESTBUILDS; verify visuals on console."

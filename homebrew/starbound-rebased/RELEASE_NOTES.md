@@ -39,3 +39,11 @@ The earlier AI atlases used wrong source cell ranges: 2x grid with graphics in i
 ## v0.1.17 — AI characters in original source rectangles
 
 Adds the actual developer-supplied pink astronaut and enemy art to original Gold872 small 16x16, large 16x32 and enemy source IDs; draws cyan projectiles at fireball IDs 246/247. Uses the gold reference 1x sprite canvas dimensions and unchanged world collision geometry. Block background transparency/colour key continue to be verified against Gold872. Experimental hardware build; PS5 screenshots needed.
+
+## v0.1.18 — Distinct Starbound visual identity
+
+- Completely replace the prior palette-shifted Mario-compatible block drawings with original sci-fi energy crates, crystal terrain, neon panel technology and conduits while retaining the same gameplay tile IDs and original canvas.
+- Suppress old cloud/hill background sprite IDs where not used by foreground and render a bespoke deep-space night skyline (alien settlement, stars, ringed planet).
+- Replace remaining Mario-character pixels by populating all player frame families with the user-supplied pink astronauts (plus cohesive 16x32 forms and cyan fireball IDs 246/247). Fill enemy atlas with user-provided slime, armored, drone and plant variants.
+- Replace the NES-style HUD font with Liberation Sans Bold and WORLD label with SECTOR.
+- Keep PS5 input, collision, game physics, World1-1 original level property/CSV and all rendering addresses untouched. Add CI packaging checks for all art sheets, semantic tiles and new sky.

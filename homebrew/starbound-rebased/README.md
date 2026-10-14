@@ -46,3 +46,9 @@ Restore the exact Gold872 reference atlas dimensions (player 403x266, enemies 56
 ## v0.1.17 — original user AI characters in exact 1x sprite slots
 
 Native AI astronaut sprite frames are added to small (16x16) and big power-up (ONE 16x32) player source rectangles, instead of recoloring old character silhouettes. Fireball IDs 246 and 247 render a cyan projectile/explosion rather than mini-astronauts. Original enemy ID 70/71 uses supplied pink slime artwork, crawler 38/39 uses its one-frame 16x32 model. Exact native canvas sizes, physics, HUD and tile ID mapping stay unchanged; block sky/pipe cloud masks are still matched pixel-for-pixel against pinned source.
+
+## v0.1.18 — Full original Starbound sci-fi art remaster
+
+This is NOT merely a Gold872/NES palette recolor. The HD remaster generator draws entirely new alien planet scenery, crystal ground, space-tech panels and neon energy crates, replacing recognizable brick/question/pipes imagery. All three native source atlas canvases retain exact pixel dimensions (403x266 player, 562x242 enemies, 817x375 tiles; 17px tile spacing), so existing sourceRect coordinates and level physics are not touched. The player and enemy frames are based on the supplied pink/cyan astronaut, slime, drone and plant designs, not the original Mario sprites. The sky has a ring planet and geometric settlement instead of classic hills and clouds. HUD text uses SECTOR and a modern font. A new GitHub Actions release gate checks source-image parity inside PPSA99642.zip, semantic tile ID coverage, the 17px gutters, and original-world level data byte parity.
+
+The pinning of original World 1-1 layout remains for technical testing; replacing its gameplay-level layout is a separate task.
