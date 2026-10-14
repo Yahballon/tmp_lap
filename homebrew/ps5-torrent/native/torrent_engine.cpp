@@ -267,11 +267,18 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  trace("Tracker response OK: "+std::to_string(peers.size())+" peers");return peers;
 }
 void store64(char* p,uint64_t n){for(int i=0;i<8;i++)p[i]=(char)(n>>(56-8*i));}
-std::vector<Peer> udpFallback(const Meta& m,const std::string& peerId,uint64_t left){
- const std::string host="tracker.opentrackr.org";
- trace("Debian fallback: UDP tracker "+host+":1337");
+std::vector<Peer> udpFallback(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left){
+ if(announce.rfind("udp://",0)!=0){trace("Unsupported UDP tracker URL");return {};}
+ const std::string authority=announce.substr(6,announce.find('/',6)==std::string::npos?std::string::npos:announce.find('/',6)-6);
+ size_t colon=authority.rfind(':');
+ if(colon==std::string::npos){trace("UDP tracker missing explicit port");return {};}
+ const std::string host=authority.substr(0,colon),port=authority.substr(colon+1);
+ if(host.empty()||host.size()>200||port.empty()||port.size()>5||port.find_first_not_of("0123456789")!=std::string::npos||atoi(port.c_str())==0||atoi(port.c_str())>65535){
+  trace("UDP tracker invalid host or port");return {};
+ }
+ trace("UDP tracker "+host+":"+port);
  struct addrinfo hints{},*head=nullptr;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_DGRAM;
- int result=getaddrinfo(host.c_str(),"1337",&hints,&head);
+ int result=getaddrinfo(host.c_str(),port.c_str(),&hints,&head);
  if(result!=0){trace("UDP tracker DNS FAILED "+std::to_string(result));return {};}
  int fd=socket(AF_INET,SOCK_DGRAM,0);if(fd<0){freeaddrinfo(head);trace("UDP socket FAILED errno="+std::to_string(errno));return {};}
  struct timeval timeout{5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
@@ -412,13 +419,20 @@ void Engine::run(std::string path){
  int failedRounds=0;while(!cancelled()&&failedRounds<4){
   publish("Contacting tracker...");
   uint64_t left=0;for(size_t i=0;i<verified.size();i++)if(!verified[i])left+=pieceSize(m,(uint32_t)i);
-  auto peers=tracker(m,peerId,left);
+  std::vector<Peer> peers;
+  for(size_t t=0;t<m.trackers.size()&&!cancelled();t++){
+   const std::string& announce=m.trackers[t];
+   publish("Contacting tracker "+std::to_string(t+1)+"/"+std::to_string(m.trackers.size())+"...");
+   if(announce.rfind("udp://",0)==0)peers=udpFallback(m,announce,peerId,left);
+   else peers=tracker(m,announce,peerId,left);
+   if(!peers.empty())break;
+  }
   if(peers.empty()&&m.name=="debian-13.7.0-amd64-netinst.iso"&&m.announce.find("bttracker.debian.org")!=std::string::npos&&!cancelled()){
    publish("Debian tracker empty; trying UDP fallback...");
-   peers=udpFallback(m,peerId,left);
+   peers=udpFallback(m,"udp://tracker.opentrackr.org:1337/announce",peerId,left);
   }
   {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
-  if(peers.empty()){failedRounds++;publish("No peers from HTTP or UDP tracker (see Logs)");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
+  if(peers.empty()){failedRounds++;publish("Trackers returned no peers (see Logs)");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
   bool any=false;
   for(size_t peerIndex=0;peerIndex<peers.size();++peerIndex){
    const Peer& peer=peers[peerIndex];
