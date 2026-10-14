@@ -27,6 +27,7 @@ public:
     bool start(const std::string& path);
     void stop();
     void setUsb(bool enabled);
+    void setPeerWorkers(int count);
     bool usingUsb() const;
 private:
     void run(std::string path);
@@ -35,6 +36,7 @@ private:
     Snapshot state_;
     bool busy_=false;
     bool stopRequested_=false;
+    int peerWorkers_=8;
     std::atomic<bool> cancellation_{false};
     std::shared_ptr<SocketRegistry> sockets_;
     std::thread runner_;
