@@ -562,7 +562,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60"+(initial?"&event=started":"");
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.3\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.4\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -828,7 +828,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.3 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.4 initialized - log file: "+logPath());}
 Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
 bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){
@@ -880,6 +880,7 @@ std::vector<std::string> discoverTorrents(){
  }
  return out;
 }
+void Engine::setPeerWorkers(int count){std::lock_guard<std::mutex> lock(mutex_);if(!busy_)peerWorkers_=std::max(1,std::min(8,count));}
 void Engine::setUsb(bool enable){std::lock_guard<std::mutex> lock(mutex_);if(busy_)return;state_.usb=enable;std::string base=enable?kUsb:kHome;state_.cacheDir=base+"/cache";state_.downloadDir=base+"/downloads";if(!enable)createDirectories(base);else if(!isDir("/mnt/usb0"))state_.status="USB 0 not mounted";else createDirectories(base);}
 bool Engine::usingUsb()const{std::lock_guard<std::mutex> g(mutex_);return state_.usb;}
 Snapshot Engine::snapshot()const{std::lock_guard<std::mutex> g(mutex_);return state_;}
@@ -1045,7 +1046,8 @@ void Engine::run(std::string path){
   }
   const int startPieces=completeCount.load();
   std::atomic<size_t> nextPeer{0};
-  constexpr int maxWorkers=8;
+  int maxWorkers=8;
+  {std::lock_guard<std::mutex> guard(mutex_);maxWorkers=peerWorkers_;}
   std::vector<std::thread> workers;
   workers.reserve(maxWorkers);
   for(int workerId=0;workerId<maxWorkers;workerId++){
