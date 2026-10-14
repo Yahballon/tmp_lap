@@ -170,8 +170,9 @@ jobs:
               assert root+'assets/res/sprites/backgrounds/alien_sky.png' in names
               from PIL import Image
               import io
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(1536,704)
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(800,512)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(1634,750)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(852,546)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/EnemySpriteSheet.png'))).size==(1192,512)
               for required in (
                   'res/sprites/characters/PlayerSpriteSheet.png',
                   'res/sprites/icons/logo.png',
