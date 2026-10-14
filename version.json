@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "cd8822c350c94661e18ee805afa6f538885cdced96f5d14ef973cdd1f315fbb6",
+  "version": "cfb4825f653fa6bad1003b874851896998bb8022f38c9c14d5184cfa55141c25",
   "repository": "Yahballon/tmp_lap",
   "app_count": 7,
   "apps": [
@@ -73,14 +73,14 @@
       "name": "Ebook Reader",
       "slug": "ebook-reader",
       "title_id": "PPSA99741",
-      "version": "0.1.0",
-      "tag": "ebook-reader-v0.1.0",
+      "version": "0.1.1",
+      "tag": "ebook-reader-v0.1.1",
       "zip_name": "PPSA99741.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ebook-reader-v0.1.0/PPSA99741.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ebook-reader-v0.1.1/PPSA99741.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.1",
       "source": "homebrew/ebook-reader",
-      "size_bytes": 6086840,
-      "published_at": "2026-10-14T22:22:05Z"
+      "size_bytes": 6091062,
+      "published_at": "2026-10-14T22:46:07Z"
     },
     {
       "name": "Payload LauncherX",
