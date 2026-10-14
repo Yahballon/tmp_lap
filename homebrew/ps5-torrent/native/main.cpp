@@ -47,7 +47,7 @@ int main(){
   d.rounded_rect({0,0,1920,102},0,Color::rgb(0x0d1b2d));d.circle(79,51,28,mint);d.circle(79,51,18,Color::rgb(0x0d1b2d));d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",464,54,21,mint);
-  text(d,font,atlas,"v0.1.2",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.1.3",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<5;i++){
    float y=149+i*104;card(d,43,y,302,88,page==i);
