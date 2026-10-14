@@ -42,3 +42,7 @@ Fix for the real player spritesheet coordinate issue visible on hardware: the en
 ## v0.1.16 native-size sprite atlas compatibility
 
 Restore the exact Gold872 reference atlas dimensions (player 403x266, enemies 562x242, blocks 817x375) and **remove 2x source-rectangle scaling** in C++. A new reference-guided palette and silhouette reskin makes the sprites pink/cyan while preserving every original transparency boundary and sprite frame. This avoids accidental humanoid fireballs, two small bodies in a power-up, pipes drawn instead of boxes, and cloud cells as rectangles. CI enforces all original alpha bytes and dimensions for each packaged sprite atlas, with added rollback-safe installation in TESTBUILDS. This is a geometry-safe cosmetic reskin, not yet a painstaking custom AI redraw of each frame. Test on a PS5 before considering this production-stable.
+
+## v0.1.17 — original user AI characters in exact 1x sprite slots
+
+Native AI astronaut sprite frames are added to small (16x16) and big power-up (ONE 16x32) player source rectangles, instead of recoloring old character silhouettes. Fireball IDs 246 and 247 render a cyan projectile/explosion rather than mini-astronauts. Original enemy ID 70/71 uses supplied pink slime artwork, crawler 38/39 uses its one-frame 16x32 model. Exact native canvas sizes, physics, HUD and tile ID mapping stay unchanged; block sky/pipe cloud masks are still matched pixel-for-pixel against pinned source.

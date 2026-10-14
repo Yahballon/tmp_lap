@@ -35,3 +35,7 @@ The installed player, enemy, tiles, pink/cyan logo and app icon are from the pro
 ## v0.1.16 — restore Gold872 native atlas geometry
 
 The earlier AI atlases used wrong source cell ranges: 2x grid with graphics in incompatible slots. This release rebuilds 1x sprite atlases guided by the pinned original PNG transparency (including original 17-pixel block gutters, 9-pixel player source offset and multi-row 16x32 sprites), recolors each occupied pixel into a pink/cyan theme, and restores 1x C++ source rectangles. No double-sized player sprites, humanoid projectiles or opaque replacement tiles from wrong atlases. The original provided logo, app badge and shaded background stay in place. CI now asserts actual PNG dimensions and byte-exact alpha masks against the source reference for all cells.
+
+## v0.1.17 — AI characters in original source rectangles
+
+Adds the actual developer-supplied pink astronaut and enemy art to original Gold872 small 16x16, large 16x32 and enemy source IDs; draws cyan projectiles at fireball IDs 246/247. Uses the gold reference 1x sprite canvas dimensions and unchanged world collision geometry. Block background transparency/colour key continue to be verified against Gold872. Experimental hardware build; PS5 screenshots needed.
