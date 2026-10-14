@@ -48,7 +48,13 @@ jobs:
           # character frames with ORIGINAL sci-fi artwork in native 1x slots.
           python3 homebrew/starbound-rebased/tools/remaster-starbound-world.py build/gold872-reference
           # Stop showing the original NES-looking Press Start font.
-          cp /usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf homebrew/starbound-rebased/res/fonts/press-start-2p.ttf
+          replacement_font="$(find /usr/share/fonts -type f \( -iname '*sans*bold*.ttf' -o -iname '*sans*bold*.otf' \) -print -quit)"
+          if [ -n "$replacement_font" ] && [ -s "$replacement_font" ]; then
+            cp "$replacement_font" homebrew/starbound-rebased/res/fonts/press-start-2p.ttf
+            echo "Modern menu/HUD font: $replacement_font"
+          else
+            echo "WARNING: modern font not found; retaining bundled fallback"
+          fi
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
           cp homebrew/starbound-rebased/ps5/StarboundAssetPaths.hpp build/gold872-engine/include/StarboundAssetPaths.hpp
           python3 homebrew/starbound-rebased/tools/resolve-resource-paths.py build/gold872-engine
