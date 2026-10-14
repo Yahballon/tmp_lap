@@ -91,6 +91,22 @@ class Peer(socketserver.BaseRequestHandler):
         except (ConnectionError,OSError,EOFError,socket.timeout):
             return
 
+class StallPeer(socketserver.BaseRequestHandler):
+    """Completes handshake and then deliberately keeps socket idle."""
+    def handle(self):
+        sock=self.request
+        sock.settimeout(8)
+        try:
+            handshake=recv_exact(sock,68)
+            if handshake[28:48]!=INFO_HASH:
+                raise AssertionError("bad test info hash")
+            sock.sendall(b"\x13BitTorrent protocol"+b"\0"*8+INFO_HASH+b"-STALL0-ABCDEFGHIJKL")
+            sock.sendall(frame(5,b"\xe0")+frame(1))
+            # Consume requests, but never deliver PIECE messages.
+            threading.Event().wait(4.5)
+        except (ConnectionError,OSError,EOFError,socket.timeout):
+            pass
+
 class Tracker(socketserver.BaseRequestHandler):
     def handle(self):
         self.request.settimeout(8)
@@ -159,7 +175,23 @@ def main():
             tracker.server_close()
             subprocess.run([str(executable),str(fixture)],check=True,timeout=20)
             assert dest.read_bytes()==CONTENT
-            print("PASS: actual C++ downloader completed, repaired and resumed",flush=True)
+            print("Test 4: Cancel interrupts a peer waiting for data",flush=True)
+            stall=make_server(StallPeer)
+            stalled_tracker=make_server(Tracker,ports=[stall.server_address[1]])
+            try:
+                dest.write_bytes(b"\0"*len(CONTENT))
+                new_fixture=temp/"cancel.iso.torrent"
+                new_fixture.write_bytes(benc({
+                    b"announce":f"http://127.0.0.1:{stalled_tracker.server_address[1]}/announce".encode(),
+                    b"info":info
+                }))
+                subprocess.run([str(executable),str(new_fixture),"--cancel"],check=True,timeout=8)
+            finally:
+                stalled_tracker.shutdown()
+                stalled_tracker.server_close()
+                stall.shutdown()
+                stall.server_close()
+            print("PASS: transfer, corrupt-piece repair, resume and rapid cancel",flush=True)
         finally:
             a.shutdown()
             b.shutdown()

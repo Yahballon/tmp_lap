@@ -25,6 +25,8 @@
 #include <vector>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -143,7 +145,32 @@ bool url(const std::string& input,Url& out){
  }
  return !out.host.empty()&&out.host.size()<200&&out.port>0&&out.port<=65535&&out.path.size()<2000;
 }
+// Registered sockets make Stop interrupt blocked peer reads immediately.
+// shutdown() is issued while holding the same mutex used during close, so
+// descriptors cannot be reused underneath the cancellation operation.
+std::mutex socketsMutex;
+std::vector<int> liveSockets;
+std::atomic<bool> networkCancelled{false};
+bool registerSocket(int fd){
+ std::lock_guard<std::mutex> lock(socketsMutex);
+ if(networkCancelled.load()){close(fd);return false;}
+ liveSockets.push_back(fd);return true;
+}
+void closeSocket(int fd){
+ if(fd<0)return;
+ std::lock_guard<std::mutex> lock(socketsMutex);
+ auto it=std::find(liveSockets.begin(),liveSockets.end(),fd);
+ if(it!=liveSockets.end())liveSockets.erase(it);
+ close(fd);
+}
+void stopSockets(){
+ networkCancelled.store(true);
+ std::lock_guard<std::mutex> lock(socketsMutex);
+ for(int fd:liveSockets)shutdown(fd,SHUT_RDWR);
+}
+bool socketActive(){return !networkCancelled.load();}
 int dial(const std::string& host,int port,int seconds){
+ if(!socketActive())return -1;
  trace("DNS lookup "+host+":"+std::to_string(port));
  struct addrinfo hints{},*head=nullptr;
  hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;
@@ -151,35 +178,70 @@ int dial(const std::string& host,int port,int seconds){
  const int dns=getaddrinfo(host.c_str(),portText,&hints,&head);
  if(dns!=0){trace("DNS FAILED host="+host+" getaddrinfo="+std::to_string(dns));return -1;}
  int fd=-1;
- for(const addrinfo* a=head;a;a=a->ai_next){
-  char address[INET_ADDRSTRLEN]={};
-  if(a->ai_family==AF_INET){
-   inet_ntop(AF_INET,&((const struct sockaddr_in*)a->ai_addr)->sin_addr,address,sizeof(address));
-  }
+ for(const addrinfo* a=head;a&&socketActive();a=a->ai_next){
+  char ip[INET_ADDRSTRLEN]={};
+  if(a->ai_family==AF_INET)
+   inet_ntop(AF_INET,&((const struct sockaddr_in*)a->ai_addr)->sin_addr,ip,sizeof(ip));
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
   if(fd<0){trace("TCP socket() FAILED errno="+std::to_string(errno));continue;}
-  // PS5 homebrew sandbox: fcntl(F_SETFL,O_NONBLOCK) returned EACCES (errno=13)
-  // for every peer. Use the blocking socket pattern already working in our
-  // PS5 WWW Speedtest app. Install send/receive timeouts BEFORE connecting.
+  if(!registerSocket(fd)){fd=-1;break;}
+  // PS5 forbids fcntl(F_SETFL,O_NONBLOCK): errno 13. Prefer the direct
+  // FIONBIO ioctl, with SOCK_NONBLOCK as a fallback if the kernel supports it.
+  int enable=1;
+  bool asyncConnect=ioctl(fd,FIONBIO,&enable)==0;
+  if(!asyncConnect){
+   const int modeError=errno;
+#ifdef SOCK_NONBLOCK
+   int candidate=socket(a->ai_family,a->ai_socktype|SOCK_NONBLOCK,a->ai_protocol);
+   if(candidate>=0){
+    if(registerSocket(candidate)){
+     closeSocket(fd);
+     fd=candidate;asyncConnect=true;
+     trace("PS5 async socket enabled via SOCK_NONBLOCK");
+    }else{closeSocket(fd);fd=-1;break;}
+   }
+#endif
+   if(!asyncConnect)trace("FIONBIO unavailable errno="+std::to_string(modeError)+"; blocking connect may exceed timeout");
+  }
+  if(fd<0)break;
   struct timeval timeout{seconds,0};
-  const int so=setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
-  const int ro=setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
-  if(so!=0||ro!=0){
-   trace("TCP socket timeout options FAILED errno="+std::to_string(errno));
-   close(fd);fd=-1;continue;
+  setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+  setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+  trace("TCP connecting "+std::string(ip)+":"+portText+(asyncConnect?" async":" PS5 blocking fallback"));
+  int rc=connect(fd,a->ai_addr,a->ai_addrlen);
+  if(asyncConnect && rc<0 && (errno==EINPROGRESS||errno==EWOULDBLOCK||errno==EALREADY)){
+   const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(seconds);
+   int result=ETIMEDOUT;
+   while(socketActive()&&std::chrono::steady_clock::now()<deadline){
+    fd_set writeSet;FD_ZERO(&writeSet);FD_SET(fd,&writeSet);
+    struct timeval tick{0,200000};
+    int ready=select(fd+1,nullptr,&writeSet,nullptr,&tick);
+    if(ready>0){
+     socklen_t length=sizeof(result);
+     if(getsockopt(fd,SOL_SOCKET,SO_ERROR,&result,&length)!=0)result=errno;
+     break;
+    }
+    if(ready<0){if(errno==EINTR)continue;result=errno;break;}
+   }
+   if(!socketActive())result=ECANCELED;
+   if(result){errno=result;rc=-1;}else rc=0;
   }
-  trace("TCP connecting (PS5 blocking socket) "+std::string(address)+":"+portText);
-  const int ret=connect(fd,a->ai_addr,a->ai_addrlen);
-  if(ret<0){
-   const int error=errno;
-   trace("TCP connect FAILED "+std::string(address)+":"+portText+" errno="+std::to_string(error));
-   close(fd);fd=-1;continue;
+  if(rc<0){
+   trace("TCP connect FAILED "+std::string(ip)+":"+portText+" errno="+std::to_string(errno));
+   closeSocket(fd);fd=-1;continue;
   }
-  trace("TCP CONNECTED "+std::string(address)+":"+portText);
+  if(asyncConnect){
+   int disable=0;
+   if(ioctl(fd,FIONBIO,&disable)!=0){
+    trace("FIONBIO restore blocking mode FAILED errno="+std::to_string(errno));
+    closeSocket(fd);fd=-1;continue;
+   }
+  }
+  if(!socketActive()){closeSocket(fd);fd=-1;break;}
+  trace("TCP CONNECTED "+std::string(ip)+":"+portText);
   break;
  }
  freeaddrinfo(head);
- if(fd<0)trace("No TCP connection could be established for "+host+":"+portText);
  return fd;
 }
 bool sendAll(int fd,const void* data,size_t n){auto* p=(const char*)data;while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
@@ -192,7 +254,7 @@ bool httpResponse(const Url& u,const std::string& req,std::string& response){
  SSL_CTX* ctx=nullptr;SSL* ssl=nullptr;bool ok=false;
  if(u.tls){
   ctx=SSL_CTX_new(TLS_client_method());
-  if(!ctx){trace("TLS context FAILED");close(fd);return false;}
+  if(!ctx){trace("TLS context FAILED");closeSocket(fd);return false;}
   SSL_CTX_set_min_proto_version(ctx,TLS1_2_VERSION);
   SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,nullptr);
   BIO* input=BIO_new_mem_buf(kCaBundle,-1);
@@ -205,9 +267,9 @@ bool httpResponse(const Url& u,const std::string& req,std::string& response){
    }
    BIO_free(input);ERR_clear_error();
   }
-  if(!trusted){trace("TLS trust store is empty");SSL_CTX_free(ctx);close(fd);return false;}
+  if(!trusted){trace("TLS trust store is empty");SSL_CTX_free(ctx);closeSocket(fd);return false;}
   ssl=SSL_new(ctx);
-  if(!ssl){trace("TLS SSL_new FAILED");SSL_CTX_free(ctx);close(fd);return false;}
+  if(!ssl){trace("TLS SSL_new FAILED");SSL_CTX_free(ctx);closeSocket(fd);return false;}
   SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,u.host.c_str());SSL_set1_host(ssl,u.host.c_str());
   if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){
    trace("TLS handshake/certificate validation FAILED host="+u.host+" ssl_error="+std::to_string(ERR_get_error()));
@@ -235,7 +297,7 @@ bool httpResponse(const Url& u,const std::string& req,std::string& response){
  }
  if(ssl)SSL_free(ssl);
  if(ctx)SSL_CTX_free(ctx);
- close(fd);
+ closeSocket(fd);
  return ok;
 }
 bool unchunk(std::string& body){
@@ -257,7 +319,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.2.0\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.2.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -300,20 +362,21 @@ std::vector<Peer> udpFallback(const Meta& m,const std::string& announce,const st
  int result=getaddrinfo(host.c_str(),port.c_str(),&hints,&head);
  if(result!=0){trace("UDP tracker DNS FAILED "+std::to_string(result));return {};}
  int fd=socket(AF_INET,SOCK_DGRAM,0);if(fd<0){freeaddrinfo(head);trace("UDP socket FAILED errno="+std::to_string(errno));return {};}
+ if(!registerSocket(fd)){freeaddrinfo(head);return {};}
  struct timeval timeout{5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
- if(connect(fd,head->ai_addr,head->ai_addrlen)!=0){trace("UDP tracker connect FAILED errno="+std::to_string(errno));freeaddrinfo(head);close(fd);return {};}
+ if(connect(fd,head->ai_addr,head->ai_addrlen)!=0){trace("UDP tracker connect FAILED errno="+std::to_string(errno));freeaddrinfo(head);closeSocket(fd);return {};}
  freeaddrinfo(head);
  char req[98]={},resp[4096]={};
  store64(req,0x41727101980ULL);store32(req+8,0);store32(req+12,0x15104320);
- if(send(fd,req,16,0)!=16){trace("UDP tracker handshake send FAILED");close(fd);return {};}
+ if(send(fd,req,16,0)!=16){trace("UDP tracker handshake send FAILED");closeSocket(fd);return {};}
  ssize_t n=recv(fd,resp,sizeof(resp),0);
- if(n<16||be32(resp)!=0||be32(resp+4)!=0x15104320){trace("UDP handshake timeout/rejected len="+std::to_string(n)+" errno="+std::to_string(errno));close(fd);return {};}
+ if(n<16||be32(resp)!=0||be32(resp+4)!=0x15104320){trace("UDP handshake timeout/rejected len="+std::to_string(n)+" errno="+std::to_string(errno));closeSocket(fd);return {};}
  memcpy(req,resp+8,8);store32(req+8,1);store32(req+12,0x15104321);
  memcpy(req+16,m.hash.data(),20);memcpy(req+36,peerId.data(),20);
  store64(req+56,0);store64(req+64,left);store64(req+72,0);store32(req+80,2);
  store32(req+84,0);store32(req+88,0x15381111);store32(req+92,0xffffffffU);req[96]=(char)(6889>>8);req[97]=(char)(6889&255);
- if(send(fd,req,sizeof(req),0)!=(ssize_t)sizeof(req)){trace("UDP announce send FAILED");close(fd);return {};}
- n=recv(fd,resp,sizeof(resp),0);close(fd);
+ if(send(fd,req,sizeof(req),0)!=(ssize_t)sizeof(req)){trace("UDP announce send FAILED");closeSocket(fd);return {};}
+ n=recv(fd,resp,sizeof(resp),0);closeSocket(fd);
  if(n<20||be32(resp)!=1||be32(resp+4)!=0x15104321){trace("UDP announce FAILED len="+std::to_string(n)+" errno="+std::to_string(errno));return {};}
  std::vector<Peer> peers;
  for(ssize_t i=20;i+6<=n&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,resp+i,ip,sizeof(ip)))continue;int port=(uint8_t(resp[i+4])<<8)|uint8_t(resp[i+5]);if(port>0)peers.push_back({ip,port});}
@@ -374,7 +437,8 @@ bool updatePeer(Session& s,const Frame& f,uint32_t pieceCount){
  }
 }
 bool handshake(Session& s,const Meta& m,const std::string& peerId){
- char h[68]={19};memcpy(h+1,"BitTorrent protocol",19);memcpy(h+28,m.hash.data(),20);memcpy(h+48,peerId.data(),20);
+ char h[68]={19};memcpy(h+1,"BitTorrent protocol",19);h[27]=0x04; // BEP-6 Fast Extension (HAVE_ALL/HAVE_NONE)
+ memcpy(h+28,m.hash.data(),20);memcpy(h+48,peerId.data(),20);
  char response[68];
  if(!sendAll(s.fd,h,sizeof(h))||!recvAll(s.fd,response,sizeof(response))||uint8_t(response[0])!=19||
     memcmp(response+1,"BitTorrent protocol",19)!=0||memcmp(response+28,m.hash.data(),20)!=0){
@@ -403,12 +467,12 @@ bool downloadPiece(Session& s,const Meta& m,uint32_t idx,std::string& output,std
  output.assign(n,'\0');
  std::vector<uint8_t> sent(blockCount,0),received(blockCount,0);
  size_t done=0,outstanding=0;
- const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(55);
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(35);
  int frames=0;
  while(!cancelled.load()&&std::chrono::steady_clock::now()<deadline&&frames++<4096){
   if(s.availability&&!hasPiece(s.pieces,idx)){trace("Peer lost requested piece "+std::to_string(idx));return false;}
   if(!s.choked){
-   for(size_t b=0;b<blockCount&&outstanding<8;b++){
+   for(size_t b=0;b<blockCount&&outstanding<16;b++){
     if(sent[b]||received[b])continue;
     const uint32_t offset=(uint32_t)b*blockSize,length=std::min(blockSize,n-offset);
     std::string request(12,'\0');
@@ -455,7 +519,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.2.0 initialized - log file: "+logPath());}
+Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.2.1 initialized - log file: "+logPath());}
 Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
@@ -503,9 +567,20 @@ void Engine::setUsb(bool enable){std::lock_guard<std::mutex> lock(mutex_);if(bus
 bool Engine::usingUsb()const{std::lock_guard<std::mutex> g(mutex_);return state_.usb;}
 Snapshot Engine::snapshot()const{std::lock_guard<std::mutex> g(mutex_);return state_;}
 void Engine::publish(const std::string& message){{std::lock_guard<std::mutex> g(mutex_);state_.status=message;}trace(message);}
-void Engine::stop(){bool running=false;{std::lock_guard<std::mutex> g(mutex_);running=busy_;if(running){stopRequested_=true;cancellation_.store(true);state_.status="Stopping after current network operation...";}}if(running)trace("User requested transfer stop");}
+void Engine::stop(){
+ bool initiate=false;
+ {
+  std::lock_guard<std::mutex> g(mutex_);
+  if(busy_&&!stopRequested_){
+   stopRequested_=true;cancellation_.store(true);
+   state_.status="Cancelling network requests...";
+   initiate=true;
+  }
+ }
+ if(initiate){trace("CANCEL requested; interrupting active sockets");stopSockets();}
+}
 bool Engine::start(const std::string& path){
- {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;busy_=true;stopRequested_=false;state_.running=true;cancellation_.store(false);state_.paused=false;state_.done=false;state_.loaded=false;state_.lastError.clear();state_.downBps=0;state_.status="Reading torrent metadata...";}
+ {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;busy_=true;stopRequested_=false;networkCancelled.store(false);state_.running=true;cancellation_.store(false);state_.paused=false;state_.done=false;state_.loaded=false;state_.lastError.clear();state_.downBps=0;state_.status="Reading torrent metadata...";}
  trace("START torrent: "+path);
  std::thread([this,path]{run(path);}).detach();return true;
 }
@@ -617,6 +692,10 @@ void Engine::run(std::string path){
   peers.erase(std::unique(peers.begin(),peers.end(),[](const Peer& a,const Peer& b){
    return a.port==b.port&&a.ip==b.ip;
   }),peers.end());
+  uint32_t orderSeed=0;
+  memcpy(&orderSeed,randomness,sizeof(orderSeed));
+  std::shuffle(peers.begin(),peers.end(),std::mt19937(orderSeed+(uint32_t)round));
+
   {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
   trace("Discovery round "+std::to_string(round)+": "+std::to_string(peers.size())+" unique peers");
   if(peers.empty()){
@@ -626,7 +705,7 @@ void Engine::run(std::string path){
   }
   const int startPieces=completeCount.load();
   std::atomic<size_t> nextPeer{0};
-  constexpr int maxWorkers=4;
+  constexpr int maxWorkers=8;
   std::vector<std::thread> workers;
   workers.reserve(maxWorkers);
   for(int workerId=0;workerId<maxWorkers;workerId++){
@@ -642,9 +721,9 @@ void Engine::run(std::string path){
      Session session;
      session.address=p.ip+":"+std::to_string(p.port);
      // Keep PS5-compatible BLOCKING sockets; fcntl(O_NONBLOCK) fails with EACCES.
-     session.fd=dial(p.ip,p.port,7);
+     session.fd=dial(p.ip,p.port,4);
      if(session.fd<0)continue;
-     if(!handshake(session,m,peerId)){close(session.fd);continue;}
+     if(!handshake(session,m,peerId)){closeSocket(session.fd);continue;}
      {std::lock_guard<std::mutex> g(mutex_);state_.activePeers++;}
      trace("Worker "+std::to_string(workerId)+" connected "+session.address);
      if(awaitPeerReady(session,m,cancellation_)){
@@ -667,8 +746,10 @@ void Engine::run(std::string path){
        {
         std::lock_guard<std::mutex> g(stateGuard);
         verified[(size_t)idx]=true;
-        states[(size_t)idx]=2;  // Mark verified only AFTER persistent file write.
-        saveState(resume,verified);
+        states[(size_t)idx]=2;  // Mark verified only AFTER successful file flush.
+        // Rehash on restart is authoritative. Snapshot less frequently to
+        // avoid rewriting a large bitmap on every small piece.
+        if((completeCount.load()%32)==0)saveState(resume,verified);
        }
        completeCount.fetch_add(1);
        {std::lock_guard<std::mutex> g(mutex_);
@@ -693,13 +774,14 @@ void Engine::run(std::string path){
        (void)begun;
       }
      }else trace("Peer did not become ready "+session.address);
-     close(session.fd);
+     closeSocket(session.fd);
      {std::lock_guard<std::mutex> g(mutex_);state_.activePeers--;}
     }
     fclose(output);
    });
   }
   for(auto& worker:workers)worker.join();
+  {std::lock_guard<std::mutex> g(stateGuard);saveState(resume,verified);}
   if(completeCount.load()>startPieces){emptyRounds=0;trace("Round "+std::to_string(round)+" advanced "+std::to_string(completeCount.load()-startPieces)+" pieces");}
   else{emptyRounds++;trace("No verified pieces in round "+std::to_string(round));}
   if(!cancelled()&&completeCount.load()<(int)pieceCount){

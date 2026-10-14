@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.2.0 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.2.1 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -16,7 +16,7 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Internal PS5 and optional USB0 root selection; idle-only switching.
 - **Six bundled legal Linux torrents:** the original Debian 13.7.0 netinst plus five additional official Ubuntu and Linux Mint releases. GitHub Actions validates each bencoded single-file torrent's piece hashes, file length, and expected ISO name; the Debian metadata SHA-256 is pinned.
 - The library displays readable titles and approximate ISO sizes, with D-Pad selection and X to download the chosen torrent.
-- Four concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
+- Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe single-file BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
 
@@ -33,9 +33,18 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 
 Only .torrent metadata files are packaged. The ISO files themselves are downloaded over BitTorrent upon selection. Tracker/peer connectivity remains hardware-untested.
 
+## Faster cancellation and connection handling (v0.2.1)
+
+- Stop/Circle now marks cancellation once and shuts down all registered tracker and peer sockets, which wakes blocked recv/send and prevents repetitive Stop log spam.
+- A cancellable TCP connect uses `ioctl(FIONBIO)` and `select()` with 200 ms cancellation checks. If that is unavailable, `SOCK_NONBLOCK` is attempted. The known-good PS5 blocking socket remains a fallback when both are rejected, and **this fallback can still stall until the kernel's connect timeout**; logs identify the mode actually used.
+- Up to eight peer workers (previously four), shuffled peer order per tracker round, Fast Extension negotiation for peers advertising `HAVE_ALL`, and up to sixteen outstanding 16 KiB blocks per peer.
+- Resume snapshots are written in batches to reduce tiny disk writes; every downloaded piece is still SHA-1 checked and flushed before recording progress.
+- The host-side CI integration test now verifies that Cancel interrupts a deliberately silent peer, as well as full download, corrupted-piece repair, and resume.
+- Real PS5 results are still needed to confirm whether FIONBIO or SOCK_NONBLOCK is allowed on your firmware.
+
 ## Transfer engine v0.2.0
 
-A new stateful wire-protocol engine fixes the common issue where peers shake hands successfully but no useful pieces are requested. It sends INTERESTED once, processes BITFIELD/HAVE/UNCHOKE, reserves only pieces the peer actually advertises, pipelines up to eight 16 KiB requests per piece, verifies each SHA-1 digest and persists it before advancing progress. Four workers schedule distinct pieces in parallel, with bounded timeouts and retry rounds. A duplicate/invalid peer can't mark a piece completed.
+A new stateful wire-protocol engine fixes the common issue where peers shake hands successfully but no useful pieces are requested. It sends INTERESTED once, processes BITFIELD/HAVE/UNCHOKE, reserves only pieces the peer actually advertises, pipelines up to eight 16 KiB requests per piece, verifies each SHA-1 digest and persists it before advancing progress. Eight workers schedule distinct pieces in parallel, with bounded timeouts and retry rounds. A duplicate/invalid peer can't mark a piece completed.
 
 GitHub Actions now runs an **actual host-side C++ engine integration test**, using two localhost peers holding different pieces of the same ISO fixture, plus a tracker, corrupted-disk repair and verified resume.
 
@@ -48,7 +57,7 @@ The provided PS5 log confirmed that the Debian UDP tracker returned 64 peers, pr
 ## Important known limitations
 
 - Single-file BitTorrent v1 only. No multi-file torrents, magnet links, DHT, PEX, or peer encryption. HTTP/HTTPS/UDP trackers are supported; only IPv4 peers are used.
-- Maximum four parallel peer connections. Peer discovery still relies on torrent trackers, so DHT-only swarms remain unsupported.
+- Maximum eight parallel peer connections. Peer discovery still relies on torrent trackers, so DHT-only swarms remain unsupported.
 - Incoming connections, true seeding, upload speeds, pause/resume while open, and arbitrary torrent picker are not supported in the first build. SQUARE cancels the transfer and verified data remains on disk.
 - Peer logic now respects CHOKE/UNCHOKE and requests pieces in a bounded pipeline; peer compatibility and complete download on an actual PS5 remain **unverified**.
 - HTTP trackers transmit announce metadata unencrypted; only transfer legal, trusted content.
