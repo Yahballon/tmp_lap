@@ -11,14 +11,11 @@ import sys
 NAMES = (
     "ubuntu-26.04.1-desktop-amd64.iso.torrent",
     "ubuntu-24.04.5.1-desktop-amd64.iso.torrent",
-    "Fedora-Workstation-Live-x86_64-44.torrent",
+    "lmde-7-cinnamon-64bit.iso.torrent",
     "kubuntu-26.04.1-desktop-amd64.iso.torrent",
     "xubuntu-26.04.1-desktop-amd64.iso.torrent",
     "lubuntu-26.04.1-desktop-amd64.iso.torrent",
 )
-ISO_NAMES = {
-    "Fedora-Workstation-Live-x86_64-44.torrent": "Fedora-Workstation-Live-x86_64-44-1.1.iso",
-}
 EXPECTED_SHA256 = {}
 
 def decode(data: bytes, offset: int = 0, depth: int = 0):
@@ -65,8 +62,7 @@ def validate(root: pathlib.Path):
         info = meta[b"info"]
         assert isinstance(info, dict) and b"files" not in info, f"unsupported multi-file torrent: {path}"
         name = info[b"name"].decode("utf-8", "strict")
-        expected = ISO_NAMES.get(filename, filename[:-8])
-        assert name == expected or (filename.startswith("Fedora-") and name.lower().startswith("fedora-workstation-live") and name.lower().endswith(".iso")), f"unexpected ISO: {name} in {filename}"
+        assert name == filename[:-8], f"unexpected ISO: {name} in {filename}"
         size = info[b"length"]
         assert 1_000_000 < size <= 16*1024**3, f"unsupported ISO length: {name}: {size}"
         piece_len = info[b"piece length"]
