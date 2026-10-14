@@ -116,7 +116,8 @@ int main(){
   prev=now;if(--repeat<=0){if(now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;if(now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;if(now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;repeat=12;}
   auto snapshot=service.snapshot();
   std::vector<pstube::Video> videos=snapshot.videos;
-  if(s.page==3){videos.erase(std::remove_if(videos.begin(),videos.end(),[&](const auto& v){return !service.is_favourite(v.id);}),videos.end());}
+  if(s.page==3)videos=service.favorite_videos();
+  if(s.page==5)videos=service.history_videos();
   s.selected=std::clamp(s.selected,0,std::max(0,(int)videos.size()-1));
   if(s.playing){
    if(pressed&hui::pad_bits::kCircle){player.close();s.playing=false;last_frame=0;}
@@ -138,7 +139,7 @@ int main(){
    if((pressed&hui::pad_bits::kSquare)&&!s.query.empty())s.query.pop_back();
    if(pressed&hui::pad_bits::kTriangle){if(service.search(s.query)){s.keyboard=false;s.page=1;s.focus=1;s.offset=s.selected=0;}}
   }else if(s.inspect){
-   if(pressed&hui::pad_bits::kSquare){service.toggle_favourite(s.active.id);s.notice="Favourite list updated";}
+   if(pressed&hui::pad_bits::kSquare){service.toggle_favourite(s.active);s.notice="Favourite list updated";}
    if(pressed&hui::pad_bits::kTriangle){
     if(service.download(s.active))s.notice="MP4 download queued; check Downloads";
     else s.notice="Download is already active or the video ID is invalid";
@@ -164,7 +165,7 @@ int main(){
     if(pressed&hui::pad_bits::kUp)s.selected=std::max(0,s.selected-(s.page==4?1:3));
     if(pressed&hui::pad_bits::kDown)s.selected=std::min(std::max(0,(int)(s.page==4?snapshot.jobs.size():videos.size())-1),s.selected+(s.page==4?1:3));
     s.offset=(s.selected/9)*9;
-    if(pressed&hui::pad_bits::kSquare){if(!videos.empty()&&s.page!=4){service.toggle_favourite(videos[(size_t)s.selected].id);s.notice="Favourites updated";}}
+    if(pressed&hui::pad_bits::kSquare){if(!videos.empty()&&s.page!=4){service.toggle_favourite(videos[(size_t)s.selected]);s.notice="Favourites updated";}}
     if(pressed&hui::pad_bits::kCross){
      if(s.page==6){static const char* hosts[]={"yewtu.be","inv.nadeko.net","invidious.tiekoetter.com","yt.chocolatemoo53.com"};
       auto it=std::find_if(std::begin(hosts),std::end(hosts),[&](const char* h){return service.instance()==h;});
@@ -175,7 +176,7 @@ int main(){
       if(!file.empty()&&player.open(file))s.playing=true;
       else s.notice="Download has not completed";
      }else if(s.page==1&&videos.empty())s.keyboard=true;
-     else if(!videos.empty()){s.active=videos[(size_t)s.selected];s.inspect=true;s.history.push_back(s.active.id);}
+     else if(!videos.empty()){s.active=videos[(size_t)s.selected];s.inspect=true;service.record_history(s.active);s.history.push_back(s.active.id);}
     }
    }
   }
@@ -209,8 +210,6 @@ int main(){
    text(d,font,atlas,"Search provider: "+service.instance(),430,310,29);
    text(d,font,atlas,"Press Cross to change provider. Availability and rate limits vary.",430,365,23,dim);
    text(d,font,atlas,"Local favourites: /download0/pstube.txt or /data/pstube/state.txt",430,425,22,dim);
-  }else if(s.page==5){
-   text(d,font,atlas,"Opened videos this session: "+std::to_string(s.history.size()),430,315,26,dim);
   }else{
    if(s.page==0)text(d,font,atlas,"Search first to load real videos. No fabricated recommendations.",420,255,22,dim);
    result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
