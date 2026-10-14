@@ -39,13 +39,33 @@ int clampInt(int n,int lo,int hi){return std::max(lo,std::min(n,hi));}
 std::string DownloadManager::torrentDirectory()const{return storageRoot()+"/torrents";}
 std::string DownloadManager::iniPath()const{return storageRoot()+"/settings.ini";}
 std::string DownloadManager::queuePath()const{return storageRoot()+"/cache/queue.db";}
+std::string DownloadManager::sessionMarker()const{return storageRoot()+"/cache/session.active";}
+std::string DownloadManager::recoveryMarker()const{return storageRoot()+"/cache/recovery.hold";}
 DownloadManager::DownloadManager(){
  createDirectories(storageRoot());
  mkdir(torrentDirectory().c_str(),0755);
  loadSettings();loadQueue();
+ const std::string clean=storageRoot()+"/cache/last-exit.ok";
+ // v0.4.1 crashed while automatically restarting persisted queue items.
+ // Guard both unexpected crashes and the first migration of old queue data.
+ recoveryMode_=fileExists(recoveryMarker())||
+    (!jobs_.empty()&&(fileExists(sessionMarker())||!fileExists(clean)));
+ remove(clean.c_str());
+ FILE* marker=fopen(sessionMarker().c_str(),"wb");
+ if(marker){fputs("Torrent Flow session active\n",marker);fclose(marker);}
+ if(recoveryMode_){
+  FILE* hold=fopen(recoveryMarker().c_str(),"wb");
+  if(hold){fputs("Manual confirmation needed to resume queue\n",hold);fclose(hold);}
+ }
  lastScan_=std::chrono::steady_clock::now()-std::chrono::seconds(settings_.scanSeconds+2);
 }
 DownloadManager::~DownloadManager(){stopAll();jobs_.clear();}
+bool DownloadManager::resumeAfterRecovery(){
+ if(!recoveryMode_)return false;
+ recoveryMode_=false;
+ remove(recoveryMarker().c_str());
+ return true;
+}
 void DownloadManager::loadSettings(){
  FILE* f=fopen(iniPath().c_str(),"rb");
  if(!f){saveSettings();return;}
@@ -164,6 +184,11 @@ void DownloadManager::stopAll(){
   if(job->engine){job->engine.reset();if(job->state=="running"||job->state=="stopping"){job->state="queued";job->message="Queued after restart";}}
  }
  saveQueue();
+ remove(sessionMarker().c_str());
+ const std::string clean=storageRoot()+"/cache/last-exit.ok";
+ FILE* f=fopen(clean.c_str(),"wb");
+ if(f){fputs("Clean exit\n",f);fclose(f);}
+ // Intentionally retain recovery.hold until the user explicitly resumes.
 }
 bool DownloadManager::safeDeleteSource(const std::string& path)const{
  if(!ownedTorrentPath(path))return false;
@@ -171,6 +196,7 @@ bool DownloadManager::safeDeleteSource(const std::string& path)const{
  return remove(path.c_str())==0;
 }
 void DownloadManager::launchPending(){
+ if(recoveryMode_)return;
  int active=0;
  for(auto& j:jobs_)if(j->state=="running"||j->state=="stopping")active++;
  for(auto& job:jobs_){
@@ -187,6 +213,7 @@ void DownloadManager::launchPending(){
  }
 }
 void DownloadManager::scan(bool force){
+ if(recoveryMode_)return;
  if(!settings_.autoDownload&&!force)return;
  const auto now=std::chrono::steady_clock::now();
  if(!force&&now-lastScan_<std::chrono::seconds(settings_.scanSeconds))return;
