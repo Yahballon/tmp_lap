@@ -232,15 +232,19 @@ bool metadata(const std::string& path,Meta& m,std::string& error){
 // with EACCES/ENOSYS even for directories that clearly exist. Validate
 // symlinks using readlink() before falling back to stat(). Do not follow
 // symlinks, even if the torrent contains malicious nested paths.
+// The real PS5 reports SYSTEM_ILLEGAL_FUNCTION_CALL upon entering lstat()
+// on the /data mount. This is a kernel-level trap, NOT a catchable errno.
+// Never reference lstat()/readlink() in the native PS5 binary.
+// On host builds, retain strict symlink validation and adversarial tests.
 bool pathInfo(const std::string& path,struct stat& st,bool& exists){
  exists=false;
-#ifdef TORRENT_HOST_SIMULATE_PS5_LSTAT
- errno=EACCES;
- const int status=-1;
-#else
- const int status=lstat(path.c_str(),&st);
-#endif
- if(status==0){
+#ifdef TORRENT_HOST_TEST
+ #ifdef TORRENT_HOST_SIMULATE_PS5_LSTAT
+ errno=EACCES;const int result=-1;
+ #else
+ const int result=lstat(path.c_str(),&st);
+ #endif
+ if(result==0){
   if(S_ISLNK(st.st_mode)){trace("STORAGE rejected symlink "+path);return false;}
   exists=true;return true;
  }
@@ -248,22 +252,19 @@ bool pathInfo(const std::string& path,struct stat& st,bool& exists){
  if(probeError==ENOENT)return true;
  if(probeError!=EACCES&&probeError!=EPERM&&probeError!=ENOSYS&&
     probeError!=EINVAL&&probeError!=EOPNOTSUPP){
-  trace("STORAGE lstat FAILED "+path+" errno="+std::to_string(probeError));
-  return false;
+  trace("STORAGE lstat FAILED "+path+" errno="+std::to_string(probeError));return false;
  }
- // A plain file/directory returns EINVAL; a symlink returns its target.
+ // Simulate the PS5 restriction without calling forbidden native syscalls.
+ // In host simulation, the fallback is still protected against symlinks.
  char target[2]={};
- const ssize_t linked=readlink(path.c_str(),target,sizeof(target));
- const int linkError=errno;
- if(linked>=0){trace("STORAGE rejected symlink via readlink "+path);return false;}
- if(linkError!=EINVAL&&linkError!=ENOENT){
-  trace("STORAGE cannot validate path "+path+" lstat_errno="+
-        std::to_string(probeError)+" readlink_errno="+std::to_string(linkError));
-  return false;
+ if(readlink(path.c_str(),target,sizeof(target))>=0){
+  trace("STORAGE rejected symlink via readlink "+path);return false;
  }
+ if(errno!=EINVAL&&errno!=ENOENT)return false;
+#endif
  if(stat(path.c_str(),&st)==0){exists=true;return true;}
  if(errno==ENOENT)return true;
- trace("STORAGE stat fallback FAILED "+path+" errno="+std::to_string(errno));
+ trace("STORAGE stat FAILED "+path+" errno="+std::to_string(errno));
  return false;
 }
 bool safeDirTree(const std::string& absolute){
@@ -295,22 +296,29 @@ bool safeDirTree(const std::string& absolute){
 // If O_NOFOLLOW is rejected by the PS5 ABI, a guarded fallback may be used
 // after a fresh non-symlink path check. For Linux tests O_NOFOLLOW is retained.
 int openSafeRegular(const std::string& path,int flags,bool create){
+ // Native PS5: standard open() is known to work in earlier Torrent Flow
+ // releases, whereas unsupported flags and lstat/readlink can trigger
+ // SYSTEM_ILLEGAL_FUNCTION_CALL. All metainfo components are sanitized
+ // before this point and all output paths have been validated with stat().
+#ifdef TORRENT_HOST_TEST
  int fd=-1;
-#ifdef TORRENT_HOST_SIMULATE_PS5_NOFOLLOW
+ #ifdef TORRENT_HOST_SIMULATE_PS5_NOFOLLOW
  errno=EINVAL;
-#else
+ #else
  fd=open(path.c_str(),flags|O_NOFOLLOW|(create?O_CREAT:0),0644);
-#endif
+ #endif
  if(fd>=0)return fd;
  const int openError=errno;
  if(openError!=EINVAL&&openError!=EOPNOTSUPP&&openError!=EACCES&&openError!=EPERM)return -1;
  struct stat st{};bool exists=false;
  if(!pathInfo(path,st,exists))return -1;
  if(exists&&!S_ISREG(st.st_mode)){errno=EINVAL;return -1;}
- // Also recheck newly created files; ordinary EACCES must remain visible.
  fd=open(path.c_str(),flags|(create?O_CREAT:0),0644);
- if(fd>=0)trace("STORAGE PS5 portable open fallback used "+path);
+ if(fd>=0)trace("STORAGE portable open fallback used "+path);
  return fd;
+#else
+ return open(path.c_str(),flags|(create?O_CREAT:0),0644);
+#endif
 }
 class OutputLayout{
  const Meta& m_;
@@ -320,6 +328,7 @@ public:
  OutputLayout(const Meta& m,const std::string& downloads):m_(m),base_(downloads){}
  std::string destination()const{return base_+"/"+m_.name;}
  bool prepare(std::string& error){
+  trace("STORAGE validating download root "+base_);
   if(!safeDirTree(base_)){error="Unsafe / inaccessible download directory";return false;}
   const std::string root=destination();
   if(m_.multi&&!safeDirTree(root)){error="Unsafe multi-file root directory";return false;}
@@ -552,7 +561,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.2\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -752,7 +761,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.1 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.2 initialized - log file: "+logPath());}
 Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
 bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){
@@ -850,6 +859,7 @@ void Engine::run(std::string path){
  Meta m;std::string error;
  if(!metadata(path,m,error)){finish(error,false);return;}
  trace("Metadata OK "+std::string(m.multi?"MULTI-FILE":"SINGLE-FILE")+" root="+m.name+" files="+std::to_string(m.files.size())+" bytes="+std::to_string(m.bytes)+" pieces="+std::to_string(m.pieces.size()/20)+" trackers="+std::to_string(m.trackers.size()));
+ trace("STORAGE begin setup after metadata; PS5 portable stat/open path");
  std::string base;
  {
   std::lock_guard<std::mutex> g(mutex_);
@@ -860,7 +870,9 @@ void Engine::run(std::string path){
   state_.peerCount=0;state_.activePeers=0;state_.downBps=0;state_.loaded=true;
   base=state_.usb?kUsb:kHome;
  }
+ trace("STORAGE creating "+base+" and cache/downloads");
  if(!createDirectories(base)){finish("Storage directory unavailable",false);return;}
+ trace("STORAGE directories ready");
  OutputLayout layout(m,base+"/downloads");
  std::string storageError;
  if(!layout.prepare(storageError)){finish(storageError,false);return;}

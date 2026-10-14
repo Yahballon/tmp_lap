@@ -31,6 +31,8 @@ public:
  void cancel(size_t index);
  void retry(size_t index);
  void stopAll();
+ bool isRecoveryMode() const {return recoveryMode_;}
+ bool resumeAfterRecovery();
  std::vector<JobInfo> jobs() const;
  QueueSettings settings() const { return settings_; }
  void setAutoDownload(bool enabled);
@@ -52,6 +54,9 @@ private:
  std::map<std::string,std::string> observed_;
  std::chrono::steady_clock::time_point lastScan_;
  bool inTick_=false;
+ bool recoveryMode_=false;
+ std::string sessionMarker() const;
+ std::string recoveryMarker() const;
  void loadSettings();
  void saveSettings() const;
  void loadQueue();
