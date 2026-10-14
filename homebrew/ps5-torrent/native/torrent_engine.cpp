@@ -29,6 +29,15 @@ namespace {
 const char* kHome="/data/ps5-torrent";
 const char* kUsb="/mnt/usb0/ps5-torrent";
 const char* kTest="debian-13.7.0-amd64-netinst.iso.torrent";
+struct TestInfo {const char* file;const char* display;const char* size;};
+const TestInfo kTests[]={
+ {"debian-13.7.0-amd64-netinst.iso.torrent","Debian 13.7 netinst","~756 MiB"},
+ {"ubuntu-26.04.1-live-server-amd64.iso.torrent","Ubuntu 26.04.1 LTS Server","~2.7 GiB"},
+ {"ubuntu-24.04.5-live-server-amd64.iso.torrent","Ubuntu 24.04.5 LTS Server","~3.8 GiB"},
+ {"linuxmint-22.3-cinnamon-64bit.iso.torrent","Linux Mint 22.3 Cinnamon","~2.9 GiB"},
+ {"linuxmint-22.3-xfce-64bit.iso.torrent","Linux Mint 22.3 Xfce","~2.8 GiB"},
+ {"linuxmint-22.3-mate-64bit.iso.torrent","Linux Mint 22.3 MATE","~2.9 GiB"}
+};
 bool isDir(const std::string& p){struct stat st{};return stat(p.c_str(),&st)==0&&S_ISDIR(st.st_mode);}
 bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return false;std::string s;for(char c:p){s+=c;if(c=='/'&&s.size()>1)mkdir(s.c_str(),0755);}return mkdir(s.c_str(),0755)==0||isDir(s);}
 
@@ -253,9 +262,24 @@ Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
 const char* sampleTorrentPath(){return "/app0/assets/test/debian-13.7.0-amd64-netinst.iso.torrent";}
+std::string testDisplayName(const std::string& path){
+ for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.display;
+ return path;
+}
+std::string testSizeHint(const std::string& path){
+ for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.size;
+ return "Unknown";
+}
 std::vector<std::string> discoverTorrents(){
- std::vector<std::string> out;const std::string roots[]={"/app0/assets/test","/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
- for(const auto& p:roots){std::string path=p+"/"+kTest;struct stat st{};if(stat(path.c_str(),&st)==0&&S_ISREG(st.st_mode))out.push_back(path);}
+ std::vector<std::string> out;
+ const std::string roots[]={"/app0/assets/test","/data/homebrew/PPSA99684/assets/test","/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
+ for(const auto& t:kTests)for(const auto& root:roots){
+  std::string path=root+"/"+t.file;
+  struct stat st{};
+  if(stat(path.c_str(),&st)==0&&S_ISREG(st.st_mode)&&st.st_size>0&&st.st_size<=1024*1024){
+   out.push_back(path);break;
+  }
+ }
  return out;
 }
 void Engine::setUsb(bool enable){std::lock_guard<std::mutex> lock(mutex_);if(busy_)return;state_.usb=enable;std::string base=enable?kUsb:kHome;state_.cacheDir=base+"/cache";state_.downloadDir=base+"/downloads";if(!enable)createDirectories(base);else if(!isDir("/mnt/usb0"))state_.status="USB 0 not mounted";else createDirectories(base);}
