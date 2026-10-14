@@ -168,28 +168,103 @@ bool recvAll(int fd,void* data,size_t n){auto* p=(char*)data;while(n){ssize_t k=
 uint32_t be32(const char* p){return (uint32_t(uint8_t(p[0]))<<24)|(uint32_t(uint8_t(p[1]))<<16)|(uint32_t(uint8_t(p[2]))<<8)|uint8_t(p[3]);}
 void store32(char* p,uint32_t n){for(int i=0;i<4;i++)p[i]=(char)(n>>(24-8*i));}
 struct Peer{std::string ip;int port;};
-std::vector<Peer> tracker(const Meta& m,const std::string& peerId,uint64_t left){
- Url u;if(!url(m.announce,u)){trace("TRACKER invalid HTTP announce URL");return {};}
- trace("HTTP tracker "+u.host+":"+std::to_string(u.port)+" announce...");
- std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- int fd=dial(u.host,u.port,6);if(fd<0){trace("HTTP tracker connection FAILED");return {};}
- std::string req="GET "+q+" HTTP/1.0\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.1\r\nConnection: close\r\n\r\n";
- if(!sendAll(fd,req.data(),req.size())){trace("HTTP tracker send FAILED errno="+std::to_string(errno));close(fd);return {};}
- std::string response;char buffer[4096];ssize_t got=0;
- while(response.size()<256*1024&&(got=recv(fd,buffer,sizeof(buffer),0))>0)response.append(buffer,(size_t)got);
- if(got<0)trace("HTTP tracker read timeout/socket error errno="+std::to_string(errno));
- close(fd);
- if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
-  trace("HTTP tracker bad status: "+response.substr(0,std::min<size_t>(response.size(),80)));return {};
+bool httpResponse(const Url& u,const std::string& req,std::string& response){
+ int fd=dial(u.host,u.port,8);if(fd<0){trace("Tracker connection FAILED");return false;}
+ SSL_CTX* ctx=nullptr;SSL* ssl=nullptr;bool ok=false;
+ if(u.tls){
+  ctx=SSL_CTX_new(TLS_client_method());
+  if(!ctx){trace("TLS context FAILED");close(fd);return false;}
+  SSL_CTX_set_min_proto_version(ctx,TLS1_2_VERSION);
+  SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,nullptr);
+  BIO* input=BIO_new_mem_buf(kCaBundle,-1);
+  int trusted=0;
+  if(input){
+   X509_STORE* store=SSL_CTX_get_cert_store(ctx);X509* cert=nullptr;
+   while((cert=PEM_read_bio_X509(input,nullptr,nullptr,nullptr))!=nullptr){
+    if(X509_STORE_add_cert(store,cert)==1)trusted++;
+    X509_free(cert);
+   }
+   BIO_free(input);ERR_clear_error();
+  }
+  if(!trusted){trace("TLS trust store is empty");SSL_CTX_free(ctx);close(fd);return false;}
+  ssl=SSL_new(ctx);
+  if(!ssl){trace("TLS SSL_new FAILED");SSL_CTX_free(ctx);close(fd);return false;}
+  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,u.host.c_str());SSL_set1_host(ssl,u.host.c_str());
+  if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){
+   trace("TLS handshake/certificate validation FAILED host="+u.host+" ssl_error="+std::to_string(ERR_get_error()));
+  }else{
+   size_t written=0;
+   while(written<req.size()){
+    int n=SSL_write(ssl,req.data()+written,(int)std::min<size_t>(16384,req.size()-written));
+    if(n<=0){trace("TLS tracker send FAILED ssl_error="+std::to_string(SSL_get_error(ssl,n)));break;}
+    written+=(size_t)n;
+   }
+   if(written==req.size()){
+    char buff[4096];int n=0;
+    while(response.size()<256*1024&&(n=SSL_read(ssl,buff,sizeof(buff)))>0)response.append(buff,(size_t)n);
+    if(n<0)trace("TLS tracker receive error ssl_error="+std::to_string(SSL_get_error(ssl,n)));
+    ok=!response.empty();
+   }
+  }
+ }else{
+  if(sendAll(fd,req.data(),req.size())){
+   char buffer[4096];ssize_t got=0;
+   while(response.size()<256*1024&&(got=recv(fd,buffer,sizeof(buffer),0))>0)response.append(buffer,(size_t)got);
+   if(got<0)trace("HTTP tracker receive timeout errno="+std::to_string(errno));
+   ok=!response.empty();
+  }else trace("HTTP tracker send FAILED errno="+std::to_string(errno));
  }
- size_t body=response.find("\r\n\r\n");if(body==std::string::npos){trace("HTTP tracker header parse FAILED");return {};}body+=4;
- B root;size_t offset=0;std::string data=response.substr(body);
- if(!parse(data,offset,root)){trace("HTTP tracker bencode invalid; bytes="+std::to_string(data.size()));return {};}
- if(!root.get("failure reason").v.empty()){trace("HTTP tracker rejected: "+root.get("failure reason").v);return {};}
+ if(ssl)SSL_free(ssl);
+ if(ctx)SSL_CTX_free(ctx);
+ close(fd);
+ return ok;
+}
+bool unchunk(std::string& body){
+ std::string out;size_t pos=0;
+ while(pos<body.size()){
+  size_t end=body.find("\r\n",pos);if(end==std::string::npos||end-pos>32)return false;
+  std::string hexLen=body.substr(pos,end-pos);size_t semicolon=hexLen.find(';');if(semicolon!=std::string::npos)hexLen.resize(semicolon);
+  char* ep=nullptr;unsigned long n=strtoul(hexLen.c_str(),&ep,16);
+  if(hexLen.empty()||!ep||*ep||n>256*1024)return false;
+  pos=end+2;
+  if(n==0){body.swap(out);return true;}
+  if(n>body.size()-pos||pos+n+2>body.size()||body.compare(pos+n,2,"\r\n")!=0)return false;
+  out.append(body.data()+pos,n);if(out.size()>256*1024)return false;
+  pos+=n+2;
+ }
+ return false;
+}
+std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left){
+ Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
+ trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
+ std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.2\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
+ if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
+  trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
+ }
+ size_t body=response.find("\r\n\r\n");if(body==std::string::npos){trace("Tracker HTTP header parse FAILED");return {};}
+ std::string headers=response.substr(0,body);
+ body+=4;std::string data=response.substr(body);
+ if(headers.find("Transfer-Encoding: chunked")!=std::string::npos||headers.find("transfer-encoding: chunked")!=std::string::npos){
+  if(!unchunk(data)){trace("Tracker chunked HTTP payload malformed");return {};}
+ }
+ B root;size_t offset=0;
+ if(!parse(data,offset,root)){trace("Tracker invalid bencode body="+std::to_string(data.size()));return {};}
+ if(!root.get("failure reason").v.empty()){trace("Tracker rejected announce: "+root.get("failure reason").v);return {};}
  std::vector<Peer> peers;const B& a=root.get("peers");
- if(a.type=='s'){for(size_t i=0;i+6<=a.v.size()&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip)))continue;int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});}}
- else if(a.type=='l'){for(const auto& e:a.list){auto ip=e.get("ip").v;int port=(int)e.get("port").number();if(ip.size()<64&&port>0&&port<=65535&&peers.size()<100)peers.push_back({ip,port});}}
- trace("HTTP tracker returned "+std::to_string(peers.size())+" peers");return peers;
+ if(a.type=='s'){
+  for(size_t i=0;i+6<=a.v.size()&&peers.size()<100;i+=6){
+   char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip)))continue;
+   int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});
+  }
+ }else if(a.type=='l'){
+  for(const auto& e:a.list){
+   auto ip=e.get("ip").v;int port=(int)e.get("port").number();
+   if(ip.size()<64&&port>0&&port<=65535&&peers.size()<100)peers.push_back({ip,port});
+  }
+ }
+ trace("Tracker response OK: "+std::to_string(peers.size())+" peers");return peers;
 }
 void store64(char* p,uint64_t n){for(int i=0;i<8;i++)p[i]=(char)(n>>(56-8*i));}
 std::vector<Peer> udpFallback(const Meta& m,const std::string& peerId,uint64_t left){
