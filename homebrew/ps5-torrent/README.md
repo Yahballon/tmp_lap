@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.3.2 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.4.0 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -14,11 +14,27 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Restart/resume by rehashing existing output file; cache includes a per-torrent resume snapshot.
 - Persistent separate cache and download directories.
 - Internal PS5 and optional USB0 root selection; idle-only switching.
-- **Six refreshed legal desktop Linux release torrents** from official Ubuntu and Linux Mint sources. GitHub Actions validates their bencoded single-file metadata, piece hash count, expected image name and size, and pins downloaded metadata hashes after first build.
+- **Six refreshed legal Linux release torrents** from official Ubuntu and Fedora sources. GitHub Actions validates their bencoded single- and multi-file BitTorrent v1 metadata, piece hash count, expected image name and size, and pins downloaded metadata hashes after first build.
 - The library displays readable titles and approximate ISO sizes. X queues the selected torrent; SQUARE queues all torrents (Download All).
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
-- Import additional safe single-file BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+- Import additional safe BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+
+## Multi-file BitTorrent v1 (v0.4.0)
+
+Torrent Flow now supports the BEP 3 `info.files` layout. Fedora Workstation 44 is included as a real multi-file example. Files are stored under the torrent name directory, such as:
+
+```
+/data/ps5-torrent/downloads/<torrent-name>/
+  <subfolder>/<file>
+  <other-file>
+```
+
+Piece hashes are verified on the **concatenation of all file data in metadata order**, even when one piece crosses file boundaries. Verified pieces are rehashed on restart, so damaged partial files can be repaired. Empty files and nested directories are created as needed.
+
+Security checks reject absolute paths, traversal sequences, unsafe path components, duplicate/conflicting file paths and symlinks that would escape the output directory. The current implementation supports **BitTorrent v1 multi-file** (not v2-only metainfo), a maximum of 2048 files per torrent and a total size up to 16 GiB. Metadata that violates these limits is refused.
+
+CI now runs a dedicated host integration test that downloads a three-file torrent plus an empty file using the actual C++ engine, repairs deliberate corruption in a second file, verifies resume and rejects malicious paths. **Full Fedora download on real PS5 hardware remains to be tested.**
 
 ## Auto-download cancel safety (v0.3.1)
 
@@ -47,7 +63,7 @@ scan_interval_seconds=3
 storage=internal
 ```
 
-Copy **complete** `.torrent` files into `/data/ps5-torrent/torrents/`. When `auto_download=1`, Torrent Flow scans this directory (default every 3 seconds) **while the app is running**, waits for a file to have unchanged size/mtime across two scans, validates its single-file v1 metadata and queues it. It keeps processing pending jobs until the queue is empty. This is **not a background system daemon**, so the PS5 app needs to stay open.
+Copy **complete** `.torrent` files into `/data/ps5-torrent/torrents/`. When `auto_download=1`, Torrent Flow scans this directory (default every 3 seconds) **while the app is running**, waits for a file to have unchanged size/mtime across two scans, validates its BitTorrent v1 metadata and queues it. It keeps processing pending jobs until the queue is empty. This is **not a background system daemon**, so the PS5 app needs to stay open.
 
 After a fully SHA-1 verified successful download, the corresponding **user-supplied** `.torrent` file from the watched `torrents/` or imported `cache/` folder is deleted if `delete_completed_torrents=1`. On errors, incomplete downloads, or cancel, the metadata is retained. Bundled `.torrent` files in `/app0/assets/test/` are **never deleted**.
 
@@ -59,7 +75,7 @@ Settings can be changed using the PS5 Settings tab (X on highlighted row), or by
 | --- | --- | --- |
 | Ubuntu 26.04.1 LTS Desktop | 6.0 GiB | [Ubuntu 26.04](https://releases.ubuntu.com/26.04/) |
 | Ubuntu 24.04.5.1 LTS Desktop | 5.8 GiB | [Ubuntu 24.04](https://releases.ubuntu.com/24.04/) |
-| Linux Mint LMDE 7 Cinnamon | 3.0 GiB | [LMDE 7](https://www.linuxmint.com/edition.php?id=325) |
+| Fedora Workstation 44 (multi-file) | 2.7 GiB | [Fedora torrents](https://torrent.fedoraproject.org/) |
 | Kubuntu 26.04.1 LTS | 4.7 GiB | [Kubuntu releases](https://cdimage.ubuntu.com/kubuntu/releases/26.04/release/) |
 | Xubuntu 26.04.1 LTS | 4.8 GiB | [Xubuntu releases](https://cdimage.ubuntu.com/xubuntu/releases/26.04/release/) |
 | Lubuntu 26.04.1 LTS | 3.7 GiB | [Lubuntu releases](https://cdimage.ubuntu.com/lubuntu/releases/26.04/release/) |
@@ -91,7 +107,7 @@ The provided PS5 log confirmed that the Debian UDP tracker returned 64 peers, pr
 
 ## Important known limitations
 
-- Single-file BitTorrent v1 only. No multi-file torrents, magnet links, DHT, PEX, or peer encryption. HTTP/HTTPS/UDP trackers are supported; only IPv4 peers are used.
+- Single-file BitTorrent v1 only. No magnet links, DHT, PEX, or peer encryption. HTTP/HTTPS/UDP trackers are supported; only IPv4 peers are used.
 - Maximum eight parallel peer connections. Peer discovery still relies on torrent trackers, so DHT-only swarms remain unsupported.
 - Incoming connections, true seeding, upload speeds, pause/resume while open, and arbitrary torrent picker are not supported in the first build. SQUARE cancels the transfer and verified data remains on disk.
 - Peer logic now respects CHOKE/UNCHOKE and requests pieces in a bounded pipeline; peer compatibility and complete download on an actual PS5 remain **unverified**.
