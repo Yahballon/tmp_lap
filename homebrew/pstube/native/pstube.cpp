@@ -166,7 +166,7 @@ std::vector<Video> parse_search(const std::string& s){
 }
 Service::Service(){
  mkdirs();
- for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[16384]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
+ for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[65536]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
    if(line.substr(0,2)=="F "&&valid_id(line.substr(2))&&fav_.size()<300)fav_.push_back(line.substr(2));
