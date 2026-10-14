@@ -123,7 +123,7 @@ jobs:
           clang++-18 -std=c++17 -Ibuild/gold872-engine/include $(pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf) homebrew/starbound-rebased/tools/test-level-parser.cpp -o /tmp/test-level-parser $(pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf)
           /tmp/test-level-parser homebrew/starbound-rebased/res/data
           python3 homebrew/starbound-rebased/tools/test-sentry-lifetime.py build/gold872-engine /tmp/test-sentry.cpp
-          clang++-18 -std=c++17 -include cstdint -Ibuild/gold872-engine/include $(pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf) /tmp/test-sentry.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/systems/CallbackSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp -o /tmp/test-sentry $(pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf)
+          clang++-18 -std=c++17 -include cstdint -Ibuild/gold872-engine/include $(pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf) /tmp/test-sentry.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/systems/CallbackSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp build/gold872-engine/src/AABBCollision.cpp -o /tmp/test-sentry $(pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf)
           /tmp/test-sentry
           cp app/src/startup.cpp /tmp/starbound-startup.cpp
           rm -rf app/src

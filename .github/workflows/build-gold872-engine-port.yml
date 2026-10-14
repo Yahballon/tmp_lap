@@ -60,7 +60,7 @@ jobs:
             $(sdl2-config --cflags --libs) -lSDL2_image -lSDL2_mixer -lSDL2_ttf
           /tmp/test-level-parser homebrew/starbound-rebased/res/data
           python3 homebrew/starbound-rebased/tools/test-sentry-lifetime.py build/gold872-engine /tmp/test-sentry.cpp
-          g++ -std=c++17 -include cstdint -Ibuild/gold872-engine/include /tmp/test-sentry.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/systems/CallbackSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp -o /tmp/test-sentry $(sdl2-config --cflags --libs) -lSDL2_image -lSDL2_mixer -lSDL2_ttf
+          g++ -std=c++17 -include cstdint -Ibuild/gold872-engine/include /tmp/test-sentry.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/systems/CallbackSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp build/gold872-engine/src/AABBCollision.cpp -o /tmp/test-sentry $(sdl2-config --cflags --libs) -lSDL2_image -lSDL2_mixer -lSDL2_ttf
           /tmp/test-sentry
           python3 homebrew/starbound-rebased/tools/audit-upstream-assets.py build/gold872-engine
           test -s /tmp/starbound-rebased-desktop
