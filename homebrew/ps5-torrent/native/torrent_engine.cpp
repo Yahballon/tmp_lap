@@ -132,19 +132,54 @@ uint32_t be32(const char* p){return (uint32_t(uint8_t(p[0]))<<24)|(uint32_t(uint
 void store32(char* p,uint32_t n){for(int i=0;i<4;i++)p[i]=(char)(n>>(24-8*i));}
 struct Peer{std::string ip;int port;};
 std::vector<Peer> tracker(const Meta& m,const std::string& peerId,uint64_t left){
- Url u;if(!url(m.announce,u))return {};
- std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=45&event=started";
- int fd=dial(u.host,u.port,6);if(fd<0)return {};
- std::string req="GET "+q+" HTTP/1.0\r\nHost: "+u.host+"\r\nUser-Agent: PS5-Torrent/0.1\r\nConnection: close\r\n\r\n";
- if(!sendAll(fd,req.data(),req.size())){close(fd);return {};}
- std::string response;char buf[4096];ssize_t n=0;while(response.size()<256*1024&&(n=recv(fd,buf,sizeof(buf),0))>0)response.append(buf,(size_t)n);close(fd);
- if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200")return {};
- size_t body=response.find("\r\n\r\n");if(body==std::string::npos)return {};body+=4;
- B root;size_t off=0;std::string data=response.substr(body);if(!parse(data,off,root))return {};
+ Url u;if(!url(m.announce,u)){trace("TRACKER invalid HTTP announce URL");return {};}
+ trace("HTTP tracker "+u.host+":"+std::to_string(u.port)+" announce...");
+ std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
+ int fd=dial(u.host,u.port,6);if(fd<0){trace("HTTP tracker connection FAILED");return {};}
+ std::string req="GET "+q+" HTTP/1.0\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.1\r\nConnection: close\r\n\r\n";
+ if(!sendAll(fd,req.data(),req.size())){trace("HTTP tracker send FAILED errno="+std::to_string(errno));close(fd);return {};}
+ std::string response;char buffer[4096];ssize_t got=0;
+ while(response.size()<256*1024&&(got=recv(fd,buffer,sizeof(buffer),0))>0)response.append(buffer,(size_t)got);
+ if(got<0)trace("HTTP tracker read timeout/socket error errno="+std::to_string(errno));
+ close(fd);
+ if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
+  trace("HTTP tracker bad status: "+response.substr(0,std::min<size_t>(response.size(),80)));return {};
+ }
+ size_t body=response.find("\r\n\r\n");if(body==std::string::npos){trace("HTTP tracker header parse FAILED");return {};}body+=4;
+ B root;size_t offset=0;std::string data=response.substr(body);
+ if(!parse(data,offset,root)){trace("HTTP tracker bencode invalid; bytes="+std::to_string(data.size()));return {};}
+ if(!root.get("failure reason").v.empty()){trace("HTTP tracker rejected: "+root.get("failure reason").v);return {};}
  std::vector<Peer> peers;const B& a=root.get("peers");
- if(a.type=='s'){for(size_t i=0;i+6<=a.v.size();i+=6){char ip[INET_ADDRSTRLEN];inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip));int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});}}
- else if(a.type=='l'){for(const auto& e:a.list){auto ip=e.get("ip").v;int port=(int)e.get("port").number();if(ip.size()<64&&port>0&&port<=65535)peers.push_back({ip,port});}}
- return peers;
+ if(a.type=='s'){for(size_t i=0;i+6<=a.v.size()&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip)))continue;int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});}}
+ else if(a.type=='l'){for(const auto& e:a.list){auto ip=e.get("ip").v;int port=(int)e.get("port").number();if(ip.size()<64&&port>0&&port<=65535&&peers.size()<100)peers.push_back({ip,port});}}
+ trace("HTTP tracker returned "+std::to_string(peers.size())+" peers");return peers;
+}
+void store64(char* p,uint64_t n){for(int i=0;i<8;i++)p[i]=(char)(n>>(56-8*i));}
+std::vector<Peer> udpFallback(const Meta& m,const std::string& peerId,uint64_t left){
+ const std::string host="tracker.opentrackr.org";
+ trace("Debian fallback: UDP tracker "+host+":1337");
+ struct addrinfo hints{},*head=nullptr;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_DGRAM;
+ int result=getaddrinfo(host.c_str(),"1337",&hints,&head);
+ if(result!=0){trace("UDP tracker DNS FAILED "+std::to_string(result));return {};}
+ int fd=socket(AF_INET,SOCK_DGRAM,0);if(fd<0){freeaddrinfo(head);trace("UDP socket FAILED errno="+std::to_string(errno));return {};}
+ struct timeval timeout{5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+ if(connect(fd,head->ai_addr,head->ai_addrlen)!=0){trace("UDP tracker connect FAILED errno="+std::to_string(errno));freeaddrinfo(head);close(fd);return {};}
+ freeaddrinfo(head);
+ char req[98]={},resp[4096]={};
+ store64(req,0x41727101980ULL);store32(req+8,0);store32(req+12,0x15104320);
+ if(send(fd,req,16,0)!=16){trace("UDP tracker handshake send FAILED");close(fd);return {};}
+ ssize_t n=recv(fd,resp,sizeof(resp),0);
+ if(n<16||be32(resp)!=0||be32(resp+4)!=0x15104320){trace("UDP handshake timeout/rejected len="+std::to_string(n)+" errno="+std::to_string(errno));close(fd);return {};}
+ memcpy(req,resp+8,8);store32(req+8,1);store32(req+12,0x15104321);
+ memcpy(req+16,m.hash.data(),20);memcpy(req+36,peerId.data(),20);
+ store64(req+56,0);store64(req+64,left);store64(req+72,0);store32(req+80,2);
+ store32(req+84,0);store32(req+88,0x15381111);store32(req+92,0xffffffffU);req[96]=(char)(6889>>8);req[97]=(char)(6889&255);
+ if(send(fd,req,sizeof(req),0)!=(ssize_t)sizeof(req)){trace("UDP announce send FAILED");close(fd);return {};}
+ n=recv(fd,resp,sizeof(resp),0);close(fd);
+ if(n<20||be32(resp)!=1||be32(resp+4)!=0x15104321){trace("UDP announce FAILED len="+std::to_string(n)+" errno="+std::to_string(errno));return {};}
+ std::vector<Peer> peers;
+ for(ssize_t i=20;i+6<=n&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,resp+i,ip,sizeof(ip)))continue;int port=(uint8_t(resp[i+4])<<8)|uint8_t(resp[i+5]);if(port>0)peers.push_back({ip,port});}
+ trace("UDP tracker returned "+std::to_string(peers.size())+" peers");return peers;
 }
 bool sendMsg(int fd,uint8_t id,const std::string& body={}){std::string b(5+body.size(),0);store32(&b[0],(uint32_t)(body.size()+1));b[4]=(char)id;std::copy(body.begin(),body.end(),b.begin()+5);return sendAll(fd,b.data(),b.size());}
 uint32_t pieceSize(const Meta& m,uint32_t index){uint64_t remain=m.bytes-(uint64_t)index*m.piece;return(uint32_t)std::min<uint64_t>(m.piece,remain);}
