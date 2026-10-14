@@ -34,6 +34,27 @@
 #include <dirent.h>
 #include <unistd.h>
 namespace torrent {
+struct SocketRegistry {
+ std::mutex mutex;
+ std::vector<int> live;
+ std::atomic<bool> cancelled{false};
+ bool add(int fd){
+  std::lock_guard<std::mutex> g(mutex);
+  if(cancelled.load()){close(fd);return false;}
+  live.push_back(fd);return true;
+ }
+ void release(int fd){
+  std::lock_guard<std::mutex> g(mutex);
+  auto it=std::find(live.begin(),live.end(),fd);
+  if(it!=live.end())live.erase(it);
+  close(fd);
+ }
+ void stop(){
+  cancelled.store(true);
+  std::lock_guard<std::mutex> g(mutex);
+  for(int fd:live)shutdown(fd,SHUT_RDWR);
+ }
+};
 namespace {
 #ifdef TORRENT_HOST_TEST
 const char* kHome="/tmp/torrent-flow-host-test";
@@ -145,30 +166,12 @@ bool url(const std::string& input,Url& out){
  }
  return !out.host.empty()&&out.host.size()<200&&out.port>0&&out.port<=65535&&out.path.size()<2000;
 }
-// Registered sockets make Stop interrupt blocked peer reads immediately.
-// shutdown() is issued while holding the same mutex used during close, so
-// descriptors cannot be reused underneath the cancellation operation.
-std::mutex socketsMutex;
-std::vector<int> liveSockets;
-std::atomic<bool> networkCancelled{false};
-bool registerSocket(int fd){
- std::lock_guard<std::mutex> lock(socketsMutex);
- if(networkCancelled.load()){close(fd);return false;}
- liveSockets.push_back(fd);return true;
-}
-void closeSocket(int fd){
- if(fd<0)return;
- std::lock_guard<std::mutex> lock(socketsMutex);
- auto it=std::find(liveSockets.begin(),liveSockets.end(),fd);
- if(it!=liveSockets.end())liveSockets.erase(it);
- close(fd);
-}
-void stopSockets(){
- networkCancelled.store(true);
- std::lock_guard<std::mutex> lock(socketsMutex);
- for(int fd:liveSockets)shutdown(fd,SHUT_RDWR);
-}
-bool socketActive(){return !networkCancelled.load();}
+// Each torrent owns its network sockets. Concurrent downloads must not cancel
+// each other or reuse another job's descriptors during shutdown.
+thread_local SocketRegistry* activeSockets=nullptr;
+bool registerSocket(int fd){return activeSockets?activeSockets->add(fd):false;}
+void closeSocket(int fd){if(fd<0)return;if(activeSockets)activeSockets->release(fd);else close(fd);}
+bool socketActive(){return activeSockets&&!activeSockets->cancelled.load();}
 int dial(const std::string& host,int port,int seconds){
  if(!socketActive())return -1;
  trace("DNS lookup "+host+":"+std::to_string(port));
@@ -319,7 +322,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.2.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.3.0\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -519,8 +522,16 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.2.1 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.3.0 initialized - log file: "+logPath());}
+Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
+bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){
+ Meta m;if(!metadata(path,m,error))return false;
+ output.name=m.name;output.infoHash=hex((const unsigned char*)m.hash.data(),m.hash.size());
+ output.bytes=m.bytes;output.tracker=m.announce;return true;
+}
+std::string storageRoot(){return kHome;}
+
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
 const char* sampleTorrentPath(){return "/app0/assets/test/debian-13.7.0-amd64-netinst.iso.torrent";}
@@ -577,12 +588,22 @@ void Engine::stop(){
    initiate=true;
   }
  }
- if(initiate){trace("CANCEL requested; interrupting active sockets");stopSockets();}
+ if(initiate){trace("CANCEL requested; interrupting job sockets");sockets_->stop();}
 }
 bool Engine::start(const std::string& path){
- {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;busy_=true;stopRequested_=false;networkCancelled.store(false);state_.running=true;cancellation_.store(false);state_.paused=false;state_.done=false;state_.loaded=false;state_.lastError.clear();state_.downBps=0;state_.status="Reading torrent metadata...";}
+ {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;}
+ if(runner_.joinable())runner_.join();
+ {
+  std::lock_guard<std::mutex> lock(mutex_);
+  sockets_=std::make_shared<SocketRegistry>();
+  busy_=true;stopRequested_=false;state_.running=true;
+  cancellation_.store(false);state_.paused=false;state_.done=false;
+  state_.loaded=false;state_.lastError.clear();state_.downBps=0;
+  state_.status="Reading torrent metadata...";
+ }
  trace("START torrent: "+path);
- std::thread([this,path]{run(path);}).detach();return true;
+ runner_=std::thread([this,path]{activeSockets=sockets_.get();run(path);activeSockets=nullptr;});
+ return true;
 }
 void Engine::run(std::string path){
  using Clock=std::chrono::steady_clock;
@@ -710,9 +731,10 @@ void Engine::run(std::string path){
   workers.reserve(maxWorkers);
   for(int workerId=0;workerId<maxWorkers;workerId++){
    workers.emplace_back([&,workerId](){
+    activeSockets=sockets_.get();
     FILE* output=fopen(target.c_str(),"r+b");
     if(!output){
-     storageFailure.store(true);trace("Worker file open FAILED errno="+std::to_string(errno));return;
+     storageFailure.store(true);trace("Worker file open FAILED errno="+std::to_string(errno));activeSockets=nullptr;return;
     }
     while(!cancelled()&&!storageFailure.load()&&completeCount.load()<(int)pieceCount){
      size_t peerIndex=nextPeer.fetch_add(1);
@@ -778,6 +800,7 @@ void Engine::run(std::string path){
      {std::lock_guard<std::mutex> g(mutex_);state_.activePeers--;}
     }
     fclose(output);
+    activeSockets=nullptr;
    });
   }
   for(auto& worker:workers)worker.join();
