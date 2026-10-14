@@ -1,7 +1,7 @@
-# Starbound Rebased v0.1.7 – PS5 pre-log crash regression fix
+# Starbound Rebased v0.1.8 — PS5 absolute resource path resolution
 
-Hardware feedback: v0.1.5 rendered the first frames successfully, but v0.1.6 crashed instantly without even creating a boot log. The v0.1.6-only native `getcwd()` probe was executed before the first boot trace; this is a strong regression candidate because that libc entry point is not known to work with the current PS5 ShadowMount/CRT combination.
+Real PS5 hardware shows the original Gold872 game loop and SDL_RenderPresent work, but startup logs report all four resource probes missing: title logo, fonts, menu map and music. The ZIP content is correct, but the existing `chdir("/app0/assets")`-based loader does not provide working relative paths in the user's environment.
 
-This fix removes that probe, writes `BOOT00 entered main before resource setup` as the first action in `main()`, and keeps the original `01 main entered` and low-risk `ASSET01`–`ASSET04` probes afterwards. CI checks the trace order and prevents reintroducing `getcwd()`. The corrected `assets/res/**` resource layout from v0.1.6 remains.
+This release replaces every upstream C++ `"res/..."` resource filename with a resolver which probes **real, readable files** under `/app0/assets/`, `/data/homebrew/PPSA99642/assets/`, common USB/SSD locations, and both working-directory variants. Only a successful `fopen` of the packaged menu logo selects a root. The same absolute root is then used for SDL textures, fonts, C++ level CSV files, images, music and audio. At PS5 boot the existing log includes `ASSET_ROOT_FOUND <path>` or `ASSET_ROOT_MISS <path>` for every candidate checked.
 
-This is an experimental runtime fix. We have **not** verified on real PS5 hardware that it removes the crash or restores the game menu.
+No `chdir()` or `getcwd()` dependencies remain in game startup. CI ensures the original engine's relative file paths are all rewritten and that the correct files are in the installable ZIP. This is a **candidate hardware fix**; only actual PS5 testing confirms whether menu art appears.

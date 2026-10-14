@@ -35,16 +35,34 @@ jobs:
         run: |
           python3 homebrew/starbound-rebased/tools/generate-original-media.py
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
+          cp homebrew/starbound-rebased/ps5/StarboundAssetPaths.hpp build/gold872-engine/include/StarboundAssetPaths.hpp
+          python3 homebrew/starbound-rebased/tools/resolve-resource-paths.py build/gold872-engine
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("build/gold872-engine")
+          main=(root/"src/main.cpp").read_text()
+          assert 'boot_trace("BOOT00 entered main before resource setup");' in main
+          assert 'getcwd(' not in main
+          assert 'chdir(' not in main, "SDL assets may not depend on chdir"
+          assert 'SB_ASSET_PATH("res/sprites/icons/logo.png")' in main
+          assert 'SB_ASSET_PATH("res/fonts/press-start-2p.ttf")' in main
+          assert 'SB_ASSET_PATH("res/data/MenuBackground/MenuBackground_Background.csv")' in main
+          assert 'SB_ASSET_PATH("res/sounds/music/overworld.wav")' in main
+          text=(root/"include/StarboundAssetPaths.hpp").read_text()
+          assert "/app0/assets/" in text and "/data/homebrew/PPSA99642/assets/" in text
+          assert 'ASSET_ROOT_FOUND' in text
+          print("Validated full absolute asset resolver, original boot traces and menu paths")
+          PY
           python3 - <<'PY'
           from pathlib import Path
           p=Path("build/gold872-engine/src/main.cpp")
           s=p.read_text()
           assert 'boot_trace("BOOT00 entered main before resource setup");' in s
           assert 'getcwd(' not in s, 'Unsafe pre-log getcwd reintroduced'
-          assert s.index('boot_trace("BOOT00 entered main before resource setup");') < s.index('chdir("/app0/assets")')
+          assert 'chdir(' not in s
           assert s.index('boot_trace("01: main entered");') < s.index('ASSET01 menu logo found')
           assert 'ASSET04 music found' in s
-          print("Verified BOOT00 precedes path setup; no getcwd() syscall")
+          print("Verified BOOT00 is present; resource loads never depend on cwd")
           PY
           # Current GCC relied on transitive cstdint includes; Clang 18 requires this explicit include.
           sed -i '1a #include <cstdint>' build/gold872-engine/include/ECS/ECS.h
@@ -73,7 +91,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.008'
+          data['contentVersion']='01.000.009'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -151,6 +169,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.7
+          tag=starbound-rebased-v0.1.8
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.7 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.8 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
