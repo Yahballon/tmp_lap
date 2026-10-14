@@ -1,6 +1,6 @@
 # Starbound Rebased — Gold872 engine port (work in progress)
 
-## Current TESTBUILD: v0.1.21 Deep Signal
+## Current TESTBUILD: v0.1.22 Deep Signal
 
 The current PS5 test campaign replaces the reference World 1-1 and randomized
 maps with 32 original stages across eight sci-fi sectors. All stages are

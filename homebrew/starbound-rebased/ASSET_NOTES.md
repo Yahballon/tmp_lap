@@ -41,3 +41,6 @@ Biome terrain extends the existing code-generated tile artwork in compatible
 alias cells. The player source atlas, walking repair, growth frames, projectile
 slots and all controller mappings are preserved. Frame previews were visually
 inspected; PS5 animation/timing acceptance is still required.
+
+Placed sentries wait offscreen and only enable departure culling after activation.
+A compiled test exercises their actual spawn/physics/callback code.

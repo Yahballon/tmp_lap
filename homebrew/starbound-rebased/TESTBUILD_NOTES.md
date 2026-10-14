@@ -1,4 +1,4 @@
-# Starbound Rebased v0.1.21 — Deep Signal TESTBUILD
+# Starbound Rebased v0.1.22 — Deep Signal TESTBUILD
 
 Relayfall now has 32 larger, deliberately sequenced stages, with unique six-bay
 encounter plans instead of repeated half-level templates.
@@ -14,6 +14,8 @@ encounter plans instead of repeated half-level templates.
 - New tunnel, island-valley, sky-bridge and drone encounters, safe checkpoint
   buffers and optional reward routes.
 - Existing player walking/growth fixes, native atlas geometry and controls retained.
+- Fixed placed sentries being culled before the camera reaches them. The actual
+  spawn block, PhysicsSystem and CallbackSystem have an executable regression test.
 - Automated map, swim-corridor, boss-assembly, actual parser and packaged-art gates.
 
 Install PPSA99642.zip with the existing ShadowMount workflow. Hardware testing is

@@ -122,6 +122,9 @@ jobs:
           sed -i '1a #include <cstdint>' build/gold872-engine/include/ECS/ECS.h
           clang++-18 -std=c++17 -Ibuild/gold872-engine/include $(pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf) homebrew/starbound-rebased/tools/test-level-parser.cpp -o /tmp/test-level-parser $(pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf)
           /tmp/test-level-parser homebrew/starbound-rebased/res/data
+          python3 homebrew/starbound-rebased/tools/test-sentry-lifetime.py build/gold872-engine /tmp/test-sentry.cpp
+          clang++-18 -std=c++17 -include cstdint -Ibuild/gold872-engine/include $(pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf) /tmp/test-sentry.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/systems/CallbackSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp -o /tmp/test-sentry $(pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf)
+          /tmp/test-sentry
           cp app/src/startup.cpp /tmp/starbound-startup.cpp
           rm -rf app/src
           mkdir -p app/src
@@ -147,7 +150,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.022'
+          data['contentVersion']='01.000.023'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased HD'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -287,6 +290,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.21
+          tag=starbound-rebased-v0.1.22
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.21 - Deep Signal Biomes and Bosses TESTBUILD" --notes-file homebrew/starbound-rebased/TESTBUILD_NOTES.md --prerelease
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.22 - Deep Signal Biomes and Bosses TESTBUILD" --notes-file homebrew/starbound-rebased/TESTBUILD_NOTES.md --prerelease

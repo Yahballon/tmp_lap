@@ -1,3 +1,10 @@
+# v0.1.22 — Deep Signal placed-sentry correction
+
+Retains the complete Deep Signal campaign and artwork. Placed air sentries now
+survive offscreen until their first activation, then expire when leaving view.
+Added a compiled regression using the real spawn block, PhysicsSystem and
+CallbackSystem. Supersedes v0.1.21 for testing the new air enemies.
+
 # Starbound Rebased v0.1.21 — Deep Signal TESTBUILD
 
 Relayfall now has 32 larger, deliberately sequenced stages, with unique six-bay

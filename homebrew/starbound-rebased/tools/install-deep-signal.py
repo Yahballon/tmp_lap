@@ -73,6 +73,24 @@ patch('src/systems/MapSystem.cpp', '''         entity->addComponent<MovingCompon
       '''         entity->addComponent<AnimationComponent>(std::vector<int>{90, 91}, 8,
                                                   Map::EnemyIDCoordinates);
          entity->addComponent<MovingComponent>(Vector2f(-3.0, 0), Vector2f(0, 0));''')
+patch('src/systems/MapSystem.cpp',
+      '''         entity->addComponent<MovingComponent>(Vector2f(-3.0, 0), Vector2f(0, 0));
+
+         entity->addComponent<DestroyOutsideCameraComponent>();''',
+      '''         entity->addComponent<MovingComponent>(Vector2f(-3.0, 0), Vector2f(0, 0));
+         // Placed sentries wait offscreen until first activation.''')
+patch('src/systems/MapSystem.cpp',
+      '''                cannonSound->addComponent<SoundComponent>(SoundID::CANNON_FIRE);
+
+                entity->remove<WaitUntilComponent>();''',
+      '''                cannonSound->addComponent<SoundComponent>(SoundID::CANNON_FIRE);
+                entity->addComponent<DestroyOutsideCameraComponent>();
+                entity->remove<WaitUntilComponent>();''')
+patch('src/systems/MapSystem.cpp',
+      '''             Vector2i(SCALED_CUBE_SIZE, SCALED_CUBE_SIZE),
+             SDL_Rect{0, SCALED_CUBE_SIZE, SCALED_CUBE_SIZE, SCALED_CUBE_SIZE});''',
+      '''             Vector2i(SCALED_CUBE_SIZE, SCALED_CUBE_SIZE),
+             SDL_Rect{0, 0, SCALED_CUBE_SIZE, SCALED_CUBE_SIZE});''')
 
 patch('include/TextureManager.h', '   void SetBackgroundColor(BackgroundColor color);',
       '   void SetBackgroundColor(BackgroundColor color);\n   void SetCampaignBackdrop(int biome);')
