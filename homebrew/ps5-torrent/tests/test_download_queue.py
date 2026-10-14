@@ -99,7 +99,17 @@ def main():
                 stall_tracker.server_close()
                 stall.shutdown()
                 stall.server_close()
-            print("PASS: concurrency, persistence, auto scan, cleanup and cancel stability",flush=True)
+            print("Test crash recovery: SIGSYS-like abrupt exit must not relaunch queue",flush=True)
+            shutil.rmtree(ROOT,ignore_errors=True)
+            ROOT.mkdir(parents=True)
+            subprocess.run([str(exe),"--crash-create",str(files[0])],check=True,timeout=8)
+            assert (ROOT/"cache/session.active").exists(),"crash marker missing"
+            subprocess.run([str(exe),"--check-recovery"],check=True,timeout=8)
+            assert (ROOT/"cache/recovery.hold").exists(),"persistent recovery hold missing"
+            subprocess.run([str(exe),"--resume-recovery"],check=True,timeout=8)
+            assert not (ROOT/"cache/recovery.hold").exists(),"recovery hold not cleared"
+            subprocess.run([str(exe),"--check-clean"],check=True,timeout=8)
+            print("PASS: concurrency, auto-import, cancellations and persisted crash recovery",flush=True)
         finally:
             for server in servers:
                 server.shutdown()
