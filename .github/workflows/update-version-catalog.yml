@@ -10,7 +10,7 @@ on:
   release:
     types: [published]
   workflow_run:
-    workflows: [Build Crypto Tracker, Build Starbound Sprint, Build WWW Speedtest, Build Payload LauncherX, Build Starbound Rebased (ShadowMount test), Build PS5 Torrent Flow]
+    workflows: [Build Crypto Tracker, Build Starbound Sprint, Build WWW Speedtest, Build Payload LauncherX, Build Starbound Rebased (ShadowMount test), Build PS5 Torrent Flow, Build PS5 Ebook Reader]
     types: [completed]
   schedule:
     - cron: '17 * * * *'
