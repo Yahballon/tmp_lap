@@ -6,6 +6,10 @@
 #include "platform/ps5/system.hpp"
 #include "pstube.hpp"
 #include "media.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#include "vendor/stb_image.h"
+#include <map>
+#include <sys/stat.h>
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -45,7 +49,7 @@ void write_help(DrawList& d,const Font& f,unsigned a,State& s){
  d.rounded_rect({0,1010,1920,70},0,Color::rgb(0x061427));
  text(d,f,a,help,965,1050,22,dim,Align::center);
 }
-void result_grid(DrawList& d,const Font& f,unsigned a,const std::vector<pstube::Video>& videos,const State& s,const pstube::Service& svc){
+void result_grid(DrawList& d,const Font& f,unsigned a,const std::vector<pstube::Video>& videos,const State& s,const pstube::Service& svc,Renderer& renderer,std::map<std::string,unsigned>& images){
  if(videos.empty()){text(d,f,a,"No videos available",1080,446,34,white,Align::center);text(d,f,a,"Open Search and enter a query; public API instances may be unavailable.",1080,493,22,dim,Align::center);return;}
  d.push_clip({405,240,1485,737});
  const int columns=3;
@@ -54,6 +58,21 @@ void result_grid(DrawList& d,const Font& f,unsigned a,const std::vector<pstube::
   if(y>940)break;
   tile(d,x,y,466,206,i==s.selected);
   d.gradient_rect({x+12,y+12,442,118},8,Color::rgb(0x183e77),Color::rgb(0x061225));
+  const std::string id=videos[(size_t)i].id;
+  auto img=images.find(id);
+  if(img==images.end()&&images.size()<120){
+   std::string file="/data/pstube/thumbs/"+id+".jpg";
+   struct stat st{};
+   if(stat(file.c_str(),&st)==0&&st.st_size>1024&&st.st_size<1024*1024){
+    int iw=0,ih=0,n=0;unsigned char* pixels=stbi_load(file.c_str(),&iw,&ih,&n,4);
+    if(pixels&&iw>0&&ih>0&&iw<=1024&&ih<=1024){
+     unsigned tex=renderer.batch().create_texture(iw,ih,pixels);
+     if(tex){images[id]=tex;img=images.find(id);}
+    }
+    if(pixels)stbi_image_free(pixels);
+   }
+  }
+  if(img!=images.end())d.image(img->second,{x+12,y+12,442,118},kFullUv,white,8);
   d.rounded_rect({x+183,y+43,76,48},13,Color::rgb(0x0062c0,.8f));
   d.triangle({x+209,y+52,33,29},white,0,1.5708f);
   if(svc.is_favourite(videos[(size_t)i].id))text(d,f,a,"*",x+430,y+43,36,green,Align::right);
@@ -88,6 +107,7 @@ int main(){
  hui::ps5::Pad pad;pad.open();pad.set_light_bar(0,125,230);
  pstube::Service service;pstube::MediaPlayer player;State s;unsigned prev=0;int repeat=0;
  unsigned video_texture=0;int texture_w=0,texture_h=0;uint64_t last_frame=0;
+ std::map<std::string,unsigned> thumb_textures;
  service.trending();
  for(;;){
   std::array<hui::PadSample,64> samples{};size_t n=pad.read(samples);
@@ -193,7 +213,7 @@ int main(){
    text(d,font,atlas,"Opened videos this session: "+std::to_string(s.history.size()),430,315,26,dim);
   }else{
    if(s.page==0)text(d,font,atlas,"Search first to load real videos. No fabricated recommendations.",420,255,22,dim);
-   result_grid(d,font,atlas,videos,s,service);
+   result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
    if(snapshot.searching)text(d,font,atlas,"Loading live results...",1710,207,23,blue,Align::right);
    else text(d,font,atlas,snapshot.status,1850,206,21,dim,Align::right);
   }
