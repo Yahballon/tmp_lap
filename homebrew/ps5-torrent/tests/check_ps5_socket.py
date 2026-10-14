@@ -5,7 +5,8 @@ s=Path("homebrew/ps5-torrent/native/torrent_engine.cpp").read_text()
 a=s.index("int dial(")
 b=s.index("bool sendAll(",a)
 body=s[a:b]
-assert "fcntl(" not in body, "PS5 sandbox rejects fcntl() on these TCP sockets"
+code_only="\n".join(line.split("//",1)[0] for line in body.splitlines())
+assert "fcntl(" not in code_only, "PS5 sandbox rejects fcntl() on these TCP sockets"
 assert "O_NONBLOCK" in body, "Retain an explanation of the PS5 regression"
 assert "SO_SNDTIMEO" in body and "SO_RCVTIMEO" in body, "Missing socket timeouts"
 assert body.index("SO_SNDTIMEO")<body.index("connect(fd,"), "Timeouts must precede blocking connect"
