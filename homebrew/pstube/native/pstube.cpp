@@ -126,6 +126,23 @@ bool save_text(const char* path,const std::string& payload){
  ok=std::fclose(f)==0&&ok;if(!ok){unlink(temp.c_str());return false;}
  if(rename(temp.c_str(),path)!=0){unlink(temp.c_str());return false;}return true;
 }
+std::string unescape(const std::string& s){
+ std::string out;out.reserve(std::min<size_t>(s.size(),512));
+ auto digit=[](char c)->int{if(c>='0'&&c<='9')return c-'0';if(c>='A'&&c<='F')return c-'A'+10;if(c>='a'&&c<='f')return c-'a'+10;return -1;};
+ for(size_t i=0;i<s.size()&&out.size()<256;i++){
+  if(s[i]=='%'&&i+2<s.size()&&digit(s[i+1])>=0&&digit(s[i+2])>=0){
+   unsigned char c=(unsigned char)((digit(s[i+1])<<4)|digit(s[i+2]));i+=2;
+   if(c>=32)out+=(char)c;
+  }else if((unsigned char)s[i]>=32)out+=s[i];
+ }return out;
+}
+std::string encode(const std::string& s){
+ const char* h="0123456789ABCDEF";std::string o;
+ for(unsigned char c:s){if(o.size()>950)break;
+  if(std::isalnum(c)||c=='-'||c=='_'||c=='.')o+=(char)c;
+  else {o+='%';o+=h[c>>4];o+=h[c&15];}
+ }return o;
+}
 void mkdirs(){mkdir("/data/pstube",0700);mkdir("/data/pstube/downloads",0700);}
 struct Work {Service* svc;std::string query;std::string id;int kind;Video video;};
 }
@@ -153,6 +170,17 @@ Service::Service(){
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
    if(line.substr(0,2)=="F "&&valid_id(line.substr(2))&&fav_.size()<300)fav_.push_back(line.substr(2));
+   if(line.substr(0,2)=="V "||line.substr(0,2)=="H "){
+    size_t a=line.find('|',2),b=a==std::string::npos?a:line.find('|',a+1);
+    if(a!=std::string::npos&&b!=std::string::npos){
+     Video video;video.id=line.substr(2,a-2);
+     video.title=unescape(line.substr(a+1,b-a-1));video.author=unescape(line.substr(b+1));
+     if(valid_id(video.id)&&!video.title.empty()){
+      auto& dst=line[0]=='V'?favorite_meta_:recent_meta_;
+      if(dst.size()<100)dst.push_back(std::move(video));
+     }
+    }
+   }
   }break;}
  DIR* d=opendir("/data/pstube/downloads");
  if(d){while(dirent* ent=readdir(d)){std::string name(ent->d_name);
@@ -164,9 +192,36 @@ Service::Service(){
 Service::~Service(){while(busy_.load()||downloading_.load())usleep(25000);}
 bool Service::persist()const{
  std::string out="PSTUBE:1\nI "+instance_+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
+ for(const auto& v:favorite_meta_)if(valid_id(v.id))out+="V "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
+ for(const auto& v:recent_meta_)if(valid_id(v.id))out+="H "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
  return save_text(kSave,out)||save_text(kFallback,out);
 }
 std::vector<std::string> Service::favourites()const{std::lock_guard<std::mutex> g(mutex_);return fav_;}
+std::vector<Video> Service::favorite_videos()const{
+ std::lock_guard<std::mutex> g(mutex_);std::vector<Video> out;
+ for(const auto& id:fav_){auto it=std::find_if(favorite_meta_.begin(),favorite_meta_.end(),[&](const Video& v){return v.id==id;});
+  out.push_back(it!=favorite_meta_.end()?*it:Video{id,id,"Saved favourite"});}
+ return out;
+}
+std::vector<Video> Service::history_videos()const{
+ std::lock_guard<std::mutex> g(mutex_);return recent_meta_;
+}
+void Service::record_history(const Video& video){
+ if(!valid_id(video.id))return;std::lock_guard<std::mutex> g(mutex_);
+ recent_meta_.erase(std::remove_if(recent_meta_.begin(),recent_meta_.end(),[&](const Video& v){return v.id==video.id;}),recent_meta_.end());
+ recent_meta_.insert(recent_meta_.begin(),video);
+ if(recent_meta_.size()>50)recent_meta_.resize(50);
+ persist();
+}
+bool Service::toggle_favourite(const Video& video){
+ if(!valid_id(video.id))return false;std::lock_guard<std::mutex> g(mutex_);
+ auto i=std::find(fav_.begin(),fav_.end(),video.id);
+ favorite_meta_.erase(std::remove_if(favorite_meta_.begin(),favorite_meta_.end(),[&](const Video& v){return v.id==video.id;}),favorite_meta_.end());
+ if(i!=fav_.end())fav_.erase(i);
+ else{if(fav_.size()>=100)return false;fav_.insert(fav_.begin(),video.id);favorite_meta_.insert(favorite_meta_.begin(),video);}
+ return persist();
+}
+
 bool Service::is_favourite(const std::string& id)const{std::lock_guard<std::mutex> g(mutex_);return std::find(fav_.begin(),fav_.end(),id)!=fav_.end();}
 bool Service::toggle_favourite(const std::string& id){
  if(!valid_id(id))return false;std::lock_guard<std::mutex> g(mutex_);
