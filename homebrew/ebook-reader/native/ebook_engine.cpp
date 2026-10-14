@@ -476,8 +476,16 @@ bool import_to_library(const std::string& source,std::string& result){
  struct stat st{};if(stat(source.c_str(),&st)!=0||!S_ISREG(st.st_mode)||st.st_size>int64_t(kMaxInput)){
    result="Source file unavailable or too large (128 MiB limit)";return false;
  }
- const std::string folder="/data/ebooks";
- if(mkdir(folder.c_str(),0755)!=0&&errno!=EEXIST){result="Cannot create /data/ebooks";return false;}
+ // The ordinary app sandbox can write /download0 but may be denied
+ // /data/ebooks. Do not assume console-wide filesystem elevation.
+ std::string folder;
+ for(const char* candidate:{"/download0/Books","/data/ebooks"}){
+   if(mkdir(candidate,0755)!=0&&errno!=EEXIST)continue;
+   std::string test=std::string(candidate)+"/.ebook-write-probe";
+   FILE* check=std::fopen(test.c_str(),"wb");
+   if(check){std::fclose(check);std::remove(test.c_str());folder=candidate;break;}
+ }
+ if(folder.empty()){result="No writable library: check /download0 access";return false;}
  auto slash=source.find_last_of('/');const auto name=source.substr(slash+1);
  std::string dest=folder+"/"+name;
  if(access(dest.c_str(),F_OK)==0){result="Already imported: "+name;return true;}
