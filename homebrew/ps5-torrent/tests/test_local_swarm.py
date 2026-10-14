@@ -98,9 +98,9 @@ class StallPeer(socketserver.BaseRequestHandler):
         sock.settimeout(8)
         try:
             handshake=recv_exact(sock,68)
-            if handshake[28:48]!=INFO_HASH:
+            if handshake[28:48]!=getattr(self.server,"info_hash",INFO_HASH):
                 raise AssertionError("bad test info hash")
-            sock.sendall(b"\x13BitTorrent protocol"+b"\0"*8+INFO_HASH+b"-STALL0-ABCDEFGHIJKL")
+            sock.sendall(b"\x13BitTorrent protocol"+b"\0"*8+getattr(self.server,"info_hash",INFO_HASH)+b"-STALL0-ABCDEFGHIJKL")
             sock.sendall(frame(5,b"\xe0")+frame(1))
             # Consume requests, but never deliver PIECE messages.
             threading.Event().wait(4.5)

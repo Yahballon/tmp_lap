@@ -73,7 +73,33 @@ def main():
             assert not watched.exists(),"completed .torrent metadata was not removed"
             assert (ROOT/"downloads"/"queuetest-0.iso").read_bytes()==swarm.CONTENT
             subprocess.run([str(exe),"--history"],check=True,timeout=10)
-            print("PASS: queue concurrency, persistence, auto watch and safe cleanup",flush=True)
+            print("Test auto cancel: watched metadata must not restart cancelled task",flush=True)
+            shutil.rmtree(ROOT,ignore_errors=True)
+            (ROOT/"torrents").mkdir(parents=True)
+            watched=ROOT/"torrents"/files[0].name
+            info_hash=hashlib.sha1(swarm.benc({
+                b"length":len(swarm.CONTENT),
+                b"name":b"queuetest-0.iso",
+                b"piece length":swarm.PIECE,
+                b"pieces":swarm.HASHES
+            })).digest()
+            stall=swarm.make_server(swarm.StallPeer,info_hash=info_hash)
+            stall_tracker=swarm.make_server(swarm.Tracker,ports=[stall.server_address[1]])
+            try:
+                meta={
+                    b"announce":f"http://127.0.0.1:{stall_tracker.server_address[1]}/announce".encode(),
+                    b"info":{b"length":len(swarm.CONTENT),b"name":b"queuetest-0.iso",
+                             b"piece length":swarm.PIECE,b"pieces":swarm.HASHES}
+                }
+                watched.write_bytes(swarm.benc(meta))
+                subprocess.run([str(exe),"--cancel-auto"],check=True,timeout=18)
+                assert watched.exists(),"cancelled .torrent metadata must be preserved"
+            finally:
+                stall_tracker.shutdown()
+                stall_tracker.server_close()
+                stall.shutdown()
+                stall.server_close()
+            print("PASS: concurrency, persistence, auto scan, cleanup and cancel stability",flush=True)
         finally:
             for server in servers:
                 server.shutdown()

@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.3.0 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.3.1 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -19,6 +19,10 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe single-file BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+
+## Auto-download cancel safety (v0.3.1)
+
+Cancelled or failed auto-imported jobs remain in the Downloads tab and will **not** be restarted by the directory scanner, even while `auto_download=1`. Their original `.torrent` files remain available. Only an explicit Retry on the Downloads tab or another manual enqueue will restart them. This is exercised by the CI local swarm tests.
 
 ## Downloads tab and queue (v0.3.0)
 

@@ -105,7 +105,7 @@ void DownloadManager::saveQueue()const{
  }
  atomicWrite(queuePath(),out);
 }
-bool DownloadManager::enqueue(const std::string& path,std::string* error){
+bool DownloadManager::enqueue(const std::string& path,std::string* error,bool retryExisting){
  TorrentInfo info;std::string diagnostic;
  if(!inspectTorrent(path,info,diagnostic)){
   if(error)*error=diagnostic;return false;
@@ -117,7 +117,7 @@ bool DownloadManager::enqueue(const std::string& path,std::string* error){
    // in the watched inbox. Only remove metadata from our dedicated inbox.
    if(existing->state=="done"&&settings_.deleteCompletedTorrents&&
       startsWith(path,torrentDirectory()+"/"))safeDeleteSource(path);
-   if(existing->state=="failed"||existing->state=="cancelled"){
+   if(retryExisting&&(existing->state=="failed"||existing->state=="cancelled")){
     existing->path=path;existing->state="queued";existing->message="Queued";saveQueue();return true;
    }
    if(error)*error="Already in Downloads";
@@ -205,7 +205,7 @@ void DownloadManager::scan(bool force){
   const bool stable=observed_[path]==fingerprint;
   observed_[path]=fingerprint;
   if(!stable)continue; // Skip files still being copied by FTP/USB.
-  if(enqueue(path))dirty=true;
+  if(enqueue(path,nullptr,false))dirty=true;
  }
  closedir(dir);(void)dirty;
 }

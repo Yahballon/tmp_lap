@@ -154,7 +154,7 @@ int main(){
   d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",462,55,21,mint);
-  text(d,font,atlas,"v0.3.0",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.3.1",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<6;i++){
    float y=144+i*106;card(d,43,y,302,91,page==i);
@@ -256,7 +256,7 @@ int main(){
    card(d,386,125,1496,866);
    text(d,font,atlas,"ABOUT TORRENT FLOW",429,213,43);
    const char* lines[]={
-    "v0.3.0 / PPSA99684  |  Independent BitTorrent v1 client",
+    "v0.3.1 / PPSA99684  |  Independent BitTorrent v1 client",
     "Multi-download queue with independent cancel per torrent",
     "Persistent queue stored in /data/ps5-torrent/cache/queue.db",
     "Automatic folder: /data/ps5-torrent/torrents",
