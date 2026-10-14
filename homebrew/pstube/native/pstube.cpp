@@ -216,6 +216,7 @@ bool Service::search(const std::string& query){
   std::string data,error,host=svc.instance();
   bool ok=https(host,work->query=="@@TRENDING@@"?"/api/v1/trending?region=US":"/api/v1/search?q="+escape_url(work->query)+"&type=video",data,error);
   auto videos=ok?parse_search(data):std::vector<Video>{};
+  if(ok)queue_thumbnails(videos);
   {std::lock_guard<std::mutex> g(svc.mutex_);if(ok)svc.state_.videos=std::move(videos);
    svc.state_.status=!ok?error:svc.state_.videos.empty()?"No matching videos":std::to_string(svc.state_.videos.size())+" results";
    svc.state_.searching=false;}
