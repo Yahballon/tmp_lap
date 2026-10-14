@@ -33,7 +33,7 @@ jobs:
           from PIL import Image,ImageDraw
           root=pathlib.Path("app/sce_sys/param.json")
           info=json.loads(root.read_text())
-          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.001")
+          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.002")
           info["localizedParameters"]["en-US"]["titleName"]="Torrent Flow"
           root.write_text(json.dumps(info,indent=2)+"\n")
           im=Image.new("RGBA",(512,512),(7,19,31,255))
@@ -81,7 +81,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Torrent-Flow-v0.1.0-PPSA99684
+          name: Torrent-Flow-v0.1.1-PPSA99684
           path: app/dist/PPSA99684.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -89,5 +89,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-torrent-v0.1.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.1.0 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.1.0" --notes "Native PS5 experimental BitTorrent v1 downloader with separate cache and downloads, SHA-1 verified pieces and bundled Debian torrent. Hardware test pending."
+          if gh release view ps5-torrent-v0.1.1 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.1.1 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.1.1" --notes "Native PS5 experimental BitTorrent downloader v0.1.1: improved HTTP tracker diagnostics, Debian test UDP fallback, corrected peer choke/unchoke request handling, cancel support and persistent rotating app logs. Real PS5 end-to-end download validation pending."
