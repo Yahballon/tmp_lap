@@ -21,7 +21,7 @@ old='''   // ELF loader does not guarantee the game's working directory.
          chdir("/mnt/usb0/STARBOUND_REBASED");
    }'''
 assert old in text, "Upstream startup path block has changed"
-text=text.replace(old,'''   // Resource access is now independent of cwd/chdir() and is resolved
+text=text.replace(old,'''   // Resource access is now independent of working-directory changes and is resolved
    // via absolute verified app0/homebrew paths for every file open.''')
 main.write_text(text)
 
