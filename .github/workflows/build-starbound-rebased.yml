@@ -35,11 +35,13 @@ jobs:
         run: |
           python3 homebrew/starbound-rebased/tools/generate-original-media.py
           python3 homebrew/starbound-rebased/tools/upgrade-media.py
+          python3 homebrew/starbound-rebased/tools/rework-world-assets.py
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
           cp homebrew/starbound-rebased/ps5/StarboundAssetPaths.hpp build/gold872-engine/include/StarboundAssetPaths.hpp
           python3 homebrew/starbound-rebased/tools/resolve-resource-paths.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/upgrade-renderer.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/optimize-ps5-renderer.py build/gold872-engine
+          python3 homebrew/starbound-rebased/tools/rebrand-game-hud.py build/gold872-engine
           python3 - <<'PY'
           from pathlib import Path
           root=Path("build/gold872-engine")
@@ -54,6 +56,7 @@ jobs:
           text=(root/"include/StarboundAssetPaths.hpp").read_text()
           assert "/app0/assets/" in text and "/data/homebrew/PPSA99642/assets/" in text
           assert 'ASSET_ROOT_FOUND' in text
+          assert '"YAHBALLON"' in (root/'src/systems/ScoreSystem.cpp').read_text()
           texture=(root/"src/TextureManager.cpp").read_text()
           assert 'SDL_TEXTUREACCESS_TARGET' in texture and 'PERF01 native 800x480 offscreen target enabled' in texture
           assert 'SDL_RenderCopy(renderer, sbSceneTarget, nullptr, &screen)' in texture
@@ -99,7 +102,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.011'
+          data['contentVersion']='01.000.012'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -182,6 +185,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.10
+          tag=starbound-rebased-v0.1.11
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.10 Performance Fix (PS5 experimental)" --notes "PS5 800x480 offscreen render target, one fullscreen upscale per frame, fast unflipped sprites, FPS telemetry in /data/starbound-rebased/boot.log. Preserves v0.1.9 HD assets. Hardware performance test pending."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.11 World Assets and HUD (PS5 experimental)" --notes "Fix cropped menu title and opaque option panels, YAHBALLON score HUD, clearer unique tiles and 32 original Gold872-compatible levels. Preserves v0.1.10 rendering performance. PS5 testing pending."
