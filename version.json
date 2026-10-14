@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "cfb4825f653fa6bad1003b874851896998bb8022f38c9c14d5184cfa55141c25",
+  "version": "289e9f7f6d97af56a550031589b23ba59bc7567ff29bed300f5c983d2fd0fb24",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 7,
+  "app_count": 8,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -81,6 +81,19 @@
       "source": "homebrew/ebook-reader",
       "size_bytes": 6091062,
       "published_at": "2026-10-14T22:46:07Z"
+    },
+    {
+      "name": "PSTUBE",
+      "slug": "pstube",
+      "title_id": "PPSA99762",
+      "version": "0.1.0",
+      "tag": "pstube-v0.1.0",
+      "zip_name": "PPSA99762.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.1.0/PPSA99762.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.1.0",
+      "source": "homebrew/pstube",
+      "size_bytes": 8428946,
+      "published_at": "2026-10-14T22:47:41Z"
     },
     {
       "name": "Payload LauncherX",
