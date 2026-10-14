@@ -3,6 +3,10 @@
 // HTTP tracker + IPv4 TCP peers. The SHA-1 hash is required by the protocol.
 #include "torrent_engine.hpp"
 #include <openssl/sha.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include "ca_bundle.inc"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -29,6 +33,15 @@ namespace {
 const char* kHome="/data/ps5-torrent";
 const char* kUsb="/mnt/usb0/ps5-torrent";
 const char* kTest="debian-13.7.0-amd64-netinst.iso.torrent";
+struct TestInfo {const char* file;const char* display;const char* size;};
+const TestInfo kTests[]={
+ {"debian-13.7.0-amd64-netinst.iso.torrent","Debian 13.7 netinst","~756 MiB"},
+ {"ubuntu-26.04.1-live-server-amd64.iso.torrent","Ubuntu 26.04.1 LTS Server","~2.7 GiB"},
+ {"ubuntu-24.04.5-live-server-amd64.iso.torrent","Ubuntu 24.04.5 LTS Server","~3.8 GiB"},
+ {"linuxmint-22.3-cinnamon-64bit.iso.torrent","Linux Mint 22.3 Cinnamon","~2.9 GiB"},
+ {"linuxmint-22.3-xfce-64bit.iso.torrent","Linux Mint 22.3 Xfce","~2.8 GiB"},
+ {"linuxmint-22.3-mate-64bit.iso.torrent","Linux Mint 22.3 MATE","~2.9 GiB"}
+};
 bool isDir(const std::string& p){struct stat st{};return stat(p.c_str(),&st)==0&&S_ISDIR(st.st_mode);}
 bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return false;std::string s;for(char c:p){s+=c;if(c=='/'&&s.size()>1)mkdir(s.c_str(),0755);}return mkdir(s.c_str(),0755)==0||isDir(s);}
 
@@ -78,7 +91,7 @@ bool parse(const std::string& s,size_t& pos,B& out,int depth=0){
 }
 std::string hex(const unsigned char* p,size_t n){static const char* digits="0123456789abcdef";std::string v;for(size_t i=0;i<n;i++){v+=digits[p[i]>>4];v+=digits[p[i]&15];}return v;}
 std::string enc(const unsigned char* p,size_t n){static const char* digits="0123456789ABCDEF";std::string v;for(size_t i=0;i<n;i++){unsigned char c=p[i];if((c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='-'||c=='_'||c=='.'||c=='~')v+=char(c);else{v+='%';v+=digits[c>>4];v+=digits[c&15];}}return v;}
-struct Meta {std::string name,announce,hash,pieces;uint64_t bytes=0;uint32_t piece=0;};
+struct Meta {std::string name,announce,hash,pieces;std::vector<std::string> trackers;uint64_t bytes=0;uint32_t piece=0;};
 bool metadata(const std::string& path,Meta& m,std::string& error){
  std::string raw;if(!readAll(path,raw)){error="Cannot read .torrent metadata";return false;}
  B root;size_t pos=0;if(!parse(raw,pos,root)||pos!=raw.size()||root.type!='d'){error="Invalid bencoded torrent";return false;}
@@ -90,12 +103,35 @@ bool metadata(const std::string& path,Meta& m,std::string& error){
  if(info.type!='d'||info.get("files").type=='l'){error="Only single-file v1 torrents supported";return false;}
  if(m.name.empty()||m.name=="."||m.name==".."||m.name.find('/')!=std::string::npos||m.name.find('\\')!=std::string::npos||m.name.find("..")!=std::string::npos||m.name.find('\0')!=std::string::npos||m.name.size()>180){error="Unsafe torrent filename";return false;}
  if(!m.bytes||m.bytes>16ULL*1024*1024*1024||m.piece<16384||m.piece>4*1024*1024||m.pieces.size()%20||m.pieces.size()/20!=(m.bytes+m.piece-1)/m.piece){error="Invalid torrent size or piece hashes";return false;}
- if(m.announce.rfind("http://",0)!=0){error="Torrent needs an HTTP tracker (HTTPS/UDP unsupported in v0.1)";return false;}
+ auto addTracker=[&](const std::string& url){
+  if((url.rfind("http://",0)==0||url.rfind("https://",0)==0||url.rfind("udp://",0)==0)&&url.size()<1000&&
+     std::find(m.trackers.begin(),m.trackers.end(),url)==m.trackers.end()&&m.trackers.size()<12)m.trackers.push_back(url);
+ };
+ addTracker(m.announce);
+ const B& tiers=root.get("announce-list");
+ if(tiers.type=='l')for(const auto& tier:tiers.list){
+  if(tier.type!='l')continue;
+  for(const auto& value:tier.list)if(value.type=='s')addTracker(value.v);
+ }
+ if(m.trackers.empty()){error="No supported HTTP, HTTPS or UDP tracker in metadata";return false;}
  unsigned char digest[20];SHA1((const unsigned char*)raw.data()+info.start,info.end-info.start,digest);m.hash.assign((char*)digest,20);return true;
 }
-struct Url{std::string host,path;int port=80;};
+struct Url{std::string host,path;int port=80;bool tls=false;};
 bool url(const std::string& input,Url& out){
- if(input.rfind("http://",0)!=0)return false;std::string rem=input.substr(7);size_t slash=rem.find('/');std::string authority=rem.substr(0,slash);out.path=slash==std::string::npos?"/":rem.substr(slash);size_t colon=authority.find(':');out.host=authority.substr(0,colon);if(colon!=std::string::npos){std::string port=authority.substr(colon+1);if(port.empty()||port.size()>5||port.find_first_not_of("0123456789")!=std::string::npos)return false;out.port=atoi(port.c_str());}
+ size_t prefix=0;
+ if(input.rfind("https://",0)==0){prefix=8;out.tls=true;out.port=443;}
+ else if(input.rfind("http://",0)==0){prefix=7;out.tls=false;out.port=80;}
+ else return false;
+ const std::string rem=input.substr(prefix);
+ size_t slash=rem.find('/');const std::string authority=rem.substr(0,slash);
+ out.path=slash==std::string::npos?"/":rem.substr(slash);
+ size_t colon=authority.rfind(':');
+ out.host=authority.substr(0,colon);
+ if(colon!=std::string::npos){
+  const std::string port=authority.substr(colon+1);
+  if(port.empty()||port.size()>5||port.find_first_not_of("0123456789")!=std::string::npos)return false;
+  out.port=atoi(port.c_str());
+ }
  return !out.host.empty()&&out.host.size()<200&&out.port>0&&out.port<=65535&&out.path.size()<2000;
 }
 int dial(const std::string& host,int port,int seconds){
@@ -132,35 +168,117 @@ bool recvAll(int fd,void* data,size_t n){auto* p=(char*)data;while(n){ssize_t k=
 uint32_t be32(const char* p){return (uint32_t(uint8_t(p[0]))<<24)|(uint32_t(uint8_t(p[1]))<<16)|(uint32_t(uint8_t(p[2]))<<8)|uint8_t(p[3]);}
 void store32(char* p,uint32_t n){for(int i=0;i<4;i++)p[i]=(char)(n>>(24-8*i));}
 struct Peer{std::string ip;int port;};
-std::vector<Peer> tracker(const Meta& m,const std::string& peerId,uint64_t left){
- Url u;if(!url(m.announce,u)){trace("TRACKER invalid HTTP announce URL");return {};}
- trace("HTTP tracker "+u.host+":"+std::to_string(u.port)+" announce...");
- std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- int fd=dial(u.host,u.port,6);if(fd<0){trace("HTTP tracker connection FAILED");return {};}
- std::string req="GET "+q+" HTTP/1.0\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.1\r\nConnection: close\r\n\r\n";
- if(!sendAll(fd,req.data(),req.size())){trace("HTTP tracker send FAILED errno="+std::to_string(errno));close(fd);return {};}
- std::string response;char buffer[4096];ssize_t got=0;
- while(response.size()<256*1024&&(got=recv(fd,buffer,sizeof(buffer),0))>0)response.append(buffer,(size_t)got);
- if(got<0)trace("HTTP tracker read timeout/socket error errno="+std::to_string(errno));
- close(fd);
- if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
-  trace("HTTP tracker bad status: "+response.substr(0,std::min<size_t>(response.size(),80)));return {};
+bool httpResponse(const Url& u,const std::string& req,std::string& response){
+ int fd=dial(u.host,u.port,8);if(fd<0){trace("Tracker connection FAILED");return false;}
+ SSL_CTX* ctx=nullptr;SSL* ssl=nullptr;bool ok=false;
+ if(u.tls){
+  ctx=SSL_CTX_new(TLS_client_method());
+  if(!ctx){trace("TLS context FAILED");close(fd);return false;}
+  SSL_CTX_set_min_proto_version(ctx,TLS1_2_VERSION);
+  SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,nullptr);
+  BIO* input=BIO_new_mem_buf(kCaBundle,-1);
+  int trusted=0;
+  if(input){
+   X509_STORE* store=SSL_CTX_get_cert_store(ctx);X509* cert=nullptr;
+   while((cert=PEM_read_bio_X509(input,nullptr,nullptr,nullptr))!=nullptr){
+    if(X509_STORE_add_cert(store,cert)==1)trusted++;
+    X509_free(cert);
+   }
+   BIO_free(input);ERR_clear_error();
+  }
+  if(!trusted){trace("TLS trust store is empty");SSL_CTX_free(ctx);close(fd);return false;}
+  ssl=SSL_new(ctx);
+  if(!ssl){trace("TLS SSL_new FAILED");SSL_CTX_free(ctx);close(fd);return false;}
+  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,u.host.c_str());SSL_set1_host(ssl,u.host.c_str());
+  if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){
+   trace("TLS handshake/certificate validation FAILED host="+u.host+" ssl_error="+std::to_string(ERR_get_error()));
+  }else{
+   size_t written=0;
+   while(written<req.size()){
+    int n=SSL_write(ssl,req.data()+written,(int)std::min<size_t>(16384,req.size()-written));
+    if(n<=0){trace("TLS tracker send FAILED ssl_error="+std::to_string(SSL_get_error(ssl,n)));break;}
+    written+=(size_t)n;
+   }
+   if(written==req.size()){
+    char buff[4096];int n=0;
+    while(response.size()<256*1024&&(n=SSL_read(ssl,buff,sizeof(buff)))>0)response.append(buff,(size_t)n);
+    if(n<0)trace("TLS tracker receive error ssl_error="+std::to_string(SSL_get_error(ssl,n)));
+    ok=!response.empty();
+   }
+  }
+ }else{
+  if(sendAll(fd,req.data(),req.size())){
+   char buffer[4096];ssize_t got=0;
+   while(response.size()<256*1024&&(got=recv(fd,buffer,sizeof(buffer),0))>0)response.append(buffer,(size_t)got);
+   if(got<0)trace("HTTP tracker receive timeout errno="+std::to_string(errno));
+   ok=!response.empty();
+  }else trace("HTTP tracker send FAILED errno="+std::to_string(errno));
  }
- size_t body=response.find("\r\n\r\n");if(body==std::string::npos){trace("HTTP tracker header parse FAILED");return {};}body+=4;
- B root;size_t offset=0;std::string data=response.substr(body);
- if(!parse(data,offset,root)){trace("HTTP tracker bencode invalid; bytes="+std::to_string(data.size()));return {};}
- if(!root.get("failure reason").v.empty()){trace("HTTP tracker rejected: "+root.get("failure reason").v);return {};}
+ if(ssl)SSL_free(ssl);
+ if(ctx)SSL_CTX_free(ctx);
+ close(fd);
+ return ok;
+}
+bool unchunk(std::string& body){
+ std::string out;size_t pos=0;
+ while(pos<body.size()){
+  size_t end=body.find("\r\n",pos);if(end==std::string::npos||end-pos>32)return false;
+  std::string hexLen=body.substr(pos,end-pos);size_t semicolon=hexLen.find(';');if(semicolon!=std::string::npos)hexLen.resize(semicolon);
+  char* ep=nullptr;unsigned long n=strtoul(hexLen.c_str(),&ep,16);
+  if(hexLen.empty()||!ep||*ep||n>256*1024)return false;
+  pos=end+2;
+  if(n==0){body.swap(out);return true;}
+  if(n>body.size()-pos||pos+n+2>body.size()||body.compare(pos+n,2,"\r\n")!=0)return false;
+  out.append(body.data()+pos,n);if(out.size()>256*1024)return false;
+  pos+=n+2;
+ }
+ return false;
+}
+std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left){
+ Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
+ trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
+ std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.2\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
+ if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
+  trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
+ }
+ size_t body=response.find("\r\n\r\n");if(body==std::string::npos){trace("Tracker HTTP header parse FAILED");return {};}
+ std::string headers=response.substr(0,body);
+ body+=4;std::string data=response.substr(body);
+ if(headers.find("Transfer-Encoding: chunked")!=std::string::npos||headers.find("transfer-encoding: chunked")!=std::string::npos){
+  if(!unchunk(data)){trace("Tracker chunked HTTP payload malformed");return {};}
+ }
+ B root;size_t offset=0;
+ if(!parse(data,offset,root)){trace("Tracker invalid bencode body="+std::to_string(data.size()));return {};}
+ if(!root.get("failure reason").v.empty()){trace("Tracker rejected announce: "+root.get("failure reason").v);return {};}
  std::vector<Peer> peers;const B& a=root.get("peers");
- if(a.type=='s'){for(size_t i=0;i+6<=a.v.size()&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip)))continue;int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});}}
- else if(a.type=='l'){for(const auto& e:a.list){auto ip=e.get("ip").v;int port=(int)e.get("port").number();if(ip.size()<64&&port>0&&port<=65535&&peers.size()<100)peers.push_back({ip,port});}}
- trace("HTTP tracker returned "+std::to_string(peers.size())+" peers");return peers;
+ if(a.type=='s'){
+  for(size_t i=0;i+6<=a.v.size()&&peers.size()<100;i+=6){
+   char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip)))continue;
+   int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});
+  }
+ }else if(a.type=='l'){
+  for(const auto& e:a.list){
+   auto ip=e.get("ip").v;int port=(int)e.get("port").number();
+   if(ip.size()<64&&port>0&&port<=65535&&peers.size()<100)peers.push_back({ip,port});
+  }
+ }
+ trace("Tracker response OK: "+std::to_string(peers.size())+" peers");return peers;
 }
 void store64(char* p,uint64_t n){for(int i=0;i<8;i++)p[i]=(char)(n>>(56-8*i));}
-std::vector<Peer> udpFallback(const Meta& m,const std::string& peerId,uint64_t left){
- const std::string host="tracker.opentrackr.org";
- trace("Debian fallback: UDP tracker "+host+":1337");
+std::vector<Peer> udpFallback(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left){
+ if(announce.rfind("udp://",0)!=0){trace("Unsupported UDP tracker URL");return {};}
+ const std::string authority=announce.substr(6,announce.find('/',6)==std::string::npos?std::string::npos:announce.find('/',6)-6);
+ size_t colon=authority.rfind(':');
+ if(colon==std::string::npos){trace("UDP tracker missing explicit port");return {};}
+ const std::string host=authority.substr(0,colon),port=authority.substr(colon+1);
+ if(host.empty()||host.size()>200||port.empty()||port.size()>5||port.find_first_not_of("0123456789")!=std::string::npos||atoi(port.c_str())==0||atoi(port.c_str())>65535){
+  trace("UDP tracker invalid host or port");return {};
+ }
+ trace("UDP tracker "+host+":"+port);
  struct addrinfo hints{},*head=nullptr;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_DGRAM;
- int result=getaddrinfo(host.c_str(),"1337",&hints,&head);
+ int result=getaddrinfo(host.c_str(),port.c_str(),&hints,&head);
  if(result!=0){trace("UDP tracker DNS FAILED "+std::to_string(result));return {};}
  int fd=socket(AF_INET,SOCK_DGRAM,0);if(fd<0){freeaddrinfo(head);trace("UDP socket FAILED errno="+std::to_string(errno));return {};}
  struct timeval timeout{5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
@@ -253,9 +371,24 @@ Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
 const char* sampleTorrentPath(){return "/app0/assets/test/debian-13.7.0-amd64-netinst.iso.torrent";}
+std::string testDisplayName(const std::string& path){
+ for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.display;
+ return path;
+}
+std::string testSizeHint(const std::string& path){
+ for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.size;
+ return "Unknown";
+}
 std::vector<std::string> discoverTorrents(){
- std::vector<std::string> out;const std::string roots[]={"/app0/assets/test","/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
- for(const auto& p:roots){std::string path=p+"/"+kTest;struct stat st{};if(stat(path.c_str(),&st)==0&&S_ISREG(st.st_mode))out.push_back(path);}
+ std::vector<std::string> out;
+ const std::string roots[]={"/app0/assets/test","/data/homebrew/PPSA99684/assets/test","/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
+ for(const auto& t:kTests)for(const auto& root:roots){
+  std::string path=root+"/"+t.file;
+  struct stat st{};
+  if(stat(path.c_str(),&st)==0&&S_ISREG(st.st_mode)&&st.st_size>0&&st.st_size<=1024*1024){
+   out.push_back(path);break;
+  }
+ }
  return out;
 }
 void Engine::setUsb(bool enable){std::lock_guard<std::mutex> lock(mutex_);if(busy_)return;state_.usb=enable;std::string base=enable?kUsb:kHome;state_.cacheDir=base+"/cache";state_.downloadDir=base+"/downloads";if(!enable)createDirectories(base);else if(!isDir("/mnt/usb0"))state_.status="USB 0 not mounted";else createDirectories(base);}
@@ -286,13 +419,20 @@ void Engine::run(std::string path){
  int failedRounds=0;while(!cancelled()&&failedRounds<4){
   publish("Contacting tracker...");
   uint64_t left=0;for(size_t i=0;i<verified.size();i++)if(!verified[i])left+=pieceSize(m,(uint32_t)i);
-  auto peers=tracker(m,peerId,left);
+  std::vector<Peer> peers;
+  for(size_t t=0;t<m.trackers.size()&&!cancelled();t++){
+   const std::string& announce=m.trackers[t];
+   publish("Contacting tracker "+std::to_string(t+1)+"/"+std::to_string(m.trackers.size())+"...");
+   if(announce.rfind("udp://",0)==0)peers=udpFallback(m,announce,peerId,left);
+   else peers=tracker(m,announce,peerId,left);
+   if(!peers.empty())break;
+  }
   if(peers.empty()&&m.name=="debian-13.7.0-amd64-netinst.iso"&&m.announce.find("bttracker.debian.org")!=std::string::npos&&!cancelled()){
    publish("Debian tracker empty; trying UDP fallback...");
-   peers=udpFallback(m,peerId,left);
+   peers=udpFallback(m,"udp://tracker.opentrackr.org:1337/announce",peerId,left);
   }
   {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
-  if(peers.empty()){failedRounds++;publish("No peers from HTTP or UDP tracker (see Logs)");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
+  if(peers.empty()){failedRounds++;publish("Trackers returned no peers (see Logs)");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
   bool any=false;
   for(size_t peerIndex=0;peerIndex<peers.size();++peerIndex){
    const Peer& peer=peers[peerIndex];

@@ -6,7 +6,7 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
-| Torrent Flow | [homebrew/ps5-torrent](homebrew/ps5-torrent/) | [Build Torrent Flow](.github/workflows/build-ps5-torrent.yml) | [v0.1.1](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-torrent-v0.1.1) |
+| Torrent Flow | [homebrew/ps5-torrent](homebrew/ps5-torrent/) | [Build Torrent Flow](.github/workflows/build-ps5-torrent.yml) | [v0.1.2](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-torrent-v0.1.2) |
 | Crypto Tracker | [homebrew/crypto-tracker](homebrew/crypto-tracker/) | [Build Crypto Tracker](.github/workflows/build-ps5-crypto-tracker.yml) | [v0.3.0](https://github.com/Yahballon/tmp_lap/releases/tag/v0.3.0) |
 | WWW Speedtest | [homebrew/www-speedtest](homebrew/www-speedtest/) | [Build WWW Speedtest](.github/workflows/build-www-speedtest.yml) | [v0.4.3](https://github.com/Yahballon/tmp_lap/releases/tag/www-speedtest-v0.4.3) |
 | Starbound Sprint | [homebrew/starbound-sprint](homebrew/starbound-sprint/) | [Build Starbound Sprint](.github/workflows/build-starbound-sprint.yml) | [v0.5.0](https://github.com/Yahballon/tmp_lap/releases/tag/starbound-sprint-v0.5.0) |

@@ -28,12 +28,26 @@ jobs:
           mkdir -p app/assets/test
           curl -fLsS --retry 3 'https://mirrors.edge.kernel.org/debian-cd/13.7.0/amd64/bt-cd/debian-13.7.0-amd64-netinst.iso.torrent' -o app/assets/test/debian-13.7.0-amd64-netinst.iso.torrent || curl -fLsS --retry 3 'https://ftp.jaist.ac.jp/debian-cd/13.7.0/amd64/bt-cd/debian-13.7.0-amd64-netinst.iso.torrent' -o app/assets/test/debian-13.7.0-amd64-netinst.iso.torrent
           echo '690700ed8de8d0987fcf8c136507471b1588b996696ca34f9cf972ee09b849e0  app/assets/test/debian-13.7.0-amd64-netinst.iso.torrent' | sha256sum -c -
+          # Linux Mint official links: blog.linuxmint.com/?p=4981
+          # Ubuntu official links: releases.ubuntu.com/{26.04,24.04}/
+          curl -fLsS --retry 3 --connect-timeout 15 --max-time 120 'https://releases.ubuntu.com/26.04/ubuntu-26.04.1-live-server-amd64.iso.torrent' -o app/assets/test/ubuntu-26.04.1-live-server-amd64.iso.torrent
+          curl -fLsS --retry 3 --connect-timeout 15 --max-time 120 'https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso.torrent' -o app/assets/test/ubuntu-24.04.5-live-server-amd64.iso.torrent
+          curl -fLsS --retry 3 --connect-timeout 15 --max-time 120 'https://linuxmint.com/torrents/linuxmint-22.3-cinnamon-64bit.iso.torrent' -o app/assets/test/linuxmint-22.3-cinnamon-64bit.iso.torrent
+          curl -fLsS --retry 3 --connect-timeout 15 --max-time 120 'https://linuxmint.com/torrents/linuxmint-22.3-xfce-64bit.iso.torrent' -o app/assets/test/linuxmint-22.3-xfce-64bit.iso.torrent
+          curl -fLsS --retry 3 --connect-timeout 15 --max-time 120 'https://linuxmint.com/torrents/linuxmint-22.3-mate-64bit.iso.torrent' -o app/assets/test/linuxmint-22.3-mate-64bit.iso.torrent
+          python3 homebrew/ps5-torrent/tests/verify_test_torrents.py app/assets/test
+          # Bundle system CA roots for PS5 HTTPS tracker TLS verification.
+          python3 - <<'PY'
+          from pathlib import Path
+          pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
+          Path('app/src/ca_bundle.inc').write_text('static const char kCaBundle[] = R"PS5CABUNDLE(' + pem + ')PS5CABUNDLE";\n')
+          PY
           python3 - <<'PY'
           import json,pathlib
           from PIL import Image,ImageDraw
           root=pathlib.Path("app/sce_sys/param.json")
           info=json.loads(root.read_text())
-          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.002")
+          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.003")
           info["localizedParameters"]["en-US"]["titleName"]="Torrent Flow"
           root.write_text(json.dumps(info,indent=2)+"\n")
           im=Image.new("RGBA",(512,512),(7,19,31,255))
@@ -71,8 +85,14 @@ jobs:
           exe=root/'eboot.bin'
           assert exe.is_file() and exe.stat().st_size>0
           assert struct.unpack('<I',exe.read_bytes()[:4])[0]==0x1D3D154F
-          for name in ('sce_sys/param.json','sce_sys/icon0.png','sce_module/libc.prx','assets/test/debian-13.7.0-amd64-netinst.iso.torrent'):
+          for name in ('sce_sys/param.json','sce_sys/icon0.png','sce_module/libc.prx'):
               assert (root/name).is_file(),name
+          from importlib.machinery import SourceFileLoader
+          import importlib.util
+          spec=importlib.util.spec_from_file_location('verify_test_torrents','homebrew/ps5-torrent/tests/verify_test_torrents.py')
+          mod=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          mod.validate(root/'assets/test')
           assert json.loads((root/'sce_sys/param.json').read_text())['titleId']=='PPSA99684'
           assert hashlib.sha256((root/'assets/test/debian-13.7.0-amd64-netinst.iso.torrent').read_bytes()).hexdigest()=='690700ed8de8d0987fcf8c136507471b1588b996696ca34f9cf972ee09b849e0'
           with zipfile.ZipFile('app/dist/PPSA99684.zip') as z:
@@ -81,7 +101,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Torrent-Flow-v0.1.1-PPSA99684
+          name: Torrent-Flow-v0.1.2-PPSA99684
           path: app/dist/PPSA99684.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -89,5 +109,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-torrent-v0.1.1 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.1.1 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.1.1" --notes "Native PS5 experimental BitTorrent downloader v0.1.1: improved HTTP tracker diagnostics, Debian test UDP fallback, corrected peer choke/unchoke request handling, cancel support and persistent rotating app logs. Real PS5 end-to-end download validation pending."
+          if gh release view ps5-torrent-v0.1.2 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.1.2 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.1.2" --notes "Native PS5 experimental BitTorrent downloader v0.1.2: five additional official Linux torrents for testing (Ubuntu 26.04.1/24.04.5 server; Linux Mint 22.3 Cinnamon/Xfce/MATE), six selectable fixtures total, with metadata checks and persistent logs. Hardware transfer verification pending."

@@ -25,17 +25,17 @@ int main(){
  hui::ps5::Display display;if(!display.open())hui::sys::park();hui::gfx::Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;std::string fontBytes=load("/app0/assets/fonts/inter-semibold.huifont");if(fontBytes.empty())fontBytes=load("/data/homebrew/PPSA99684/assets/fonts/inter-semibold.huifont");if(!font.load(fontBytes))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);hui::ps5::Pad pad;pad.open();
- auto& engine=torrent::engine();int page=0,selected=0;unsigned previous=0;std::string notice="Ready to download a legal test torrent.";auto library=torrent::discoverTorrents();
+ auto& engine=torrent::engine();int page=0,selected=0;unsigned previous=0;std::string notice="Select one of six legal Linux test torrents.";auto library=torrent::discoverTorrents();
  const char* tabs[]={"Dashboard","Torrent Library","Storage & Settings","Logs","About"};
  for(;;){
   std::array<hui::PadSample,64> samples{};unsigned pressed=0;size_t n=pad.read(samples);
   for(size_t i=0;i<n;i++){pressed|=samples[i].buttons&~previous;previous=samples[i].buttons;}
   if(pressed&hui::pad_bits::kL1)page=(page+4)%5;
   if(pressed&hui::pad_bits::kR1)page=(page+1)%5;
-  if(pressed&hui::pad_bits::kUp){if(page==1&&selected>0)selected--;else if(page==0)page=(page+3)%4;}
-  if(pressed&hui::pad_bits::kDown){if(page==1&&selected+1<(int)library.size())selected++;else if(page==0)page=(page+1)%4;}
+  if(pressed&hui::pad_bits::kUp){if(page==1&&selected>0)selected--;else if(page==0)page=(page+4)%5;}
+  if(pressed&hui::pad_bits::kDown){if(page==1&&selected+1<(int)library.size())selected++;else if(page==0)page=(page+1)%5;}
   if(pressed&hui::pad_bits::kCircle){if(page!=0)page=0;else{engine.stop();pad.close();renderer.release();display.close();hui::sys::quit();}}
-  if(pressed&hui::pad_bits::kTriangle){library=torrent::discoverTorrents();notice="Torrent library refreshed"; }
+  if(pressed&hui::pad_bits::kTriangle){library=torrent::discoverTorrents();selected=std::max(0,std::min(selected,(int)library.size()-1));notice="Torrent library refreshed"; }
   if(pressed&hui::pad_bits::kSquare){engine.stop();notice="Stop requested"; }
   if(pressed&hui::pad_bits::kCross){
    if(page==0||page==1){auto list=torrent::discoverTorrents();if(list.empty())notice="Test torrent is missing from package";else{int index=page==1?std::min(selected,(int)list.size()-1):0;if(engine.start(list[index])){notice="Loading "+list[index];page=0;}else notice="A transfer is already running";}}
@@ -47,7 +47,7 @@ int main(){
   d.rounded_rect({0,0,1920,102},0,Color::rgb(0x0d1b2d));d.circle(79,51,28,mint);d.circle(79,51,18,Color::rgb(0x0d1b2d));d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",464,54,21,mint);
-  text(d,font,atlas,"v0.1.1",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.1.2",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<5;i++){
    float y=149+i*104;card(d,43,y,302,88,page==i);
@@ -55,14 +55,14 @@ int main(){
    text(d,font,atlas,i==0?"Live transfer overview":i==1?"Bundled .torrent files":i==2?"Cache and destination":i==3?"Live transfer diagnostics":"Client and limitations",66,y+70,16,muted);
   }
   text(d,font,atlas,"NETWORK",60,700,19,mint);
-  text(d,font,atlas,"Tracker: HTTP BitTorrent v1",60,746,18,muted);
+  text(d,font,atlas,"Tracker: HTTP / HTTPS / UDP",60,746,18,muted);
   text(d,font,atlas,"Peers: TCP / IPv4",60,783,18,muted);
   text(d,font,atlas,"Integrity: SHA-1 pieces",60,821,18,muted);
   text(d,font,atlas,s.running?"TRANSFER ACTIVE":s.done?"DOWNLOAD COMPLETE":"TRANSFER IDLE",60,937,20,s.running?mint:s.done?gold:muted);
   if(page==0){
    card(d,385,126,1497,240);
    text(d,font,atlas,"TRANSFER OVERVIEW",428,181,20,mint);
-   text(d,font,atlas,s.name.empty()?"Debian 13.7 netinst - ready to test":shorten(s.name,54),427,238,38);
+   text(d,font,atlas,s.name.empty()?"Select one of 6 Linux test torrents":shorten(s.name,54),427,238,38);
    text(d,font,atlas,shorten(s.status,96),429,282,21,s.done?mint:muted);
    bar(d,427,321,1398,p,mint);
    text(d,font,atlas,std::to_string((int)(p*100))+"%",1825,310,26,mint,Align::right);
@@ -76,16 +76,21 @@ int main(){
    for(int i=0;i<5;i++){float y=668+i*57;text(d,font,atlas,keys[i],421,y,20,muted);text(d,font,atlas,values[i],652,y,21);if(i<4)d.line(419,y+15,1323,y+15,1,edge);}
    card(d,1371,559,511,420);
    text(d,font,atlas,"QUICK ACTIONS",1402,608,23,mint);
-   text(d,font,atlas,"X  Start test torrent",1403,673,24);
+   text(d,font,atlas,"X  Start Debian test",1403,673,24);
    text(d,font,atlas,"SQUARE  Stop transfer",1403,731,23);
    text(d,font,atlas,"TRIANGLE  Refresh library",1403,790,22);
    text(d,font,atlas,"R1  Next screen",1403,847,23);
    text(d,font,atlas,"Existing verified pieces survive",1403,919,18,muted);
   }else if(page==1){
    card(d,386,125,1495,866);text(d,font,atlas,"TORRENT LIBRARY",429,206,43);
-   text(d,font,atlas,"Packaged legal test torrent plus cache files",429,257,22,muted);
+   text(d,font,atlas,std::to_string(library.size())+" ready-to-test Linux torrents | X Download selected",429,257,22,muted);
    if(library.empty())text(d,font,atlas,"No .torrent file found - package assets may be missing",430,370,25,gold);
-   for(size_t i=0;i<library.size()&&i<12;i++){float y=302+i*101;card(d,413,y,1440,91,(int)i==selected);text(d,font,atlas,shorten(library[i],105),442,y+42,25);text(d,font,atlas,(int)i==selected?"X  Download / Resume":"Available",443,y+75,17,(int)i==selected?mint:muted);}
+   for(size_t i=0;i<library.size()&&i<10;i++){
+    float y=301+i*108;card(d,413,y,1440,98,(int)i==selected);
+    text(d,font,atlas,torrent::testDisplayName(library[i]),442,y+38,27,(int)i==selected?mint:white);
+    text(d,font,atlas,torrent::testSizeHint(library[i])+" ISO  |  "+(i==0?std::string("Debian reference"):std::string("New test torrent")),444,y+76,18,muted);
+    text(d,font,atlas,(int)i==selected?"X DOWNLOAD / RESUME":"D-Pad to select",1823,y+58,19,(int)i==selected?mint:muted,Align::right);
+   }
   }else if(page==2){
    card(d,386,125,1495,866);text(d,font,atlas,"STORAGE & SETTINGS",429,208,43);
    text(d,font,atlas,"Mode: "+std::string(s.usb?"USB 0":"Internal PS5 storage"),430,304,30,mint);
@@ -113,7 +118,7 @@ int main(){
   }else{
    card(d,386,125,1495,866);text(d,font,atlas,"ABOUT TORRENT FLOW",429,210,43);
    text(d,font,atlas,"Native PS5 BitTorrent test client  /  PPSA99684",431,288,26,mint);
-   const char* lines[]={"BitTorrent v1 single-file torrents, HTTP trackers, IPv4 TCP peers","Sequential 16 KiB piece requests with SHA-1 integrity checks","Resumable local storage, separate cache and downloads folders","Bundled Debian GNU/Linux netinst torrent - distribution is legal","Experimental: HTTP + Debian UDP fallback, no DHT, magnets or multi-file","A paused job stops safely after its current network operation.","BitFiend studied as a design reference; no upstream code copied."};
+   const char* lines[]={"BitTorrent v1 single-file, HTTP/HTTPS/UDP trackers, IPv4 peers","Sequential 16 KiB piece requests with SHA-1 integrity checks","Resumable local storage, separate cache and downloads folders","Six official Debian, Ubuntu and Linux Mint test torrents","Experimental: HTTP + Debian UDP fallback, no DHT, magnets or multi-file","A paused job stops safely after its current network operation.","BitFiend studied as a design reference; no upstream code copied."};
    for(int i=0;i<7;i++)text(d,font,atlas,lines[i],434,369+i*72,22,i==4?gold:muted);
   }
   d.rounded_rect({25,1007,1870,53},12,Color::rgb(0x102237));
