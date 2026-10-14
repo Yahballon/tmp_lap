@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.4.0 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.4.1 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -19,6 +19,14 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+
+## PS5 storage + networking regression fix (v0.4.1)
+
+v0.4.0 rejected both single-file and multi-file downloads during `OutputLayout::prepare` with `Unsafe / inaccessible download directory`. The new directory guard called `lstat()` on PS5 mount paths where it may fail despite working `stat()`. We now check for symbolic links with `readlink()` and fall back to `stat()` for ordinary paths; errors log the failing path and errno. If `O_NOFOLLOW` is unsupported, a validated fallback may open regular files.
+
+An older PS5 networking regression was also identified: `SOCK_NONBLOCK` established TCP connections but restoring blocking mode via `ioctl(FIONBIO)` failed with `errno=13`. The previous implementation therefore discarded successful tracker and peer connections. Native PS5 now uses the previously working blocking TCP path, retaining per-job cancellation. Nonblocking connect mode remains host-only until PS5 TLS and peer I/O support it.
+
+CI additionally runs real transfers with simulated failures of `lstat()` and `O_NOFOLLOW`, plus the regular single-file, multi-file, queue and malicious-path tests. Full download on physical PS5 hardware still needs verification.
 
 ## Multi-file BitTorrent v1 (v0.4.0)
 
