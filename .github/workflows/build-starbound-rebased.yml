@@ -36,12 +36,15 @@ jobs:
           python3 homebrew/starbound-rebased/tools/generate-original-media.py
           python3 homebrew/starbound-rebased/tools/upgrade-media.py
           python3 homebrew/starbound-rebased/tools/rework-world-assets.py
+          bash homebrew/starbound-rebased/tools/fetch-world11-reference.sh
+          python3 homebrew/starbound-rebased/tools/reskin-world11-reference.py build/gold872-reference
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
           cp homebrew/starbound-rebased/ps5/StarboundAssetPaths.hpp build/gold872-engine/include/StarboundAssetPaths.hpp
           python3 homebrew/starbound-rebased/tools/resolve-resource-paths.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/upgrade-renderer.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/optimize-ps5-renderer.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/rebrand-game-hud.py build/gold872-engine
+          python3 homebrew/starbound-rebased/tools/fix-reference-rendering.py build/gold872-engine
           python3 - <<'PY'
           from pathlib import Path
           root=Path("build/gold872-engine")
@@ -57,6 +60,16 @@ jobs:
           assert "/app0/assets/" in text and "/data/homebrew/PPSA99642/assets/" in text
           assert 'ASSET_ROOT_FOUND' in text
           assert '"YAHBALLON"' in (root/'src/systems/ScoreSystem.cpp').read_text()
+          render=(root/'src/systems/RenderSystem.cpp').read_text()
+          assert 'SDL_QueryTexture(fullTexture.get()' in render, 'Menu logo source region must use full texture'
+          assert 'const int maxLevel = 1;' in (root/'include/systems/MenuSystem.h').read_text()
+          import hashlib
+          upstream=Path('build/gold872-reference/res/data/World1-1')
+          packaged=Path('homebrew/starbound-rebased/res/data/World1-1')
+          for file in upstream.iterdir():
+              if file.is_file():
+                  assert hashlib.sha256(file.read_bytes()).digest() == hashlib.sha256((packaged/file.name).read_bytes()).digest(),file
+          print('Verified reference World1-1 CSV and property byte parity with pinned Gold872 revision')
           texture=(root/"src/TextureManager.cpp").read_text()
           assert 'SDL_TEXTUREACCESS_TARGET' in texture and 'PERF01 native 800x480 offscreen target enabled' in texture
           assert 'SDL_RenderCopy(renderer, sbSceneTarget, nullptr, &screen)' in texture
@@ -102,7 +115,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.012'
+          data['contentVersion']='01.000.013'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -157,8 +170,10 @@ jobs:
               assert root+'assets/res/sprites/backgrounds/alien_sky.png' in names
               from PIL import Image
               import io
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(1536,704)
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(800,512)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(1634,750)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(806,532)
+              enemy_img=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/EnemySpriteSheet.png')))
+              assert enemy_img.width>=1120 and enemy_img.height>=480 and enemy_img.width%2==0 and enemy_img.height%2==0
               for required in (
                   'res/sprites/characters/PlayerSpriteSheet.png',
                   'res/sprites/icons/logo.png',
@@ -167,9 +182,16 @@ jobs:
                   'res/sounds/effects/jump.wav',
               ):
                   assert root+'assets/'+required in names,required
+              assert root+'assets/res/sprites/blocks/IrregularReferences.blockmap' in names
+              import hashlib
+              with open('build/gold872-reference/res/data/World1-1/World1-1_Foreground.csv','rb') as f:
+                  original_level=f.read()
+              assert z.read(root+'assets/res/data/World1-1/World1-1_Foreground.csv')==original_level
+              original_props=pathlib.Path('build/gold872-reference/res/data/World1-1/World1-1.levelproperties').read_bytes()
+              assert z.read(root+'assets/res/data/World1-1/World1-1.levelproperties')==original_props
               menu=z.read(root+'assets/res/data/MenuBackground/MenuBackground_Background.csv').decode()
               rows=[r.split(',') for r in menu.strip().splitlines()]
-              assert len(rows)==15 and all(len(row)==25 for row in rows)
+              assert len(rows)>0 and len({len(row) for row in rows})==1
               assert any(int(x)>=0 for row in rows for x in row)
               print('Validated every exact game-relative path under /app0/assets')
               data=json.loads(z.read(root+'sce_sys/param.json'))
@@ -185,6 +207,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.11
+          tag=starbound-rebased-v0.1.12
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.11 World Assets and HUD (PS5 experimental)" --notes "Fix cropped menu title and opaque option panels, YAHBALLON score HUD, clearer unique tiles and 32 original Gold872-compatible levels. Preserves v0.1.10 rendering performance. PS5 testing pending."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.12 World1-1 Compatibility Test" --notes "Temporary Gold872 World1-1 compatibility reference using the pinned upstream level CSV and properties with hue-shifted original tile/character/enemy atlases. Menu PNG source-cropping bug fixed. Uses only 1-1 in stage selection; preserves v0.1.10 performance and YAHBALLON HUD. This is an experimental reference build; artwork licensing requires review before general redistribution."

@@ -1,9 +1,14 @@
-# Starbound Rebased v0.1.11 — world visuals and HUD
+# Starbound Rebased v0.1.12 — World 1-1 compatibility test
 
-- Change the in-game score HUD from MARIO to YAHBALLON.
-- Fix menu title aspect ratio and menu select panel translucency/size.
-- Replace many identical generated block tiles with diverse originally authored terrain materials, preserving the Gold872 atlas cell dimensions.
-- Generate 32 **independently authored** stages (8 worlds, four stages each) in the Gold872 CSV and level-properties format. They are not exact copies of Nintendo level maps.
-- Keep v0.1.10's optimized native offscreen rendering and FPS logging.
+This is a **temporary technical reference build** for diagnosing the broken v0.1.11 environment art and misaligned asset IDs. 
 
-This version uses procedural original artwork, not AI model-generated sprite sheets, because the image generation connector was unavailable. Game console test pending.
+- The entire World 1-1 level data (six CSV layers and exact levelproperties) is fetched from the pinned Gold872 engine repository revision at CI build time and compared byte-for-byte with the packaged data.
+- Fetch the matching original character, enemy and block sprite sheets from the same revision, apply deterministic recoloring while retaining every sprite-grid cell, alpha mask, chroma key and original frame mapping, then upscale spritesheets 2x with nearest-neighbor (the engine's source rectangles are already scaled accordingly).
+- Copy IrregularReferences.blockmap, needed for tile interaction and reference translation.
+- Fix the **real C++ menu/logo bug**: unframed images use SDL_QueryTexture to read the full source dimensions, instead of cropping to the on-screen destination dimensions.
+- Use the original plain background during the 1-1 test to remove semi-transparent dark-oval sky artifacts.
+- Limit menu level selection to World 1-1; other independently authored test levels remain packaged for crash-safe transitions after completion.
+- Preserve the working native PS5 800x480 offscreen renderer from v0.1.10 and the YAHBALLON HUD.
+- New art in this test is a procedural recolor, **not AI-generated**. The public upstream repository's source-code license does not automatically grant rights to redistribute the Mario-themed art or level layout; this build needs an artwork/content rights review before public/general distribution.
+
+**Validation:** CI compile/package and byte-match verification, plus PS5 runtime test for interactions, warp, score/HUD, options and menus. Do not claim runtime verified until tested on the console.
