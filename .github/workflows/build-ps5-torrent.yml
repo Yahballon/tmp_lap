@@ -53,7 +53,7 @@ jobs:
           from PIL import Image,ImageDraw
           root=pathlib.Path("app/sce_sys/param.json")
           info=json.loads(root.read_text())
-          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.006")
+          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.007")
           info["localizedParameters"]["en-US"]["titleName"]="Torrent Flow"
           root.write_text(json.dumps(info,indent=2)+"\n")
           im=Image.new("RGBA",(512,512),(7,19,31,255))
@@ -107,7 +107,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Torrent-Flow-v0.2.0-PPSA99684
+          name: Torrent-Flow-v0.2.1-PPSA99684
           path: app/dist/PPSA99684.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -115,5 +115,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-torrent-v0.2.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.2.0 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.2.0" --notes "Torrent Flow v0.2.0: four parallel TCP peer workers, correct HAVE/BITFIELD and choke/unchoke handling, pipelined 16 KiB requests, verified resume, ETA and scrollable torrent library with cache imports. CI exercises real C++ engine against local tracker and peers. Physical PS5 download remains to be verified."
+          if gh release view ps5-torrent-v0.2.1 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.2.1 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.2.1" --notes "Torrent Flow v0.2.1: Cancel shuts down active network sockets; PS5-compatible FIONBIO / SOCK_NONBLOCK connect with 200 ms cancellation checks and bounded connect timeout; 8 peers, 16 pipelined blocks, randomized peer ordering and reduced resume disk churn. Host integration test now includes cancelling a deliberately stalled peer. Physical PS5 latency/throughput needs hardware retest."
