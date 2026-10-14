@@ -57,6 +57,8 @@ private:
  bool recoveryMode_=false;
  std::string sessionMarker() const;
  std::string recoveryMarker() const;
+ std::string metadataCachePath(const std::string& hash) const;
+ bool resolveMetadata(Job& job,std::string& chosen);
  void loadSettings();
  void saveSettings() const;
  void loadQueue();
