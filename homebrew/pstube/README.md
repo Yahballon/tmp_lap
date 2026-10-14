@@ -1,44 +1,36 @@
-# PSTUBE v0.1.0 (early development alpha)
-**PSTUBE by YAHBALLON**, native PS5 homebrew using ps5-homebrew-ui and OpenGL.
+# PSTUBE v0.2.0 — Native PS5 Playback Beta
 
-## Current status
-This is a **search-and-favourites alpha**, **not a working YouTube player**. The native UI, DualSense navigation, URL-encoded Invidious search, result detail view, favourite persistence, and offline/error states are implemented in source. Public Invidious instances can be unreliable. Thumbnail fetching, video decoding/audio playback, downloads, OAuth subscriptions, and YouTube account sync are **not implemented**. Controls never pretend that unsupported operations succeeded.
+**PSTUBE by YAHBALLON** is an independent native C++ PS5 homebrew video search, download and playback client with a 1920×1080 OpenGL user interface.
 
 ## Features
-- Native fullscreen 1920x1080 UI, dark cyan design and branded header
-- Live search through a configurable Invidious host (currently `yewtu.be`), HTTPS/TLS CA verification and 8-second socket timeouts
-- Background search and capped HTTP response size; handle empty/error conditions
-- Results with title, uploader and duration; local saved favourites
-- Search keyboard with controller and a separate details screen
-- Separate Home, Search, Trending, Favorites, Downloads, History and Settings navigation
-- Honest status indicators for unavailable features
+- Search using a public Invidious API over HTTPS with hostname and CA verification.
+- Live Trending search; selectable public instance from Settings using Cross.
+- Native background thumbnail downloads from the public image CDN and a disk-backed JPEG cache.
+- Persistent favourites with title/author metadata, and watch history preserved across app updates.
+- Left-stick navigation and Options shortcut to Settings.
+- DualSense-driven onscreen keyboard and selection navigation.
+- Persistent favourites and saved downloads stored outside app folder.
+- Query video details, select a **combined MP4** stream, download with progress into a .part file and atomic rename.
+- Locally play downloaded video with FFmpeg 7 software decoding, OpenGL RGBA frames and SDL2 queued audio.
+- Downloads tab shows progress and allows playback for completed files.
 
 ## Controls
-| Control | Action |
-| --- | --- |
-| D-Pad | Navigate menus, results and keyboard |
-| Cross | Select / type letter / show details |
-| Circle | Back or exit |
-| Triangle | Open search / submit typed query |
-| Square | Favourite / backspace in keyboard |
-| L1 / R1 | Change page |
-| Left stick | Not yet enabled |
-| Options | Not yet enabled |
+D-pad: navigate (keyboard/results/downloads). Cross: select, download/play video, pause/resume while playing. Circle: back / close player. Triangle: open search (download in video details). Square: favourite in library, backspace in keyboard. L1/R1: change tabs.
 
-## Metadata
-- Title ID: `PPSA99762` (repository collision scan only)
-- Version: `0.1.0`
-- Release tag: `pstube-v0.1.0`
-- Source: `homebrew/pstube/native`
-- CI: `.github/workflows/build-pstube.yml`
+## Limits and compatibility
+**Real console playback remains unverified** until tested in your environment.
+- Playback is available only for downloaded, non-DRM combined MP4 streams with codecs supported by FFmpeg; separate adaptive video and audio, playlists, subtitles, high-res 4K, and live/HLS are not implemented.
+- Invidious public instances may block clients or refuse media links. Browser-style YouTube account login and subscriptions are not implemented. This is not an official YouTube app.
+- Downloads cap at 2 GiB; content-length validation for atomic completion; redirect destinations restricted to known public domains.
+- Some endpoints may use chunked transfer encoding not supported by the MP4 downloader in this version.
+- Native graphics plus SDL audio interoperability must be tested on physical PS5.
+- Video is software-decoded; demanding 1080p formats may underperform.
 
-## Build and installation
-Run the dedicated GitHub Actions workflow, which stages PS5-DevBridge's simple-calc scaffold, embeds the system CA roots, builds via the PS5 OpenGL toolchain, and verifies the package.
-After a **successful** CI build, extract `PPSA99762.zip` and copy `PPSA99762` to `/data/homebrew/`. Register with a compatible homebrew loader such as ShadowMountPlus. Only the real release ZIP is installable; source ZIPs are not.
+## Version and build
+Version 0.2.0. Title ID `PPSA99762`. Release tag `pstube-v0.2.0`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
+The workflow fetches PS5-DevBridge's native scaffold, stages PSTUBE C++ files and builds with pinned PacBrew ffmpeg, SDL2 and OpenSSL packages. GitHub Actions validates eboot and ZIP but is not hardware verification.
 
-Settings: `/download0/pstube.txt`, fallback `/data/pstube/state.txt` (schema 1). Favourites remain across app replacement. Query text and history currently persist for the session only.
+## Installation
+Download `PPSA99762.zip` from the validated release, extract it to `/data/homebrew/PPSA99762/` and register with ShadowMountPlus or a compatible loader. Saved data: `/download0/pstube.txt` fallback `/data/pstube/state.txt`; videos in `/data/pstube/downloads/`. Do not delete these when updating.
 
-## Security and limitations
-Requests use certificate and hostname validation. The provider domain is not currently editable through the on-console settings screen. The HTTP client handles identity and chunked responses, but not compressed encoding or redirects; public instance behavior may vary. Video thumbnails, account login, stream format negotiation, playback and downloading require further native development. This package has not been validated on PS5 hardware.
-
-GPL-3.0-or-later. Framework: [blackbearreloaded/ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-homebrew-ui). Video metadata from third-party Invidious instances; no affiliation with YouTube or Google.
+GPL-3.0-or-later. Native renderer: https://github.com/blackbearreloaded/ps5-homebrew-ui. Media backend: FFmpeg and SDL2. Video metadata: community Invidious instances.

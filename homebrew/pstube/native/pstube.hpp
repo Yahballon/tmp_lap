@@ -12,22 +12,32 @@ class Service {
  public:
  Service();~Service();
  bool search(const std::string& query);
+ bool trending();
  bool details(const std::string& id);
  bool download(const Video& video);
+ std::string local_path(const std::string& videoId) const;
  Snapshot snapshot() const;
  std::vector<std::string> favourites()const;
+ std::vector<Video> favorite_videos()const;
+ std::vector<Video> history_videos()const;
+ void record_history(const Video& video);
+ bool toggle_favourite(const Video& video);
  bool toggle_favourite(const std::string& id);
  bool is_favourite(const std::string& id)const;
  void set_instance(const std::string& hostname);
  std::string instance()const;
  private:
  mutable std::mutex mutex_;
- std::atomic<bool> busy_{false},stop_{false};
+ std::atomic<bool> busy_{false},downloading_{false};
+ std::atomic<int> download_progress_{0};
+ std::string downloading_id_;
  std::string instance_="yewtu.be";
  std::vector<std::string> fav_;
+ std::vector<Video> favorite_meta_,recent_meta_;
  Snapshot state_;
  bool persist() const;
 };
+void queue_thumbnails(const std::vector<Video>& videos);
 bool valid_id(const std::string&);
 std::vector<Video> parse_search(const std::string&);
 std::string json_string(const std::string&,const std::string&);

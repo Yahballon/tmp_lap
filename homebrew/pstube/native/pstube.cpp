@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "pstube.hpp"
+#include "transfer.hpp"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
@@ -10,6 +11,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <dirent.h>
+#include <atomic>
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -105,10 +108,10 @@ std::string_view field(std::string_view obj,std::string_view key){
   p=e;skip(obj,p);if(p>=obj.size()||obj[p++]!=',')break;
  }return {};
 }
-std::string decode(std::string_view s){
+std::string decode(std::string_view s,size_t limit=512){
  if(s.size()<2||s[0]!='"')return {};
  std::string o;
- for(size_t p=1;p+1<s.size()&&o.size()<512;p++){
+ for(size_t p=1;p+1<s.size()&&o.size()<limit;p++){
   unsigned char c=s[p];
   if(c=='\\'&&p+1<s.size()-1){c=s[++p];if(c=='n'||c=='r'||c=='t')c=' ';else if(c=='u'){if(p+4<s.size())p+=4;c='?';}}
   if(c>=32)o+=(char)c;
@@ -122,6 +125,23 @@ bool save_text(const char* path,const std::string& payload){
  bool ok=std::fwrite(payload.data(),1,payload.size(),f)==payload.size()&&std::fflush(f)==0&&::fsync(fileno(f))==0;
  ok=std::fclose(f)==0&&ok;if(!ok){unlink(temp.c_str());return false;}
  if(rename(temp.c_str(),path)!=0){unlink(temp.c_str());return false;}return true;
+}
+std::string unescape(const std::string& s){
+ std::string out;out.reserve(std::min<size_t>(s.size(),512));
+ auto digit=[](char c)->int{if(c>='0'&&c<='9')return c-'0';if(c>='A'&&c<='F')return c-'A'+10;if(c>='a'&&c<='f')return c-'a'+10;return -1;};
+ for(size_t i=0;i<s.size()&&out.size()<256;i++){
+  if(s[i]=='%'&&i+2<s.size()&&digit(s[i+1])>=0&&digit(s[i+2])>=0){
+   unsigned char c=(unsigned char)((digit(s[i+1])<<4)|digit(s[i+2]));i+=2;
+   if(c>=32)out+=(char)c;
+  }else if((unsigned char)s[i]>=32)out+=s[i];
+ }return out;
+}
+std::string encode(const std::string& s){
+ const char* h="0123456789ABCDEF";std::string o;
+ for(unsigned char c:s){if(o.size()>950)break;
+  if(std::isalnum(c)||c=='-'||c=='_'||c=='.')o+=(char)c;
+  else {o+='%';o+=h[c>>4];o+=h[c&15];}
+ }return o;
 }
 void mkdirs(){mkdir("/data/pstube",0700);mkdir("/data/pstube/downloads",0700);}
 struct Work {Service* svc;std::string query;std::string id;int kind;Video video;};
@@ -139,25 +159,69 @@ std::string escape_url(const std::string& s){
 std::vector<Video> parse_search(const std::string& s){
  std::vector<Video> out;size_t p=0;skip(s,p);if(p==s.size()||s[p++]!='[')return out;
  while(p<s.size()&&out.size()<60){skip(s,p);if(s[p]==']')break;size_t e=value_end(s,p);if(e==p)break;auto v=std::string_view(s).substr(p,e-p);p=e;
-  if(decode(field(v,"type"))=="video"){Video a;a.id=decode(field(v,"videoId"));a.title=decode(field(v,"title"));a.author=decode(field(v,"author"));a.length=integer(field(v,"lengthSeconds"));a.views=longnum(field(v,"viewCount"));a.live=field(v,"liveNow")=="true";
+  if(decode(field(v,"type"))=="video"||field(v,"type").empty()){Video a;a.id=decode(field(v,"videoId"));a.title=decode(field(v,"title"));a.author=decode(field(v,"author"));a.length=integer(field(v,"lengthSeconds"));a.views=longnum(field(v,"viewCount"));a.live=field(v,"liveNow")=="true";
    if(valid_id(a.id)&&!a.title.empty())out.push_back(std::move(a));
   }skip(s,p);if(p>=s.size()||s[p++]!=',')break;
  }return out;
 }
 Service::Service(){
  mkdirs();
- for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[16384]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
+ for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[65536]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
    if(line.substr(0,2)=="F "&&valid_id(line.substr(2))&&fav_.size()<300)fav_.push_back(line.substr(2));
+   if(line.substr(0,2)=="V "||line.substr(0,2)=="H "){
+    size_t a=line.find('|',2),b=a==std::string::npos?a:line.find('|',a+1);
+    if(a!=std::string::npos&&b!=std::string::npos){
+     Video video;video.id=line.substr(2,a-2);
+     video.title=unescape(line.substr(a+1,b-a-1));video.author=unescape(line.substr(b+1));
+     if(valid_id(video.id)&&!video.title.empty()){
+      auto& dst=line[0]=='V'?favorite_meta_:recent_meta_;
+      if(dst.size()<100)dst.push_back(std::move(video));
+     }
+    }
+   }
   }break;}
+ DIR* d=opendir("/data/pstube/downloads");
+ if(d){while(dirent* ent=readdir(d)){std::string name(ent->d_name);
+   if(name.size()!=15||name.substr(11)!=".mp4")continue;
+   auto id=name.substr(0,11);if(!valid_id(id))continue;
+   state_.jobs.push_back(Job{id,id,100.0f,"Complete","",stable_path(id)});
+  }closedir(d);}
 }
-Service::~Service(){while(busy_.load())usleep(25000);}
+Service::~Service(){while(busy_.load()||downloading_.load())usleep(25000);}
 bool Service::persist()const{
  std::string out="PSTUBE:1\nI "+instance_+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
+ for(const auto& v:favorite_meta_)if(valid_id(v.id))out+="V "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
+ for(const auto& v:recent_meta_)if(valid_id(v.id))out+="H "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
  return save_text(kSave,out)||save_text(kFallback,out);
 }
 std::vector<std::string> Service::favourites()const{std::lock_guard<std::mutex> g(mutex_);return fav_;}
+std::vector<Video> Service::favorite_videos()const{
+ std::lock_guard<std::mutex> g(mutex_);std::vector<Video> out;
+ for(const auto& id:fav_){auto it=std::find_if(favorite_meta_.begin(),favorite_meta_.end(),[&](const Video& v){return v.id==id;});
+  out.push_back(it!=favorite_meta_.end()?*it:Video{id,id,"Saved favourite"});}
+ return out;
+}
+std::vector<Video> Service::history_videos()const{
+ std::lock_guard<std::mutex> g(mutex_);return recent_meta_;
+}
+void Service::record_history(const Video& video){
+ if(!valid_id(video.id))return;std::lock_guard<std::mutex> g(mutex_);
+ recent_meta_.erase(std::remove_if(recent_meta_.begin(),recent_meta_.end(),[&](const Video& v){return v.id==video.id;}),recent_meta_.end());
+ recent_meta_.insert(recent_meta_.begin(),video);
+ if(recent_meta_.size()>50)recent_meta_.resize(50);
+ persist();
+}
+bool Service::toggle_favourite(const Video& video){
+ if(!valid_id(video.id))return false;std::lock_guard<std::mutex> g(mutex_);
+ auto i=std::find(fav_.begin(),fav_.end(),video.id);
+ favorite_meta_.erase(std::remove_if(favorite_meta_.begin(),favorite_meta_.end(),[&](const Video& v){return v.id==video.id;}),favorite_meta_.end());
+ if(i!=fav_.end())fav_.erase(i);
+ else{if(fav_.size()>=100)return false;fav_.insert(fav_.begin(),video.id);favorite_meta_.insert(favorite_meta_.begin(),video);}
+ return persist();
+}
+
 bool Service::is_favourite(const std::string& id)const{std::lock_guard<std::mutex> g(mutex_);return std::find(fav_.begin(),fav_.end(),id)!=fav_.end();}
 bool Service::toggle_favourite(const std::string& id){
  if(!valid_id(id))return false;std::lock_guard<std::mutex> g(mutex_);
@@ -165,7 +229,38 @@ bool Service::toggle_favourite(const std::string& id){
 }
 void Service::set_instance(const std::string& s){if(!host_ok(s))return;std::lock_guard<std::mutex> g(mutex_);instance_=s;persist();}
 std::string Service::instance()const{std::lock_guard<std::mutex> g(mutex_);return instance_;}
-Snapshot Service::snapshot()const{std::lock_guard<std::mutex> g(mutex_);return state_;}
+Snapshot Service::snapshot()const{
+ std::lock_guard<std::mutex> g(mutex_);
+ Snapshot copy=state_;
+ for(auto& j:copy.jobs)if(j.id==downloading_id_&&j.state=="Downloading")j.progress=(float)download_progress_.load();
+ return copy;
+}
+std::string Service::local_path(const std::string& id)const {
+ if(!valid_id(id))return {};
+ const std::string path=stable_path(id);
+ struct stat st{};return stat(path.c_str(),&st)==0&&st.st_size>1024?path:std::string{};
+}
+std::string pick_mp4(const std::string& json){
+ const auto arr=field(json,"formatStreams");size_t p=0;skip(arr,p);
+ if(p>=arr.size()||arr[p++]!='[')return {};
+ std::string winner;int quality=-1;
+ while(p<arr.size()){
+  skip(arr,p);if(p>=arr.size()||arr[p]==']')break;
+  size_t e=value_end(arr,p);if(e<=p)break;auto item=arr.substr(p,e-p);
+  std::string container=decode(field(item,"container"));
+  std::string mime=decode(field(item,"type"));
+  int resolution=integer(field(item,"qualityLabel"));
+  const std::string quality_text=decode(field(item,"qualityLabel"));
+  if(quality_text.size())resolution=std::atoi(quality_text.c_str());
+  std::string url=decode(field(item,"url"),12000);
+  if((container=="mp4"||mime.find("video/mp4")!=std::string::npos)&&url.rfind("https://",0)==0&&resolution<=1080&&resolution>quality){
+   winner=url;quality=resolution;
+  }
+  p=e;skip(arr,p);if(p>=arr.size()||arr[p++]!=',')break;
+ }
+ return winner;
+}
+bool Service::trending(){return search("@@TRENDING@@");}
 bool Service::search(const std::string& query){
  if(query.empty()||query.size()>100||busy_.exchange(true))return false;
  {std::lock_guard<std::mutex> g(mutex_);state_.searching=true;state_.status="Searching videos...";}
@@ -174,8 +269,9 @@ bool Service::search(const std::string& query){
  int rc=pthread_create(&th,&a,[](void* p)->void* {
   std::unique_ptr<Work> work((Work*)p);Service& svc=*work->svc;
   std::string data,error,host=svc.instance();
-  bool ok=https(host,"/api/v1/search?q="+escape_url(work->query)+"&type=video",data,error);
+  bool ok=https(host,work->query=="@@TRENDING@@"?"/api/v1/trending?region=US":"/api/v1/search?q="+escape_url(work->query)+"&type=video",data,error);
   auto videos=ok?parse_search(data):std::vector<Video>{};
+  if(ok)queue_thumbnails(videos);
   {std::lock_guard<std::mutex> g(svc.mutex_);if(ok)svc.state_.videos=std::move(videos);
    svc.state_.status=!ok?error:svc.state_.videos.empty()?"No matching videos":std::to_string(svc.state_.videos.size())+" results";
    svc.state_.searching=false;}
@@ -186,11 +282,39 @@ bool Service::search(const std::string& query){
 }
 bool Service::details(const std::string& id){return valid_id(id);}
 bool Service::download(const Video& video){
- // Streaming and playback need verified media URL handling; do not claim success or
- // create fake completed downloads until a format-supported media pipeline exists.
- if(!valid_id(video.id))return false;
- std::lock_guard<std::mutex> g(mutex_);
- state_.status="Video download unavailable in v0.1.0 (media backend not yet integrated)";
- return false;
+ if(!valid_id(video.id)||downloading_.exchange(true))return false;
+ const std::string path=local_path(video.id);
+ if(!path.empty()){std::lock_guard<std::mutex> g(mutex_);state_.status="Already downloaded";downloading_=false;return true;}
+ {
+  std::lock_guard<std::mutex> g(mutex_);
+  downloading_id_=video.id;download_progress_=0;
+  state_.status="Resolving MP4 format...";
+  state_.jobs.push_back(Job{video.id,video.title,0.0f,"Resolving","",stable_path(video.id)});
+ }
+ auto* work=new Work{this,"",video.id,1,video};
+ pthread_t th{};pthread_attr_t attr;pthread_attr_init(&attr);pthread_attr_setstacksize(&attr,1024*1024);
+ int rc=pthread_create(&th,&attr,[](void* ptr)->void*{
+  std::unique_ptr<Work> w((Work*)ptr);Service& svc=*w->svc;
+  std::string body,error,host=svc.instance();
+  bool ok=https(host,"/api/v1/videos/"+w->id,body,error);
+  std::string url=ok?pick_mp4(body):std::string{};
+  if(ok&&url.empty()){ok=false;error="No combined MP4 stream available";}
+  if(ok){
+   {std::lock_guard<std::mutex> g(svc.mutex_);for(auto& j:svc.state_.jobs)if(j.id==w->id)j.state="Downloading";}
+   ok=fetch_mp4(url,stable_path(w->id),svc.download_progress_,error);
+  }
+  {
+   std::lock_guard<std::mutex> g(svc.mutex_);
+   for(auto& j:svc.state_.jobs)if(j.id==w->id){
+    j.progress=(float)svc.download_progress_.load();j.state=ok?"Complete":"Failed";j.error=error;
+   }
+   svc.state_.status=ok?"Download complete: "+w->video.title:(error.empty()?"Download failed":error);
+   svc.downloading_id_.clear();
+  }
+  svc.downloading_=false;return nullptr;
+ },work);
+ pthread_attr_destroy(&attr);
+ if(rc){delete work;downloading_=false;std::lock_guard<std::mutex> g(mutex_);state_.status="Could not launch download worker";return false;}
+ pthread_detach(th);return true;
 }
 } // namespace pstube
