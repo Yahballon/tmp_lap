@@ -228,6 +228,44 @@ bool metadata(const std::string& path,Meta& m,std::string& error){
 // Virtual contiguous torrent byte stream backed by one file or a directory tree.
 // BEP 3 hashes pieces over concatenated file contents, including boundaries.
 // All paths were validated by metadata(); use O_NOFOLLOW to prevent symlink escapes.
+// On supported PS5 firmware, stat() works on /data while lstat() may fail
+// with EACCES/ENOSYS even for directories that clearly exist. Validate
+// symlinks using readlink() before falling back to stat(). Do not follow
+// symlinks, even if the torrent contains malicious nested paths.
+bool pathInfo(const std::string& path,struct stat& st,bool& exists){
+ exists=false;
+#ifdef TORRENT_HOST_SIMULATE_PS5_LSTAT
+ errno=EACCES;
+ const int status=-1;
+#else
+ const int status=lstat(path.c_str(),&st);
+#endif
+ if(status==0){
+  if(S_ISLNK(st.st_mode)){trace("STORAGE rejected symlink "+path);return false;}
+  exists=true;return true;
+ }
+ const int probeError=errno;
+ if(probeError==ENOENT)return true;
+ if(probeError!=EACCES&&probeError!=EPERM&&probeError!=ENOSYS&&
+    probeError!=EINVAL&&probeError!=EOPNOTSUPP){
+  trace("STORAGE lstat FAILED "+path+" errno="+std::to_string(probeError));
+  return false;
+ }
+ // A plain file/directory returns EINVAL; a symlink returns its target.
+ char target[2]={};
+ const ssize_t linked=readlink(path.c_str(),target,sizeof(target));
+ const int linkError=errno;
+ if(linked>=0){trace("STORAGE rejected symlink via readlink "+path);return false;}
+ if(linkError!=EINVAL&&linkError!=ENOENT){
+  trace("STORAGE cannot validate path "+path+" lstat_errno="+
+        std::to_string(probeError)+" readlink_errno="+std::to_string(linkError));
+  return false;
+ }
+ if(stat(path.c_str(),&st)==0){exists=true;return true;}
+ if(errno==ENOENT)return true;
+ trace("STORAGE stat fallback FAILED "+path+" errno="+std::to_string(errno));
+ return false;
+}
 bool safeDirTree(const std::string& absolute){
  if(absolute.empty()||absolute[0]!='/'||absolute.size()>420)return false;
  std::string current;
@@ -237,15 +275,42 @@ bool safeDirTree(const std::string& absolute){
   if(end==std::string::npos)end=absolute.size();
   if(end==pos){pos=end+1;continue;}
   current+="/"+absolute.substr(pos,end-pos);
-  struct stat st{};
-  if(lstat(current.c_str(),&st)!=0){
-   if(errno!=ENOENT||mkdir(current.c_str(),0755)!=0&&errno!=EEXIST)return false;
-   if(lstat(current.c_str(),&st)!=0)return false;
+  struct stat st{};bool exists=false;
+  if(!pathInfo(current,st,exists))return false;
+  if(!exists){
+   if(mkdir(current.c_str(),0755)!=0&&errno!=EEXIST){
+    trace("STORAGE mkdir FAILED "+current+" errno="+std::to_string(errno));
+    return false;
+   }
+   if(!pathInfo(current,st,exists)||!exists)return false;
   }
-  if(!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode))return false;
+  if(!S_ISDIR(st.st_mode)){
+   trace("STORAGE expected directory "+current+" mode="+std::to_string(st.st_mode));
+   return false;
+  }
   pos=end+1;
  }
  return true;
+}
+// If O_NOFOLLOW is rejected by the PS5 ABI, a guarded fallback may be used
+// after a fresh non-symlink path check. For Linux tests O_NOFOLLOW is retained.
+int openSafeRegular(const std::string& path,int flags,bool create){
+ int fd=-1;
+#ifdef TORRENT_HOST_SIMULATE_PS5_NOFOLLOW
+ errno=EINVAL;
+#else
+ fd=open(path.c_str(),flags|O_NOFOLLOW|(create?O_CREAT:0),0644);
+#endif
+ if(fd>=0)return fd;
+ const int openError=errno;
+ if(openError!=EINVAL&&openError!=EOPNOTSUPP&&openError!=EACCES&&openError!=EPERM)return -1;
+ struct stat st{};bool exists=false;
+ if(!pathInfo(path,st,exists))return -1;
+ if(exists&&!S_ISREG(st.st_mode)){errno=EINVAL;return -1;}
+ // Also recheck newly created files; ordinary EACCES must remain visible.
+ fd=open(path.c_str(),flags|(create?O_CREAT:0),0644);
+ if(fd>=0)trace("STORAGE PS5 portable open fallback used "+path);
+ return fd;
 }
 class OutputLayout{
  const Meta& m_;
@@ -264,11 +329,10 @@ public:
    if(path.size()>420){error="Torrent output path too long";return false;}
    const size_t slash=path.find_last_of('/');
    if(!safeDirTree(path.substr(0,slash))){error="Unsafe torrent output directory";return false;}
-   struct stat st{};
-   if(lstat(path.c_str(),&st)==0){
-    if(!S_ISREG(st.st_mode)){error="Torrent output is not a regular file (symlinks refused)";return false;}
-   }else if(errno!=ENOENT){error="Output file inaccessible";return false;}
-   int fd=open(path.c_str(),O_WRONLY|O_CREAT|O_NOFOLLOW,0644);
+   struct stat st{};bool exists=false;
+   if(!pathInfo(path,st,exists)){error="Unsafe output path (see Logs)";return false;}
+   if(exists&&!S_ISREG(st.st_mode)){error="Torrent output is not a regular file";return false;}
+   int fd=openSafeRegular(path,O_WRONLY,true);
    if(fd<0){error="Cannot create torrent output file errno="+std::to_string(errno);return false;}
    close(fd);
    absolute_.push_back(path);
@@ -284,8 +348,8 @@ public:
    const uint64_t cursor=offset+processed;
    if(e.length==0||cursor>=e.start+e.length||cursor<e.start)continue;
    size_t len=(size_t)std::min<uint64_t>(count-processed,e.start+e.length-cursor);
-   const int flags=(writing?O_WRONLY:O_RDONLY)|O_NOFOLLOW;
-   int fd=open(absolute_[i].c_str(),flags);
+   const int flags=writing?O_WRONLY:O_RDONLY;
+   int fd=openSafeRegular(absolute_[i],flags,false);
    if(fd<0)return false;
    FILE* file=fdopen(fd,writing?"wb":"rb");
    if(!file){close(fd);return false;}
@@ -345,10 +409,16 @@ int dial(const std::string& host,int port,int seconds){
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
   if(fd<0){trace("TCP socket() FAILED errno="+std::to_string(errno));continue;}
   if(!registerSocket(fd)){fd=-1;break;}
-  // PS5 forbids fcntl(F_SETFL,O_NONBLOCK): errno 13. Prefer the direct
-  // FIONBIO ioctl, with SOCK_NONBLOCK as a fallback if the kernel supports it.
+  // PS5 hardware log: FIONBIO(1) fails with EACCES, SOCK_NONBLOCK
+  // connects but FIONBIO(0) also fails. Previously this discarded every
+  // successfully connected tracker and peer, resulting in 0 downloads.
+  // Use working blocking sockets on PS5 until the full I/O stack supports
+  // permanent nonblocking sockets (TLS and raw BitTorrent both require it).
+  bool asyncConnect=false;
+#ifdef TORRENT_HOST_TEST
+  // Keep the cancellable async connect path covered by host tests.
   int enable=1;
-  bool asyncConnect=ioctl(fd,FIONBIO,&enable)==0;
+  asyncConnect=ioctl(fd,FIONBIO,&enable)==0;
   if(!asyncConnect){
    const int modeError=errno;
 #ifdef SOCK_NONBLOCK
@@ -357,12 +427,15 @@ int dial(const std::string& host,int port,int seconds){
     if(registerSocket(candidate)){
      closeSocket(fd);
      fd=candidate;asyncConnect=true;
-     trace("PS5 async socket enabled via SOCK_NONBLOCK");
+     trace("Host async socket enabled via SOCK_NONBLOCK");
     }else{closeSocket(fd);fd=-1;break;}
    }
 #endif
-   if(!asyncConnect)trace("FIONBIO unavailable errno="+std::to_string(modeError)+"; blocking connect may exceed timeout");
+   if(!asyncConnect)trace("Host FIONBIO unavailable errno="+std::to_string(modeError));
   }
+#else
+  trace("PS5 reliable blocking TCP socket (nonblocking restoration unsupported)");
+#endif
   if(fd<0)break;
   struct timeval timeout{seconds,0};
   setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
@@ -393,7 +466,7 @@ int dial(const std::string& host,int port,int seconds){
   if(asyncConnect){
    int disable=0;
    if(ioctl(fd,FIONBIO,&disable)!=0){
-    trace("FIONBIO restore blocking mode FAILED errno="+std::to_string(errno));
+    trace("Async socket restore FAILED errno="+std::to_string(errno));
     closeSocket(fd);fd=-1;continue;
    }
   }
@@ -479,7 +552,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.3.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -679,7 +752,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.0 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.1 initialized - log file: "+logPath());}
 Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
 bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){

@@ -5,6 +5,7 @@ Validates BEP 3 stream mapping across file boundaries, nested folders,
 zero-length files, rehash/recovery, and malicious path rejection.
 """
 import hashlib
+import os
 import pathlib
 import shutil
 import subprocess
@@ -30,8 +31,10 @@ def main():
         tmp=pathlib.Path(raw)
         (tmp/"ca_bundle.inc").write_text('static const char kCaBundle[]="";')
         exe=tmp/"torrent_test"
+        extra_flags=(["-DTORRENT_HOST_SIMULATE_PS5_LSTAT","-DTORRENT_HOST_SIMULATE_PS5_NOFOLLOW"]
+                     if os.environ.get("TORRENT_SIMULATE_PS5_FILESYSTEM")=="1" else [])
         subprocess.run([
-            "g++","-std=c++17","-O2","-pthread","-DTORRENT_HOST_TEST",
+            "g++","-std=c++17","-O2","-pthread","-DTORRENT_HOST_TEST",*extra_flags,
             "-I",str(SRC/"native"),"-I",str(tmp),
             str(SRC/"native/torrent_engine.cpp"),
             str(SRC/"tests/host_harness.cpp"),
