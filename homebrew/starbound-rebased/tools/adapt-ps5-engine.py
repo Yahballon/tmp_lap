@@ -16,6 +16,7 @@ patch("src/main.cpp",
 patch("src/main.cpp",
       'int main(int argc, char** argv) {',
       '''int main(int argc, char** argv) {
+   boot_trace("BOOT00 entered main before resource setup");
 #ifdef __FreeBSD__
    // ELF loader does not guarantee the game's working directory.
    if (access("res/sprites/characters/PlayerSpriteSheet.png", F_OK) != 0) {
@@ -311,29 +312,22 @@ patch("src/systems/MenuSystem.cpp",
       '"A new fantasy adventure by YAHBALLON"')
 
 
-# The container has /app0/assets/res/{sprites,data,fonts,sounds}; the original
-# engine resolves every path as res/..., relative to /app0/assets. Log actual
-# filesystem presence on real PS5 to catch broken mounts and packaging.
+# PS5 v0.1.6 regressed before any boot.log existed: getcwd() was called
+# *before* the first boot_trace. This can resolve to an unsupported native libc
+# symbol in the ShadowMount CRT. Never introduce an extra syscall in front of
+# the early trace. The existing pre-resource BOOT00 proves entry to main.
 patch("src/main.cpp",
       '   boot_trace("01: main entered");',
-      '''#ifdef __FreeBSD__
-   char wd[512] = {};
-   if (getcwd(wd,sizeof(wd))) {
-       char info[640] = {};
-       snprintf(info,sizeof(info),"ASSET00 cwd=%s",wd);
-       boot_trace(info);
-   } else {
-       boot_trace("ASSET00 cwd unavailable");
-   }
-   boot_trace(access("res/sprites/icons/logo.png",R_OK)==0
+      '''   boot_trace("01: main entered");
+#ifdef __FreeBSD__
+   boot_trace(access("res/sprites/icons/logo.png",F_OK)==0
               ? "ASSET01 menu logo found" : "ASSET01 ERROR menu logo missing");
-   boot_trace(access("res/fonts/press-start-2p.ttf",R_OK)==0
+   boot_trace(access("res/fonts/press-start-2p.ttf",F_OK)==0
               ? "ASSET02 font found" : "ASSET02 ERROR font missing");
-   boot_trace(access("res/data/MenuBackground/MenuBackground_Background.csv",R_OK)==0
+   boot_trace(access("res/data/MenuBackground/MenuBackground_Background.csv",F_OK)==0
               ? "ASSET03 menu map found" : "ASSET03 ERROR menu map missing");
-   boot_trace(access("res/sounds/music/overworld.wav",R_OK)==0
+   boot_trace(access("res/sounds/music/overworld.wav",F_OK)==0
               ? "ASSET04 music found" : "ASSET04 ERROR music missing");
-#endif
-   boot_trace("01: main entered");''')
+#endif''')
 
 print("Applied path, title, DualSense/SDL controller adapters without replacing upstream ECS")
