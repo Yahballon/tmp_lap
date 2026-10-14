@@ -17,11 +17,13 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libssl-dev
       - name: Verify dedicated log directory
         run: python3 homebrew/ps5-torrent/tests/check_log_path.py
       - name: Check PS5-safe TCP sockets
         run: python3 homebrew/ps5-torrent/tests/check_ps5_socket.py
+      - name: Test actual peer protocol and resumable downloads
+        run: python3 homebrew/ps5-torrent/tests/test_local_swarm.py
       - name: Fetch native PS5 build scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -51,7 +53,7 @@ jobs:
           from PIL import Image,ImageDraw
           root=pathlib.Path("app/sce_sys/param.json")
           info=json.loads(root.read_text())
-          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.005")
+          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.006")
           info["localizedParameters"]["en-US"]["titleName"]="Torrent Flow"
           root.write_text(json.dumps(info,indent=2)+"\n")
           im=Image.new("RGBA",(512,512),(7,19,31,255))
@@ -105,7 +107,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Torrent-Flow-v0.1.4-PPSA99684
+          name: Torrent-Flow-v0.2.0-PPSA99684
           path: app/dist/PPSA99684.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -113,5 +115,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-torrent-v0.1.4 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.1.4 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.1.4" --notes "Native PS5 experimental BitTorrent downloader v0.1.4: PS5 TCP regression fix: use blocking sockets with timeouts instead of forbidden fcntl(F_SETFL,O_NONBLOCK). Logs now always stored under /data/ps5-torrent/logs, never under the installed app. Retains six verified Linux torrents. Physical PS5 download still needs retest."
+          if gh release view ps5-torrent-v0.2.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.2.0 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.2.0" --notes "Torrent Flow v0.2.0: four parallel TCP peer workers, correct HAVE/BITFIELD and choke/unchoke handling, pipelined 16 KiB requests, verified resume, ETA and scrollable torrent library with cache imports. CI exercises real C++ engine against local tracker and peers. Physical PS5 download remains to be verified."
