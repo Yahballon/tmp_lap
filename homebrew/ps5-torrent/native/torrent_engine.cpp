@@ -409,10 +409,16 @@ int dial(const std::string& host,int port,int seconds){
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
   if(fd<0){trace("TCP socket() FAILED errno="+std::to_string(errno));continue;}
   if(!registerSocket(fd)){fd=-1;break;}
-  // PS5 forbids fcntl(F_SETFL,O_NONBLOCK): errno 13. Prefer the direct
-  // FIONBIO ioctl, with SOCK_NONBLOCK as a fallback if the kernel supports it.
+  // PS5 hardware log: FIONBIO(1) fails with EACCES, SOCK_NONBLOCK
+  // connects but FIONBIO(0) also fails. Previously this discarded every
+  // successfully connected tracker and peer, resulting in 0 downloads.
+  // Use working blocking sockets on PS5 until the full I/O stack supports
+  // permanent nonblocking sockets (TLS and raw BitTorrent both require it).
+  bool asyncConnect=false;
+#ifdef TORRENT_HOST_TEST
+  // Keep the cancellable async connect path covered by host tests.
   int enable=1;
-  bool asyncConnect=ioctl(fd,FIONBIO,&enable)==0;
+  asyncConnect=ioctl(fd,FIONBIO,&enable)==0;
   if(!asyncConnect){
    const int modeError=errno;
 #ifdef SOCK_NONBLOCK
@@ -421,12 +427,15 @@ int dial(const std::string& host,int port,int seconds){
     if(registerSocket(candidate)){
      closeSocket(fd);
      fd=candidate;asyncConnect=true;
-     trace("PS5 async socket enabled via SOCK_NONBLOCK");
+     trace("Host async socket enabled via SOCK_NONBLOCK");
     }else{closeSocket(fd);fd=-1;break;}
    }
 #endif
-   if(!asyncConnect)trace("FIONBIO unavailable errno="+std::to_string(modeError)+"; blocking connect may exceed timeout");
+   if(!asyncConnect)trace("Host FIONBIO unavailable errno="+std::to_string(modeError));
   }
+#else
+  trace("PS5 reliable blocking TCP socket (nonblocking restoration unsupported)");
+#endif
   if(fd<0)break;
   struct timeval timeout{seconds,0};
   setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
@@ -457,7 +466,7 @@ int dial(const std::string& host,int port,int seconds){
   if(asyncConnect){
    int disable=0;
    if(ioctl(fd,FIONBIO,&disable)!=0){
-    trace("FIONBIO restore blocking mode FAILED errno="+std::to_string(errno));
+    trace("Async socket restore FAILED errno="+std::to_string(errno));
     closeSocket(fd);fd=-1;continue;
    }
   }
@@ -543,7 +552,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.3.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.1\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
