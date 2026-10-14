@@ -1,6 +1,11 @@
 # Starbound Rebased — Gold872 engine port (work in progress)
 
-## Current TESTBUILD: v0.1.23 Moving Frontiers
+## Current TESTBUILD: v0.1.24 DualSense Settings
+
+Settings now display and rebind actual controller actions without blocking the game.
+Cross confirms, Circle cancels/returns, Options pauses, and Triangle resets defaults
+while browsing settings. D-pad/left stick navigate. Release Cross before capturing
+a new control. Rebindings are retained for the current session. See TESTBUILD_NOTES.md.
 
 Moving Frontiers adds 421 authored enemy spawns, 54 actual moving platforms,
 28 mandatory lift gates and 12 mandatory ferry crossings. Dry routes now require

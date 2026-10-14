@@ -48,6 +48,7 @@ jobs:
           python3 homebrew/starbound-rebased/tools/install-campaign.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/install-deep-signal.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/install-moving-frontiers.py build/gold872-engine
+          python3 homebrew/starbound-rebased/tools/fix-controller-settings.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/check-campaign.py homebrew/starbound-rebased/res/data
           python3 homebrew/starbound-rebased/tools/test-campaign.py
       - name: Compile real upstream ECS/physics/scenes/SDL2 source
@@ -66,6 +67,9 @@ jobs:
           python3 homebrew/starbound-rebased/tools/test-moving-platforms.py build/gold872-engine /tmp/test-moving.cpp
           g++ -std=c++17 -include cstdint -Ibuild/gold872-engine/include /tmp/test-moving.cpp build/gold872-engine/src/systems/PhysicsSystem.cpp build/gold872-engine/src/Camera.cpp build/gold872-engine/src/Map.cpp build/gold872-engine/src/AABBCollision.cpp -o /tmp/test-moving $(sdl2-config --cflags --libs) -lSDL2_image -lSDL2_mixer -lSDL2_ttf
           /tmp/test-moving
+          python3 homebrew/starbound-rebased/tools/test-controller-settings.py build/gold872-engine /tmp/test-controller.cpp
+          g++ -std=c++17 -Ibuild/gold872-engine/include /tmp/test-controller.cpp build/gold872-engine/src/Input.cpp -o /tmp/test-controller $(sdl2-config --cflags --libs)
+          SDL_VIDEODRIVER=dummy /tmp/test-controller
           python3 homebrew/starbound-rebased/tools/audit-upstream-assets.py build/gold872-engine
           test -s /tmp/starbound-rebased-desktop
           echo "Real engine compilation passed; not PS5-runnable yet"
