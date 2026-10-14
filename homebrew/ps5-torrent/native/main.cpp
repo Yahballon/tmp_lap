@@ -55,7 +55,7 @@ int main(){
    text(d,font,atlas,i==0?"Live transfer overview":i==1?"Bundled .torrent files":i==2?"Cache and destination":i==3?"Live transfer diagnostics":"Client and limitations",66,y+70,16,muted);
   }
   text(d,font,atlas,"NETWORK",60,700,19,mint);
-  text(d,font,atlas,"Tracker: HTTP BitTorrent v1",60,746,18,muted);
+  text(d,font,atlas,"Tracker: HTTP / HTTPS / UDP",60,746,18,muted);
   text(d,font,atlas,"Peers: TCP / IPv4",60,783,18,muted);
   text(d,font,atlas,"Integrity: SHA-1 pieces",60,821,18,muted);
   text(d,font,atlas,s.running?"TRANSFER ACTIVE":s.done?"DOWNLOAD COMPLETE":"TRANSFER IDLE",60,937,20,s.running?mint:s.done?gold:muted);
@@ -118,7 +118,7 @@ int main(){
   }else{
    card(d,386,125,1495,866);text(d,font,atlas,"ABOUT TORRENT FLOW",429,210,43);
    text(d,font,atlas,"Native PS5 BitTorrent test client  /  PPSA99684",431,288,26,mint);
-   const char* lines[]={"BitTorrent v1 single-file torrents, HTTP trackers, IPv4 TCP peers","Sequential 16 KiB piece requests with SHA-1 integrity checks","Resumable local storage, separate cache and downloads folders","Six official Debian, Ubuntu and Linux Mint test torrents","Experimental: HTTP + Debian UDP fallback, no DHT, magnets or multi-file","A paused job stops safely after its current network operation.","BitFiend studied as a design reference; no upstream code copied."};
+   const char* lines[]={"BitTorrent v1 single-file, HTTP/HTTPS/UDP trackers, IPv4 peers","Sequential 16 KiB piece requests with SHA-1 integrity checks","Resumable local storage, separate cache and downloads folders","Six official Debian, Ubuntu and Linux Mint test torrents","Experimental: HTTP + Debian UDP fallback, no DHT, magnets or multi-file","A paused job stops safely after its current network operation.","BitFiend studied as a design reference; no upstream code copied."};
    for(int i=0;i<7;i++)text(d,font,atlas,lines[i],434,369+i*72,22,i==4?gold:muted);
   }
   d.rounded_rect({25,1007,1870,53},12,Color::rgb(0x102237));
