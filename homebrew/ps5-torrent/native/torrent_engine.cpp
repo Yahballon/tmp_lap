@@ -9,6 +9,7 @@
 #include "ca_bundle.inc"
 #include <algorithm>
 #include <atomic>
+#include <random>
 #include <chrono>
 #include <cerrno>
 #include <ctime>
@@ -311,62 +312,132 @@ bool sendMsg(int fd,uint8_t id,const std::string& body={}){std::string b(5+body.
 uint32_t pieceSize(const Meta& m,uint32_t index){uint64_t remain=m.bytes-(uint64_t)index*m.piece;return(uint32_t)std::min<uint64_t>(m.piece,remain);}
 bool shaPiece(const Meta& m,uint32_t index,const std::string& bytes){unsigned char digest[20];SHA1((const unsigned char*)bytes.data(),bytes.size(),digest);return memcmp(digest,m.pieces.data()+index*20,20)==0;}
 bool hasPiece(const std::string& bits,uint32_t index){return index/8<bits.size()&&(uint8_t(bits[index/8])&(0x80>>(index%8)));}
-bool grab(int fd,const Meta& m,uint32_t idx,std::string& bits,std::string& output,bool& choked,std::atomic<bool>& cancelled){
- const uint32_t n=pieceSize(m,idx);
- output.assign(n,0);
- const size_t blocks=(n+16383)/16384;
- std::vector<bool> got(blocks,false),requested(blocks,false);
- size_t finished=0;
- int outstanding=0,events=0;
- if(!sendMsg(fd,2)){trace("Peer: interested send FAILED");return false;}
- while(!cancelled.load()&&events++<256){
-  if(!bits.empty()&&!hasPiece(bits,idx)){
-   trace("Peer lacks piece "+std::to_string(idx)+"; switching to next available piece");
-   return false;
-  }
-  if(!choked&&hasPiece(bits,idx)){
-   for(size_t block=0;block<blocks&&outstanding<4;block++){
-    if(requested[block]||got[block])continue;
-    uint32_t offset=(uint32_t)block*16384;
-    uint32_t len=std::min<uint32_t>(16384,n-offset);
-    std::string req(12,0);store32(&req[0],idx);store32(&req[4],offset);store32(&req[8],len);
-    if(!sendMsg(fd,6,req)){trace("Peer request send FAILED piece="+std::to_string(idx));return false;}
-    requested[block]=true;outstanding++;
+// Native BitTorrent wire session. A TCP handshake only identifies a peer;
+// bitfield/HAVE and UNCHOKE must be processed before sending block requests.
+struct Session{
+ int fd=-1;
+ bool choked=true, availability=false;
+ std::string pieces;
+ std::string address;
+};
+struct Frame{uint8_t id=255;std::string payload;};
+bool readFrame(Session& s,Frame& frame){
+ frame=Frame{};
+ char hdr[4];
+ if(!recvAll(s.fd,hdr,4)){trace("Peer read timeout/disconnect "+s.address+" errno="+std::to_string(errno));return false;}
+ const uint32_t length=be32(hdr);
+ if(length>1024*1024){trace("Peer sent oversized frame "+s.address+" bytes="+std::to_string(length));return false;}
+ if(length==0)return true; // Keep-alive has no message ID.
+ std::string buf(length,'\0');
+ if(!recvAll(s.fd,&buf[0],length)){trace("Peer truncated frame "+s.address+" errno="+std::to_string(errno));return false;}
+ frame.id=(uint8_t)buf[0];frame.payload.assign(buf.data()+1,length-1);
+ return true;
+}
+bool updatePeer(Session& s,const Frame& f,uint32_t pieceCount){
+ const size_t bytes=(pieceCount+7)/8;
+ switch(f.id){
+  case 0: s.choked=true;trace("Peer CHOKE "+s.address);return true;
+  case 1: s.choked=false;trace("Peer UNCHOKE "+s.address);return true;
+  case 4:
+   if(f.payload.size()!=4){trace("Invalid HAVE "+s.address);return false;}
+   {uint32_t idx=be32(f.payload.data());
+    if(idx>=pieceCount){trace("Out of range HAVE "+s.address);return false;}
+    if(s.pieces.empty())s.pieces.assign(bytes,'\0');
+    s.pieces[idx/8]|=(char)(0x80>>(idx%8));s.availability=true;
+   }
+   return true;
+  case 5:
+   if(f.payload.size()!=bytes){trace("Invalid peer bitfield length "+s.address+" got="+std::to_string(f.payload.size())+" expected="+std::to_string(bytes));return false;}
+   s.pieces=f.payload;s.availability=true;
+   trace("Peer BITFIELD "+s.address+" bytes="+std::to_string(bytes));
+   return true;
+  case 14: // BEP-6 Fast Extension: HAVE_ALL.
+   if(!f.payload.empty())return false;
+   s.pieces.assign(bytes,(char)0xff);s.availability=true;
+   trace("Peer HAVE_ALL "+s.address);return true;
+  case 15: // BEP-6 Fast Extension: HAVE_NONE.
+   if(!f.payload.empty())return false;
+   s.pieces.assign(bytes,'\0');s.availability=true;
+   trace("Peer HAVE_NONE "+s.address);return true;
+  default: return true; // Standard/extension messages not relevant to a downloader.
+ }
+}
+bool handshake(Session& s,const Meta& m,const std::string& peerId){
+ char h[68]={19};memcpy(h+1,"BitTorrent protocol",19);memcpy(h+28,m.hash.data(),20);memcpy(h+48,peerId.data(),20);
+ char response[68];
+ if(!sendAll(s.fd,h,sizeof(h))||!recvAll(s.fd,response,sizeof(response))||uint8_t(response[0])!=19||
+    memcmp(response+1,"BitTorrent protocol",19)!=0||memcmp(response+28,m.hash.data(),20)!=0){
+  trace("Peer handshake rejected/timeout "+s.address);return false;
+ }
+ // Interested is sent once per connection, rather than once per candidate piece.
+ if(!sendMsg(s.fd,2)){trace("Peer INTERESTED send failed "+s.address);return false;}
+ trace("Peer handshake OK; interested sent "+s.address);
+ return true;
+}
+bool awaitPeerReady(Session& s,const Meta& m,std::atomic<bool>& cancelled){
+ const uint32_t count=(uint32_t)m.pieces.size()/20;
+ for(int i=0;i<24&&!cancelled.load();i++){
+  if(s.availability&&!s.choked)return true;
+  Frame frame;
+  if(!readFrame(s,frame))return false;
+  if(!updatePeer(s,frame,count))return false;
+ }
+ trace("Peer not ready (unchoke/availability missing) "+s.address);
+ return false;
+}
+bool downloadPiece(Session& s,const Meta& m,uint32_t idx,std::string& output,std::atomic<bool>& cancelled){
+ const uint32_t n=pieceSize(m,idx),blockSize=16384;
+ const size_t blockCount=(n+blockSize-1)/blockSize;
+ if(blockCount==0||blockCount>256)return false;
+ output.assign(n,'\0');
+ std::vector<uint8_t> sent(blockCount,0),received(blockCount,0);
+ size_t done=0,outstanding=0;
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(55);
+ int frames=0;
+ while(!cancelled.load()&&std::chrono::steady_clock::now()<deadline&&frames++<4096){
+  if(s.availability&&!hasPiece(s.pieces,idx)){trace("Peer lost requested piece "+std::to_string(idx));return false;}
+  if(!s.choked){
+   for(size_t b=0;b<blockCount&&outstanding<8;b++){
+    if(sent[b]||received[b])continue;
+    const uint32_t offset=(uint32_t)b*blockSize,length=std::min(blockSize,n-offset);
+    std::string request(12,'\0');
+    store32(&request[0],idx);store32(&request[4],offset);store32(&request[8],length);
+    if(!sendMsg(s.fd,6,request)){trace("Peer REQUEST send failed "+s.address);return false;}
+    sent[b]=1;outstanding++;
    }
   }
-  char header[4];
-  if(!recvAll(fd,header,4)){
-   trace("Peer read timeout/disconnected piece="+std::to_string(idx)+" errno="+std::to_string(errno));
-   return false;
-  }
-  uint32_t len=be32(header);
-  if(len>1024*1024){trace("Peer frame exceeds size limit");return false;}
-  if(len==0)continue;
-  std::string msg(len,0);
-  if(!recvAll(fd,&msg[0],len)){trace("Peer truncated frame piece="+std::to_string(idx));return false;}
-  uint8_t id=uint8_t(msg[0]);
-  if(id==0){choked=true;outstanding=0;for(size_t k=0;k<blocks;k++)if(!got[k])requested[k]=false;trace("Peer CHOKED");}
-  else if(id==1){choked=false;trace("Peer UNCHOKED");}
-  else if(id==5){bits=msg.substr(1);trace("Peer bitfield: "+std::to_string(bits.size())+" bytes");}
-  else if(id==4&&len==5){uint32_t have=be32(msg.data()+1);if(have<(uint32_t)m.pieces.size()/20){if(have/8>=bits.size())bits.resize(have/8+1,0);bits[have/8]|=(char)(0x80>>(have%8));}}
-  else if(id==7&&len>=9&&be32(msg.data()+1)==idx){
-   uint32_t begin=be32(msg.data()+5),count=len-9;
-   if(begin<n&&count<=n-begin&&begin%16384==0&&count==std::min<uint32_t>(16384,n-begin)){
-    size_t b=begin/16384;
-    if(!got[b]){
-     memcpy(&output[begin],msg.data()+9,count);
-     got[b]=true;finished++;
-     if(outstanding>0)outstanding--;
-    }
+  Frame frame;
+  if(!readFrame(s,frame))return false;
+  if(frame.id==7){
+   if(frame.payload.size()<8){trace("Invalid PIECE frame "+s.address);return false;}
+   uint32_t piece=be32(frame.payload.data()),offset=be32(frame.payload.data()+4);
+   if(piece!=idx){trace("Unexpected PIECE index from "+s.address);continue;}
+   uint32_t amount=(uint32_t)frame.payload.size()-8;
+   if(offset>=n||offset%blockSize||amount!=std::min(blockSize,n-offset)){
+    trace("Invalid PIECE block bounds from "+s.address);return false;
    }
-   if(finished==blocks){
-    if(shaPiece(m,idx,output))return true;
-    trace("SHA-1 piece verification FAILED at "+std::to_string(idx));
-    return false;
+   size_t b=offset/blockSize;
+   if(!sent[b]){trace("Unsolicited PIECE block from "+s.address);return false;}
+   if(!received[b]){
+    memcpy(&output[offset],frame.payload.data()+8,amount);
+    received[b]=1;done++;
+    if(outstanding)outstanding--;
+   }
+   if(done==blockCount){
+    if(!shaPiece(m,idx,output)){trace("SHA1 FAILED piece="+std::to_string(idx)+" peer="+s.address);return false;}
+    return true;
+   }
+  }else{
+   const bool wasChoked=s.choked;
+   if(!updatePeer(s,frame,(uint32_t)m.pieces.size()/20))return false;
+   if(!wasChoked&&s.choked){
+    // A choke invalidates outstanding requests. Future UNCHOKE must re-request.
+    outstanding=0;
+    for(size_t b=0;b<blockCount;b++)if(!received[b])sent[b]=0;
    }
   }
  }
- trace(cancelled.load()?"Piece transfer cancelled":"Peer frame limit exceeded / unresponsive");
+ trace("Peer piece deadline/timeout "+s.address+" piece="+std::to_string(idx));
  return false;
 }
 void saveState(const std::string& p,const std::vector<bool>& verified){std::string temp=p+".tmp";FILE* f=fopen(temp.c_str(),"wb");if(!f)return;for(bool b:verified)fputc(b?'1':'0',f);if(fclose(f)!=0){remove(temp.c_str());return;}rename(temp.c_str(),p.c_str());}
