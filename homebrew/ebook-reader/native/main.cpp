@@ -109,7 +109,7 @@ int main(){
    }
   }else{
    if(pressed&hui::pad_bits::kTriangle){importer=true;ebook::scan_imports(imports);importSelect=0;}
-   if(pressed&hui::pad_bits::kOptions){ebook::scan_books(dirs(),books);ebook::scan_imports(imports);selected=0;message="Library scanned: "+std::to_string(books.size())+" books / "+std::to_string(imports.size())+" USB files";}
+   if(pressed&hui::pad_bits::kOptions){ebook::scan_books(dirs(),books);ebook::scan_imports(imports);selected=0;message="Library scanned: "+std::to_string(books.size())+" books / "+std::to_string(imports.size())+" source entries";}
    if(pressed&hui::pad_bits::kR1){filter=(filter+1)%5;selected=0;}
    if(pressed&hui::pad_bits::kL1){filter=(filter+4)%5;selected=0;}
    if(pressed&hui::pad_bits::kR2)list=!list;
@@ -163,7 +163,7 @@ int main(){
    txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(document.pageCount()),960,913,18,ink,Align::center);
    txt(d,font,atlas,"L1/R1  Turn page    L2/R2  Jump 10    TRIANGLE First    SQUARE Last    CIRCLE Bookshelf",960,1037,20,cream,Align::center);
   }else if(importer){
-   txt(d,font,atlas,"IMPORT BOOKS FROM USB",95,161,36);
+   txt(d,font,atlas,"BROWSE STORAGE SOURCES",95,161,36);
    txt(d,font,atlas,"USB may be blocked by the PS5 sandbox. Local app Books can be opened directly.",95,211,19,muted);
    if(imports.empty())txt(d,font,atlas,"No accessible EPUB / PDF found. Check folder status and local Books.",96,312,23,gold);
    int begin=std::max(0,importSelect-9);
