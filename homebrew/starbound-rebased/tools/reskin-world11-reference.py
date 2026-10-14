@@ -57,7 +57,9 @@ def shift_rgb(r,g,b):
 
 for filename,cols,rows in atlases:
     src=Image.open(ref/"sprites"/filename).convert("RGBA")
-    assert src.width==cols*16 and src.height==rows*16, (filename,src.size)
+    # Gold872 atlases have a 1px border and 1px gaps: (16+1)*cells + 1.
+    # This is why all earlier 768x352 synthetic tile PNGs misaligned.
+    assert src.width==cols*17+1 and src.height==rows*17+1, (filename,src.size)
     pixels=list(src.getdata())
     outpix=[]
     for r,g,b,a in pixels:
@@ -69,11 +71,11 @@ for filename,cols,rows in atlases:
     recolored.putdata(outpix)
     # Enlarging the source atlas is safe only if source rectangles are 2x too.
     # upgrade-renderer.py already doubles every SpritesheetComponent rectangle.
-    hd=recolored.resize((cols*32,rows*32),Image.Resampling.NEAREST)
+    hd=recolored.resize((src.width*2,src.height*2),Image.Resampling.NEAREST)
     dest=out/"sprites"/filename
     dest.parent.mkdir(parents=True,exist_ok=True)
     hd.save(dest,optimize=True)
-    assert hd.size==(cols*32,rows*32)
+    assert hd.size==((cols*17+1)*2,(rows*17+1)*2)
     assert hd.getchannel("A").resize(src.size,Image.Resampling.NEAREST).tobytes()==src.getchannel("A").tobytes()
     print("GRID OK",filename,src.size,"=>",hd.size,"cells",cols*rows)
 
