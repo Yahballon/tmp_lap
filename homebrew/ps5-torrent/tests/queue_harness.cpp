@@ -25,6 +25,51 @@ int main(int argc,char** argv){
   }
   std::cerr<<"Queue jobs did not finish\n";return 7;
  }
+ if(mode=="--nine"&&argc==11){
+  torrent::DownloadManager m;
+  m.setAutoDownload(false);m.setMaxActive(9);
+  if(m.settings().maxActive!=9)return 20;
+  for(int j=2;j<11;j++){
+   std::string error;
+   if(!m.enqueue(argv[j],&error)){std::cerr<<"NINE enqueue "<<j<<" "<<error<<'\n';return 21;}
+  }
+  m.tick();
+  int concurrently=0;
+  for(const auto& job:m.jobs())concurrently+=(int)job.running;
+  if(concurrently!=9){std::cerr<<"Only "<<concurrently<<" of 9 launched\n";return 22;}
+  for(int i=0;i<500;i++){
+   m.tick();int done=0;
+   for(const auto& job:m.jobs()){
+    done+=(int)job.completedJob;
+    if(job.failed){std::cerr<<"NINE failed "<<job.name<<" "<<job.status<<'\n';return 23;}
+   }
+   if(done==9){std::cout<<"NINE DONE active_at_once="<<concurrently<<"\n";return 0;}
+   std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+  return 24;
+ }
+ if(mode=="--metadata-seed"&&argc==3){
+  torrent::DownloadManager m;
+  std::string error;
+  if(!m.enqueue(argv[2],&error)){std::cerr<<"metadata seed: "<<error<<'\n';return 25;}
+  // Clean exit stores the queue without starting network transfers.
+  return 0;
+ }
+ if(mode=="--metadata-recover"&&argc==2){
+  torrent::DownloadManager m;
+  auto jobs=m.jobs();
+  if(jobs.size()!=1||!jobs[0].queued||m.isRecoveryMode()){
+   std::cerr<<"Metadata missing after original source removal, status="<<(jobs.empty()?"no jobs":jobs[0].status)<<'\n';return 26;
+  }
+  m.tick();
+  for(int i=0;i<300;i++){
+   m.tick();jobs=m.jobs();
+   if(jobs[0].failed){std::cerr<<"Recovered job failed: "<<jobs[0].status<<'\n';return 27;}
+   if(jobs[0].completedJob){std::cout<<"METADATA CACHE restored and downloaded\n";return 0;}
+   std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+  return 28;
+ }
  if(mode=="--auto"&&argc==2){
   torrent::DownloadManager m;
   m.setAutoDownload(true);m.setMaxActive(2);m.setDeleteCompleted(true);m.setScanSeconds(2);
