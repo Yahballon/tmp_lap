@@ -1,0 +1,93 @@
+name: Build PS5 Torrent Flow
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['homebrew/ps5-torrent/**', '.github/workflows/build-ps5-torrent.yml']
+  push:
+    branches: [main]
+    paths: ['homebrew/ps5-torrent/**', '.github/workflows/build-ps5-torrent.yml']
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+      - name: Fetch native PS5 build scaffold
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+      - name: Stage source and verified Debian test fixture
+        run: |
+          cp homebrew/ps5-torrent/native/*.cpp homebrew/ps5-torrent/native/*.hpp app/src/
+          mkdir -p app/assets/test
+          curl -fLsS --retry 3 'https://mirrors.edge.kernel.org/debian-cd/13.7.0/amd64/bt-cd/debian-13.7.0-amd64-netinst.iso.torrent' -o app/assets/test/debian-13.7.0-amd64-netinst.iso.torrent || curl -fLsS --retry 3 'https://ftp.jaist.ac.jp/debian-cd/13.7.0/amd64/bt-cd/debian-13.7.0-amd64-netinst.iso.torrent' -o app/assets/test/debian-13.7.0-amd64-netinst.iso.torrent
+          echo '690700ed8de8d0987fcf8c136507471b1588b996696ca34f9cf972ee09b849e0  app/assets/test/debian-13.7.0-amd64-netinst.iso.torrent' | sha256sum -c -
+          python3 - <<'PY'
+          import json,pathlib
+          from PIL import Image,ImageDraw
+          root=pathlib.Path("app/sce_sys/param.json")
+          info=json.loads(root.read_text())
+          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.001")
+          info["localizedParameters"]["en-US"]["titleName"]="Torrent Flow"
+          root.write_text(json.dumps(info,indent=2)+"\n")
+          im=Image.new("RGBA",(512,512),(7,19,31,255))
+          d=ImageDraw.Draw(im)
+          for i in range(5):
+              d.arc((48+i*12,48+i*12,464-i*12,464-i*12),-40,235,fill=(41,204,170,230),width=13)
+          d.ellipse((166,166,346,346),fill=(14,42,56),outline=(82,243,194),width=15)
+          d.line([(204,260),(256,310),(322,213)],fill=(82,243,194),width=29,joint="curve")
+          im.save("app/sce_sys/icon0.png")
+          PY
+      - name: Prepare native SDK
+        working-directory: app
+        env:
+          USE_CCACHE: "0"
+          BUILD_JOBS: "4"
+          PS5_CLANG: clang-18
+        run: bash tools/prepare-opengl.sh
+      - name: Fix SDK POSIX symbol collisions
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Build native application
+        working-directory: app
+        env:
+          USE_CCACHE: "0"
+          BUILD_JOBS: "4"
+          PS5_CLANG: clang-18
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=openssl app
+      - name: Verify native PS5 ZIP
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,struct,zipfile,hashlib
+          root=pathlib.Path('app/dist/PPSA99684')
+          exe=root/'eboot.bin'
+          assert exe.is_file() and exe.stat().st_size>0
+          assert struct.unpack('<I',exe.read_bytes()[:4])[0]==0x1D3D154F
+          for name in ('sce_sys/param.json','sce_sys/icon0.png','sce_module/libc.prx','assets/test/debian-13.7.0-amd64-netinst.iso.torrent'):
+              assert (root/name).is_file(),name
+          assert json.loads((root/'sce_sys/param.json').read_text())['titleId']=='PPSA99684'
+          assert hashlib.sha256((root/'assets/test/debian-13.7.0-amd64-netinst.iso.torrent').read_bytes()).hexdigest()=='690700ed8de8d0987fcf8c136507471b1588b996696ca34f9cf972ee09b849e0'
+          with zipfile.ZipFile('app/dist/PPSA99684.zip') as z:
+              assert z.testzip() is None
+              assert 'PPSA99684/eboot.bin' in z.namelist()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Torrent-Flow-v0.1.0-PPSA99684
+          path: app/dist/PPSA99684.zip
+          if-no-files-found: error
+      - name: Publish verified release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view ps5-torrent-v0.1.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.1.0 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.1.0" --notes "Native PS5 experimental BitTorrent v1 downloader with separate cache and downloads, SHA-1 verified pieces and bundled Debian torrent. Hardware test pending."
