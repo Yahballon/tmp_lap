@@ -68,7 +68,7 @@ struct TestInfo {const char* file;const char* display;const char* size;};
 const TestInfo kTests[]={
  {"ubuntu-26.04.1-desktop-amd64.iso.torrent","Ubuntu 26.04.1 LTS Desktop","~6.0 GiB"},
  {"ubuntu-24.04.5.1-desktop-amd64.iso.torrent","Ubuntu 24.04.5.1 LTS Desktop","~5.8 GiB"},
- {"Fedora-Workstation-Live-x86_64-44.torrent","Fedora 44 Workstation","~2.7 GiB"},
+ {"lmde-7-cinnamon-64bit.iso.torrent","Linux Mint LMDE 7 Cinnamon","~3.0 GiB"},
  {"kubuntu-26.04.1-desktop-amd64.iso.torrent","Kubuntu 26.04.1 LTS","~4.7 GiB"},
  {"xubuntu-26.04.1-desktop-amd64.iso.torrent","Xubuntu 26.04.1 LTS","~4.8 GiB"},
  {"lubuntu-26.04.1-desktop-amd64.iso.torrent","Lubuntu 26.04.1 LTS","~3.7 GiB"}
