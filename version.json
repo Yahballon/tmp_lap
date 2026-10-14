@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "4d9ada6faa2b14891f39f7ac0c5e8e3c311360778b283a289549b6fb03c5b4f6",
+  "version": "4582027ad5f12d42d54f621d8261fd43188ddf49f903a518754c5104ee2605b3",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 5,
+  "app_count": 6,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -47,14 +47,27 @@
       "name": "Starbound Rebased",
       "slug": "starbound-rebased",
       "title_id": "PPSA99642",
-      "version": "0.1.8",
-      "tag": "starbound-rebased-v0.1.8",
+      "version": "0.1.9",
+      "tag": "starbound-rebased-v0.1.9",
       "zip_name": "PPSA99642.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-rebased-v0.1.8/PPSA99642.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-rebased-v0.1.8",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-rebased-v0.1.9/PPSA99642.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-rebased-v0.1.9",
       "source": "homebrew/starbound-rebased",
-      "size_bytes": 7022182,
-      "published_at": "2026-10-14T06:54:46Z"
+      "size_bytes": 7087113,
+      "published_at": "2026-10-14T07:14:00Z"
+    },
+    {
+      "name": "Torrent Flow",
+      "slug": "ps5-torrent",
+      "title_id": "PPSA99684",
+      "version": "0.1.0",
+      "tag": "ps5-torrent-v0.1.0",
+      "zip_name": "PPSA99684.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-torrent-v0.1.0/PPSA99684.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-torrent-v0.1.0",
+      "source": "homebrew/ps5-torrent",
+      "size_bytes": 7956868,
+      "published_at": "2026-10-14T07:10:26Z"
     },
     {
       "name": "Payload LauncherX",
