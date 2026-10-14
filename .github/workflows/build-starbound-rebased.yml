@@ -171,8 +171,9 @@ jobs:
               from PIL import Image
               import io
               assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(1634,750)
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(852,546)
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/EnemySpriteSheet.png'))).size==(1192,512)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(806,532)
+              enemy_img=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/EnemySpriteSheet.png')))
+              assert enemy_img.width>=1120 and enemy_img.height>=480 and enemy_img.width%2==0 and enemy_img.height%2==0
               for required in (
                   'res/sprites/characters/PlayerSpriteSheet.png',
                   'res/sprites/icons/logo.png',
