@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.2.1 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.3.0 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -8,17 +8,46 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 
 ## Features
 
-- Five controller-accessible views: Dashboard, Torrent Library, Storage & Settings, Logs, About.
+- Six controller-accessible views: Dashboard, Torrent Library, Downloads, Settings, Logs, About.
 - HTTP, certificate-verified HTTPS and UDP BitTorrent trackers (including announce-list fallbacks) and IPv4 TCP peer connections. Debian includes an optional OpenTrackr fallback.
 - SHA-1 integrity verification per piece, independent of progress claims.
 - Restart/resume by rehashing existing output file; cache includes a per-torrent resume snapshot.
 - Persistent separate cache and download directories.
 - Internal PS5 and optional USB0 root selection; idle-only switching.
 - **Six bundled legal Linux torrents:** the original Debian 13.7.0 netinst plus five additional official Ubuntu and Linux Mint releases. GitHub Actions validates each bencoded single-file torrent's piece hashes, file length, and expected ISO name; the Debian metadata SHA-256 is pinned.
-- The library displays readable titles and approximate ISO sizes, with D-Pad selection and X to download the chosen torrent.
+- The library displays readable titles and approximate ISO sizes. X queues the selected torrent; SQUARE queues all torrents (Download All).
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe single-file BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+
+## Downloads tab and queue (v0.3.0)
+
+- Every queued or active download appears separately in the sidebar's **Downloads** tab with individual progress, active peers, speed and status.
+- **X** in Library queues one torrent. **SQUARE** in Library queues all available torrents without duplicating jobs. Jobs are persisted across restarts in `/data/ps5-torrent/cache/queue.db`.
+- **X** in Downloads retries a failed/cancelled torrent; **SQUARE** stops only the selected torrent. Dashboard **SQUARE** stops all active jobs.
+- Each active download has its own sockets and cancellation state. Up to three torrents can run concurrently (default **2**).
+- Stop or application exit keeps verified file data. Restarted unfinished jobs rehash their stored data before resuming.
+- True simultaneous torrents require independent TCP sessions. Each torrent keeps its eight-peer pool, so increasing parallel downloads also increases PS5 network/socket usage.
+
+## Auto-download and settings.ini
+
+The application creates these paths:
+
+```ini
+# /data/ps5-torrent/settings.ini
+[downloads]
+auto_download=0
+max_active_downloads=2
+delete_completed_torrents=1
+scan_interval_seconds=3
+storage=internal
+```
+
+Copy **complete** `.torrent` files into `/data/ps5-torrent/torrents/`. When `auto_download=1`, Torrent Flow scans this directory (default every 3 seconds) **while the app is running**, waits for a file to have unchanged size/mtime across two scans, validates its single-file v1 metadata and queues it. It keeps processing pending jobs until the queue is empty. This is **not a background system daemon**, so the PS5 app needs to stay open.
+
+After a fully SHA-1 verified successful download, the corresponding **user-supplied** `.torrent` file from the watched `torrents/` or imported `cache/` folder is deleted if `delete_completed_torrents=1`. On errors, incomplete downloads, or cancel, the metadata is retained. Bundled `.torrent` files in `/app0/assets/test/` are **never deleted**.
+
+Settings can be changed using the PS5 Settings tab (X on highlighted row), or by editing `settings.ini` before launching. Download data lives in `/data/ps5-torrent/downloads/` by default.
 
 ## Bundled test torrents
 
@@ -33,7 +62,7 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 
 Only .torrent metadata files are packaged. The ISO files themselves are downloaded over BitTorrent upon selection. Tracker/peer connectivity remains hardware-untested.
 
-## Faster cancellation and connection handling (v0.2.1)
+## Faster cancellation and connection handling (v0.3.0)
 
 - Stop/Circle now marks cancellation once and shuts down all registered tracker and peer sockets, which wakes blocked recv/send and prevents repetitive Stop log spam.
 - A cancellable TCP connect uses `ioctl(FIONBIO)` and `select()` with 200 ms cancellation checks. If that is unavailable, `SOCK_NONBLOCK` is attempted. The known-good PS5 blocking socket remains a fallback when both are rejected, and **this fallback can still stall until the kernel's connect timeout**; logs identify the mode actually used.
