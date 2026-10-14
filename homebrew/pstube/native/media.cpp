@@ -95,10 +95,10 @@ void MediaPlayer::decode(){
   int64_t pause_at=0;
   while(!quit_.load()&&av_read_frame(fmt,pkt)>=0){
    while(paused_.load()&&!quit_.load()){
-    if(!pause_at)pause_at=av_gettime_relative();
+    if(!pause_at){pause_at=av_gettime_relative();if(audio)SDL_PauseAudioDevice(audio,1);}
     sleep_us(20000);
    }
-   if(pause_at){wall_origin+=av_gettime_relative()-pause_at;pause_at=0;}
+   if(pause_at){wall_origin+=av_gettime_relative()-pause_at;pause_at=0;if(audio)SDL_PauseAudioDevice(audio,0);}
    if(quit_)break;
    AVCodecContext* c=pkt->stream_index==vi?vc:pkt->stream_index==ai?ac:nullptr;
    if(c&&avcodec_send_packet(c,pkt)>=0){
