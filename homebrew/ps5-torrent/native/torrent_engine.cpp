@@ -7,6 +7,8 @@
 #include <atomic>
 #include <chrono>
 #include <cerrno>
+#include <ctime>
+#include <mutex>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -18,6 +20,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -28,6 +31,34 @@ const char* kUsb="/mnt/usb0/ps5-torrent";
 const char* kTest="debian-13.7.0-amd64-netinst.iso.torrent";
 bool isDir(const std::string& p){struct stat st{};return stat(p.c_str(),&st)==0&&S_ISDIR(st.st_mode);}
 bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return false;std::string s;for(char c:p){s+=c;if(c=='/'&&s.size()>1)mkdir(s.c_str(),0755);}return mkdir(s.c_str(),0755)==0||isDir(s);}
+
+std::mutex logMutex;
+std::vector<std::string> logRing;
+std::string chosenLog;
+std::string ensureLogPath(){
+ if(!chosenLog.empty())return chosenLog;
+ // Prefer a log folder alongside the installed homebrew app.
+ if(mkdirs("/data/homebrew/PPSA99684/logs"))chosenLog="/data/homebrew/PPSA99684/logs/torrent.log";
+ else if(mkdirs("/data/ps5-torrent/logs"))chosenLog="/data/ps5-torrent/logs/torrent.log";
+ else chosenLog="/data/ps5-torrent/torrent.log";
+ return chosenLog;
+}
+void trace(const std::string& message){
+ std::lock_guard<std::mutex> guard(logMutex);
+ const std::string path=ensureLogPath();
+ struct stat st{};
+ if(stat(path.c_str(),&st)==0&&st.st_size>1024*1024){
+  remove((path+".old.log").c_str());
+  rename(path.c_str(),(path+".old.log").c_str());
+ }
+ char header[60];snprintf(header,sizeof(header),"[%ld] ",(long)std::time(nullptr));
+ std::string line=std::string(header)+message;
+ FILE* file=fopen(path.c_str(),"ab");
+ if(file){fprintf(file,"%s\n",line.c_str());fclose(file);}
+ logRing.push_back(line);
+ if(logRing.size()>70)logRing.erase(logRing.begin(),logRing.begin()+20);
+}
+
 bool readAll(const std::string& p,std::string& s){FILE* f=fopen(p.c_str(),"rb");if(!f)return false;if(fseek(f,0,SEEK_END)!=0){fclose(f);return false;}long n=ftell(f);if(n<=0||n>1024*1024){fclose(f);return false;}rewind(f);s.resize((size_t)n);bool ok=fread(&s[0],1,(size_t)n,f)==(size_t)n;fclose(f);return ok;}
 struct B {
  std::string v;std::vector<B> list;std::map<std::string,B> dict;
@@ -68,9 +99,33 @@ bool url(const std::string& input,Url& out){
  return !out.host.empty()&&out.host.size()<200&&out.port>0&&out.port<=65535&&out.path.size()<2000;
 }
 int dial(const std::string& host,int port,int seconds){
+ trace("DNS lookup "+host+":"+std::to_string(port));
  struct addrinfo hints{},*head=nullptr;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;
- char p[16];snprintf(p,sizeof(p),"%d",port);if(getaddrinfo(host.c_str(),p,&hints,&head)!=0)return -1;
- int fd=-1;for(auto* a=head;a;a=a->ai_next){fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);if(fd<0)continue;fcntl(fd,F_SETFL,fcntl(fd,F_GETFL,0)|O_NONBLOCK);int ret=connect(fd,a->ai_addr,a->ai_addrlen);if(ret<0&&errno!=EINPROGRESS){close(fd);fd=-1;continue;}fd_set w;FD_ZERO(&w);FD_SET(fd,&w);struct timeval tv{seconds,0};if(select(fd+1,nullptr,&w,nullptr,&tv)<=0){close(fd);fd=-1;continue;}int err=0;socklen_t z=sizeof(err);getsockopt(fd,SOL_SOCKET,SO_ERROR,&err,&z);if(err){close(fd);fd=-1;continue;}fcntl(fd,F_SETFL,fcntl(fd,F_GETFL,0)&~O_NONBLOCK);struct timeval t{seconds,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t));break;}freeaddrinfo(head);return fd;
+ char p[16];snprintf(p,sizeof(p),"%d",port);
+ int code=getaddrinfo(host.c_str(),p,&hints,&head);
+ if(code!=0){trace("DNS FAILED "+host+" getaddrinfo="+std::to_string(code));return -1;}
+ int fd=-1;
+ for(auto* a=head;a;a=a->ai_next){
+  char address[INET_ADDRSTRLEN]={};
+  if(a->ai_family==AF_INET)inet_ntop(AF_INET,&((struct sockaddr_in*)a->ai_addr)->sin_addr,address,sizeof(address));
+  trace("Connecting TCP "+std::string(address)+":"+p);
+  fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
+  if(fd<0){trace("Socket creation FAILED errno="+std::to_string(errno));continue;}
+  int flags=fcntl(fd,F_GETFL,0);if(flags<0||fcntl(fd,F_SETFL,flags|O_NONBLOCK)!=0){trace("Nonblocking socket FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
+  int ret=connect(fd,a->ai_addr,a->ai_addrlen);
+  if(ret<0&&errno!=EINPROGRESS){trace("TCP connect FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
+  fd_set w;FD_ZERO(&w);FD_SET(fd,&w);struct timeval tv{seconds,0};
+  int selected=select(fd+1,nullptr,&w,nullptr,&tv);
+  if(selected<=0){trace("TCP connect timeout/select FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
+  int err=0;socklen_t z=sizeof(err);
+  if(getsockopt(fd,SOL_SOCKET,SO_ERROR,&err,&z)!=0||err){trace("TCP connection refused/FAILED errno="+std::to_string(err?err:errno));close(fd);fd=-1;continue;}
+  fcntl(fd,F_SETFL,flags);
+  struct timeval t{seconds,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t));
+  trace("TCP connected "+std::string(address)+":"+p);
+  break;
+ }
+ freeaddrinfo(head);
+ return fd;
 }
 bool sendAll(int fd,const void* data,size_t n){auto* p=(const char*)data;while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
 bool recvAll(int fd,void* data,size_t n){auto* p=(char*)data;while(n){ssize_t k=recv(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
@@ -78,42 +133,122 @@ uint32_t be32(const char* p){return (uint32_t(uint8_t(p[0]))<<24)|(uint32_t(uint
 void store32(char* p,uint32_t n){for(int i=0;i<4;i++)p[i]=(char)(n>>(24-8*i));}
 struct Peer{std::string ip;int port;};
 std::vector<Peer> tracker(const Meta& m,const std::string& peerId,uint64_t left){
- Url u;if(!url(m.announce,u))return {};
- std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=45&event=started";
- int fd=dial(u.host,u.port,6);if(fd<0)return {};
- std::string req="GET "+q+" HTTP/1.0\r\nHost: "+u.host+"\r\nUser-Agent: PS5-Torrent/0.1\r\nConnection: close\r\n\r\n";
- if(!sendAll(fd,req.data(),req.size())){close(fd);return {};}
- std::string response;char buf[4096];ssize_t n=0;while(response.size()<256*1024&&(n=recv(fd,buf,sizeof(buf),0))>0)response.append(buf,(size_t)n);close(fd);
- if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200")return {};
- size_t body=response.find("\r\n\r\n");if(body==std::string::npos)return {};body+=4;
- B root;size_t off=0;std::string data=response.substr(body);if(!parse(data,off,root))return {};
+ Url u;if(!url(m.announce,u)){trace("TRACKER invalid HTTP announce URL");return {};}
+ trace("HTTP tracker "+u.host+":"+std::to_string(u.port)+" announce...");
+ std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
+ int fd=dial(u.host,u.port,6);if(fd<0){trace("HTTP tracker connection FAILED");return {};}
+ std::string req="GET "+q+" HTTP/1.0\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.1\r\nConnection: close\r\n\r\n";
+ if(!sendAll(fd,req.data(),req.size())){trace("HTTP tracker send FAILED errno="+std::to_string(errno));close(fd);return {};}
+ std::string response;char buffer[4096];ssize_t got=0;
+ while(response.size()<256*1024&&(got=recv(fd,buffer,sizeof(buffer),0))>0)response.append(buffer,(size_t)got);
+ if(got<0)trace("HTTP tracker read timeout/socket error errno="+std::to_string(errno));
+ close(fd);
+ if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
+  trace("HTTP tracker bad status: "+response.substr(0,std::min<size_t>(response.size(),80)));return {};
+ }
+ size_t body=response.find("\r\n\r\n");if(body==std::string::npos){trace("HTTP tracker header parse FAILED");return {};}body+=4;
+ B root;size_t offset=0;std::string data=response.substr(body);
+ if(!parse(data,offset,root)){trace("HTTP tracker bencode invalid; bytes="+std::to_string(data.size()));return {};}
+ if(!root.get("failure reason").v.empty()){trace("HTTP tracker rejected: "+root.get("failure reason").v);return {};}
  std::vector<Peer> peers;const B& a=root.get("peers");
- if(a.type=='s'){for(size_t i=0;i+6<=a.v.size();i+=6){char ip[INET_ADDRSTRLEN];inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip));int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});}}
- else if(a.type=='l'){for(const auto& e:a.list){auto ip=e.get("ip").v;int port=(int)e.get("port").number();if(ip.size()<64&&port>0&&port<=65535)peers.push_back({ip,port});}}
- return peers;
+ if(a.type=='s'){for(size_t i=0;i+6<=a.v.size()&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,a.v.data()+i,ip,sizeof(ip)))continue;int port=(uint8_t(a.v[i+4])<<8)|uint8_t(a.v[i+5]);if(port>0)peers.push_back({ip,port});}}
+ else if(a.type=='l'){for(const auto& e:a.list){auto ip=e.get("ip").v;int port=(int)e.get("port").number();if(ip.size()<64&&port>0&&port<=65535&&peers.size()<100)peers.push_back({ip,port});}}
+ trace("HTTP tracker returned "+std::to_string(peers.size())+" peers");return peers;
+}
+void store64(char* p,uint64_t n){for(int i=0;i<8;i++)p[i]=(char)(n>>(56-8*i));}
+std::vector<Peer> udpFallback(const Meta& m,const std::string& peerId,uint64_t left){
+ const std::string host="tracker.opentrackr.org";
+ trace("Debian fallback: UDP tracker "+host+":1337");
+ struct addrinfo hints{},*head=nullptr;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_DGRAM;
+ int result=getaddrinfo(host.c_str(),"1337",&hints,&head);
+ if(result!=0){trace("UDP tracker DNS FAILED "+std::to_string(result));return {};}
+ int fd=socket(AF_INET,SOCK_DGRAM,0);if(fd<0){freeaddrinfo(head);trace("UDP socket FAILED errno="+std::to_string(errno));return {};}
+ struct timeval timeout{5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+ if(connect(fd,head->ai_addr,head->ai_addrlen)!=0){trace("UDP tracker connect FAILED errno="+std::to_string(errno));freeaddrinfo(head);close(fd);return {};}
+ freeaddrinfo(head);
+ char req[98]={},resp[4096]={};
+ store64(req,0x41727101980ULL);store32(req+8,0);store32(req+12,0x15104320);
+ if(send(fd,req,16,0)!=16){trace("UDP tracker handshake send FAILED");close(fd);return {};}
+ ssize_t n=recv(fd,resp,sizeof(resp),0);
+ if(n<16||be32(resp)!=0||be32(resp+4)!=0x15104320){trace("UDP handshake timeout/rejected len="+std::to_string(n)+" errno="+std::to_string(errno));close(fd);return {};}
+ memcpy(req,resp+8,8);store32(req+8,1);store32(req+12,0x15104321);
+ memcpy(req+16,m.hash.data(),20);memcpy(req+36,peerId.data(),20);
+ store64(req+56,0);store64(req+64,left);store64(req+72,0);store32(req+80,2);
+ store32(req+84,0);store32(req+88,0x15381111);store32(req+92,0xffffffffU);req[96]=(char)(6889>>8);req[97]=(char)(6889&255);
+ if(send(fd,req,sizeof(req),0)!=(ssize_t)sizeof(req)){trace("UDP announce send FAILED");close(fd);return {};}
+ n=recv(fd,resp,sizeof(resp),0);close(fd);
+ if(n<20||be32(resp)!=1||be32(resp+4)!=0x15104321){trace("UDP announce FAILED len="+std::to_string(n)+" errno="+std::to_string(errno));return {};}
+ std::vector<Peer> peers;
+ for(ssize_t i=20;i+6<=n&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,resp+i,ip,sizeof(ip)))continue;int port=(uint8_t(resp[i+4])<<8)|uint8_t(resp[i+5]);if(port>0)peers.push_back({ip,port});}
+ trace("UDP tracker returned "+std::to_string(peers.size())+" peers");return peers;
 }
 bool sendMsg(int fd,uint8_t id,const std::string& body={}){std::string b(5+body.size(),0);store32(&b[0],(uint32_t)(body.size()+1));b[4]=(char)id;std::copy(body.begin(),body.end(),b.begin()+5);return sendAll(fd,b.data(),b.size());}
 uint32_t pieceSize(const Meta& m,uint32_t index){uint64_t remain=m.bytes-(uint64_t)index*m.piece;return(uint32_t)std::min<uint64_t>(m.piece,remain);}
 bool shaPiece(const Meta& m,uint32_t index,const std::string& bytes){unsigned char digest[20];SHA1((const unsigned char*)bytes.data(),bytes.size(),digest);return memcmp(digest,m.pieces.data()+index*20,20)==0;}
 bool hasPiece(const std::string& bits,uint32_t index){return index/8<bits.size()&&(uint8_t(bits[index/8])&(0x80>>(index%8)));}
-bool grab(int fd,const Meta& m,uint32_t idx,std::string& bits,std::string& output,std::atomic<bool>& cancelled){
- const uint32_t n=pieceSize(m,idx);output.assign(n,0);std::vector<bool> got((n+16383)/16384,false);
- int requested=0,finished=0,idle=0;bool interested=false;
- while(!cancelled&&idle++<120){
-  if(!interested){if(!sendMsg(fd,2))return false;interested=true;}
-  if(hasPiece(bits,idx)&&requested==0){for(uint32_t offset=0;offset<n;offset+=16384){uint32_t len=std::min<uint32_t>(16384,n-offset);std::string req(12,0);store32(&req[0],idx);store32(&req[4],offset);store32(&req[8],len);if(!sendMsg(fd,6,req))return false;requested++;}}
-  uint32_t len=0;char head[4];if(!recvAll(fd,head,4))return false;len=be32(head);if(len>1024*1024)return false;if(!len)continue;
-  std::string msg(len,0);if(!recvAll(fd,&msg[0],len))return false;uint8_t id=uint8_t(msg[0]);
-  if(id==5){bits=msg.substr(1);idle=0;}
-  if(id==4&&len==5){uint32_t have=be32(msg.data()+1);if(have/8>=bits.size())bits.resize(have/8+1,0);bits[have/8]|=(char)(0x80>>(have%8));idle=0;}
-  if(id==7&&len>=9&&be32(msg.data()+1)==idx){uint32_t begin=be32(msg.data()+5);uint32_t count=len-9;if(begin<n&&count<=n-begin&&begin%16384==0&&count<=16384){memcpy(&output[begin],msg.data()+9,count);int block=begin/16384;if(!got[block]){got[block]=true;finished++;}idle=0;}}
-  if(requested&&finished==requested)return shaPiece(m,idx,output);
+bool grab(int fd,const Meta& m,uint32_t idx,std::string& bits,std::string& output,bool& choked,std::atomic<bool>& cancelled){
+ const uint32_t n=pieceSize(m,idx);
+ output.assign(n,0);
+ const size_t blocks=(n+16383)/16384;
+ std::vector<bool> got(blocks,false),requested(blocks,false);
+ size_t finished=0;
+ int outstanding=0,events=0;
+ if(!sendMsg(fd,2)){trace("Peer: interested send FAILED");return false;}
+ while(!cancelled.load()&&events++<256){
+  if(!bits.empty()&&!hasPiece(bits,idx)){
+   trace("Peer lacks piece "+std::to_string(idx)+"; switching to next available piece");
+   return false;
+  }
+  if(!choked&&hasPiece(bits,idx)){
+   for(size_t block=0;block<blocks&&outstanding<4;block++){
+    if(requested[block]||got[block])continue;
+    uint32_t offset=(uint32_t)block*16384;
+    uint32_t len=std::min<uint32_t>(16384,n-offset);
+    std::string req(12,0);store32(&req[0],idx);store32(&req[4],offset);store32(&req[8],len);
+    if(!sendMsg(fd,6,req)){trace("Peer request send FAILED piece="+std::to_string(idx));return false;}
+    requested[block]=true;outstanding++;
+   }
+  }
+  char header[4];
+  if(!recvAll(fd,header,4)){
+   trace("Peer read timeout/disconnected piece="+std::to_string(idx)+" errno="+std::to_string(errno));
+   return false;
+  }
+  uint32_t len=be32(header);
+  if(len>1024*1024){trace("Peer frame exceeds size limit");return false;}
+  if(len==0)continue;
+  std::string msg(len,0);
+  if(!recvAll(fd,&msg[0],len)){trace("Peer truncated frame piece="+std::to_string(idx));return false;}
+  uint8_t id=uint8_t(msg[0]);
+  if(id==0){choked=true;outstanding=0;for(size_t k=0;k<blocks;k++)if(!got[k])requested[k]=false;trace("Peer CHOKED");}
+  else if(id==1){choked=false;trace("Peer UNCHOKED");}
+  else if(id==5){bits=msg.substr(1);trace("Peer bitfield: "+std::to_string(bits.size())+" bytes");}
+  else if(id==4&&len==5){uint32_t have=be32(msg.data()+1);if(have<(uint32_t)m.pieces.size()/20){if(have/8>=bits.size())bits.resize(have/8+1,0);bits[have/8]|=(char)(0x80>>(have%8));}}
+  else if(id==7&&len>=9&&be32(msg.data()+1)==idx){
+   uint32_t begin=be32(msg.data()+5),count=len-9;
+   if(begin<n&&count<=n-begin&&begin%16384==0&&count==std::min<uint32_t>(16384,n-begin)){
+    size_t b=begin/16384;
+    if(!got[b]){
+     memcpy(&output[begin],msg.data()+9,count);
+     got[b]=true;finished++;
+     if(outstanding>0)outstanding--;
+    }
+   }
+   if(finished==blocks){
+    if(shaPiece(m,idx,output))return true;
+    trace("SHA-1 piece verification FAILED at "+std::to_string(idx));
+    return false;
+   }
+  }
  }
+ trace(cancelled.load()?"Piece transfer cancelled":"Peer frame limit exceeded / unresponsive");
  return false;
 }
 void saveState(const std::string& p,const std::vector<bool>& verified){std::string temp=p+".tmp";FILE* f=fopen(temp.c_str(),"wb");if(!f)return;for(bool b:verified)fputc(b?'1':'0',f);if(fclose(f)!=0){remove(temp.c_str());return;}rename(temp.c_str(),p.c_str());}
 }
-Engine::Engine(){state_.status="Ready";setUsb(false);}
+std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
+std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
+Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.1.1 initialized - log file: "+logPath());}
 Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
@@ -126,49 +261,60 @@ std::vector<std::string> discoverTorrents(){
 void Engine::setUsb(bool enable){std::lock_guard<std::mutex> lock(mutex_);if(busy_)return;state_.usb=enable;std::string base=enable?kUsb:kHome;state_.cacheDir=base+"/cache";state_.downloadDir=base+"/downloads";if(!enable)createDirectories(base);else if(!isDir("/mnt/usb0"))state_.status="USB 0 not mounted";else createDirectories(base);}
 bool Engine::usingUsb()const{std::lock_guard<std::mutex> g(mutex_);return state_.usb;}
 Snapshot Engine::snapshot()const{std::lock_guard<std::mutex> g(mutex_);return state_;}
-void Engine::publish(const std::string& message){std::lock_guard<std::mutex> g(mutex_);state_.status=message;}
-void Engine::stop(){std::lock_guard<std::mutex> g(mutex_);stopRequested_=true;state_.status="Stopping after current network operation...";}
+void Engine::publish(const std::string& message){{std::lock_guard<std::mutex> g(mutex_);state_.status=message;}trace(message);}
+void Engine::stop(){bool running=false;{std::lock_guard<std::mutex> g(mutex_);running=busy_;if(running){stopRequested_=true;cancellation_.store(true);state_.status="Stopping after current network operation...";}}if(running)trace("User requested transfer stop");}
 bool Engine::start(const std::string& path){
- {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;busy_=true;stopRequested_=false;state_.running=true;state_.paused=false;state_.done=false;state_.loaded=false;state_.lastError.clear();state_.downBps=0;state_.status="Reading torrent metadata...";}
+ {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;busy_=true;stopRequested_=false;state_.running=true;cancellation_.store(false);state_.paused=false;state_.done=false;state_.loaded=false;state_.lastError.clear();state_.downBps=0;state_.status="Reading torrent metadata...";}
+ trace("START torrent: "+path);
  std::thread([this,path]{run(path);}).detach();return true;
 }
 void Engine::run(std::string path){
- auto done=[&](const std::string& status,bool success){std::lock_guard<std::mutex> g(mutex_);state_.running=false;state_.done=success;state_.status=status;busy_=false;};
+ auto done=[&](const std::string& status,bool success){{std::lock_guard<std::mutex> g(mutex_);state_.running=false;state_.done=success;state_.status=status;state_.downBps=0;state_.activePeers=0;if(!success)state_.lastError=status;busy_=false;}trace(status);};
  auto cancelled=[&](){std::lock_guard<std::mutex> g(mutex_);return stopRequested_;};
- Meta m;std::string error;if(!metadata(path,m,error)){std::lock_guard<std::mutex> g(mutex_);state_.lastError=error;state_.status=error;state_.running=false;busy_=false;return;}
+ Meta m;std::string error;if(!metadata(path,m,error)){done(error,false);return;}trace("Metadata OK file="+m.name+" bytes="+std::to_string(m.bytes)+" pieces="+std::to_string(m.pieces.size()/20)+" tracker="+m.announce);
  std::string base;{std::lock_guard<std::mutex> g(mutex_);state_.name=m.name;state_.tracker=m.announce;state_.infoHash=hex((const unsigned char*)m.hash.data(),20);state_.totalBytes=m.bytes;state_.pieceCount=(int)m.pieces.size()/20;state_.verifiedPieces=0;state_.completedBytes=0;state_.loaded=true;base=state_.usb?kUsb:kHome;}
  if(!createDirectories(base)){done("Storage directory unavailable",false);return;}
  const std::string target=base+"/downloads/"+m.name,resume=base+"/cache/"+hex((const unsigned char*)m.hash.data(),20)+".resume";
- FILE* file=fopen(target.c_str(),"r+b");if(!file)file=fopen(target.c_str(),"w+b");if(!file){done("Cannot open destination file",false);return;}
+ FILE* file=fopen(target.c_str(),"r+b");if(!file)file=fopen(target.c_str(),"w+b");if(!file){done("Cannot open destination file errno="+std::to_string(errno),false);return;}trace("Destination: "+target);
  std::vector<bool> verified(m.pieces.size()/20,false);
  // Never trust cached piece flags without verifying the actual data on disk.
  publish("Verifying existing pieces...");
  std::string data;for(size_t i=0;i<verified.size();++i){if(cancelled()){fclose(file);done("Stopped",false);return;}size_t n=pieceSize(m,(uint32_t)i);data.resize(n);if(fseek(file,(long)((uint64_t)i*m.piece),SEEK_SET)==0&&fread(&data[0],1,n,file)==n&&shaPiece(m,(uint32_t)i,data)){verified[i]=true;std::lock_guard<std::mutex> g(mutex_);state_.verifiedPieces++;state_.completedBytes+=n;}}
  if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size()){fclose(file);done("Complete - verified all SHA-1 pieces",true);return;}
  // Initial release uses the supplied HTTP tracker and a limited peer selection.
- std::string peerId="-P5TO01-123456789012";std::atomic<bool> dummy{false};
+ std::string peerId="-P5TO11-123456789012";
  int failedRounds=0;while(!cancelled()&&failedRounds<4){
   publish("Contacting tracker...");
   uint64_t left=0;for(size_t i=0;i<verified.size();i++)if(!verified[i])left+=pieceSize(m,(uint32_t)i);
-  auto peers=tracker(m,peerId,left);{std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
-  if(peers.empty()){failedRounds++;publish("Tracker returned no reachable peers");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
+  auto peers=tracker(m,peerId,left);
+  if(peers.empty()&&m.name=="debian-13.7.0-amd64-netinst.iso"&&m.announce.find("bttracker.debian.org")!=std::string::npos&&!cancelled()){
+   publish("Debian tracker empty; trying UDP fallback...");
+   peers=udpFallback(m,peerId,left);
+  }
+  {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
+  if(peers.empty()){failedRounds++;publish("No peers from HTTP or UDP tracker (see Logs)");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
   bool any=false;
-  for(const Peer& peer:peers){
+  for(size_t peerIndex=0;peerIndex<peers.size();++peerIndex){
+   const Peer& peer=peers[peerIndex];
    if(cancelled())break;
+   publish("Connecting to peer "+std::to_string(peerIndex+1)+"/"+std::to_string(peers.size()));
    int fd=dial(peer.ip,peer.port,4);if(fd<0)continue;
    char handshake[68]={19};memcpy(handshake+1,"BitTorrent protocol",19);memcpy(handshake+28,m.hash.data(),20);memcpy(handshake+48,peerId.data(),20);
    char reply[68];bool ok=sendAll(fd,handshake,sizeof(handshake))&&recvAll(fd,reply,sizeof(reply))&&uint8_t(reply[0])==19&&memcmp(reply+1,"BitTorrent protocol",19)==0&&memcmp(reply+28,m.hash.data(),20)==0;
-   if(!ok){close(fd);continue;}
+   if(!ok){trace("Peer handshake FAILED "+peer.ip+":"+std::to_string(peer.port));close(fd);continue;}trace("Peer handshake OK "+peer.ip+":"+std::to_string(peer.port));
    {std::lock_guard<std::mutex> g(mutex_);state_.activePeers=1;}
-   std::string bitfield;publish("Downloading verified pieces...");
+   std::string bitfield;bool peerChoked=true;publish("Downloading verified pieces...");
    // The peer loop is bounded by socket timeouts and server-provided bitfields.
    for(size_t i=0;i<verified.size()&&!cancelled();++i){
     if(verified[i])continue;
     if(i>0&&!hasPiece(bitfield,(uint32_t)i))continue;
     std::string piece;auto start=std::chrono::steady_clock::now();
-    if(!grab(fd,m,(uint32_t)i,bitfield,piece,dummy))break;
+    if(!grab(fd,m,(uint32_t)i,bitfield,piece,peerChoked,cancellation_)){
+     if(!bitfield.empty()&&!hasPiece(bitfield,(uint32_t)i)&&!cancelled())continue;
+     break;
+    }
     if(fseek(file,(long)((uint64_t)i*m.piece),SEEK_SET)!=0||fwrite(piece.data(),1,piece.size(),file)!=piece.size()||fflush(file)!=0)break;
-    any=true;verified[i]=true;saveState(resume,verified);
+    any=true;verified[i]=true;saveState(resume,verified);trace("Piece "+std::to_string(i)+" verified and saved, bytes="+std::to_string(piece.size()));
     auto ms=std::max<int64_t>(1,std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count());
     {std::lock_guard<std::mutex> g(mutex_);state_.verifiedPieces++;state_.completedBytes+=piece.size();state_.transferredBytes+=piece.size();state_.downBps=piece.size()*1000.0/ms;}
    }
@@ -176,7 +322,7 @@ void Engine::run(std::string path){
    if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size())break;
   }
   if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size())break;
-  if(!any)failedRounds++;else failedRounds=0;
+  if(!any){failedRounds++;trace("No progress in tracker round "+std::to_string(failedRounds));}else failedRounds=0;
  }
  fclose(file);bool complete=std::all_of(verified.begin(),verified.end(),[](bool v){return v;});
  if(cancelled())done("Stopped - verified data preserved",false);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <cstdint>
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -27,10 +28,13 @@ private:
     Snapshot state_;
     bool busy_=false;
     bool stopRequested_=false;
+    std::atomic<bool> cancellation_{false};
 };
 Engine& engine();
 const char* sampleTorrentName();
 const char* sampleTorrentPath();
 std::vector<std::string> discoverTorrents();
 bool createDirectories(const std::string& path);
+std::string logPath();
+std::vector<std::string> recentLogs();
 }

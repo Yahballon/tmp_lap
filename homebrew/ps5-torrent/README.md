@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.1.0 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.1.1 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -8,8 +8,8 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 
 ## Features
 
-- Four controller-accessible views: Dashboard, Torrent Library, Storage & Settings, About.
-- HTTP BitTorrent tracker announce and IPv4 TCP peer connections.
+- Five controller-accessible views: Dashboard, Torrent Library, Storage & Settings, Logs, About.
+- HTTP BitTorrent tracker announce, Debian test-only UDP fallback via opentrackr, and IPv4 TCP peer connections.
 - SHA-1 integrity verification per piece, independent of progress claims.
 - Restart/resume by rehashing existing output file; cache includes a per-torrent resume snapshot.
 - Persistent separate cache and download directories.
@@ -19,12 +19,22 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 
 ## Important known limitations
 
-- Single-file BitTorrent v1 only. No multi-file torrents, magnet links, DHT, PEX, HTTPS or UDP tracker support.
+- Single-file BitTorrent v1 only. No multi-file torrents, magnet links, DHT, PEX, HTTPS or general-purpose UDP tracker support (only the Debian test fallback).
 - Single peer connection at a time; transfer throughput and swarm availability may be limited.
 - Incoming connections, true seeding, upload speeds, pause/resume while open, and arbitrary torrent picker are not supported in the first build. SQUARE cancels the transfer and verified data remains on disk.
-- Current peer logic is experimental: peer availability and choking may prevent downloads, even with a valid torrent. Download completion on an actual PS5 is **not verified**.
+- Peer logic now respects CHOKE/UNCHOKE and requests pieces in a bounded pipeline; peer compatibility and complete download on an actual PS5 remain **unverified**.
 - HTTP trackers transmit announce metadata unencrypted; only transfer legal, trusted content.
 - SHA-1 integrity is the historical BitTorrent v1 piece hash and is not a replacement for authenticating a torrent's origin.
+
+## Diagnostic logs
+
+- Primary log folder: `/data/homebrew/PPSA99684/logs/`
+- Active log: `/data/homebrew/PPSA99684/logs/torrent.log`
+- Rotated log: `torrent.log.old.log` (after about 1 MiB)
+- If the installed app folder is not writable, fallback: `/data/ps5-torrent/logs/torrent.log`
+- The **Logs** tab shows the exact active log path and most recent log lines.
+- Logs include network addresses and should be reviewed/redacted before publishing publicly.
+- Statuses include DNS errors, tracker responses, socket timeouts, peer handshakes, and piece hash checks.
 
 ## Default directories
 

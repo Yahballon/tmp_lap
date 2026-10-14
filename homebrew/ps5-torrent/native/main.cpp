@@ -25,13 +25,13 @@ int main(){
  hui::ps5::Display display;if(!display.open())hui::sys::park();hui::gfx::Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;std::string fontBytes=load("/app0/assets/fonts/inter-semibold.huifont");if(fontBytes.empty())fontBytes=load("/data/homebrew/PPSA99684/assets/fonts/inter-semibold.huifont");if(!font.load(fontBytes))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);hui::ps5::Pad pad;pad.open();
- auto& engine=torrent::engine();int page=0,selected=0,scroll=0;unsigned previous=0;std::string notice="Ready to download a legal test torrent.";auto library=torrent::discoverTorrents();
- const char* tabs[]={"Dashboard","Torrent Library","Storage & Settings","About"};
+ auto& engine=torrent::engine();int page=0,selected=0;unsigned previous=0;std::string notice="Ready to download a legal test torrent.";auto library=torrent::discoverTorrents();
+ const char* tabs[]={"Dashboard","Torrent Library","Storage & Settings","Logs","About"};
  for(;;){
   std::array<hui::PadSample,64> samples{};unsigned pressed=0;size_t n=pad.read(samples);
   for(size_t i=0;i<n;i++){pressed|=samples[i].buttons&~previous;previous=samples[i].buttons;}
-  if(pressed&hui::pad_bits::kL1)page=(page+3)%4;
-  if(pressed&hui::pad_bits::kR1)page=(page+1)%4;
+  if(pressed&hui::pad_bits::kL1)page=(page+4)%5;
+  if(pressed&hui::pad_bits::kR1)page=(page+1)%5;
   if(pressed&hui::pad_bits::kUp){if(page==1&&selected>0)selected--;else if(page==0)page=(page+3)%4;}
   if(pressed&hui::pad_bits::kDown){if(page==1&&selected+1<(int)library.size())selected++;else if(page==0)page=(page+1)%4;}
   if(pressed&hui::pad_bits::kCircle){if(page!=0)page=0;else{engine.stop();pad.close();renderer.release();display.close();hui::sys::quit();}}
@@ -47,12 +47,12 @@ int main(){
   d.rounded_rect({0,0,1920,102},0,Color::rgb(0x0d1b2d));d.circle(79,51,28,mint);d.circle(79,51,18,Color::rgb(0x0d1b2d));d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",464,54,21,mint);
-  text(d,font,atlas,"v0.1.0",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.1.1",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
-  for(int i=0;i<4;i++){
-   float y=149+i*110;card(d,43,y,302,89,page==i);
+  for(int i=0;i<5;i++){
+   float y=149+i*104;card(d,43,y,302,88,page==i);
    text(d,font,atlas,tabs[i],66,y+41,24,page==i?mint:white);
-   text(d,font,atlas,i==0?"Live transfer overview":i==1?"Bundled .torrent files":i==2?"Cache and destination":"Client and limitations",66,y+70,16,muted);
+   text(d,font,atlas,i==0?"Live transfer overview":i==1?"Bundled .torrent files":i==2?"Cache and destination":i==3?"Live transfer diagnostics":"Client and limitations",66,y+70,16,muted);
   }
   text(d,font,atlas,"NETWORK",60,700,19,mint);
   text(d,font,atlas,"Tracker: HTTP BitTorrent v1",60,746,18,muted);
@@ -63,7 +63,7 @@ int main(){
    card(d,385,126,1497,240);
    text(d,font,atlas,"TRANSFER OVERVIEW",428,181,20,mint);
    text(d,font,atlas,s.name.empty()?"Debian 13.7 netinst - ready to test":shorten(s.name,54),427,238,38);
-   text(d,font,atlas,s.status,429,282,21,s.done?mint:muted);
+   text(d,font,atlas,shorten(s.status,96),429,282,21,s.done?mint:muted);
    bar(d,427,321,1398,p,mint);
    text(d,font,atlas,std::to_string((int)(p*100))+"%",1825,310,26,mint,Align::right);
    const char* names[]={"DOWNLOAD SPEED","UPLOAD SPEED","VERIFIED DATA","PEERS"};
@@ -94,10 +94,26 @@ int main(){
    text(d,font,atlas,"X  Toggle internal / USB0 storage",431,696,27,mint);
    text(d,font,atlas,"Switch storage only when idle. Partially downloaded data stays in place.",431,762,22,muted);
    text(d,font,atlas,"Unverified pieces are never reported as completed.",431,828,22,muted);
+   text(d,font,atlas,"Log file: "+shorten(torrent::logPath(),79),431,891,20,mint);
+  }else if(page==3){
+   card(d,386,125,1495,866);
+   text(d,font,atlas,"LIVE TRANSFER LOGS",429,209,42);
+   text(d,font,atlas,"Logs are saved after every connection attempt; latest lines appear here.",430,265,21,muted);
+   text(d,font,atlas,"Log file: "+shorten(torrent::logPath(),84),430,319,24,mint);
+   auto lines=torrent::recentLogs();
+   const size_t count=std::min<size_t>(12,lines.size());
+   if(!count)text(d,font,atlas,"No log messages yet.",433,405,23,muted);
+   for(size_t i=0;i<count;i++){
+    const std::string& line=lines[lines.size()-count+i];
+    float y=380+i*48;
+    if(i%2==0)d.rounded_rect({421,y-29,1417,42},7,Color::rgb(0x11263a));
+    const bool failed=line.find("FAILED")!=std::string::npos||line.find("timeout")!=std::string::npos;
+    text(d,font,atlas,shorten(line,121),437,y,18,failed?gold:muted);
+   }
   }else{
    card(d,386,125,1495,866);text(d,font,atlas,"ABOUT TORRENT FLOW",429,210,43);
    text(d,font,atlas,"Native PS5 BitTorrent test client  /  PPSA99684",431,288,26,mint);
-   const char* lines[]={"BitTorrent v1 single-file torrents, HTTP trackers, IPv4 TCP peers","Sequential 16 KiB piece requests with SHA-1 integrity checks","Resumable local storage, separate cache and downloads folders","Bundled Debian GNU/Linux netinst torrent - distribution is legal","Experimental: no HTTPS/UDP trackers, DHT, magnet or multi-file torrents","A paused job stops safely after its current network operation.","BitFiend studied as a design reference; no upstream code copied."};
+   const char* lines[]={"BitTorrent v1 single-file torrents, HTTP trackers, IPv4 TCP peers","Sequential 16 KiB piece requests with SHA-1 integrity checks","Resumable local storage, separate cache and downloads folders","Bundled Debian GNU/Linux netinst torrent - distribution is legal","Experimental: HTTP + Debian UDP fallback, no DHT, magnets or multi-file","A paused job stops safely after its current network operation.","BitFiend studied as a design reference; no upstream code copied."};
    for(int i=0;i<7;i++)text(d,font,atlas,lines[i],434,369+i*72,22,i==4?gold:muted);
   }
   d.rounded_rect({25,1007,1870,53},12,Color::rgb(0x102237));
