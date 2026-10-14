@@ -1,20 +1,22 @@
-# Starbound Rebased v0.1.20 — Relayfall Campaign TESTBUILD
+# Starbound Rebased v0.1.21 — Deep Signal TESTBUILD
 
-32 original stages across eight sci-fi sectors replace the reference World 1-1
-and the old random maps. Ordered encounters teach jumps, stairs, patrol avoidance,
-optional reward routes and lifts before combining them in later sectors.
+Relayfall now has 32 larger, deliberately sequenced stages, with unique six-bay
+encounter plans instead of repeated half-level templates.
 
-- All 8x4 stages are selectable; sequential exits advance through the campaign.
-- Service checkpoints restore a safe midpoint after death, retaining life costs.
-- Growth/fire upgrades, temporary invulnerability and hidden reserve lives use
-  the existing item logic. Main routes work without powerups or moving lifts.
-- Final relay restores the signal, plays victory music and returns to the menu
-  after confirmation.
-- Existing v0.1.19 walking/large-player fixes, HD media and controller mapping remain.
-- Automated checks cover 32 unique maps, exact packaged bytes, IDs, properties,
-  checkpoint pads, exit assemblies and 64 static small/large reachability routes.
+- Four underwater observatory stages with actual repeated-jump swimming, coral
+  channels, submerged caches and surface airlocks. Swimming now survives damage,
+  checkpoint death and transitions between dry and submerged sectors.
+- Two reactor-sentinel arenas (6-4 and 8-4). Reach the marked cut-off terminal
+  via the upper maintenance route to collapse the bridge and shut down the boss.
+- Newly introduced glow rays, jelly drones, animated air sentries and a connected
+  32x32 reactor sentinel, with original generated/normalized sprite artwork.
+- Three original biome backdrops and distinct quarry/coral/reactor terrain.
+- New tunnel, island-valley, sky-bridge and drone encounters, safe checkpoint
+  buffers and optional reward routes.
+- Existing player walking/growth fixes, native atlas geometry and controls retained.
+- Automated map, swim-corridor, boss-assembly, actual parser and packaged-art gates.
 
-Install `PPSA99642.zip` using the existing ShadowMount workflow. This prerelease
-requires PS5 hardware testing, particularly checkpoint deaths, lift timing,
-enemy AI, 1-4 to 2-1 progression and the 8-4 finale. Keep a previous working
-TESTBUILD available for rollback. See CAMPAIGN.md for the acceptance checklist.
+Install PPSA99642.zip with the existing ShadowMount workflow. Hardware testing is
+required for underwater damage/retries, swim-to-dry transitions, enemy animation,
+cut-off terminal timing and the final confirmation back to the menu. Keep v0.1.20
+available for rollback. See CAMPAIGN.md, DESIGN_RESEARCH.md and ASSET_NOTES.md.

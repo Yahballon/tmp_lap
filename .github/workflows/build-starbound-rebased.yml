@@ -53,6 +53,7 @@ jobs:
           python3 homebrew/starbound-rebased/tools/remaster-starbound-world.py build/gold872-reference
           # Apply the Gold872 player frame fix AFTER the world remaster, which recreates the atlases.
           python3 homebrew/starbound-rebased/tools/fix-player-sprites.py
+          python3 homebrew/starbound-rebased/tools/install-deep-signal-art.py
           # Stop showing the original NES-looking Press Start font.
           replacement_font="$(find /usr/share/fonts -type f \( -iname '*sans*bold*.ttf' -o -iname '*sans*bold*.otf' \) -print -quit)"
           if [ -n "$replacement_font" ] && [ -s "$replacement_font" ]; then
@@ -71,6 +72,7 @@ jobs:
           # Install original maps last: legacy generators/reference restoration
           # must never overwrite the authored campaign shipped in this build.
           python3 homebrew/starbound-rebased/tools/install-campaign.py build/gold872-engine
+          python3 homebrew/starbound-rebased/tools/install-deep-signal.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/check-campaign.py homebrew/starbound-rebased/res/data
           python3 - <<'PY'
           from pathlib import Path
@@ -145,7 +147,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.021'
+          data['contentVersion']='01.000.022'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased HD'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -202,7 +204,7 @@ jobs:
               # Never publish a TESTBUILDS ZIP that accidentally contains
               # generated fallback textures instead of the uploaded HD PNGs.
               hd_root=pathlib.Path('homebrew/starbound-rebased/hd-assets')
-              hd_pngs=sorted(hd_root.rglob('*.png'))
+              hd_pngs=sorted(p for p in hd_root.rglob('*.png') if 'deep-signal' not in p.parts)
               assert len(hd_pngs)==6, hd_pngs
               # Exact NATIVE canvas dimensions and SDL 1px/17px grid survive.
               # Old Mario bitmap masks are deliberately NOT preserved: these
@@ -222,7 +224,7 @@ jobs:
                   assert old.size==got.size and old.tobytes()!=got.tobytes(), ('Unmodified Mario atlas',rel)
               tiles=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).convert('RGBA')
               # Foreground semantic IDs must be visible in their exact 17px pitch.
-              for tile_id in (192,197,289,384,385,144,149,152,609):
+              for tile_id in (192,197,289,384,385,144,149,152,609,400,401,416,417,912,913,213,229,725,392,339,240):
                   sx,sy=1+(tile_id%48)*17,1+(tile_id//48)*17
                   assert tiles.crop((sx,sy,sx+16,sy+16)).getchannel('A').getbbox(),tile_id
               # SourceRect gutters outside every cell remain transparent.
@@ -259,6 +261,14 @@ jobs:
                       relative=source.relative_to(authored).as_posix()
                       assert z.read(root+'assets/res/data/'+relative)==source.read_bytes(),relative
               print('PASS: all 32 original campaign maps and properties packaged byte-for-byte')
+              for biome in ('underwater_observatory','crystal_quarry','reactor_core'):
+                  rel='backgrounds/'+biome+'.png'
+                  assert z.read(root+'assets/res/sprites/'+rel)==(hd_root/'deep-signal'/f'{biome}.png').read_bytes()
+              foes=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/EnemySpriteSheet.png'))).convert('RGBA')
+              for eid,w,h in ((81,16,16),(82,16,16),(48,16,32),(49,16,32),(90,16,16),(91,16,16),(61,32,32),(63,32,32),(65,32,32),(67,32,32)):
+                  x,y=1+(eid%35)*16,1+(eid//35)*16
+                  assert foes.crop((x,y,x+w,y+h)).getchannel('A').getbbox(),eid
+              print('PASS: three original biome backdrops and all new enemy/boss native frames')
               menu=z.read(root+'assets/res/data/MenuBackground/MenuBackground_Background.csv').decode()
               rows=[r.split(',') for r in menu.strip().splitlines()]
               assert len(rows)>0 and len({len(row) for row in rows})==1
@@ -277,6 +287,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.20
+          tag=starbound-rebased-v0.1.21
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.20 - Relayfall Campaign TESTBUILD" --notes-file homebrew/starbound-rebased/TESTBUILD_NOTES.md --prerelease
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.21 - Deep Signal Biomes and Bosses TESTBUILD" --notes-file homebrew/starbound-rebased/TESTBUILD_NOTES.md --prerelease

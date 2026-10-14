@@ -1,83 +1,85 @@
-# Relayfall campaign
+# Relayfall: Deep Signal campaign
 
-An original 32-stage expedition to restore an abandoned planetary relay network.
-The existing HD astronaut, sci-fi atlases, input mapping and player transforms
-are preserved. Maps do not use upstream level geometry.
+32 original stages across eight sci-fi sectors. Deep Signal replaces the repeated
+v0.1.20 half-level templates with six individually ordered encounter bays and
+larger maps (224–310 tiles). Player controls, jump physics and the repaired
+walking/growth atlas remain compatible.
 
-| Sector | Stages | Gameplay progression |
-| --- | --- | --- |
-| Landing Reach | Arrival, Supply Trail, Survey Ridge, First Relay | Energy crates, held jumps, safe stairs, first slime patrols |
-| Crystal Quarry | Fault Line, Crystal Steps, Cache Run, Quarry Relay | Short fissures, broad elevated treads, optional crystal caches |
-| Spore Gardens | Green Frontier, Crawler Beds, Canopy Cache, Garden Relay | Slimes and tall crawlers, raised escape perches |
-| Cargo Ring | Dock Approach, Lift Yard, Upper Cargo, Freight Relay | Optional vertical lifts and upper cargo rewards |
-| Dark Observatory | Night Watch, Armored Gallery, Signal Cache, Lens Relay | Armored patrols, optional invulnerability cells |
-| Ion Foundry | Cooling Trench, Machine Floor, Maintenance Route, Forge Relay | Alternating combat, lifts and three-tile fissures |
-| Storm Array | Broken Links, High Voltage, Hidden Frequency, Storm Relay | Four-tile fissures and combined traversal encounters |
-| Relay Core | Core Approach, Security Grid, Reserve Cells, Signal Restored | Combined skills, reserve life route and campaign finale |
+| Sector | Gameplay identity |
+| --- | --- |
+| Landing Reach | Supplies, stairs, fissures, island valleys and early patrols |
+| Crystal Quarry | Crystalline terrain, low tunnels and layered reward shelves |
+| Spore Gardens | Crawlers, patrol perches and alternating tunnel/valley paths |
+| Cargo Ring | Static sky bridges, optional lifts and new air sentries |
+| Tidal Observatory | Four genuine underwater stages: swim training, coral channels, jelly pursuit and deep caches |
+| Ion Foundry | Industrial traversal followed by the 6-4 reactor sentinel |
+| Storm Array | Combined drone, sky-bridge, armor and fissure challenges |
+| Relay Core | Mixed-skill stages and the final 8-4 sentinel shutdown |
 
-Every stage has an entry supply crate before danger, six intentionally ordered
-encounter bays, a cleared service checkpoint at tile (98,12), a second supply
-crate, and a relay exit with the solid wall required by FlagSystem's auto-walk.
-Powerups are helpful but never required to traverse the main route. Growth
-crates use the existing mushroom/fire upgrade logic. Armor bays offer a star
-before the patrol. Reward shelves contain coins and an invisible reserve-life
-block. These secrets reward exploration; they do not skip stages or trap players.
-Lifts offer optional upper rewards above solid floors. There are no forced waits,
-mandatory breakable barriers, blind warp destinations or enemy-gated exits.
+Every stage has entry supplies, a service checkpoint at (98,12), a second supply
+crate and a readable exit. Checkpoints activate only for a living player standing
+on the marked pad; life costs and level resets remain. Enemy spawns are cleared
+around the pad. Session checkpoints reset when changing stages or leaving the game.
+All 8x4 stages are selectable for TESTBUILD evaluation and link in order.
 
-Checkpoints activate only when the living player stands inside the marked pad.
-Death still costs one life and restores the level's enemies/items, but respawns
-at the service pad with the camera moved there. A level transition resets the
-checkpoint. Checkpoints are session-only; quitting or game over clears them.
-All 8x4 stages can be selected in the existing menu for TESTBUILD evaluation.
-Stages link sequentially across sectors; 8-4 ends at (0,0), plays victory music
-and shows a completion prompt returning to the menu on confirm.
+Optional reward shelves/lifts contain coins and hidden reserve cells. Growth
+crates use the existing mushroom/fire upgrade logic. Later armor bays offer a
+temporary invulnerability cell. Main dry routes are statically traversable with
+either player size without mandatory powerups or moving lifts. Swim stages use
+repeated jump presses, with three-or-more-tile corridors for the large player.
 
-## Engine contract
+Boss arenas use a connected reactor-sentinel sprite, bounded patrol/jumps and
+projectile attacks. A visible elevated maintenance route leads over the encounter
+to the cut-off terminal. Activating it collapses the bridge beneath the sentinel,
+then advances to the next sector. The final arena shows the signal-restored prompt
+and returns to the menu on confirmation. Boss shutdown does not require fireballs;
+the upstream fireball HP branch is not implemented and is not claimed here.
 
-Six rectangular 15-row CSV layers are loaded in lockstep; -1 is empty.
-Foreground IDs: 384/385 terrain, 197 solid panels, 192 animated energy crates,
-144 coins, 149 relay pole, 152 descending beacon, 609 vertical lift.
-Collectibles: 608 growth, 96 invulnerability, 52 reserve life. These are dispenser
-metadata at crate cells, or an invisible block for the hidden reserve life;
-loose coins belong in Foreground, not Collectibles. Enemy IDs: 70 slime,
-38 tall crawler, 87 armored crawler. Tall enemies start one row higher.
-All IDs retain the native atlas geometry and engine semantic lookup.
-`CAMERA_MAX` is the absolute right boundary in tiles, not the maximum scroll
-offset. Moving-platform properties use the engine's coordinate/enumeration
-syntax. Empty optional arrays are separated by blank lines to terminate the
-existing regex parser. `CHECKPOINT` extends the level parser with one coordinate.
+## Engine and map contract
+
+Six rectangular 15-row CSV layers load together; -1 is empty. Ground aliases
+384/385, 400/401, 416/417 and 912/913 share terrain semantics while carrying four
+original palettes. Solid panel aliases are 197,213,229,725. Energy crates use192;
+loose coins use Foreground144. Collectibles608/96/52 specify growth, star or reserve
+life at crate cells; reserve-life metadata on an empty cell becomes a hidden block.
+Enemy IDs38/70/87 are existing crawlers/slimes; new campaign types81/48/90/61 are
+ray/jelly/sentry/sentinel. Tall enemies spawn one row higher; air/water enemies do
+not need floor support. Lifts609 have matching movement properties.
+
+Relay exits consist of pole149 and beacon152 plus the final auto-walk stop wall.
+Sentinel exits instead have exactly one boss61, bridge392, chain339 and terminal240,
+with empty terrain below the bridge so collapse can complete. These stages use
+CASTLE; Tidal Observatory uses UNDERWATER; other stages use OVERWORLD. CAMERA_MAX
+is the absolute right boundary, not scroll distance. PlayerSystem::reset refreshes
+water mode on every retry/transition; damage that only shrinks a player keeps it.
+Surface-airlock sequences explicitly disable swimming.
 
 ## Authoring and validation
 
-The tracked `campaign/` directory contains all 192 CSV maps, 32 property files
-and a campaign manifest. `tools/build-campaign.py` reproduces them from the
-explicit sector/encounter plan without RNG or imported map data. Change that
-plan and regenerate rather than hand-editing generated maps.
+The committed campaign directory contains 192 CSV layers,32 properties and a
+manifest. tools/build-campaign.py reproduces them without RNG or upstream maps.
+The installer runs after all reference/raster work to prevent overwrite.
 
-```sh
-python3 homebrew/starbound-rebased/tools/build-campaign.py
-python3 homebrew/starbound-rebased/tools/check-campaign.py
-```
+Run python3 homebrew/starbound-rebased/tools/build-campaign.py, then
+python3 homebrew/starbound-rebased/tools/check-campaign.py and
+python3 homebrew/starbound-rebased/tools/test-campaign.py.
 
-CI checks all layer sizes, supported semantic IDs, unique geometry, safe spawns,
-enemy support, checkpoint clearance, platform property matching, complete exit
-assemblies and the exact sequential transition chain including the finale.
-It also checks static route reachability for both 32px and 64px player heights
-using pinned engine jump/gravity constants. This simplified model excludes enemy
-AI, dynamic lift timing and destructible shortcuts; it is not a complete engine
-or controller playtest. Negative tests corrupt exits, IDs, checkpoints and
-transitions to ensure the validator fails. CI installs the maps after all raster
-generators/reference work, then checks packaged bytes against the tracked maps.
-The native and desktop jobs also execute the actual patched C++ level parser
-against all 32 property files. The TESTBUILDS catalog opts in to Starbound Rebased
-prereleases; drafts and other titles' prereleases remain excluded.
+Checks cover distinct geometry, dimensions, supported IDs, safe spawn/pads,
+sequential transitions, enemy support, lifts and complete relay/boss assemblies.
+Dry routes use pinned jump/gravity constants; water routes use body-clearance
+corridor search. Both sizes are checked across all32 stages. These static models
+exclude AI, moving-platform timing and controller feel. Both native/desktop jobs
+also execute the actual patched C++ property parser. Packaged CSV/properties,
+backdrops and new enemy rectangles are verified before release. TESTBUILDS opts
+in to this title's prereleases while excluding drafts/other-app prereleases.
 
-## Hardware acceptance checklist
+## PS5 acceptance
 
-Install the v0.1.20 TESTBUILD (PPSA99642) with rollback available. Test menu
-selection for 1-1, 4-2, 8-4; sequential 1-4 to 2-1; death before/after a checkpoint;
-both player sizes across steps and fissures; growth then fire upgrade; reserve
-life discovery; vertical lift boarding; all patrol families; the final relay and
-confirmation back to the menu. Confirm the v0.1.19 walking/mushroom fixes remain
-correct. Native CI compilation and static checks cannot replace these PS5 tests.
+Test1-1 basics;4-2 lifts/sentries;5-1 swimming and damage;5-4 to6-1 mode change;
+checkpoint deaths both underwater and dry;6-4 and8-4 cut-off terminals; large-body
+clearance; reserve cells; final confirmation. Observe ray/jelly/sentry animation
+and confirm the original walking/growth fixes. Automated compilation and static
+geometry checks do not replace these hardware tests. Keep v0.1.20 for rollback.
+
+See DESIGN_RESEARCH.md for primary sources and ASSET_NOTES.md for prompts,
+normalization and exact artwork addresses.

@@ -1,6 +1,6 @@
 # Starbound Rebased — Gold872 engine port (work in progress)
 
-## Current TESTBUILD: v0.1.20 Relayfall
+## Current TESTBUILD: v0.1.21 Deep Signal
 
 The current PS5 test campaign replaces the reference World 1-1 and randomized
 maps with 32 original stages across eight sci-fi sectors. All stages are
@@ -9,7 +9,11 @@ midpoint retries, and 8-4 has a campaign completion prompt. The v0.1.19 player
 fixes, native atlas geometry, HD assets and controller mapping are retained.
 See [CAMPAIGN.md](CAMPAIGN.md) for design, map semantics and verification limits,
 and [TESTBUILD_NOTES.md](TESTBUILD_NOTES.md) for installation/testing notes.
-Earlier version notes below describe historical milestones, not current limits.
+Deep Signal adds four underwater stages, two reactor sentinel arenas, new original
+enemy frames, three biome backdrops and more varied routes. Research and asset
+contracts are documented in [DESIGN_RESEARCH.md](DESIGN_RESEARCH.md) and
+[ASSET_NOTES.md](ASSET_NOTES.md). Earlier version notes below describe historical
+milestones, not current limits.
 
 This is a **clean, separate porting track**, not the procedural Starbound Sprint engine.
 

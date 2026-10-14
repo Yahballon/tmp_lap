@@ -148,6 +148,25 @@ def tech_tile(idx):
     coin=idx in range(144,149) or idx in range(96,101)
     conduit=idx in range(149,154) or idx in range(240,253) or idx in range(292,297)
     platforms=idx in (197,198,199,289,290,291,101,152)
+    if idx in (400,401,416,417,912,913,213,229,725):
+        # Biome cells retain their native semantic aliases.
+        quarry=idx in (400,401,213)
+        water=idx in (416,417,229)
+        face=(58,29,102,255) if quarry else ((9,60,71,255) if water else (21,30,54,255))
+        light=(213,99,255,255) if quarry else ((63,229,209,255) if water else (255,77,155,255))
+        d.rectangle((0,0,15,15),fill=face)
+        d.line((0,0,15,0),fill=light,width=2)
+        d.line((0,15,15,15),fill=SHADOW,width=2)
+        if quarry:
+            d.polygon([(2,13),(4,4),(8,2),(12,7),(10,13)],outline=light,fill=(105,45,147,255))
+            d.line((7,4,7,12),fill=WHITE)
+        elif water:
+            d.line((2,12,6,7,9,10,13,4),fill=light,width=2)
+            d.ellipse((2,3,4,5),fill=WHITE)
+        else:
+            d.rectangle((3,3,12,12),outline=light)
+            d.line((4,8,11,8),fill=CYAN,width=2)
+        return tile
     if is_ground:
         # Solid crystalline strata, coherent even when repeated in rows.
         d.rectangle((0,0,15,15),fill=(43,23,82,255))
@@ -215,6 +234,7 @@ def draw_tiles():
         kept |= parse_used(ORIGINAL/f'res/data/World1-1/World1-1_{layer}.csv')
     # Replacing all background tiles with the bespoke sky avoids recreating
     # the original cloud/hill/bush scene silhouette.
+    kept |= {400,401,416,417,912,913,213,229,725,609,392,339,240}
     background_only=bg-kept
     dest=Image.new('RGBA',(817,375))
     made=0

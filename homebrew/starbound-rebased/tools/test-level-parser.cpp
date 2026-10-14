@@ -19,18 +19,27 @@ int main(int argc, char** argv) {
          auto& data = level.getData();
          assert(data.playerStart == Vector2i(2, 12));
          assert(data.checkpoint == Vector2i(98, 12));
-         assert(data.cameraMax == 191 + (world - 1) * 4);
-         assert(data.levelType == LevelType::OVERWORLD);
+         const bool water = world == 5;
+         const bool boss = stage == 4 && (world == 6 || world == 8);
+         assert(data.cameraMax == (boss ? 263 : 223) + (world - 1) * 4 + (stage - 1) * 6);
+         assert(data.levelType == (water ? LevelType::UNDERWATER : (boss ? LevelType::CASTLE : LevelType::OVERWORLD)));
          assert(data.levelBackgroundColor == BackgroundColor::BLUE);
          const Vector2i next = stage < 4 ? Vector2i(world, stage + 1)
                                         : (world < 8 ? Vector2i(world + 1, 1) : Vector2i(0, 0));
          assert(data.nextLevel == next);
-         assert(data.floatingTextLocations.size() == (world == 1 && stage == 1 ? 6 : 4));
+         assert(data.floatingTextLocations.size() == (world == 1 && stage == 1 ? 6 : (water || boss ? 5 : 4)));
          assert(std::get<1>(data.floatingTextLocations[2]) == "SERVICE CHECKPOINT");
          assert(data.warpPipeLocations.empty());
          assert(data.platformLevelLocations.empty());
          assert(data.fireBarLocations.empty());
          assert(data.vineLocations.empty());
+         size_t expectedLifts = 0, at = 0;
+         const std::string text = buffer.str();
+         while ((at = text.find("BACK_AND_FORTH", at)) != std::string::npos) {
+            ++expectedLifts;
+            at += 13;
+         }
+         assert(data.movingPlatformDirections.size() == expectedLifts);
          for (const auto& lift : data.movingPlatformDirections) {
             assert(std::get<1>(lift) == PlatformMotionType::BACK_AND_FORTH);
             assert(std::get<2>(lift) == Direction::UP);

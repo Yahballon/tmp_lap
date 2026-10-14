@@ -46,6 +46,7 @@ jobs:
           print("32 original levels, 27 tracks/effects, image dimensions and font verified")
           PY
           python3 homebrew/starbound-rebased/tools/install-campaign.py build/gold872-engine
+          python3 homebrew/starbound-rebased/tools/install-deep-signal.py build/gold872-engine
           python3 homebrew/starbound-rebased/tools/check-campaign.py homebrew/starbound-rebased/res/data
           python3 homebrew/starbound-rebased/tools/test-campaign.py
       - name: Compile real upstream ECS/physics/scenes/SDL2 source

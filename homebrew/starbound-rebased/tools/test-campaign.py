@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as tmp:
     original = props.read_text()
     for old,new in [('NEXT_LEVEL = (1, 2)','NEXT_LEVEL = (8, 4)'),
                     ('CHECKPOINT = (98, 12)','CHECKPOINT = (30, 12)'),
-                    ('CAMERA_MAX = 191','CAMERA_MAX = 167')]:
+                    ('CAMERA_MAX = 223','CAMERA_MAX = 199')]:
         props.write_text(original.replace(old,new))
         try:
             with contextlib.redirect_stdout(io.StringIO()):
