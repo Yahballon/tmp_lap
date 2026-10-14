@@ -130,4 +130,15 @@ replace_one('src/TextureManager.cpp',
 #endif
 }''')
 
+replace_one('src/TextureManager.cpp',
+    '''   if (!horizontal && !vertical) {
+      SDL_RenderCopyEx(renderer, texture.get(), &sourceRect, &destRect, 0, nullptr, SDL_FLIP_NONE);
+      return;
+   }''',
+    '''   if (!horizontal && !vertical) {
+      // Avoid the expensive software RenderCopyEx path when no flipping is needed.
+      SDL_RenderCopy(renderer, texture.get(), &sourceRect, &destRect);
+      return;
+   }''')
+
 print("PS5 software renderer now renders each scene at 800x480 and upscales once")
