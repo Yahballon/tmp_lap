@@ -650,7 +650,7 @@ std::string trackerEndpointKey(const std::string& announce){
  const size_t end=announce.find('/',begin);
  std::string host=announce.substr(begin,end==std::string::npos?std::string::npos:end-begin);
  // Ubuntu's ipv6 and non-ipv6 tracker names are aliases for the same service.
- if(host.rfind("ipv6.torrent.ubuntu.com",0)==0)host.replace(0,4,"");
+ if(host.rfind("ipv6.torrent.ubuntu.com",0)==0)host.replace(0,5,"");
  return host;
 }
 std::vector<Peer> queryTracker(const Meta& m,const std::string& announce,
