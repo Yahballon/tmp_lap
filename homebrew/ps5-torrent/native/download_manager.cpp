@@ -210,7 +210,12 @@ bool DownloadManager::enqueue(const std::string& path,std::string* error,bool re
    if(existing->state=="done"&&settings_.deleteCompletedTorrents&&
       startsWith(path,torrentDirectory()+"/"))safeDeleteSource(path);
    if(retryExisting&&(existing->state=="failed"||existing->state=="cancelled")){
-    existing->path=path;existing->state="queued";existing->message="Queued";saveQueue();return true;
+    existing->path=path;
+    std::string chosen;
+    if(!resolveMetadata(*existing,chosen)){
+     if(error)*error="Could not verify or cache existing metadata";return false;
+    }
+    existing->state="queued";existing->message="Queued";saveQueue();return true;
    }
    if(error)*error="Already in Downloads";
    return false;
@@ -261,6 +266,16 @@ void DownloadManager::retry(size_t index){
   job.message="Missing .torrent (source and cache)";return;
  }
  job.engine.reset();job.state="queued";job.message="Queued";saveQueue();
+}
+int DownloadManager::retryAllFailed(){
+ int retried=0;
+ for(size_t i=0;i<jobs_.size();++i){
+  if(jobs_[i]->state!="failed")continue;
+  const std::string old=jobs_[i]->state;
+  retry(i);
+  if(jobs_[i]->state=="queued")retried++;
+ }
+ return retried;
 }
 void DownloadManager::stopAll(){
  for(size_t i=0;i<jobs_.size();++i){
