@@ -31,3 +31,7 @@ The installed player, enemy, tiles, pink/cyan logo and app icon are from the pro
 - Ground ID 384 now renders as solid pink crystalline rock; no grass texture in every stacked layer. Stone obstacle ID 289 draws a matching pink tile.
 - Bundled resources now take priority over outdated external USB override packs.
 - CI requires correct sprite source-frame coverage and embedded image byte-for-byte consistency before the automated GitHub release.
+
+## v0.1.16 — restore Gold872 native atlas geometry
+
+The earlier AI atlases used wrong source cell ranges: 2x grid with graphics in incompatible slots. This release rebuilds 1x sprite atlases guided by the pinned original PNG transparency (including original 17-pixel block gutters, 9-pixel player source offset and multi-row 16x32 sprites), recolors each occupied pixel into a pink/cyan theme, and restores 1x C++ source rectangles. No double-sized player sprites, humanoid projectiles or opaque replacement tiles from wrong atlases. The original provided logo, app badge and shaded background stay in place. CI now asserts actual PNG dimensions and byte-exact alpha masks against the source reference for all cells.

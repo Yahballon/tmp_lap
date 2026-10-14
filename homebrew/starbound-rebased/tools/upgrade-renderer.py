@@ -79,12 +79,9 @@ patch('src/systems/RenderSystem.cpp',
 '''      TextureManager::Get().Draw(texture->getTexture(), spritesheet->getSourceRect(),
                                  destinationRect, texture->isHorizontalFlipped(),
                                  texture->isVerticalFlipped());''',
-'''      SDL_Rect hdFrame = spritesheet->getSourceRect();
-      hdFrame.x *= 2;
-      hdFrame.y *= 2;
-      hdFrame.w *= 2;
-      hdFrame.h *= 2;
-      TextureManager::Get().Draw(texture->getTexture(), hdFrame,
+'''      // Native Gold872 PNG: do not multiply x/y/w/h by 2.
+      // The original alpha and atlas offsets are maintained pixel-for-pixel.
+      TextureManager::Get().Draw(texture->getTexture(), spritesheet->getSourceRect(),
                                  destinationRect, texture->isHorizontalFlipped(),
                                  texture->isVerticalFlipped());''')
 

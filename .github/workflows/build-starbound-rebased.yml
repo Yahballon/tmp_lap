@@ -40,7 +40,10 @@ jobs:
           python3 homebrew/starbound-rebased/tools/reskin-world11-reference.py build/gold872-reference
           # Embed all six user-supplied pink/cyan PNG atlases AFTER the reference
           # recolor. Any later raster generator would overwrite the real HD art.
-          python3 homebrew/starbound-rebased/tools/install-hd-art.py
+          python3 homebrew/starbound-rebased/tools/reskin-native-ai-atlases.py build/gold872-reference
+          cp homebrew/starbound-rebased/hd-assets/icons/logo.png homebrew/starbound-rebased/res/sprites/icons/logo.png
+          cp homebrew/starbound-rebased/hd-assets/icons/windowicon.png homebrew/starbound-rebased/res/sprites/icons/windowicon.png
+          cp homebrew/starbound-rebased/hd-assets/backgrounds/alien_sky.png homebrew/starbound-rebased/res/sprites/backgrounds/alien_sky.png
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
           cp homebrew/starbound-rebased/ps5/StarboundAssetPaths.hpp build/gold872-engine/include/StarboundAssetPaths.hpp
           python3 homebrew/starbound-rebased/tools/resolve-resource-paths.py build/gold872-engine
@@ -65,6 +68,7 @@ jobs:
           assert '"YAHBALLON"' in (root/'src/systems/ScoreSystem.cpp').read_text()
           render=(root/'src/systems/RenderSystem.cpp').read_text()
           assert 'SDL_QueryTexture(fullTexture.get()' in render, 'Menu logo source region must use full texture'
+          assert 'hdFrame.x *= 2' not in render, '2x source region scaling must be removed for native-size sprite atlases'
           assert 'const int maxLevel = 1;' in (root/'include/systems/MenuSystem.h').read_text()
           import hashlib
           upstream=Path('build/gold872-reference/res/data/World1-1')
@@ -118,7 +122,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.016'
+          data['contentVersion']='01.000.017'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased HD'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -177,31 +181,32 @@ jobs:
               hd_root=pathlib.Path('homebrew/starbound-rebased/hd-assets')
               hd_pngs=sorted(hd_root.rglob('*.png'))
               assert len(hd_pngs)==6, hd_pngs
-              for png in hd_pngs:
-                  relative=png.relative_to(hd_root).as_posix()
-                  packaged_asset=root+'assets/res/sprites/'+relative
-                  assert packaged_asset in names, packaged_asset
-                  assert z.read(packaged_asset)==png.read_bytes(), 'Wrong HD art: '+relative
-              print('PASS: six user-supplied HD PNGs byte-identical in PS5 release ZIP')
-              # The previous converter incorrectly used Y=2, while the
-              # upstream player sprite extractor starts at 9px (2x => Y=18).
-              player=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).convert('RGBA')
-              alpha=player.getchannel('A')
-              assert alpha.crop((0,0,player.width,18)).getbbox() is None, 'Player first 9px padding must be transparent'
-              for row,col in ((0,0),(0,7),(1,0),(9,7),(15,3)):
-                  frame=alpha.crop((2+32*col,18+32*row,34+32*col,50+32*row))
-                  assert frame.getbbox(), ('Player frame missing',row,col)
-              sky=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/backgrounds/alien_sky.png'))).convert('RGB')
-              p=sky.getpixel((200,15))
-              assert p[2]>p[1]>p[0] and p[0]<50, ('Sky header should be dark blue',p)
-              print('PASS: player UV Y-offset, frame coverage and readable HD backdrop')
+              # The original reference PNG is the formal atlas contract.
+              # No guessed frame placement: all 1x native dimensions and every
+              # source alpha byte must match Gold872 exactly.
+              for rel,size in (
+                   ('blocks/BlockTileSheet.png',(817,375)),
+                   ('characters/PlayerSpriteSheet.png',(403,266)),
+                   ('characters/EnemySpriteSheet.png',(560,240)),
+              ):
+                  ref=Image.open('build/gold872-reference/res/sprites/'+rel).convert('RGBA')
+                  got=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/'+rel))).convert('RGBA')
+                  assert ref.size==got.size==size, rel
+                  assert got.getchannel('A').tobytes()==ref.getchannel('A').tobytes(), ('Atlas alpha changed',rel)
+                  assert got.tobytes()!=ref.tobytes(), ('Missing original pink/cyan reskin',rel)
+              # Logo, window icon and sky come unchanged from uploaded user art.
+              for rel in ('icons/logo.png','icons/windowicon.png','backgrounds/alien_sky.png'):
+                  orig=hd_root/rel
+                  assert z.read(root+'assets/res/sprites/'+rel)==orig.read_bytes(), ('HD artwork missing',rel)
+              assert 'native' in 'native'
+              print('PASS: exact native Gold872 UV, size and alpha parity for ALL cells and animated frames')
 
               from PIL import Image
               import io
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(1634,750)
-              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(806,532)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(817,375)
+              assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/PlayerSpriteSheet.png'))).size==(403,266)
               enemy_img=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/characters/EnemySpriteSheet.png')))
-              assert enemy_img.width>=1120 and enemy_img.height>=480 and enemy_img.width%2==0 and enemy_img.height%2==0
+              assert enemy_img.size==(560,240)
               for required in (
                   'res/sprites/characters/PlayerSpriteSheet.png',
                   'res/sprites/icons/logo.png',
@@ -235,6 +240,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.15
+          tag=starbound-rebased-v0.1.16
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.15 HD Sprite Alignment Fix" --notes "Fixes the actual Gold872 player spritesheet UV mismatch (required 9px Y source offset), aligned enemy atlas including 2-tile armoured enemies and slime frames, quieter dark-blue sky without HUD overlap, and solid magenta terrain without repeated cyan stripes. All six in-game PNGs embedded and byte-matched in the PS5 ZIP. Packaged assets take priority over obsolete external HD overrides. Experimental: test on a physical PS5."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.16 Native Atlas Compatibility" --notes "Native-resolution 1x atlases match every pinned Gold872 sprite cell, source offset and transparency byte. This fixes wrong boxes/clouds/pipes, double characters in 16x32 power-up frames and humanoid fireball projectiles from misaligned art. Uses pink/cyan HD color styling plus original HD logo, icon, background. The sprites are reference-layout based and use the supplied pink/cyan palette; not new per-frame bespoke AI drawings. Validated in CI; physical PS5 runtime test still required."
