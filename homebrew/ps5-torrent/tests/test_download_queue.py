@@ -64,7 +64,9 @@ def main():
             print("Test queue: nine simultaneously active independent torrents",flush=True)
             shutil.rmtree(ROOT,ignore_errors=True)
             ROOT.mkdir(parents=True)
-            nine_files,nine_servers=fixtures(work,9)
+            nine_work=work/"nine-fixtures"
+            nine_work.mkdir()
+            nine_files,nine_servers=fixtures(nine_work,9)
             try:
                 subprocess.run([str(exe),"--nine",*[str(x) for x in nine_files]],
                                check=True,timeout=55)
