@@ -3,9 +3,13 @@
 #include <cstdint>
 #include <atomic>
 #include <mutex>
+#include <memory>
+#include <thread>
 #include <string>
 #include <vector>
 namespace torrent {
+struct SocketRegistry;
+struct TorrentInfo { std::string name, infoHash, tracker; uint64_t bytes=0; };
 struct Snapshot {
     std::string name, status, tracker, infoHash, cacheDir, downloadDir, lastError;
     uint64_t totalBytes=0, completedBytes=0, transferredBytes=0, uploadedBytes=0;
@@ -16,6 +20,9 @@ struct Snapshot {
 class Engine {
 public:
     Engine();
+    ~Engine();
+    Engine(const Engine&)=delete;
+    Engine& operator=(const Engine&)=delete;
     Snapshot snapshot() const;
     bool start(const std::string& path);
     void stop();
@@ -29,8 +36,12 @@ private:
     bool busy_=false;
     bool stopRequested_=false;
     std::atomic<bool> cancellation_{false};
+    std::shared_ptr<SocketRegistry> sockets_;
+    std::thread runner_;
 };
 Engine& engine();
+bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error);
+std::string storageRoot();
 const char* sampleTorrentName();
 const char* sampleTorrentPath();
 std::vector<std::string> discoverTorrents();
