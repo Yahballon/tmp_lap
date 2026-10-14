@@ -27,10 +27,10 @@ def compile_harness(work):
     ],check=True)
     return exe
 
-def fixtures(work):
+def fixtures(work,count=2):
     files=[]
     servers=[]
-    for index in range(2):
+    for index in range(count):
         name=f"queuetest-{index}.iso"
         info={
             b"length":len(swarm.CONTENT),
@@ -61,8 +61,32 @@ def main():
             for i in range(2):
                 output=ROOT/"downloads"/f"queuetest-{i}.iso"
                 assert output.read_bytes()==swarm.CONTENT, f"bad output {i}"
+            print("Test queue: nine simultaneously active independent torrents",flush=True)
+            shutil.rmtree(ROOT,ignore_errors=True)
+            ROOT.mkdir(parents=True)
+            nine_files,nine_servers=fixtures(work,9)
+            try:
+                subprocess.run([str(exe),"--nine",*[str(x) for x in nine_files]],
+                               check=True,timeout=55)
+                for i in range(9):
+                    assert (ROOT/"downloads"/f"queuetest-{i}.iso").read_bytes()==swarm.CONTENT
+            finally:
+                for server in nine_servers:
+                    server.shutdown();server.server_close()
             print("Test queue: restart persisted history",flush=True)
             subprocess.run([str(exe),"--history"],check=True,timeout=10)
+            print("Test metadata: original .torrent removed after enqueuing",flush=True)
+            shutil.rmtree(ROOT,ignore_errors=True)
+            ROOT.mkdir(parents=True)
+            temporary_meta=work/"source-will-disappear.torrent"
+            shutil.copy2(files[0],temporary_meta)
+            subprocess.run([str(exe),"--metadata-seed",str(temporary_meta)],check=True,timeout=8)
+            cached=list((ROOT/"cache"/"metainfo").glob("*.torrent"))
+            assert len(cached)==1,"metadata was not durably cached at enqueue"
+            temporary_meta.unlink()
+            subprocess.run([str(exe),"--metadata-recover"],check=True,timeout=25)
+            assert (ROOT/"downloads"/"queuetest-0.iso").read_bytes()==swarm.CONTENT
+            assert not cached[0].exists(),"complete job retained redundant .torrent cache"
             # New clean queue for independent auto-inbox validation.
             shutil.rmtree(ROOT,ignore_errors=True)
             (ROOT/"torrents").mkdir(parents=True)
@@ -109,7 +133,7 @@ def main():
             subprocess.run([str(exe),"--resume-recovery"],check=True,timeout=8)
             assert not (ROOT/"cache/recovery.hold").exists(),"recovery hold not cleared"
             subprocess.run([str(exe),"--check-clean"],check=True,timeout=8)
-            print("PASS: concurrency, auto-import, cancellations and persisted crash recovery",flush=True)
+            print("PASS: nine concurrent transfers, durable metainfo, auto-import and crash recovery",flush=True)
         finally:
             for server in servers:
                 server.shutdown()
