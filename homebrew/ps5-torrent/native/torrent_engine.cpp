@@ -225,6 +225,86 @@ bool metadata(const std::string& path,Meta& m,std::string& error){
  if(m.trackers.empty()){error="No supported HTTP, HTTPS or UDP tracker in metadata";return false;}
  unsigned char digest[20];SHA1((const unsigned char*)raw.data()+info.start,info.end-info.start,digest);m.hash.assign((char*)digest,20);return true;
 }
+// Virtual contiguous torrent byte stream backed by one file or a directory tree.
+// BEP 3 hashes pieces over concatenated file contents, including boundaries.
+// All paths were validated by metadata(); use O_NOFOLLOW to prevent symlink escapes.
+bool safeDirTree(const std::string& absolute){
+ if(absolute.empty()||absolute[0]!='/'||absolute.size()>420)return false;
+ std::string current;
+ size_t pos=1;
+ while(pos<=absolute.size()){
+  size_t end=absolute.find('/',pos);
+  if(end==std::string::npos)end=absolute.size();
+  if(end==pos){pos=end+1;continue;}
+  current+="/"+absolute.substr(pos,end-pos);
+  struct stat st{};
+  if(lstat(current.c_str(),&st)!=0){
+   if(errno!=ENOENT||mkdir(current.c_str(),0755)!=0&&errno!=EEXIST)return false;
+   if(lstat(current.c_str(),&st)!=0)return false;
+  }
+  if(!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode))return false;
+  pos=end+1;
+ }
+ return true;
+}
+class OutputLayout{
+ const Meta& m_;
+ const std::string base_;
+ std::vector<std::string> absolute_;
+public:
+ OutputLayout(const Meta& m,const std::string& downloads):m_(m),base_(downloads){}
+ std::string destination()const{return base_+"/"+m_.name;}
+ bool prepare(std::string& error){
+  if(!safeDirTree(base_)){error="Unsafe / inaccessible download directory";return false;}
+  const std::string root=destination();
+  if(m_.multi&&!safeDirTree(root)){error="Unsafe multi-file root directory";return false;}
+  absolute_.reserve(m_.files.size());
+  for(const auto& ent:m_.files){
+   const std::string path=(m_.multi?root:base_)+"/"+ent.path;
+   if(path.size()>420){error="Torrent output path too long";return false;}
+   const size_t slash=path.find_last_of('/');
+   if(!safeDirTree(path.substr(0,slash))){error="Unsafe torrent output directory";return false;}
+   struct stat st{};
+   if(lstat(path.c_str(),&st)==0){
+    if(!S_ISREG(st.st_mode)){error="Torrent output is not a regular file (symlinks refused)";return false;}
+   }else if(errno!=ENOENT){error="Output file inaccessible";return false;}
+   int fd=open(path.c_str(),O_WRONLY|O_CREAT|O_NOFOLLOW,0644);
+   if(fd<0){error="Cannot create torrent output file errno="+std::to_string(errno);return false;}
+   close(fd);
+   absolute_.push_back(path);
+  }
+  return true;
+ }
+ bool transfer(uint64_t offset,char* buffer,size_t count,bool writing)const{
+  if(offset>m_.bytes||count>m_.bytes-offset)return false;
+  if(count==0)return true;
+  size_t processed=0;
+  for(size_t i=0;i<m_.files.size()&&processed<count;i++){
+   const auto& e=m_.files[i];
+   const uint64_t cursor=offset+processed;
+   if(e.length==0||cursor>=e.start+e.length||cursor<e.start)continue;
+   size_t len=(size_t)std::min<uint64_t>(count-processed,e.start+e.length-cursor);
+   const int flags=(writing?O_WRONLY:O_RDONLY)|O_NOFOLLOW;
+   int fd=open(absolute_[i].c_str(),flags);
+   if(fd<0)return false;
+   FILE* file=fdopen(fd,writing?"wb":"rb");
+   if(!file){close(fd);return false;}
+   // fdopen("wb") does not truncate an existing O_WRONLY descriptor.
+   bool ok=fseeko(file,(off_t)(cursor-e.start),SEEK_SET)==0;
+   if(ok){
+    if(writing)ok=fwrite(buffer+processed,1,len,file)==len&&fflush(file)==0;
+    else ok=fread(buffer+processed,1,len,file)==len;
+   }
+   if(fclose(file)!=0)ok=false;
+   if(!ok)return false;
+   processed+=len;
+  }
+  return processed==count;
+ }
+ bool read(uint64_t offset,char* data,size_t count)const{return transfer(offset,data,count,false);}
+ bool write(uint64_t offset,const char* data,size_t count)const{return transfer(offset,const_cast<char*>(data),count,true);}
+ size_t fileCount()const{return m_.files.size();}
+};
 struct Url{std::string host,path;int port=80;bool tls=false;};
 bool url(const std::string& input,Url& out){
  size_t prefix=0;
