@@ -7,6 +7,8 @@
 #include <atomic>
 #include <chrono>
 #include <cerrno>
+#include <ctime>
+#include <mutex>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -28,6 +30,34 @@ const char* kUsb="/mnt/usb0/ps5-torrent";
 const char* kTest="debian-13.7.0-amd64-netinst.iso.torrent";
 bool isDir(const std::string& p){struct stat st{};return stat(p.c_str(),&st)==0&&S_ISDIR(st.st_mode);}
 bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return false;std::string s;for(char c:p){s+=c;if(c=='/'&&s.size()>1)mkdir(s.c_str(),0755);}return mkdir(s.c_str(),0755)==0||isDir(s);}
+
+std::mutex logMutex;
+std::vector<std::string> logRing;
+std::string chosenLog;
+std::string ensureLogPath(){
+ if(!chosenLog.empty())return chosenLog;
+ // Prefer a log folder alongside the installed homebrew app.
+ if(mkdirs("/data/homebrew/PPSA99684/logs"))chosenLog="/data/homebrew/PPSA99684/logs/torrent.log";
+ else if(mkdirs("/data/ps5-torrent/logs"))chosenLog="/data/ps5-torrent/logs/torrent.log";
+ else chosenLog="/data/ps5-torrent/torrent.log";
+ return chosenLog;
+}
+void trace(const std::string& message){
+ std::lock_guard<std::mutex> guard(logMutex);
+ const std::string path=ensureLogPath();
+ struct stat st{};
+ if(stat(path.c_str(),&st)==0&&st.st_size>1024*1024){
+  remove((path+".old.log").c_str());
+  rename(path.c_str(),(path+".old.log").c_str());
+ }
+ char header[60];snprintf(header,sizeof(header),"[%ld] ",(long)std::time(nullptr));
+ std::string line=std::string(header)+message;
+ FILE* file=fopen(path.c_str(),"ab");
+ if(file){fprintf(file,"%s\n",line.c_str());fclose(file);}
+ logRing.push_back(line);
+ if(logRing.size()>70)logRing.erase(logRing.begin(),logRing.begin()+20);
+}
+
 bool readAll(const std::string& p,std::string& s){FILE* f=fopen(p.c_str(),"rb");if(!f)return false;if(fseek(f,0,SEEK_END)!=0){fclose(f);return false;}long n=ftell(f);if(n<=0||n>1024*1024){fclose(f);return false;}rewind(f);s.resize((size_t)n);bool ok=fread(&s[0],1,(size_t)n,f)==(size_t)n;fclose(f);return ok;}
 struct B {
  std::string v;std::vector<B> list;std::map<std::string,B> dict;
@@ -68,9 +98,33 @@ bool url(const std::string& input,Url& out){
  return !out.host.empty()&&out.host.size()<200&&out.port>0&&out.port<=65535&&out.path.size()<2000;
 }
 int dial(const std::string& host,int port,int seconds){
+ trace("DNS lookup "+host+":"+std::to_string(port));
  struct addrinfo hints{},*head=nullptr;hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;
- char p[16];snprintf(p,sizeof(p),"%d",port);if(getaddrinfo(host.c_str(),p,&hints,&head)!=0)return -1;
- int fd=-1;for(auto* a=head;a;a=a->ai_next){fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);if(fd<0)continue;fcntl(fd,F_SETFL,fcntl(fd,F_GETFL,0)|O_NONBLOCK);int ret=connect(fd,a->ai_addr,a->ai_addrlen);if(ret<0&&errno!=EINPROGRESS){close(fd);fd=-1;continue;}fd_set w;FD_ZERO(&w);FD_SET(fd,&w);struct timeval tv{seconds,0};if(select(fd+1,nullptr,&w,nullptr,&tv)<=0){close(fd);fd=-1;continue;}int err=0;socklen_t z=sizeof(err);getsockopt(fd,SOL_SOCKET,SO_ERROR,&err,&z);if(err){close(fd);fd=-1;continue;}fcntl(fd,F_SETFL,fcntl(fd,F_GETFL,0)&~O_NONBLOCK);struct timeval t{seconds,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t));break;}freeaddrinfo(head);return fd;
+ char p[16];snprintf(p,sizeof(p),"%d",port);
+ int code=getaddrinfo(host.c_str(),p,&hints,&head);
+ if(code!=0){trace("DNS FAILED "+host+" getaddrinfo="+std::to_string(code));return -1;}
+ int fd=-1;
+ for(auto* a=head;a;a=a->ai_next){
+  char address[INET_ADDRSTRLEN]={};
+  if(a->ai_family==AF_INET)inet_ntop(AF_INET,&((sockaddr_in*)a->ai_addr)->sin_addr,address,sizeof(address));
+  trace("Connecting TCP "+std::string(address)+":"+p);
+  fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);
+  if(fd<0){trace("Socket creation FAILED errno="+std::to_string(errno));continue;}
+  int flags=fcntl(fd,F_GETFL,0);if(flags<0||fcntl(fd,F_SETFL,flags|O_NONBLOCK)!=0){trace("Nonblocking socket FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
+  int ret=connect(fd,a->ai_addr,a->ai_addrlen);
+  if(ret<0&&errno!=EINPROGRESS){trace("TCP connect FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
+  fd_set w;FD_ZERO(&w);FD_SET(fd,&w);struct timeval tv{seconds,0};
+  int selected=select(fd+1,nullptr,&w,nullptr,&tv);
+  if(selected<=0){trace("TCP connect timeout/select FAILED errno="+std::to_string(errno));close(fd);fd=-1;continue;}
+  int err=0;socklen_t z=sizeof(err);
+  if(getsockopt(fd,SOL_SOCKET,SO_ERROR,&err,&z)!=0||err){trace("TCP connection refused/FAILED errno="+std::to_string(err?err:errno));close(fd);fd=-1;continue;}
+  fcntl(fd,F_SETFL,flags);
+  struct timeval t{seconds,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t));
+  trace("TCP connected "+std::string(address)+":"+p);
+  break;
+ }
+ freeaddrinfo(head);
+ return fd;
 }
 bool sendAll(int fd,const void* data,size_t n){auto* p=(const char*)data;while(n){ssize_t k=send(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
 bool recvAll(int fd,void* data,size_t n){auto* p=(char*)data;while(n){ssize_t k=recv(fd,p,n,0);if(k<=0)return false;p+=k;n-=k;}return true;}
