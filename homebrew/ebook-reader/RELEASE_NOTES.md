@@ -1,7 +1,10 @@
-# Ebook Reader v0.1.0
+# Ebook Reader v0.1.1
 
-Native wood-themed bookshelf, USB import, EPUB text chapters, PDF text preview, favourites and saved progress.
+- Fix missing EPUB/PDF files on USB folders, including `/mnt/usb0/Books` and nested author directories.
+- Expand USB mount scanning, extension matching and readable-file fallbacks for unreliable `stat` results.
+- Add USB PATH STATUS diagnostics in the import view, and expose counts after rescan.
+- Keep existing local favorites and reading progress across the update.
 
-Installation: Extract PPSA99741.zip to /data/homebrew/, then refresh the homebrew loader. Put EPUB or PDF files in /data/ebooks or USB0/Books.
+**Install:** Extract `PPSA99741.zip` into `/data/homebrew/`, replace the previous application files without deleting your reading data, then refresh the homebrew launcher.
 
-Limitations: PDF text preview is not equivalent to PDF.js. EPUB images/CSS layout and encrypted books are unsupported. Physical PS5 validation is outstanding.
+**Known limitations:** This is a native EPUB text reader; PDF remains a best-effort text preview. PS5 USB mount accessibility depends on your jailbreak/loader; diagnostics now show mount errors instead of silently appearing empty.
