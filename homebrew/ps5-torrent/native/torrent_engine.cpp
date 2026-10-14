@@ -245,7 +245,9 @@ bool grab(int fd,const Meta& m,uint32_t idx,std::string& bits,std::string& outpu
 }
 void saveState(const std::string& p,const std::vector<bool>& verified){std::string temp=p+".tmp";FILE* f=fopen(temp.c_str(),"wb");if(!f)return;for(bool b:verified)fputc(b?'1':'0',f);if(fclose(f)!=0){remove(temp.c_str());return;}rename(temp.c_str(),p.c_str());}
 }
-Engine::Engine(){state_.status="Ready";setUsb(false);}
+std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
+std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
+Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.1.1 initialized - log file: "+logPath());}
 Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
@@ -258,49 +260,60 @@ std::vector<std::string> discoverTorrents(){
 void Engine::setUsb(bool enable){std::lock_guard<std::mutex> lock(mutex_);if(busy_)return;state_.usb=enable;std::string base=enable?kUsb:kHome;state_.cacheDir=base+"/cache";state_.downloadDir=base+"/downloads";if(!enable)createDirectories(base);else if(!isDir("/mnt/usb0"))state_.status="USB 0 not mounted";else createDirectories(base);}
 bool Engine::usingUsb()const{std::lock_guard<std::mutex> g(mutex_);return state_.usb;}
 Snapshot Engine::snapshot()const{std::lock_guard<std::mutex> g(mutex_);return state_;}
-void Engine::publish(const std::string& message){std::lock_guard<std::mutex> g(mutex_);state_.status=message;}
-void Engine::stop(){std::lock_guard<std::mutex> g(mutex_);stopRequested_=true;state_.status="Stopping after current network operation...";}
+void Engine::publish(const std::string& message){{std::lock_guard<std::mutex> g(mutex_);state_.status=message;}trace(message);}
+void Engine::stop(){bool running=false;{std::lock_guard<std::mutex> g(mutex_);running=busy_;if(running){stopRequested_=true;cancellation_.store(true);state_.status="Stopping after current network operation...";}}if(running)trace("User requested transfer stop");}
 bool Engine::start(const std::string& path){
- {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;busy_=true;stopRequested_=false;state_.running=true;state_.paused=false;state_.done=false;state_.loaded=false;state_.lastError.clear();state_.downBps=0;state_.status="Reading torrent metadata...";}
+ {std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;busy_=true;stopRequested_=false;state_.running=true;cancellation_.store(false);state_.paused=false;state_.done=false;state_.loaded=false;state_.lastError.clear();state_.downBps=0;state_.status="Reading torrent metadata...";}
+ trace("START torrent: "+path);
  std::thread([this,path]{run(path);}).detach();return true;
 }
 void Engine::run(std::string path){
- auto done=[&](const std::string& status,bool success){std::lock_guard<std::mutex> g(mutex_);state_.running=false;state_.done=success;state_.status=status;busy_=false;};
+ auto done=[&](const std::string& status,bool success){{std::lock_guard<std::mutex> g(mutex_);state_.running=false;state_.done=success;state_.status=status;state_.downBps=0;state_.activePeers=0;if(!success)state_.lastError=status;busy_=false;}trace(status);};
  auto cancelled=[&](){std::lock_guard<std::mutex> g(mutex_);return stopRequested_;};
- Meta m;std::string error;if(!metadata(path,m,error)){std::lock_guard<std::mutex> g(mutex_);state_.lastError=error;state_.status=error;state_.running=false;busy_=false;return;}
+ Meta m;std::string error;if(!metadata(path,m,error)){done(error,false);return;}trace("Metadata OK file="+m.name+" bytes="+std::to_string(m.bytes)+" pieces="+std::to_string(m.pieces.size()/20)+" tracker="+m.announce);
  std::string base;{std::lock_guard<std::mutex> g(mutex_);state_.name=m.name;state_.tracker=m.announce;state_.infoHash=hex((const unsigned char*)m.hash.data(),20);state_.totalBytes=m.bytes;state_.pieceCount=(int)m.pieces.size()/20;state_.verifiedPieces=0;state_.completedBytes=0;state_.loaded=true;base=state_.usb?kUsb:kHome;}
  if(!createDirectories(base)){done("Storage directory unavailable",false);return;}
  const std::string target=base+"/downloads/"+m.name,resume=base+"/cache/"+hex((const unsigned char*)m.hash.data(),20)+".resume";
- FILE* file=fopen(target.c_str(),"r+b");if(!file)file=fopen(target.c_str(),"w+b");if(!file){done("Cannot open destination file",false);return;}
+ FILE* file=fopen(target.c_str(),"r+b");if(!file)file=fopen(target.c_str(),"w+b");if(!file){done("Cannot open destination file errno="+std::to_string(errno),false);return;}trace("Destination: "+target);
  std::vector<bool> verified(m.pieces.size()/20,false);
  // Never trust cached piece flags without verifying the actual data on disk.
  publish("Verifying existing pieces...");
  std::string data;for(size_t i=0;i<verified.size();++i){if(cancelled()){fclose(file);done("Stopped",false);return;}size_t n=pieceSize(m,(uint32_t)i);data.resize(n);if(fseek(file,(long)((uint64_t)i*m.piece),SEEK_SET)==0&&fread(&data[0],1,n,file)==n&&shaPiece(m,(uint32_t)i,data)){verified[i]=true;std::lock_guard<std::mutex> g(mutex_);state_.verifiedPieces++;state_.completedBytes+=n;}}
  if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size()){fclose(file);done("Complete - verified all SHA-1 pieces",true);return;}
  // Initial release uses the supplied HTTP tracker and a limited peer selection.
- std::string peerId="-P5TO01-123456789012";std::atomic<bool> dummy{false};
+ std::string peerId="-P5TO11-123456789012";
  int failedRounds=0;while(!cancelled()&&failedRounds<4){
   publish("Contacting tracker...");
   uint64_t left=0;for(size_t i=0;i<verified.size();i++)if(!verified[i])left+=pieceSize(m,(uint32_t)i);
-  auto peers=tracker(m,peerId,left);{std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
-  if(peers.empty()){failedRounds++;publish("Tracker returned no reachable peers");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
+  auto peers=tracker(m,peerId,left);
+  if(peers.empty()&&m.name=="debian-13.7.0-amd64-netinst.iso"&&m.announce.find("bttracker.debian.org")!=std::string::npos&&!cancelled()){
+   publish("Debian tracker empty; trying UDP fallback...");
+   peers=udpFallback(m,peerId,left);
+  }
+  {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
+  if(peers.empty()){failedRounds++;publish("No peers from HTTP or UDP tracker (see Logs)");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
   bool any=false;
-  for(const Peer& peer:peers){
+  for(size_t peerIndex=0;peerIndex<peers.size();++peerIndex){
+   const Peer& peer=peers[peerIndex];
    if(cancelled())break;
+   publish("Connecting to peer "+std::to_string(peerIndex+1)+"/"+std::to_string(peers.size()));
    int fd=dial(peer.ip,peer.port,4);if(fd<0)continue;
    char handshake[68]={19};memcpy(handshake+1,"BitTorrent protocol",19);memcpy(handshake+28,m.hash.data(),20);memcpy(handshake+48,peerId.data(),20);
    char reply[68];bool ok=sendAll(fd,handshake,sizeof(handshake))&&recvAll(fd,reply,sizeof(reply))&&uint8_t(reply[0])==19&&memcmp(reply+1,"BitTorrent protocol",19)==0&&memcmp(reply+28,m.hash.data(),20)==0;
-   if(!ok){close(fd);continue;}
+   if(!ok){trace("Peer handshake FAILED "+peer.ip+":"+std::to_string(peer.port));close(fd);continue;}trace("Peer handshake OK "+peer.ip+":"+std::to_string(peer.port));
    {std::lock_guard<std::mutex> g(mutex_);state_.activePeers=1;}
-   std::string bitfield;publish("Downloading verified pieces...");
+   std::string bitfield;bool peerChoked=true;publish("Downloading verified pieces...");
    // The peer loop is bounded by socket timeouts and server-provided bitfields.
    for(size_t i=0;i<verified.size()&&!cancelled();++i){
     if(verified[i])continue;
     if(i>0&&!hasPiece(bitfield,(uint32_t)i))continue;
     std::string piece;auto start=std::chrono::steady_clock::now();
-    if(!grab(fd,m,(uint32_t)i,bitfield,piece,dummy))break;
+    if(!grab(fd,m,(uint32_t)i,bitfield,piece,peerChoked,cancellation_)){
+     if(!bitfield.empty()&&!hasPiece(bitfield,(uint32_t)i)&&!cancelled())continue;
+     break;
+    }
     if(fseek(file,(long)((uint64_t)i*m.piece),SEEK_SET)!=0||fwrite(piece.data(),1,piece.size(),file)!=piece.size()||fflush(file)!=0)break;
-    any=true;verified[i]=true;saveState(resume,verified);
+    any=true;verified[i]=true;saveState(resume,verified);trace("Piece "+std::to_string(i)+" verified and saved, bytes="+std::to_string(piece.size()));
     auto ms=std::max<int64_t>(1,std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count());
     {std::lock_guard<std::mutex> g(mutex_);state_.verifiedPieces++;state_.completedBytes+=piece.size();state_.transferredBytes+=piece.size();state_.downBps=piece.size()*1000.0/ms;}
    }
@@ -308,7 +321,7 @@ void Engine::run(std::string path){
    if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size())break;
   }
   if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size())break;
-  if(!any)failedRounds++;else failedRounds=0;
+  if(!any){failedRounds++;trace("No progress in tracker round "+std::to_string(failedRounds));}else failedRounds=0;
  }
  fclose(file);bool complete=std::all_of(verified.begin(),verified.end(),[](bool v){return v;});
  if(cancelled())done("Stopped - verified data preserved",false);
