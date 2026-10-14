@@ -1,0 +1,85 @@
+name: Build PS5 Ebook Reader
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['homebrew/ebook-reader/**', '.github/workflows/build-ebook-reader.yml']
+  push:
+    branches: [main]
+    paths: ['homebrew/ebook-reader/**', '.github/workflows/build-ebook-reader.yml']
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+      - name: Prepare PS5 scaffold
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/ebook-reader/native/*.cpp homebrew/ebook-reader/native/*.hpp app/src/
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('app/sce_sys/param.json')
+          d=json.loads(p.read_text())
+          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.000')
+          d['localizedParameters']['en-US']['titleName']='Ebook Reader'
+          p.write_text(json.dumps(d,indent=2)+'\n')
+          PY
+          python3 homebrew/ebook-reader/assets/generate_icon.py app/sce_sys/icon0.png
+          cp app/sce_sys/icon0.png app/assets/icon0.png
+      - name: Prepare OpenGL SDK
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: bash tools/prepare-opengl.sh
+      - name: Prepare POSIX archive
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Build app
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: |
+          sed -i '1i APP_STATIC_ARCHIVES += .deps/pacbrew/target/lib/libz.a' GNUmakefile
+          make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=zlib app
+      - name: Validate installer
+        run: |
+          python3 - <<'PY'
+          import json,zipfile,struct,pathlib
+          p=pathlib.Path('app/dist/PPSA99741')
+          e=(p/'eboot.bin').read_bytes()
+          assert len(e)>1000 and struct.unpack('<I',e[:4])[0]==0x1d3d154f
+          assert b'v0.1.0' in e
+          j=json.loads((p/'sce_sys/param.json').read_text())
+          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.000'
+          for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']:
+            assert (p/f).is_file(),f
+          with zipfile.ZipFile('app/dist/PPSA99741.zip') as z:
+            assert z.testzip() is None
+            assert 'PPSA99741/eboot.bin' in z.namelist()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ebook-Reader-v0.1.0
+          path: app/dist/PPSA99741.zip
+          if-no-files-found: error
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view ebook-reader-v0.1.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create ebook-reader-v0.1.0 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.1.0" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md
