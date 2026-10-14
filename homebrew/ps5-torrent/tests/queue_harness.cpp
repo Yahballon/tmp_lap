@@ -1,6 +1,7 @@
 // Real C++ queue lifecycle integration harness.
 #include "download_manager.hpp"
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -61,6 +62,39 @@ int main(int argc,char** argv){
   std::cout<<"AUTO CANCEL requested="<<requested<<" persisted_cancelled="
            <<observedCancelled<<" phase="<<(jobs.empty()?"none":jobs[0].phase)<<'\n';
   return requested&&observedCancelled&&jobs.size()==1&&jobs[0].cancelled?0:13;
+ }
+ if(mode=="--crash-create"&&argc==3){
+  torrent::DownloadManager m;
+  std::string error;
+  if(!m.enqueue(argv[2],&error)){std::cerr<<"Crash fixture enqueue failed "<<error<<'\n';return 14;}
+  // Simulates a kernel trap: destructors never run, session.active remains.
+  std::_Exit(0);
+ }
+ if(mode=="--check-recovery"&&argc==2){
+  torrent::DownloadManager m;
+  auto jobs=m.jobs();
+  if(!m.isRecoveryMode()||jobs.empty()||!jobs[0].queued){
+   std::cerr<<"Missing crash recovery mode\n";return 15;
+  }
+  for(int i=0;i<5;i++)m.tick();
+  jobs=m.jobs();
+  if(!jobs[0].queued||jobs[0].running){
+   std::cerr<<"Recovery incorrectly launched persisted job\n";return 16;
+  }
+  std::cout<<"RECOVERY queue paused\n";
+  return 0; // normal clean shutdown must NOT erase recovery.hold
+ }
+ if(mode=="--resume-recovery"&&argc==2){
+  torrent::DownloadManager m;
+  if(!m.isRecoveryMode()||!m.resumeAfterRecovery()||m.isRecoveryMode())return 17;
+  std::cout<<"RECOVERY manually unlocked\n";
+  return 0;
+ }
+ if(mode=="--check-clean"&&argc==2){
+  torrent::DownloadManager m;
+  if(m.isRecoveryMode())return 18;
+  std::cout<<"CLEAN queue restored without crash mode\n";
+  return 0;
  }
  if(mode=="--history"&&argc==2){
   torrent::DownloadManager m;
