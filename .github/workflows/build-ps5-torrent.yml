@@ -36,6 +36,12 @@ jobs:
           curl -fLsS --retry 3 --connect-timeout 15 --max-time 120 'https://linuxmint.com/torrents/linuxmint-22.3-xfce-64bit.iso.torrent' -o app/assets/test/linuxmint-22.3-xfce-64bit.iso.torrent
           curl -fLsS --retry 3 --connect-timeout 15 --max-time 120 'https://linuxmint.com/torrents/linuxmint-22.3-mate-64bit.iso.torrent' -o app/assets/test/linuxmint-22.3-mate-64bit.iso.torrent
           python3 homebrew/ps5-torrent/tests/verify_test_torrents.py app/assets/test
+          # Bundle system CA roots for PS5 HTTPS tracker TLS verification.
+          python3 - <<'PY'
+          from pathlib import Path
+          pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
+          Path('app/src/ca_bundle.inc').write_text('static const char kCaBundle[] = R"PS5CABUNDLE(' + pem + ')PS5CABUNDLE";\n')
+          PY
           python3 - <<'PY'
           import json,pathlib
           from PIL import Image,ImageDraw
