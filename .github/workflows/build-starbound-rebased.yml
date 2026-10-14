@@ -35,6 +35,17 @@ jobs:
         run: |
           python3 homebrew/starbound-rebased/tools/generate-original-media.py
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("build/gold872-engine/src/main.cpp")
+          s=p.read_text()
+          assert 'boot_trace("BOOT00 entered main before resource setup");' in s
+          assert 'getcwd(' not in s, 'Unsafe pre-log getcwd reintroduced'
+          assert s.index('boot_trace("BOOT00 entered main before resource setup");') < s.index('chdir("/app0/assets")')
+          assert s.index('boot_trace("01: main entered");') < s.index('ASSET01 menu logo found')
+          assert 'ASSET04 music found' in s
+          print("Verified BOOT00 precedes path setup; no getcwd() syscall")
+          PY
           # Current GCC relied on transitive cstdint includes; Clang 18 requires this explicit include.
           sed -i '1a #include <cstdint>' build/gold872-engine/include/ECS/ECS.h
           cp app/src/startup.cpp /tmp/starbound-startup.cpp
@@ -62,7 +73,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.007'
+          data['contentVersion']='01.000.008'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -140,6 +151,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.6
+          tag=starbound-rebased-v0.1.7
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.6 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.7 (PS5 experimental)" --notes "Experimental PS5 native SDL2 port of the MIT Gold872 engine with original resources. Not hardware-verified."
