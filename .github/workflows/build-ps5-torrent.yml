@@ -34,7 +34,7 @@ jobs:
         run: |
           cp homebrew/ps5-torrent/native/*.cpp homebrew/ps5-torrent/native/*.hpp app/src/
           mkdir -p app/assets/test
-          # Official Ubuntu Desktop LTS and flavors, plus Fedora Workstation.
+          # Official Ubuntu Desktop LTS, Ubuntu flavors and Linux Mint Debian Edition.
           # The .torrent files are packaged, NEVER the multi-GB ISO files.
           curl -fLsS --retry 3 --connect-timeout 12 --max-time 90 \
             'https://releases.ubuntu.com/26.04/ubuntu-26.04.1-desktop-amd64.iso.torrent' \
@@ -43,8 +43,8 @@ jobs:
             'https://releases.ubuntu.com/24.04/ubuntu-24.04.5.1-desktop-amd64.iso.torrent' \
             -o app/assets/test/ubuntu-24.04.5.1-desktop-amd64.iso.torrent
           curl -fLsS --retry 3 --connect-timeout 12 --max-time 90 \
-            'https://torrent.fedoraproject.org/torrents/Fedora-Workstation-Live-x86_64-44.torrent' \
-            -o app/assets/test/Fedora-Workstation-Live-x86_64-44.torrent
+            'https://www.linuxmint.com/torrents/lmde-7-cinnamon-64bit.iso.torrent' \
+            -o app/assets/test/lmde-7-cinnamon-64bit.iso.torrent
           curl -fLsS --retry 3 --connect-timeout 12 --max-time 90 \
             'https://cdimage.ubuntu.com/kubuntu/releases/26.04/release/kubuntu-26.04.1-desktop-amd64.iso.torrent' \
             -o app/assets/test/kubuntu-26.04.1-desktop-amd64.iso.torrent
@@ -129,4 +129,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view ps5-torrent-v0.3.2 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.3.2 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.3.2" --notes "Replaced six bundled test torrents with popular official Linux release torrents: Ubuntu 26.04.1 Desktop, Ubuntu 24.04.5.1 Desktop, Fedora Workstation 44, Kubuntu/Xubuntu/Lubuntu 26.04.1. Validated single-file BitTorrent v1 metadata in CI. Live seeder availability varies; seed counts are not guaranteed. All other Torrent Flow v0.3.1 functions remain unchanged."
+          gh release create ps5-torrent-v0.3.2 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.3.2" --notes "Replaced six bundled test torrents with popular official Linux release torrents: Ubuntu 26.04.1 Desktop, Ubuntu 24.04.5.1 Desktop, Linux Mint LMDE 7, Kubuntu/Xubuntu/Lubuntu 26.04.1. Validated single-file BitTorrent v1 metadata in CI. Live seeder availability varies; seed counts are not guaranteed. All other Torrent Flow v0.3.1 functions remain unchanged."
