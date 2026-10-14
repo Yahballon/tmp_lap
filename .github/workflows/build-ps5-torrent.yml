@@ -18,6 +18,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+      - name: Verify dedicated log directory
+        run: python3 homebrew/ps5-torrent/tests/check_log_path.py
       - name: Check PS5-safe TCP sockets
         run: python3 homebrew/ps5-torrent/tests/check_ps5_socket.py
       - name: Fetch native PS5 build scaffold
