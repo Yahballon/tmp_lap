@@ -18,6 +18,10 @@ class Service {
  std::string local_path(const std::string& videoId) const;
  Snapshot snapshot() const;
  std::vector<std::string> favourites()const;
+ std::vector<Video> favorite_videos()const;
+ std::vector<Video> history_videos()const;
+ void record_history(const Video& video);
+ bool toggle_favourite(const Video& video);
  bool toggle_favourite(const std::string& id);
  bool is_favourite(const std::string& id)const;
  void set_instance(const std::string& hostname);
@@ -29,6 +33,7 @@ class Service {
  std::string downloading_id_;
  std::string instance_="yewtu.be";
  std::vector<std::string> fav_;
+ std::vector<Video> favorite_meta_,recent_meta_;
  Snapshot state_;
  bool persist() const;
 };
