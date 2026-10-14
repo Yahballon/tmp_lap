@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <csignal>
 #include <string>
 #include <vector>
 using namespace hui::gfx;
@@ -46,6 +47,9 @@ std::string phase(const torrent::JobInfo& job){
 }
 }
 int main(){
+ // A disconnected torrent peer may trigger SIGPIPE during send()/SSL_write().
+ // Convert it into EPIPE/SSL_ERROR_SYSCALL for the transfer thread to handle.
+ std::signal(SIGPIPE,SIG_IGN);
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  hui::gfx::Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;std::string fontBytes=load("/app0/assets/fonts/inter-semibold.huifont");
@@ -103,7 +107,8 @@ int main(){
     librarySelected=std::max(0,std::min(librarySelected,(int)library.size()-1));
     notice="Torrent library refreshed";
    }else if(page==2){
-    notice="Queue refreshed";
+    const int retried=manager.retryAllFailed();
+    notice=std::to_string(retried)+" failed downloads queued for retry";
    }
   }
   if(pressed&hui::pad_bits::kSquare){
@@ -165,7 +170,7 @@ int main(){
   d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",462,55,21,mint);
-  text(d,font,atlas,"v0.4.4",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.4.5",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<6;i++){
    float y=144+i*106;card(d,43,y,302,91,page==i);
@@ -209,7 +214,7 @@ int main(){
    const bool downloads=page==2;
    card(d,386,125,1496,865);
    text(d,font,atlas,downloads?"ALL DOWNLOADS":"TORRENT LIBRARY",423,198,41);
-   text(d,font,atlas,downloads?(manager.isRecoveryMode()?"RECOVERY: Press X to resume pending jobs | SQUARE Cancel selected":"X Retry failed  |  SQUARE Cancel selected  |  D-Pad Select"):
+   text(d,font,atlas,downloads?(manager.isRecoveryMode()?"RECOVERY: Press X to resume pending jobs | SQUARE Cancel selected":"X Retry selected  |  TRIANGLE Retry all failed  |  SQUARE Cancel"):
         "X Queue selected  |  SQUARE Download All  |  TRIANGLE Refresh",424,253,21,muted);
    const size_t count=downloads?jobs.size():library.size();
    const int selected=downloads?downloadSelected:librarySelected;
@@ -267,7 +272,7 @@ int main(){
    card(d,386,125,1496,866);
    text(d,font,atlas,"ABOUT TORRENT FLOW",429,213,43);
    const char* lines[]={
-    "v0.4.4 / PPSA99684  |  BitTorrent v1 / Multi-file support",
+    "v0.4.5 / PPSA99684  |  BitTorrent v1 / Multi-file support",
     "Multi-download queue with independent cancel per torrent",
     "Persistent queue stored in /data/ps5-torrent/cache/queue.db",
     "Automatic folder: /data/ps5-torrent/torrents",
