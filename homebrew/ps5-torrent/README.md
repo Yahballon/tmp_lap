@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.4.2 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.4.3 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -19,6 +19,18 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+
+## Better tracker discovery and 503 rate-limit fix (v0.4.3)
+
+Logs from real PS5 v0.4.2 confirmed that Fedora Workstation 44 fetched many verified pieces through a tracker with 60 peers, while Ubuntu/Kubuntu often got only one peer, zero peers, or HTTP 503. Requests were retried every 1-3 seconds across overlapping download jobs.
+
+Torrent Flow now respects BEP 3 tracker `interval` and optional `min interval` (120-3600 sec) and the BEP 15 UDP tracker interval. A global per-infohash cache reuses discovered peers and prevents repeated announces until due. A per-host cooldown (8 sec) also coordinates across parallel jobs; Ubuntu's `ipv6.` alias is treated as the same service. Failed announces back off instead of flooding the server, and only the first announce sends `event=started`.
+
+On physical PS5, when an allowed **public** torrent has fewer than eight discovered peers, Torrent Flow also queries `udp://tracker.opentrackr.org:1337/announce` and `udp://open.stealth.si:80/announce` (capped and rate-limited). `info.private=1` torrents **never** use these public fallback trackers, and peers for different infohashes are not mixed. Linux host tests do not contact public trackers.
+
+**Availability is not guaranteed:** if a swarm has zero reachable seeders, no client can create one. The fallback improves discovery for sparsely advertised Linux ISO torrents without modifying torrent metadata, files, cache, resume or PS5 networking.
+
+CI tests both real C++ local transfers and a fake HTTP tracker that returns 503 or zero peers: neither case may be re-announced rapidly. A console test is still needed to establish actual improvement.
 
 ## PS5 illegal syscall and crash-loop hotfix (v0.4.2)
 
