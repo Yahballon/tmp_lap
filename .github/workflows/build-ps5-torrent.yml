@@ -130,7 +130,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Torrent-Flow-v0.4.3-PPSA99684
+          name: Torrent-Flow-v0.4.4-PPSA99684
           path: app/dist/PPSA99684.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -138,5 +138,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-torrent-v0.4.3 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.4.3 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.4.3" --notes "Fix public Linux torrent downloads stalled by sparse Ubuntu trackers and HTTP 503. Respect HTTP and UDP announce intervals, cache peers per infohash, throttle repeated requests across simultaneous downloads, and add bounded public UDP tracker fallbacks for non-private torrents only. No changes to the verified PS5 v0.4.2 stat/open storage code, multi-file piece mapping or crash recovery. CI checks fake 503/zero peer trackers and the native PS5 build. Physical PS5 download verification still needed."
+          if gh release view ps5-torrent-v0.4.4 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.4.4 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.4.4" --notes "Up to nine concurrent downloads selectable in PS5 Settings and max_active_downloads=1..9; cap per-torrent peers to roughly 27 simultaneous workers at nine jobs. Preserve verified metadata per infohash in /data/ps5-torrent/cache/metainfo so interrupted downloads survive vanished original .torrent paths; recover older queue entries from matching bundled or watched torrents. Cleanup source and cached metadata only after verified completion. Integration tests cover nine simultaneous torrents and missing source metadata recovery. Hardware verification remains necessary."

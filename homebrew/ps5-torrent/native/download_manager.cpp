@@ -35,15 +35,70 @@ bool atomicWrite(const std::string& path,const std::string& body){
  return true;
 }
 int clampInt(int n,int lo,int hi){return std::max(lo,std::min(n,hi));}
+bool safeHash(const std::string& hash){
+ if(hash.size()!=40)return false;
+ for(char c:hash)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')))return false;
+ return true;
+}
+bool copyMetadata(const std::string& source,const std::string& dest){
+ FILE* f=fopen(source.c_str(),"rb");if(!f)return false;
+ if(fseek(f,0,SEEK_END)!=0){fclose(f);return false;}
+ long count=ftell(f);
+ if(count<100||count>1024*1024){fclose(f);return false;}
+ rewind(f);
+ std::string bytes((size_t)count,'\0');
+ const bool ok=fread(&bytes[0],1,bytes.size(),f)==bytes.size();
+ fclose(f);
+ return ok&&atomicWrite(dest,bytes);
+}
 }
 std::string DownloadManager::torrentDirectory()const{return storageRoot()+"/torrents";}
 std::string DownloadManager::iniPath()const{return storageRoot()+"/settings.ini";}
 std::string DownloadManager::queuePath()const{return storageRoot()+"/cache/queue.db";}
 std::string DownloadManager::sessionMarker()const{return storageRoot()+"/cache/session.active";}
 std::string DownloadManager::recoveryMarker()const{return storageRoot()+"/cache/recovery.hold";}
+std::string DownloadManager::metadataCachePath(const std::string& hash)const{
+ if(!safeHash(hash))return {};
+ return storageRoot()+"/cache/metainfo/"+hash+".torrent";
+}
+bool DownloadManager::resolveMetadata(Job& job,std::string& chosen){
+ const std::string cache=metadataCachePath(job.hash);
+ if(cache.empty())return false;
+ auto matching=[&](const std::string& path)->bool{
+  TorrentInfo info;std::string err;
+  return fileExists(path)&&inspectTorrent(path,info,err)&&info.infoHash==job.hash;
+ };
+ // Prefer persistent metadata even when the app or USB source has disappeared.
+ if(matching(cache)){chosen=cache;return true;}
+ auto copyValid=[&](const std::string& path)->bool{
+  if(!matching(path))return false;
+  if(copyMetadata(path,cache)&&matching(cache)){chosen=cache;return true;}
+  chosen=path;return true; // existing metadata still usable if cache is read-only
+ };
+ if(copyValid(job.path))return true;
+ // Migrate v0.4.x jobs by matching the exact infohash, not merely the name.
+ for(const auto& path:discoverTorrents()){
+  if(!copyValid(path))continue;
+  job.path=path;return true;
+ }
+ DIR* dir=opendir(torrentDirectory().c_str());
+ if(dir){
+  struct dirent* entry;
+  while((entry=readdir(dir))!=nullptr){
+   const std::string name=entry->d_name;
+   if(name.size()<=8||name.size()>210||name.find("..")!=std::string::npos||
+      name.compare(name.size()-8,8,".torrent")!=0)continue;
+   const std::string path=torrentDirectory()+"/"+name;
+   if(copyValid(path)){job.path=path;closedir(dir);return true;}
+  }
+  closedir(dir);
+ }
+ return false;
+}
 DownloadManager::DownloadManager(){
  createDirectories(storageRoot());
  mkdir(torrentDirectory().c_str(),0755);
+ mkdir((storageRoot()+"/cache/metainfo").c_str(),0755);
  loadSettings();loadQueue();
  const std::string clean=storageRoot()+"/cache/last-exit.ok";
  // v0.4.1 crashed while automatically restarting persisted queue items.
@@ -78,7 +133,7 @@ void DownloadManager::loadSettings(){
   std::string key=trim(l.substr(0,sep)),value=trim(l.substr(sep+1));
   if(key=="auto_download")settings_.autoDownload=value=="1";
   else if(key=="delete_completed_torrents")settings_.deleteCompletedTorrents=value=="1";
-  else if(key=="max_active_downloads")settings_.maxActive=clampInt(atoi(value.c_str()),1,3);
+  else if(key=="max_active_downloads")settings_.maxActive=clampInt(atoi(value.c_str()),1,9);
   else if(key=="scan_interval_seconds")settings_.scanSeconds=clampInt(atoi(value.c_str()),2,60);
   else if(key=="storage")settings_.usb=value=="usb0";
  }
@@ -111,11 +166,28 @@ void DownloadManager::loadQueue(){
   job->state=fields[3];
   if(job->state=="running"||job->state=="stopping")job->state="queued";
   if(job->state!="queued"&&job->state!="done"&&job->state!="failed"&&job->state!="cancelled")continue;
-  if(job->state=="queued"&&!fileExists(job->path))job->state="failed";
+  // Missing sources can be recovered from verified persistent metadata.
   job->message=job->state=="done"?"Complete":job->state=="failed"?"Not running":job->state=="cancelled"?"Cancelled":"Queued";
   jobs_.push_back(std::move(job));
  }
  fclose(f);
+ bool changed=false;
+ for(auto& job:jobs_){
+  if(job->state!="queued"&&job->state!="failed")continue;
+  const std::string oldPath=job->path;
+  std::string chosen;
+  if(resolveMetadata(*job,chosen)){
+   // Never auto-retry failed jobs on launch: older crashes are held for
+   // manual recovery. Explicit X retry works with the restored cache.
+   if(job->state=="failed"&&!fileExists(job->path))
+    job->message="Metadata recovered; press X to retry";
+   if(job->path!=oldPath)changed=true;
+  }else if(job->state=="queued"){
+   job->state="failed";job->message="Missing .torrent (source and cache)";
+   changed=true;
+  }
+ }
+ if(changed)saveQueue();
 }
 void DownloadManager::saveQueue()const{
  std::string out="# hash|name|torrent path|state|total bytes\n";
@@ -154,6 +226,19 @@ bool DownloadManager::enqueue(const std::string& path,std::string* error,bool re
  }
  auto job=std::make_unique<Job>();
  job->name=info.name;job->hash=info.infoHash;job->path=path;job->total=info.bytes;
+ // Never persist a queue job that only refers to a transient /app0 mount.
+ const std::string cache=metadataCachePath(info.infoHash);
+ if(cache.empty()||(!fileExists(cache)&&!copyMetadata(path,cache))){
+  if(error)*error="Cannot preserve .torrent in /data/ps5-torrent/cache/metainfo";
+  return false;
+ }
+ TorrentInfo cachedInfo;std::string verifyError;
+ if(!inspectTorrent(cache,cachedInfo,verifyError)||cachedInfo.infoHash!=info.infoHash){
+  if(!copyMetadata(path,cache)||!inspectTorrent(cache,cachedInfo,verifyError)||
+     cachedInfo.infoHash!=info.infoHash){
+   if(error)*error="Unable to verify preserved .torrent metadata";return false;
+  }
+ }
  job->message="Queued for download";
  jobs_.push_back(std::move(job));saveQueue();return true;
 }
@@ -171,7 +256,10 @@ void DownloadManager::retry(size_t index){
  if(index>=jobs_.size())return;
  Job& job=*jobs_[index];
  if(job.state!="failed"&&job.state!="cancelled")return;
- if(!fileExists(job.path)){job.message="Torrent metadata is missing";return;}
+ std::string chosen;
+ if(!resolveMetadata(job,chosen)){
+  job.message="Missing .torrent (source and cache)";return;
+ }
  job.engine.reset();job.state="queued";job.message="Queued";saveQueue();
 }
 void DownloadManager::stopAll(){
@@ -202,10 +290,16 @@ void DownloadManager::launchPending(){
  for(auto& job:jobs_){
   if(active>=settings_.maxActive)break;
   if(job->state!="queued")continue;
-  if(!fileExists(job->path)){job->state="failed";job->message="Missing torrent metadata";saveQueue();continue;}
+  std::string metadata;
+  if(!resolveMetadata(*job,metadata)){
+   job->state="failed";job->message="Missing .torrent (source and cache)";
+   saveQueue();continue;
+  }
   job->engine=std::make_unique<Engine>();
   job->engine->setUsb(settings_.usb);
-  if(job->engine->start(job->path)){
+  // At nine transfers use three peers each instead of 72 open sessions.
+  job->engine->setPeerWorkers(std::max(2,std::min(8,27/settings_.maxActive)));
+  if(job->engine->start(metadata)){
    job->state="running";job->message="Starting...";active++;saveQueue();
   }else{
    job->state="failed";job->message="Could not start torrent";job->engine.reset();saveQueue();
@@ -249,7 +343,11 @@ void DownloadManager::tick(){
    job->state=snap.done?"done":wasStopping?"cancelled":"failed";
    job->message=snap.status;
    job->engine.reset();
-   if(snap.done&&settings_.deleteCompletedTorrents)safeDeleteSource(job->path);
+   if(snap.done&&settings_.deleteCompletedTorrents){
+    safeDeleteSource(job->path);
+    const std::string cache=metadataCachePath(job->hash);
+    if(!cache.empty())remove(cache.c_str());
+   }
    changed=true;
   }
  }
@@ -277,7 +375,7 @@ std::vector<JobInfo> DownloadManager::jobs()const{
  return out;
 }
 void DownloadManager::setAutoDownload(bool v){settings_.autoDownload=v;saveSettings();lastScan_=std::chrono::steady_clock::now()-std::chrono::seconds(settings_.scanSeconds+2);}
-void DownloadManager::setMaxActive(int n){settings_.maxActive=clampInt(n,1,3);saveSettings();}
+void DownloadManager::setMaxActive(int n){settings_.maxActive=clampInt(n,1,9);saveSettings();}
 void DownloadManager::setDeleteCompleted(bool v){settings_.deleteCompletedTorrents=v;saveSettings();}
 bool DownloadManager::setUsbStorage(bool enabled){
  for(auto& j:jobs_)if(j->state=="running"||j->state=="stopping")return false;

@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.4.3 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.4.4 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -19,6 +19,16 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+
+## Nine concurrent downloads and persistent .torrent metadata (v0.4.4)
+
+Settings now supports `max_active_downloads=1..9` (existing user configurations remain unchanged); toggle **Simultaneous Downloads** with X to reach nine. To avoid launching 72 peer workers, at nine transfers each Engine gets three peer workers; existing running jobs keep current worker counts until restart.
+
+Enqueue saves a verified copy of the original .torrent to `/data/ps5-torrent/cache/metainfo/<40hex>.torrent`, named by the SHA1 infohash. A queued job survives vanished /app0, moved USB sources and removed watched metadata. Older v0.4.x queue paths can be migrated if a matching infohash can be found in the bundled tests or watched torrent directory.
+
+Failed jobs do not auto-retry (avoids crash loops); use Downloads -> X Retry. On SHA1-verified completion, optionally delete original watched .torrent metadata (not bundled fixtures) and the internal copy, preserving incomplete jobs' metadata for resume. CI covers nine concurrent C++ downloads and completion after original .torrent is removed.
+
+If no metadata was cached by this version, and the original .torrent and matching alternative are gone, you must import that original .torrent again. A filename or infohash alone does not reconstruct metadata.
 
 ## Better tracker discovery and 503 rate-limit fix (v0.4.3)
 

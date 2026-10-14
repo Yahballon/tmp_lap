@@ -141,7 +141,7 @@ int main(){
     }
    }else if(page==3){
     if(settingSelected==0)manager.setAutoDownload(!settings.autoDownload);
-    if(settingSelected==1)manager.setMaxActive(settings.maxActive>=3?1:settings.maxActive+1);
+    if(settingSelected==1)manager.setMaxActive(settings.maxActive>=9?1:settings.maxActive+1);
     if(settingSelected==2)manager.setDeleteCompleted(!settings.deleteCompletedTorrents);
     if(settingSelected==3){
      if(!manager.setUsbStorage(!settings.usb))notice="Stop active downloads and mount USB0 first";
@@ -165,7 +165,7 @@ int main(){
   d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",462,55,21,mint);
-  text(d,font,atlas,"v0.4.3",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.4.4",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<6;i++){
    float y=144+i*106;card(d,43,y,302,91,page==i);
@@ -246,7 +246,7 @@ int main(){
     text(d,font,atlas,keys[i],443,y+49,28,settingSelected==i?mint:white);
     text(d,font,atlas,values[i],1815,y+49,27,mint,Align::right);
     text(d,font,atlas,i==0?"Watch /data/ps5-torrent/torrents for new metadata":
-     i==1?"Up to 3 torrents at the same time":
+     i==1?"Up to 9 torrents: at 9 jobs, each uses max 3 peer workers":
      i==2?"Remove metadata only after SHA-1 verified completion":
      i==3?"Choose internal disk or USB0 when no transfers are active":
      "How often to look for new .torrent files",444,y+82,18,muted);
@@ -267,7 +267,7 @@ int main(){
    card(d,386,125,1496,866);
    text(d,font,atlas,"ABOUT TORRENT FLOW",429,213,43);
    const char* lines[]={
-    "v0.4.3 / PPSA99684  |  BitTorrent v1 / Multi-file support",
+    "v0.4.4 / PPSA99684  |  BitTorrent v1 / Multi-file support",
     "Multi-download queue with independent cancel per torrent",
     "Persistent queue stored in /data/ps5-torrent/cache/queue.db",
     "Automatic folder: /data/ps5-torrent/torrents",
