@@ -1,6 +1,6 @@
 {
   "name": "Torrent Flow",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "titleId": "PPSA99684",
   "contentId": "UP9000-PPSA99684_00-TORRENTFLOW00000",
   "slug": "ps5-torrent",
@@ -8,7 +8,9 @@
   "storage": {
     "cache": "/data/ps5-torrent/cache",
     "downloads": "/data/ps5-torrent/downloads",
-    "logs": "/data/ps5-torrent/logs"
+    "logs": "/data/ps5-torrent/logs",
+    "torrents": "/data/ps5-torrent/torrents",
+    "settings": "/data/ps5-torrent/settings.ini"
   },
   "license": "GPL-3.0-or-later"
 }
