@@ -57,9 +57,15 @@ def shift_rgb(r,g,b):
 
 for filename,cols,rows in atlases:
     src=Image.open(ref/"sprites"/filename).convert("RGBA")
-    # Gold872 atlases have a 1px border and 1px gaps: (16+1)*cells + 1.
-    # This is why all earlier 768x352 synthetic tile PNGs misaligned.
-    assert src.width==cols*17+1 and src.height==rows*17+1, (filename,src.size)
+    # Each image family has DIFFERENT spacing and offsets in C++:
+    # block tile: 1px border + 1px gaps, character: 1px x / 9px y
+    # with ZERO horizontal gaps. Never normalize sheets to a guessed grid.
+    if filename.startswith("blocks/"):
+        assert src.size==(cols*17+1,rows*17+1), (filename,src.size)
+    elif filename.startswith("characters/Player"):
+        assert src.size==(403,266), (filename,src.size)
+    else:
+        assert src.width>=cols*16 and src.height>=rows*16, (filename,src.size)
     pixels=list(src.getdata())
     outpix=[]
     for r,g,b,a in pixels:
@@ -75,7 +81,7 @@ for filename,cols,rows in atlases:
     dest=out/"sprites"/filename
     dest.parent.mkdir(parents=True,exist_ok=True)
     hd.save(dest,optimize=True)
-    assert hd.size==((cols*17+1)*2,(rows*17+1)*2)
+    assert hd.size==(src.width*2,src.height*2)
     assert hd.getchannel("A").resize(src.size,Image.Resampling.NEAREST).tobytes()==src.getchannel("A").tobytes()
     print("GRID OK",filename,src.size,"=>",hd.size,"cells",cols*rows)
 
