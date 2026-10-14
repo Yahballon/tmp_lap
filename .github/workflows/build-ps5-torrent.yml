@@ -26,6 +26,8 @@ jobs:
         run: python3 homebrew/ps5-torrent/tests/test_local_swarm.py
       - name: Test simultaneous downloads and watched-folder queue
         run: python3 homebrew/ps5-torrent/tests/test_download_queue.py
+      - name: Test BEP 3 multi-file transfers and path security
+        run: python3 homebrew/ps5-torrent/tests/test_multifile.py
       - name: Fetch native PS5 build scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -34,7 +36,7 @@ jobs:
         run: |
           cp homebrew/ps5-torrent/native/*.cpp homebrew/ps5-torrent/native/*.hpp app/src/
           mkdir -p app/assets/test
-          # Official Ubuntu Desktop LTS, Ubuntu flavors and Linux Mint Debian Edition.
+          # Official Ubuntu Desktop LTS, Ubuntu flavors and Fedora Workstation 44.
           # The .torrent files are packaged, NEVER the multi-GB ISO files.
           curl -fLsS --retry 3 --connect-timeout 12 --max-time 90 \
             'https://releases.ubuntu.com/26.04/ubuntu-26.04.1-desktop-amd64.iso.torrent' \
@@ -43,8 +45,8 @@ jobs:
             'https://releases.ubuntu.com/24.04/ubuntu-24.04.5.1-desktop-amd64.iso.torrent' \
             -o app/assets/test/ubuntu-24.04.5.1-desktop-amd64.iso.torrent
           curl -fLsS --retry 3 --connect-timeout 12 --max-time 90 \
-            'https://www.linuxmint.com/torrents/lmde-7-cinnamon-64bit.iso.torrent' \
-            -o app/assets/test/lmde-7-cinnamon-64bit.iso.torrent
+            'https://torrent.fedoraproject.org/torrents/Fedora-Workstation-Live-x86_64-44.torrent' \
+            -o app/assets/test/Fedora-Workstation-Live-x86_64-44.torrent
           curl -fLsS --retry 3 --connect-timeout 12 --max-time 90 \
             'https://cdimage.ubuntu.com/kubuntu/releases/26.04/release/kubuntu-26.04.1-desktop-amd64.iso.torrent' \
             -o app/assets/test/kubuntu-26.04.1-desktop-amd64.iso.torrent
@@ -66,7 +68,7 @@ jobs:
           from PIL import Image,ImageDraw
           root=pathlib.Path("app/sce_sys/param.json")
           info=json.loads(root.read_text())
-          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.010")
+          info.update(titleId="PPSA99684",conceptId="99684",contentId="UP9000-PPSA99684_00-TORRENTFLOW00000",contentVersion="01.000.011")
           info["localizedParameters"]["en-US"]["titleName"]="Torrent Flow"
           root.write_text(json.dumps(info,indent=2)+"\n")
           im=Image.new("RGBA",(512,512),(7,19,31,255))
@@ -120,7 +122,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Torrent-Flow-v0.3.2-PPSA99684
+          name: Torrent-Flow-v0.4.0-PPSA99684
           path: app/dist/PPSA99684.zip
           if-no-files-found: error
       - name: Publish verified release
@@ -128,5 +130,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-torrent-v0.3.2 >/dev/null 2>&1; then exit 0; fi
-          gh release create ps5-torrent-v0.3.2 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.3.2" --notes "Replaced six bundled test torrents with popular official Linux release torrents: Ubuntu 26.04.1 Desktop, Ubuntu 24.04.5.1 Desktop, Linux Mint LMDE 7, Kubuntu/Xubuntu/Lubuntu 26.04.1. Validated single-file BitTorrent v1 metadata in CI. Live seeder availability varies; seed counts are not guaranteed. All other Torrent Flow v0.3.1 functions remain unchanged."
+          if gh release view ps5-torrent-v0.4.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create ps5-torrent-v0.4.0 app/dist/PPSA99684.zip --target "$GITHUB_SHA" --title "Torrent Flow v0.4.0" --notes "BEP 3 BitTorrent v1 multi-file support, including Fedora Workstation 44. Verified pieces are mapped across file boundaries into safe nested download folders, with SHA-1 rehash/resume, strict path validation and symlink protection. Host integration tests cover multi-file completion, corruption repair and malicious paths. Six legal Linux fixtures remain included. Physical PS5 hardware validation remains pending."

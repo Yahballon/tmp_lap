@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Compact BitTorrent v1 single-file downloader for PS5. SHA-1 piece verification;
+// BitTorrent v1 single- and multi-file downloader for PS5. SHA-1 piece verification;
 // HTTP tracker + IPv4 TCP peers. The SHA-1 hash is required by the protocol.
 #include "torrent_engine.hpp"
 #include <openssl/sha.h>
@@ -68,7 +68,7 @@ struct TestInfo {const char* file;const char* display;const char* size;};
 const TestInfo kTests[]={
  {"ubuntu-26.04.1-desktop-amd64.iso.torrent","Ubuntu 26.04.1 LTS Desktop","~6.0 GiB"},
  {"ubuntu-24.04.5.1-desktop-amd64.iso.torrent","Ubuntu 24.04.5.1 LTS Desktop","~5.8 GiB"},
- {"lmde-7-cinnamon-64bit.iso.torrent","Linux Mint LMDE 7 Cinnamon","~3.0 GiB"},
+ {"Fedora-Workstation-Live-x86_64-44.torrent","Fedora Workstation 44 (Multi-file)","~2.7 GiB"},
  {"kubuntu-26.04.1-desktop-amd64.iso.torrent","Kubuntu 26.04.1 LTS","~4.7 GiB"},
  {"xubuntu-26.04.1-desktop-amd64.iso.torrent","Xubuntu 26.04.1 LTS","~4.8 GiB"},
  {"lubuntu-26.04.1-desktop-amd64.iso.torrent","Lubuntu 26.04.1 LTS","~3.7 GiB"}
@@ -123,18 +123,95 @@ bool parse(const std::string& s,size_t& pos,B& out,int depth=0){
 }
 std::string hex(const unsigned char* p,size_t n){static const char* digits="0123456789abcdef";std::string v;for(size_t i=0;i<n;i++){v+=digits[p[i]>>4];v+=digits[p[i]&15];}return v;}
 std::string enc(const unsigned char* p,size_t n){static const char* digits="0123456789ABCDEF";std::string v;for(size_t i=0;i<n;i++){unsigned char c=p[i];if((c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='-'||c=='_'||c=='.'||c=='~')v+=char(c);else{v+='%';v+=digits[c>>4];v+=digits[c&15];}}return v;}
-struct Meta {std::string name,announce,hash,pieces;std::vector<std::string> trackers;uint64_t bytes=0;uint32_t piece=0;};
+struct FileEntry{
+ std::string path;
+ uint64_t start=0,length=0;
+};
+struct Meta{
+ std::string name,announce,hash,pieces;
+ std::vector<std::string> trackers;
+ std::vector<FileEntry> files;
+ uint64_t bytes=0;
+ uint32_t piece=0;
+ bool multi=false;
+};
+// BEP 3 paths are *advisory*. Never allow a torrent to escape our folder.
+bool safePart(const std::string& s){
+ if(s.empty()||s.size()>180||s=="."||s==".."||s.find("..")!=std::string::npos)return false;
+ for(unsigned char c:s)if(c<' '||c==127||c=='/'||c=='\\'||c==':')return false;
+ return true;
+}
 bool metadata(const std::string& path,Meta& m,std::string& error){
- std::string raw;if(!readAll(path,raw)){error="Cannot read .torrent metadata";return false;}
- B root;size_t pos=0;if(!parse(raw,pos,root)||pos!=raw.size()||root.type!='d'){error="Invalid bencoded torrent";return false;}
+ std::string raw;
+ if(!readAll(path,raw)){error="Cannot read .torrent metadata";return false;}
+ B root;size_t pos=0;
+ if(!parse(raw,pos,root)||pos!=raw.size()||root.type!='d'){
+  error="Invalid bencoded torrent";return false;
+ }
  const B& info=root.get("info");
+ if(info.type!='d'){error="Missing info dictionary";return false;}
  m.name=info.get("name").v;m.announce=root.get("announce").v;
- m.bytes=(uint64_t)std::max<int64_t>(0,info.get("length").number());
  m.piece=(uint32_t)std::max<int64_t>(0,info.get("piece length").number());
  m.pieces=info.get("pieces").v;
- if(info.type!='d'||info.get("files").type=='l'){error="Only single-file v1 torrents supported";return false;}
- if(m.name.empty()||m.name=="."||m.name==".."||m.name.find('/')!=std::string::npos||m.name.find('\\')!=std::string::npos||m.name.find("..")!=std::string::npos||m.name.find('\0')!=std::string::npos||m.name.size()>180){error="Unsafe torrent filename";return false;}
- if(!m.bytes||m.bytes>16ULL*1024*1024*1024||m.piece<16384||m.piece>4*1024*1024||m.pieces.size()%20||m.pieces.size()/20!=(m.bytes+m.piece-1)/m.piece){error="Invalid torrent size or piece hashes";return false;}
+ if(!safePart(m.name)){error="Unsafe torrent name";return false;}
+ const bool hasFiles=info.dict.count("files")!=0;
+ const bool hasLength=info.dict.count("length")!=0;
+ if(hasFiles==hasLength){error="Torrent must contain files OR length";return false;}
+ if(hasFiles){
+  m.multi=true;
+  const B& list=info.get("files");
+  if(list.type!='l'||list.list.empty()||list.list.size()>2048){
+   error="Invalid multi-file list (max 2048 files)";return false;
+  }
+  std::vector<std::string> seenPaths;
+  for(const auto& record:list.list){
+   if(record.type!='d'||record.get("length").type!='i'){
+    error="Multi-file record missing length";return false;
+   }
+   const int64_t count=record.get("length").number(-1);
+   if(count<0||uint64_t(count)>16ULL*1024*1024*1024-m.bytes){
+    error="Invalid file size / total torrent exceeds 16 GiB";return false;
+   }
+   const B& pathList=record.get("path");
+   if(pathList.type!='l'||pathList.list.empty()||pathList.list.size()>16){
+    error="Invalid multi-file path";return false;
+   }
+   std::string rel;
+   for(const auto& component:pathList.list){
+    if(component.type!='s'||!safePart(component.v)){
+     error="Unsafe path component in multi-file torrent";return false;
+    }
+    if(!rel.empty())rel+="/";
+    rel+=component.v;
+   }
+   // Reserve enough path length for /data/ps5-torrent/downloads/<root>/.
+   if(rel.size()>220||std::find(seenPaths.begin(),seenPaths.end(),rel)!=seenPaths.end()){
+    error="Duplicate or overlong torrent file path";return false;
+   }
+   seenPaths.push_back(rel);
+   m.files.push_back({rel,m.bytes,(uint64_t)count});
+   m.bytes+=(uint64_t)count;
+  }
+  // Reject a regular file that would also be used as a directory prefix.
+  for(const auto& a:seenPaths)for(const auto& b:seenPaths){
+   if(a!=b&&b.size()>a.size()&&b.compare(0,a.size(),a)==0&&b[a.size()]=='/'){
+    error="Conflicting file/directory paths in torrent";return false;
+   }
+  }
+ }else{
+  const int64_t length=info.get("length").number(-1);
+  if(length<=0||uint64_t(length)>16ULL*1024*1024*1024){
+   error="Invalid single-file length";return false;
+  }
+  m.bytes=(uint64_t)length;
+  m.files.push_back({m.name,0,m.bytes});
+ }
+ if(!m.bytes||m.bytes>16ULL*1024*1024*1024||
+    m.piece<16384||m.piece>4*1024*1024||
+    m.pieces.size()%20||
+    m.pieces.size()/20!=(m.bytes+m.piece-1)/m.piece){
+  error="Invalid total length or SHA-1 piece hashes";return false;
+ }
  auto addTracker=[&](const std::string& url){
   if((url.rfind("http://",0)==0||url.rfind("https://",0)==0||url.rfind("udp://",0)==0)&&url.size()<1000&&
      std::find(m.trackers.begin(),m.trackers.end(),url)==m.trackers.end()&&m.trackers.size()<12)m.trackers.push_back(url);
@@ -148,6 +225,86 @@ bool metadata(const std::string& path,Meta& m,std::string& error){
  if(m.trackers.empty()){error="No supported HTTP, HTTPS or UDP tracker in metadata";return false;}
  unsigned char digest[20];SHA1((const unsigned char*)raw.data()+info.start,info.end-info.start,digest);m.hash.assign((char*)digest,20);return true;
 }
+// Virtual contiguous torrent byte stream backed by one file or a directory tree.
+// BEP 3 hashes pieces over concatenated file contents, including boundaries.
+// All paths were validated by metadata(); use O_NOFOLLOW to prevent symlink escapes.
+bool safeDirTree(const std::string& absolute){
+ if(absolute.empty()||absolute[0]!='/'||absolute.size()>420)return false;
+ std::string current;
+ size_t pos=1;
+ while(pos<=absolute.size()){
+  size_t end=absolute.find('/',pos);
+  if(end==std::string::npos)end=absolute.size();
+  if(end==pos){pos=end+1;continue;}
+  current+="/"+absolute.substr(pos,end-pos);
+  struct stat st{};
+  if(lstat(current.c_str(),&st)!=0){
+   if(errno!=ENOENT||mkdir(current.c_str(),0755)!=0&&errno!=EEXIST)return false;
+   if(lstat(current.c_str(),&st)!=0)return false;
+  }
+  if(!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode))return false;
+  pos=end+1;
+ }
+ return true;
+}
+class OutputLayout{
+ const Meta& m_;
+ const std::string base_;
+ std::vector<std::string> absolute_;
+public:
+ OutputLayout(const Meta& m,const std::string& downloads):m_(m),base_(downloads){}
+ std::string destination()const{return base_+"/"+m_.name;}
+ bool prepare(std::string& error){
+  if(!safeDirTree(base_)){error="Unsafe / inaccessible download directory";return false;}
+  const std::string root=destination();
+  if(m_.multi&&!safeDirTree(root)){error="Unsafe multi-file root directory";return false;}
+  absolute_.reserve(m_.files.size());
+  for(const auto& ent:m_.files){
+   const std::string path=(m_.multi?root:base_)+"/"+ent.path;
+   if(path.size()>420){error="Torrent output path too long";return false;}
+   const size_t slash=path.find_last_of('/');
+   if(!safeDirTree(path.substr(0,slash))){error="Unsafe torrent output directory";return false;}
+   struct stat st{};
+   if(lstat(path.c_str(),&st)==0){
+    if(!S_ISREG(st.st_mode)){error="Torrent output is not a regular file (symlinks refused)";return false;}
+   }else if(errno!=ENOENT){error="Output file inaccessible";return false;}
+   int fd=open(path.c_str(),O_WRONLY|O_CREAT|O_NOFOLLOW,0644);
+   if(fd<0){error="Cannot create torrent output file errno="+std::to_string(errno);return false;}
+   close(fd);
+   absolute_.push_back(path);
+  }
+  return true;
+ }
+ bool transfer(uint64_t offset,char* buffer,size_t count,bool writing)const{
+  if(offset>m_.bytes||count>m_.bytes-offset)return false;
+  if(count==0)return true;
+  size_t processed=0;
+  for(size_t i=0;i<m_.files.size()&&processed<count;i++){
+   const auto& e=m_.files[i];
+   const uint64_t cursor=offset+processed;
+   if(e.length==0||cursor>=e.start+e.length||cursor<e.start)continue;
+   size_t len=(size_t)std::min<uint64_t>(count-processed,e.start+e.length-cursor);
+   const int flags=(writing?O_WRONLY:O_RDONLY)|O_NOFOLLOW;
+   int fd=open(absolute_[i].c_str(),flags);
+   if(fd<0)return false;
+   FILE* file=fdopen(fd,writing?"wb":"rb");
+   if(!file){close(fd);return false;}
+   // fdopen("wb") does not truncate an existing O_WRONLY descriptor.
+   bool ok=fseeko(file,(off_t)(cursor-e.start),SEEK_SET)==0;
+   if(ok){
+    if(writing)ok=fwrite(buffer+processed,1,len,file)==len&&fflush(file)==0;
+    else ok=fread(buffer+processed,1,len,file)==len;
+   }
+   if(fclose(file)!=0)ok=false;
+   if(!ok)return false;
+   processed+=len;
+  }
+  return processed==count;
+ }
+ bool read(uint64_t offset,char* data,size_t count)const{return transfer(offset,data,count,false);}
+ bool write(uint64_t offset,const char* data,size_t count)const{return transfer(offset,const_cast<char*>(data),count,true);}
+ size_t fileCount()const{return m_.files.size();}
+};
 struct Url{std::string host,path;int port=80;bool tls=false;};
 bool url(const std::string& input,Url& out){
  size_t prefix=0;
@@ -522,7 +679,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.3.1 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.0 initialized - log file: "+logPath());}
 Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
 bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){
@@ -619,8 +776,7 @@ void Engine::run(std::string path){
  };
  Meta m;std::string error;
  if(!metadata(path,m,error)){finish(error,false);return;}
- trace("Metadata OK file="+m.name+" bytes="+std::to_string(m.bytes)+
-       " pieces="+std::to_string(m.pieces.size()/20)+" trackers="+std::to_string(m.trackers.size()));
+ trace("Metadata OK "+std::string(m.multi?"MULTI-FILE":"SINGLE-FILE")+" root="+m.name+" files="+std::to_string(m.files.size())+" bytes="+std::to_string(m.bytes)+" pieces="+std::to_string(m.pieces.size()/20)+" trackers="+std::to_string(m.trackers.size()));
  std::string base;
  {
   std::lock_guard<std::mutex> g(mutex_);
@@ -632,12 +788,12 @@ void Engine::run(std::string path){
   base=state_.usb?kUsb:kHome;
  }
  if(!createDirectories(base)){finish("Storage directory unavailable",false);return;}
- const std::string target=base+"/downloads/"+m.name;
+ OutputLayout layout(m,base+"/downloads");
+ std::string storageError;
+ if(!layout.prepare(storageError)){finish(storageError,false);return;}
+ const std::string target=layout.destination();
  const std::string resume=base+"/cache/"+hex((const unsigned char*)m.hash.data(),20)+".resume";
- FILE* initial=fopen(target.c_str(),"r+b");
- if(!initial)initial=fopen(target.c_str(),"w+b");
- if(!initial){finish("Cannot open download destination errno="+std::to_string(errno),false);return;}
- trace("Download destination: "+target);
+ trace("Download destination: "+target+" files="+std::to_string(layout.fileCount()));
  const size_t pieceCount=m.pieces.size()/20;
  std::vector<uint8_t> states(pieceCount,0); // 0=missing, 1=in flight, 2=verified
  std::vector<bool> verified(pieceCount,false);
@@ -646,17 +802,15 @@ void Engine::run(std::string path){
  for(size_t i=0;i<pieceCount&&!cancelled();i++){
   const uint32_t n=pieceSize(m,(uint32_t)i);
   check.resize(n);
-  if(fseeko(initial,(off_t)((uint64_t)i*m.piece),SEEK_SET)==0 &&
-     fread(&check[0],1,n,initial)==n &&
+  if(layout.read((uint64_t)i*m.piece,&check[0],n) &&
      shaPiece(m,(uint32_t)i,check)){
    states[i]=2;verified[i]=true;
    std::lock_guard<std::mutex> g(mutex_);
    state_.verifiedPieces++;state_.completedBytes+=n;
   }
   if((i%512)==511)trace("Resume verified "+std::to_string(i+1)+"/"+std::to_string(pieceCount)+" pieces scanned");
-  clearerr(initial);
  }
- fclose(initial);
+
  if(cancelled()){finish("Stopped during resume verification",false);return;}
  if(std::all_of(states.begin(),states.end(),[](uint8_t n){return n==2;})){
   finish("Complete - all SHA-1 pieces verified",true);return;
@@ -732,10 +886,8 @@ void Engine::run(std::string path){
   for(int workerId=0;workerId<maxWorkers;workerId++){
    workers.emplace_back([&,workerId](){
     activeSockets=sockets_.get();
-    FILE* output=fopen(target.c_str(),"r+b");
-    if(!output){
-     storageFailure.store(true);trace("Worker file open FAILED errno="+std::to_string(errno));activeSockets=nullptr;return;
-    }
+    // File segments are opened independently per verified piece.
+
     while(!cancelled()&&!storageFailure.load()&&completeCount.load()<(int)pieceCount){
      size_t peerIndex=nextPeer.fetch_add(1);
      if(peerIndex>=peers.size())break;
@@ -759,8 +911,7 @@ void Engine::run(std::string path){
        const auto begun=Clock::now();
        const bool received=downloadPiece(session,m,(uint32_t)idx,piece,cancellation_);
        if(!received){release((uint32_t)idx);break;}
-       bool persisted=fseeko(output,(off_t)((uint64_t)idx*m.piece),SEEK_SET)==0 &&
-           fwrite(piece.data(),1,piece.size(),output)==piece.size() && fflush(output)==0;
+       bool persisted=layout.write((uint64_t)idx*m.piece,piece.data(),piece.size());
        if(!persisted){
         trace("STORAGE WRITE FAILURE piece="+std::to_string(idx)+" errno="+std::to_string(errno));
         release((uint32_t)idx);storageFailure.store(true);break;
@@ -799,7 +950,6 @@ void Engine::run(std::string path){
      closeSocket(session.fd);
      {std::lock_guard<std::mutex> g(mutex_);state_.activePeers--;}
     }
-    fclose(output);
     activeSockets=nullptr;
    });
   }
