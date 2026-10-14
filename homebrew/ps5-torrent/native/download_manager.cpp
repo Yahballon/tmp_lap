@@ -177,10 +177,10 @@ void DownloadManager::loadQueue(){
   const std::string oldPath=job->path;
   std::string chosen;
   if(resolveMetadata(*job,chosen)){
-   if(job->state=="failed"&&job->message=="Not running"){
-    job->state="queued";job->message="Recovered metadata; queued";
-    changed=true;
-   }
+   // Never auto-retry failed jobs on launch: older crashes are held for
+   // manual recovery. Explicit X retry works with the restored cache.
+   if(job->state=="failed"&&!fileExists(job->path))
+    job->message="Metadata recovered; press X to retry";
    if(job->path!=oldPath)changed=true;
   }else if(job->state=="queued"){
    job->state="failed";job->message="Missing .torrent (source and cache)";
