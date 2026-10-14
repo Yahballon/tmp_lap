@@ -38,6 +38,9 @@ jobs:
           python3 homebrew/starbound-rebased/tools/rework-world-assets.py
           bash homebrew/starbound-rebased/tools/fetch-world11-reference.sh
           python3 homebrew/starbound-rebased/tools/reskin-world11-reference.py build/gold872-reference
+          # Embed all six user-supplied pink/cyan PNG atlases AFTER the reference
+          # recolor. Any later raster generator would overwrite the real HD art.
+          python3 homebrew/starbound-rebased/tools/install-hd-art.py
           python3 homebrew/starbound-rebased/tools/adapt-ps5-engine.py build/gold872-engine
           cp homebrew/starbound-rebased/ps5/StarboundAssetPaths.hpp build/gold872-engine/include/StarboundAssetPaths.hpp
           python3 homebrew/starbound-rebased/tools/resolve-resource-paths.py build/gold872-engine
@@ -115,8 +118,8 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.014'
-          data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
+          data['contentVersion']='01.000.015'
+          data['localizedParameters']['en-US']['titleName']='Starbound Rebased HD'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
           python3 - <<'PY'
@@ -168,6 +171,17 @@ jobs:
               assert root+'assets/res/sounds/effects/jump.wav' in names
               assert root+'assets/res/sounds/music/overworld.wav' in names
               assert root+'assets/res/sprites/backgrounds/alien_sky.png' in names
+              # Never publish a TESTBUILDS ZIP that accidentally contains
+              # generated fallback textures instead of the uploaded HD PNGs.
+              hd_root=pathlib.Path('homebrew/starbound-rebased/hd-assets')
+              hd_pngs=sorted(hd_root.rglob('*.png'))
+              assert len(hd_pngs)==6, hd_pngs
+              for png in hd_pngs:
+                  relative=png.relative_to(hd_root).as_posix()
+                  packaged_asset=root+'assets/res/sprites/'+relative
+                  assert packaged_asset in names, packaged_asset
+                  assert z.read(packaged_asset)==png.read_bytes(), 'Wrong HD art: '+relative
+              print('PASS: six user-supplied HD PNGs byte-identical in PS5 release ZIP')
               from PIL import Image
               import io
               assert Image.open(io.BytesIO(z.read(root+'assets/res/sprites/blocks/BlockTileSheet.png'))).size==(1634,750)
@@ -207,6 +221,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.13-hd-loader
+          tag=starbound-rebased-v0.1.14
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.13 HD Asset Loader" --notes "Preserves v0.1.12 World1-1 behavior, sprite source coordinates, menu crop and rendering fixes. Supports the optional separately supplied HD art pack at /mnt/usb0/homebrew/starbound-rebased-hd/res/sprites or /data/starbound-rebased/hd/res/sprites. The new artwork is NOT bundled into this code-only runtime; it must be copied separately. The blue background stays unchanged without an external HD pack."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.14 HD - Original Pink/Cyan Assets INCLUDED" --notes "Playable PS5 ShadowMount test ZIP PPSA99642.zip with the developer-supplied HD pixel art EMBEDDED: animated pink astronaut player atlas, original enemy atlas, magenta/cyan platform tiles, new pixel logo/icon and matching blue-sky pixel scenery. No separate asset pack or USB override needed. Release validation compares all six packaged PNGs byte-for-byte against the committed HD sprites. Retains World1-1 reference level and existing physics/controller fixes. Experimental: requires real PS5 runtime testing."

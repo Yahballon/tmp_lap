@@ -28,3 +28,9 @@ The native engine resolves `res/...` paths from its runtime working directory. W
 ## Optional HD artwork loader (v0.1.13)
 
 The PS5 binary can pick up the user's separately supplied new pink/cyan art pack from `/mnt/usb0/homebrew/starbound-rebased-hd/res/sprites/` or `/data/starbound-rebased/hd/res/sprites/`. It requires all five core PNGs (PlayerSpriteSheet, EnemySpriteSheet, BlockTileSheet, logo, alien_sky) before enabling, so partial installs safely fall back to built-in graphics. **The new HD PNG files are not bundled in the GitHub code-only build**. For a standalone PS5 ZIP with replacement images, patch an existing tested `PPSA99642.zip` with the separately delivered art pack's `make_hd_release.py`.
+
+## v0.1.14 — built-in original HD pixel artwork (no external pack required)
+
+The six **actual artist-supplied PNG files** (pink astronaut player, five enemy families, magenta/teal blocks, pixel logo, app icon, and illustrated blue sky) are committed under `homebrew/starbound-rebased/hd-assets/{characters,blocks,backgrounds,icons}/`. The build runs `install-hd-art.py` immediately after the reference asset generator, then puts the source-identical images into `PPSA99642/assets/res/sprites/`. CI compares the packaged PNGs byte-for-byte with these committed files before publishing `starbound-rebased-v0.1.14`. No second download or USB override is necessary.
+
+PS5 engine still uses the existing 25×16 / 35×15 / 48×22 fixed atlas addressing and reference World1-1 mechanics. Actual animation and gameplay behavior must be tested on hardware.

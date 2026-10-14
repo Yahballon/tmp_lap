@@ -17,3 +17,8 @@ This is a **temporary technical reference build** for diagnosing the broken v0.1
 ## v0.1.13 — optional HD art loader
 
 The native PS5 resource resolver now accepts a complete **separate original-art HD sprite pack** at `/mnt/usb0/homebrew/starbound-rebased-hd/res/sprites/` or `/data/starbound-rebased/hd/res/sprites/` without changing the Gold872 level data, game physics, tile IDs or tested fallback resources. The new HD background is drawn only when that complete pack is detected. Existing installs without an HD pack retain the v0.1.12 appearance. The image assets themselves are distributed separately and are **not in the GitHub build**.
+
+## v0.1.14 — embedded developer HD sprites (PS5 TESTBUILDS)
+
+This release **actually contains** the six new original PNG graphics as part of the installable `PPSA99642.zip`. Previous v0.1.13 had only an optional loader and silently fell back to the old art.
+The installed player, enemy, tiles, pink/cyan logo and app icon are from the provided artwork. The sky renders by default when the image loads. The build copies sprites after any legacy atlas generator and checks all six PNGs byte-for-byte inside the ZIP. Preserves fixed sprite atlas dimensions, World1-1 level CSV, controller and PS5 diagnostics. Experimental; verify menu/world/characters against screenshots on console.

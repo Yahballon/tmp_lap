@@ -39,8 +39,7 @@ patch("src/TextureManager.cpp",
       SDL_RenderFillRect(renderer, &backgroundRect);''',
     '''   // Keep the v0.1.12 reference sky until the complete new HD art
    // pack has been installed. Do not regress reference-world geometry.
-   if (currentColor == BackgroundColor::BLUE &&
-       sb_resources::hd_enabled() && sbBackgroundTexture)
+   if (currentColor == BackgroundColor::BLUE && sbBackgroundTexture)
       SDL_RenderCopy(renderer, sbBackgroundTexture, nullptr, &backgroundRect);
    else
       SDL_RenderFillRect(renderer, &backgroundRect);''')
@@ -48,4 +47,4 @@ patch("src/TextureManager.cpp",
 patch("include/systems/MenuSystem.h",
       "   const int maxLevel = 8;\n   const int maxSublevel = 4;",
       "   const int maxLevel = 1;\n   const int maxSublevel = 1;")
-print("FIXED: texture source rectangle, flat reference sky, World 1-1 only in menu")
+print("FIXED: full logo texture, embedded HD sky, World 1-1 only in menu")
