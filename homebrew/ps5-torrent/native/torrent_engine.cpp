@@ -3,12 +3,14 @@
 // HTTP tracker + IPv4 TCP peers. The SHA-1 hash is required by the protocol.
 #include "torrent_engine.hpp"
 #include <openssl/sha.h>
+#include <openssl/rand.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include "ca_bundle.inc"
 #include <algorithm>
 #include <atomic>
+#include <random>
 #include <chrono>
 #include <cerrno>
 #include <ctime>
@@ -27,11 +29,17 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
+#include <dirent.h>
 #include <unistd.h>
 namespace torrent {
 namespace {
+#ifdef TORRENT_HOST_TEST
+const char* kHome="/tmp/torrent-flow-host-test";
+const char* kUsb="/tmp/torrent-flow-host-test-usb";
+#else
 const char* kHome="/data/ps5-torrent";
 const char* kUsb="/mnt/usb0/ps5-torrent";
+#endif
 const char* kTest="debian-13.7.0-amd64-netinst.iso.torrent";
 struct TestInfo {const char* file;const char* display;const char* size;};
 const TestInfo kTests[]={
@@ -48,10 +56,14 @@ bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return f
 std::mutex logMutex;
 std::vector<std::string> logRing;
 std::string ensureLogPath(){
+#ifdef TORRENT_HOST_TEST
+ mkdirs("/tmp/torrent-flow-host-test/logs");
+ return "/tmp/torrent-flow-host-test/logs/torrent.log";
+#else
  // Persist logs outside the install folder so updates never redirect them.
- // Always use this path, even if directory creation fails, for diagnostics.
  mkdirs("/data/ps5-torrent/logs");
  return "/data/ps5-torrent/logs/torrent.log";
+#endif
 }
 void trace(const std::string& message){
  std::lock_guard<std::mutex> guard(logMutex);
@@ -245,7 +257,7 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
  std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.1.3\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.2.0\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -311,76 +323,147 @@ bool sendMsg(int fd,uint8_t id,const std::string& body={}){std::string b(5+body.
 uint32_t pieceSize(const Meta& m,uint32_t index){uint64_t remain=m.bytes-(uint64_t)index*m.piece;return(uint32_t)std::min<uint64_t>(m.piece,remain);}
 bool shaPiece(const Meta& m,uint32_t index,const std::string& bytes){unsigned char digest[20];SHA1((const unsigned char*)bytes.data(),bytes.size(),digest);return memcmp(digest,m.pieces.data()+index*20,20)==0;}
 bool hasPiece(const std::string& bits,uint32_t index){return index/8<bits.size()&&(uint8_t(bits[index/8])&(0x80>>(index%8)));}
-bool grab(int fd,const Meta& m,uint32_t idx,std::string& bits,std::string& output,bool& choked,std::atomic<bool>& cancelled){
- const uint32_t n=pieceSize(m,idx);
- output.assign(n,0);
- const size_t blocks=(n+16383)/16384;
- std::vector<bool> got(blocks,false),requested(blocks,false);
- size_t finished=0;
- int outstanding=0,events=0;
- if(!sendMsg(fd,2)){trace("Peer: interested send FAILED");return false;}
- while(!cancelled.load()&&events++<256){
-  if(!bits.empty()&&!hasPiece(bits,idx)){
-   trace("Peer lacks piece "+std::to_string(idx)+"; switching to next available piece");
-   return false;
-  }
-  if(!choked&&hasPiece(bits,idx)){
-   for(size_t block=0;block<blocks&&outstanding<4;block++){
-    if(requested[block]||got[block])continue;
-    uint32_t offset=(uint32_t)block*16384;
-    uint32_t len=std::min<uint32_t>(16384,n-offset);
-    std::string req(12,0);store32(&req[0],idx);store32(&req[4],offset);store32(&req[8],len);
-    if(!sendMsg(fd,6,req)){trace("Peer request send FAILED piece="+std::to_string(idx));return false;}
-    requested[block]=true;outstanding++;
+// Native BitTorrent wire session. A TCP handshake only identifies a peer;
+// bitfield/HAVE and UNCHOKE must be processed before sending block requests.
+struct Session{
+ int fd=-1;
+ bool choked=true, availability=false;
+ std::string pieces;
+ std::string address;
+};
+struct Frame{uint8_t id=255;std::string payload;};
+bool readFrame(Session& s,Frame& frame){
+ frame=Frame{};
+ char hdr[4];
+ if(!recvAll(s.fd,hdr,4)){trace("Peer read timeout/disconnect "+s.address+" errno="+std::to_string(errno));return false;}
+ const uint32_t length=be32(hdr);
+ if(length>1024*1024){trace("Peer sent oversized frame "+s.address+" bytes="+std::to_string(length));return false;}
+ if(length==0)return true; // Keep-alive has no message ID.
+ std::string buf(length,'\0');
+ if(!recvAll(s.fd,&buf[0],length)){trace("Peer truncated frame "+s.address+" errno="+std::to_string(errno));return false;}
+ frame.id=(uint8_t)buf[0];frame.payload.assign(buf.data()+1,length-1);
+ return true;
+}
+bool updatePeer(Session& s,const Frame& f,uint32_t pieceCount){
+ const size_t bytes=(pieceCount+7)/8;
+ switch(f.id){
+  case 0: s.choked=true;trace("Peer CHOKE "+s.address);return true;
+  case 1: s.choked=false;trace("Peer UNCHOKE "+s.address);return true;
+  case 4:
+   if(f.payload.size()!=4){trace("Invalid HAVE "+s.address);return false;}
+   {uint32_t idx=be32(f.payload.data());
+    if(idx>=pieceCount){trace("Out of range HAVE "+s.address);return false;}
+    if(s.pieces.empty())s.pieces.assign(bytes,'\0');
+    s.pieces[idx/8]|=(char)(0x80>>(idx%8));s.availability=true;
+   }
+   return true;
+  case 5:
+   if(f.payload.size()!=bytes){trace("Invalid peer bitfield length "+s.address+" got="+std::to_string(f.payload.size())+" expected="+std::to_string(bytes));return false;}
+   s.pieces=f.payload;s.availability=true;
+   trace("Peer BITFIELD "+s.address+" bytes="+std::to_string(bytes));
+   return true;
+  case 14: // BEP-6 Fast Extension: HAVE_ALL.
+   if(!f.payload.empty())return false;
+   s.pieces.assign(bytes,(char)0xff);s.availability=true;
+   trace("Peer HAVE_ALL "+s.address);return true;
+  case 15: // BEP-6 Fast Extension: HAVE_NONE.
+   if(!f.payload.empty())return false;
+   s.pieces.assign(bytes,'\0');s.availability=true;
+   trace("Peer HAVE_NONE "+s.address);return true;
+  default: return true; // Standard/extension messages not relevant to a downloader.
+ }
+}
+bool handshake(Session& s,const Meta& m,const std::string& peerId){
+ char h[68]={19};memcpy(h+1,"BitTorrent protocol",19);memcpy(h+28,m.hash.data(),20);memcpy(h+48,peerId.data(),20);
+ char response[68];
+ if(!sendAll(s.fd,h,sizeof(h))||!recvAll(s.fd,response,sizeof(response))||uint8_t(response[0])!=19||
+    memcmp(response+1,"BitTorrent protocol",19)!=0||memcmp(response+28,m.hash.data(),20)!=0){
+  trace("Peer handshake rejected/timeout "+s.address);return false;
+ }
+ // Interested is sent once per connection, rather than once per candidate piece.
+ if(!sendMsg(s.fd,2)){trace("Peer INTERESTED send failed "+s.address);return false;}
+ trace("Peer handshake OK; interested sent "+s.address);
+ return true;
+}
+bool awaitPeerReady(Session& s,const Meta& m,std::atomic<bool>& cancelled){
+ const uint32_t count=(uint32_t)m.pieces.size()/20;
+ for(int i=0;i<24&&!cancelled.load();i++){
+  if(s.availability&&!s.choked)return true;
+  Frame frame;
+  if(!readFrame(s,frame))return false;
+  if(!updatePeer(s,frame,count))return false;
+ }
+ trace("Peer not ready (unchoke/availability missing) "+s.address);
+ return false;
+}
+bool downloadPiece(Session& s,const Meta& m,uint32_t idx,std::string& output,std::atomic<bool>& cancelled){
+ const uint32_t n=pieceSize(m,idx),blockSize=16384;
+ const size_t blockCount=(n+blockSize-1)/blockSize;
+ if(blockCount==0||blockCount>256)return false;
+ output.assign(n,'\0');
+ std::vector<uint8_t> sent(blockCount,0),received(blockCount,0);
+ size_t done=0,outstanding=0;
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(55);
+ int frames=0;
+ while(!cancelled.load()&&std::chrono::steady_clock::now()<deadline&&frames++<4096){
+  if(s.availability&&!hasPiece(s.pieces,idx)){trace("Peer lost requested piece "+std::to_string(idx));return false;}
+  if(!s.choked){
+   for(size_t b=0;b<blockCount&&outstanding<8;b++){
+    if(sent[b]||received[b])continue;
+    const uint32_t offset=(uint32_t)b*blockSize,length=std::min(blockSize,n-offset);
+    std::string request(12,'\0');
+    store32(&request[0],idx);store32(&request[4],offset);store32(&request[8],length);
+    if(!sendMsg(s.fd,6,request)){trace("Peer REQUEST send failed "+s.address);return false;}
+    sent[b]=1;outstanding++;
    }
   }
-  char header[4];
-  if(!recvAll(fd,header,4)){
-   trace("Peer read timeout/disconnected piece="+std::to_string(idx)+" errno="+std::to_string(errno));
-   return false;
-  }
-  uint32_t len=be32(header);
-  if(len>1024*1024){trace("Peer frame exceeds size limit");return false;}
-  if(len==0)continue;
-  std::string msg(len,0);
-  if(!recvAll(fd,&msg[0],len)){trace("Peer truncated frame piece="+std::to_string(idx));return false;}
-  uint8_t id=uint8_t(msg[0]);
-  if(id==0){choked=true;outstanding=0;for(size_t k=0;k<blocks;k++)if(!got[k])requested[k]=false;trace("Peer CHOKED");}
-  else if(id==1){choked=false;trace("Peer UNCHOKED");}
-  else if(id==5){bits=msg.substr(1);trace("Peer bitfield: "+std::to_string(bits.size())+" bytes");}
-  else if(id==4&&len==5){uint32_t have=be32(msg.data()+1);if(have<(uint32_t)m.pieces.size()/20){if(have/8>=bits.size())bits.resize(have/8+1,0);bits[have/8]|=(char)(0x80>>(have%8));}}
-  else if(id==7&&len>=9&&be32(msg.data()+1)==idx){
-   uint32_t begin=be32(msg.data()+5),count=len-9;
-   if(begin<n&&count<=n-begin&&begin%16384==0&&count==std::min<uint32_t>(16384,n-begin)){
-    size_t b=begin/16384;
-    if(!got[b]){
-     memcpy(&output[begin],msg.data()+9,count);
-     got[b]=true;finished++;
-     if(outstanding>0)outstanding--;
-    }
+  Frame frame;
+  if(!readFrame(s,frame))return false;
+  if(frame.id==7){
+   if(frame.payload.size()<8){trace("Invalid PIECE frame "+s.address);return false;}
+   uint32_t piece=be32(frame.payload.data()),offset=be32(frame.payload.data()+4);
+   if(piece!=idx){trace("Unexpected PIECE index from "+s.address);continue;}
+   uint32_t amount=(uint32_t)frame.payload.size()-8;
+   if(offset>=n||offset%blockSize||amount!=std::min(blockSize,n-offset)){
+    trace("Invalid PIECE block bounds from "+s.address);return false;
    }
-   if(finished==blocks){
-    if(shaPiece(m,idx,output))return true;
-    trace("SHA-1 piece verification FAILED at "+std::to_string(idx));
-    return false;
+   size_t b=offset/blockSize;
+   if(!sent[b]){trace("Unsolicited PIECE block from "+s.address);return false;}
+   if(!received[b]){
+    memcpy(&output[offset],frame.payload.data()+8,amount);
+    received[b]=1;done++;
+    if(outstanding)outstanding--;
+   }
+   if(done==blockCount){
+    if(!shaPiece(m,idx,output)){trace("SHA1 FAILED piece="+std::to_string(idx)+" peer="+s.address);return false;}
+    return true;
+   }
+  }else{
+   const bool wasChoked=s.choked;
+   if(!updatePeer(s,frame,(uint32_t)m.pieces.size()/20))return false;
+   if(!wasChoked&&s.choked){
+    // A choke invalidates outstanding requests. Future UNCHOKE must re-request.
+    outstanding=0;
+    for(size_t b=0;b<blockCount;b++)if(!received[b])sent[b]=0;
    }
   }
  }
- trace(cancelled.load()?"Piece transfer cancelled":"Peer frame limit exceeded / unresponsive");
+ trace("Peer piece deadline/timeout "+s.address+" piece="+std::to_string(idx));
  return false;
 }
 void saveState(const std::string& p,const std::vector<bool>& verified){std::string temp=p+".tmp";FILE* f=fopen(temp.c_str(),"wb");if(!f)return;for(bool b:verified)fputc(b?'1':'0',f);if(fclose(f)!=0){remove(temp.c_str());return;}rename(temp.c_str(),p.c_str());}
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.1.4 initialized - log file: "+logPath());}
+Engine::Engine(){state_.status="Ready";setUsb(false);trace("Torrent Flow v0.2.0 initialized - log file: "+logPath());}
 Engine& engine(){static Engine instance;return instance;}
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
 const char* sampleTorrentPath(){return "/app0/assets/test/debian-13.7.0-amd64-netinst.iso.torrent";}
 std::string testDisplayName(const std::string& path){
  for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.display;
- return path;
+ const size_t slash=path.find_last_of('/');
+ return slash==std::string::npos?path:path.substr(slash+1);
 }
 std::string testSizeHint(const std::string& path){
  for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.size;
@@ -388,13 +471,31 @@ std::string testSizeHint(const std::string& path){
 }
 std::vector<std::string> discoverTorrents(){
  std::vector<std::string> out;
- const std::string roots[]={"/app0/assets/test","/data/homebrew/PPSA99684/assets/test","/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
+ const std::string roots[]={"/app0/assets/test","/data/homebrew/PPSA99684/assets/test",
+                            "/data/ps5-torrent/cache","/mnt/usb0/ps5-torrent/cache"};
  for(const auto& t:kTests)for(const auto& root:roots){
   std::string path=root+"/"+t.file;
   struct stat st{};
   if(stat(path.c_str(),&st)==0&&S_ISREG(st.st_mode)&&st.st_size>0&&st.st_size<=1024*1024){
    out.push_back(path);break;
   }
+ }
+ // In addition to the six bundled Linux tests, the library now discovers any
+ // user-imported single-file .torrent placed in the cache directories via FTP/USB.
+ for(const auto& root:{std::string("/data/ps5-torrent/cache"),std::string("/mnt/usb0/ps5-torrent/cache")}){
+  DIR* dir=opendir(root.c_str());
+  if(!dir)continue;
+  struct dirent* entry=nullptr;
+  while(out.size()<96&&(entry=readdir(dir))!=nullptr){
+   const std::string name=entry->d_name;
+   if(name.size()<=8||name.size()>200||name.find('/')!=std::string::npos||
+      name=="."||name==".."||name.compare(name.size()-8,8,".torrent")!=0)continue;
+   const std::string path=root+"/"+name;
+   struct stat st{};
+   if(stat(path.c_str(),&st)!=0||!S_ISREG(st.st_mode)||st.st_size<100||st.st_size>1024*1024)continue;
+   if(std::find(out.begin(),out.end(),path)==out.end())out.push_back(path);
+  }
+  closedir(dir);
  }
  return out;
 }
@@ -409,71 +510,206 @@ bool Engine::start(const std::string& path){
  std::thread([this,path]{run(path);}).detach();return true;
 }
 void Engine::run(std::string path){
- auto done=[&](const std::string& status,bool success){{std::lock_guard<std::mutex> g(mutex_);state_.running=false;state_.done=success;state_.status=status;state_.downBps=0;state_.activePeers=0;if(!success)state_.lastError=status;busy_=false;}trace(status);};
- auto cancelled=[&](){std::lock_guard<std::mutex> g(mutex_);return stopRequested_;};
- Meta m;std::string error;if(!metadata(path,m,error)){done(error,false);return;}trace("Metadata OK file="+m.name+" bytes="+std::to_string(m.bytes)+" pieces="+std::to_string(m.pieces.size()/20)+" tracker="+m.announce);
- std::string base;{std::lock_guard<std::mutex> g(mutex_);state_.name=m.name;state_.tracker=m.announce;state_.infoHash=hex((const unsigned char*)m.hash.data(),20);state_.totalBytes=m.bytes;state_.pieceCount=(int)m.pieces.size()/20;state_.verifiedPieces=0;state_.completedBytes=0;state_.loaded=true;base=state_.usb?kUsb:kHome;}
- if(!createDirectories(base)){done("Storage directory unavailable",false);return;}
- const std::string target=base+"/downloads/"+m.name,resume=base+"/cache/"+hex((const unsigned char*)m.hash.data(),20)+".resume";
- FILE* file=fopen(target.c_str(),"r+b");if(!file)file=fopen(target.c_str(),"w+b");if(!file){done("Cannot open destination file errno="+std::to_string(errno),false);return;}trace("Destination: "+target);
- std::vector<bool> verified(m.pieces.size()/20,false);
- // Never trust cached piece flags without verifying the actual data on disk.
- publish("Verifying existing pieces...");
- std::string data;for(size_t i=0;i<verified.size();++i){if(cancelled()){fclose(file);done("Stopped",false);return;}size_t n=pieceSize(m,(uint32_t)i);data.resize(n);if(fseek(file,(long)((uint64_t)i*m.piece),SEEK_SET)==0&&fread(&data[0],1,n,file)==n&&shaPiece(m,(uint32_t)i,data)){verified[i]=true;std::lock_guard<std::mutex> g(mutex_);state_.verifiedPieces++;state_.completedBytes+=n;}}
- if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size()){fclose(file);done("Complete - verified all SHA-1 pieces",true);return;}
- // Initial release uses the supplied HTTP tracker and a limited peer selection.
- std::string peerId="-P5TO11-123456789012";
- int failedRounds=0;while(!cancelled()&&failedRounds<4){
-  publish("Contacting tracker...");
-  uint64_t left=0;for(size_t i=0;i<verified.size();i++)if(!verified[i])left+=pieceSize(m,(uint32_t)i);
-  std::vector<Peer> peers;
-  for(size_t t=0;t<m.trackers.size()&&!cancelled();t++){
-   const std::string& announce=m.trackers[t];
-   publish("Contacting tracker "+std::to_string(t+1)+"/"+std::to_string(m.trackers.size())+"...");
-   if(announce.rfind("udp://",0)==0)peers=udpFallback(m,announce,peerId,left);
-   else peers=tracker(m,announce,peerId,left);
-   if(!peers.empty())break;
+ using Clock=std::chrono::steady_clock;
+ const auto cancelled=[&](){return cancellation_.load();};
+ auto finish=[&](const std::string& status,bool success){
+  {std::lock_guard<std::mutex> g(mutex_);
+   state_.running=false;state_.done=success;state_.status=status;
+   state_.downBps=0;state_.activePeers=0;
+   if(!success)state_.lastError=status;
+   busy_=false;
   }
-  if(peers.empty()&&m.name=="debian-13.7.0-amd64-netinst.iso"&&m.announce.find("bttracker.debian.org")!=std::string::npos&&!cancelled()){
-   publish("Debian tracker empty; trying UDP fallback...");
-   peers=udpFallback(m,"udp://tracker.opentrackr.org:1337/announce",peerId,left);
-  }
-  {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
-  if(peers.empty()){failedRounds++;publish("Trackers returned no peers (see Logs)");std::this_thread::sleep_for(std::chrono::seconds(2));continue;}
-  bool any=false;
-  for(size_t peerIndex=0;peerIndex<peers.size();++peerIndex){
-   const Peer& peer=peers[peerIndex];
-   if(cancelled())break;
-   publish("Connecting to peer "+std::to_string(peerIndex+1)+"/"+std::to_string(peers.size()));
-   int fd=dial(peer.ip,peer.port,4);if(fd<0)continue;
-   char handshake[68]={19};memcpy(handshake+1,"BitTorrent protocol",19);memcpy(handshake+28,m.hash.data(),20);memcpy(handshake+48,peerId.data(),20);
-   char reply[68];bool ok=sendAll(fd,handshake,sizeof(handshake))&&recvAll(fd,reply,sizeof(reply))&&uint8_t(reply[0])==19&&memcmp(reply+1,"BitTorrent protocol",19)==0&&memcmp(reply+28,m.hash.data(),20)==0;
-   if(!ok){trace("Peer handshake FAILED "+peer.ip+":"+std::to_string(peer.port));close(fd);continue;}trace("Peer handshake OK "+peer.ip+":"+std::to_string(peer.port));
-   {std::lock_guard<std::mutex> g(mutex_);state_.activePeers=1;}
-   std::string bitfield;bool peerChoked=true;publish("Downloading verified pieces...");
-   // The peer loop is bounded by socket timeouts and server-provided bitfields.
-   for(size_t i=0;i<verified.size()&&!cancelled();++i){
-    if(verified[i])continue;
-    if(i>0&&!hasPiece(bitfield,(uint32_t)i))continue;
-    std::string piece;auto start=std::chrono::steady_clock::now();
-    if(!grab(fd,m,(uint32_t)i,bitfield,piece,peerChoked,cancellation_)){
-     if(!bitfield.empty()&&!hasPiece(bitfield,(uint32_t)i)&&!cancelled())continue;
-     break;
-    }
-    if(fseek(file,(long)((uint64_t)i*m.piece),SEEK_SET)!=0||fwrite(piece.data(),1,piece.size(),file)!=piece.size()||fflush(file)!=0)break;
-    any=true;verified[i]=true;saveState(resume,verified);trace("Piece "+std::to_string(i)+" verified and saved, bytes="+std::to_string(piece.size()));
-    auto ms=std::max<int64_t>(1,std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count());
-    {std::lock_guard<std::mutex> g(mutex_);state_.verifiedPieces++;state_.completedBytes+=piece.size();state_.transferredBytes+=piece.size();state_.downBps=piece.size()*1000.0/ms;}
-   }
-   close(fd);{std::lock_guard<std::mutex> g(mutex_);state_.activePeers=0;}
-   if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size())break;
-  }
-  if((size_t)std::count(verified.begin(),verified.end(),true)==verified.size())break;
-  if(!any){failedRounds++;trace("No progress in tracker round "+std::to_string(failedRounds));}else failedRounds=0;
+  trace(status);
+ };
+ Meta m;std::string error;
+ if(!metadata(path,m,error)){finish(error,false);return;}
+ trace("Metadata OK file="+m.name+" bytes="+std::to_string(m.bytes)+
+       " pieces="+std::to_string(m.pieces.size()/20)+" trackers="+std::to_string(m.trackers.size()));
+ std::string base;
+ {
+  std::lock_guard<std::mutex> g(mutex_);
+  state_.name=m.name;state_.tracker=m.announce;
+  state_.infoHash=hex((const unsigned char*)m.hash.data(),20);
+  state_.totalBytes=m.bytes;state_.pieceCount=(int)m.pieces.size()/20;
+  state_.verifiedPieces=0;state_.completedBytes=0;state_.transferredBytes=0;
+  state_.peerCount=0;state_.activePeers=0;state_.downBps=0;state_.loaded=true;
+  base=state_.usb?kUsb:kHome;
  }
- fclose(file);bool complete=std::all_of(verified.begin(),verified.end(),[](bool v){return v;});
- if(cancelled())done("Stopped - verified data preserved",false);
- else if(complete)done("Complete - verified all SHA-1 pieces",true);
- else done("No additional pieces available; retry with X",false);
+ if(!createDirectories(base)){finish("Storage directory unavailable",false);return;}
+ const std::string target=base+"/downloads/"+m.name;
+ const std::string resume=base+"/cache/"+hex((const unsigned char*)m.hash.data(),20)+".resume";
+ FILE* initial=fopen(target.c_str(),"r+b");
+ if(!initial)initial=fopen(target.c_str(),"w+b");
+ if(!initial){finish("Cannot open download destination errno="+std::to_string(errno),false);return;}
+ trace("Download destination: "+target);
+ const size_t pieceCount=m.pieces.size()/20;
+ std::vector<uint8_t> states(pieceCount,0); // 0=missing, 1=in flight, 2=verified
+ std::vector<bool> verified(pieceCount,false);
+ publish("Rechecking SHA-1 of stored pieces...");
+ std::string check;
+ for(size_t i=0;i<pieceCount&&!cancelled();i++){
+  const uint32_t n=pieceSize(m,(uint32_t)i);
+  check.resize(n);
+  if(fseeko(initial,(off_t)((uint64_t)i*m.piece),SEEK_SET)==0 &&
+     fread(&check[0],1,n,initial)==n &&
+     shaPiece(m,(uint32_t)i,check)){
+   states[i]=2;verified[i]=true;
+   std::lock_guard<std::mutex> g(mutex_);
+   state_.verifiedPieces++;state_.completedBytes+=n;
+  }
+  if((i%512)==511)trace("Resume verified "+std::to_string(i+1)+"/"+std::to_string(pieceCount)+" pieces scanned");
+  clearerr(initial);
+ }
+ fclose(initial);
+ if(cancelled()){finish("Stopped during resume verification",false);return;}
+ if(std::all_of(states.begin(),states.end(),[](uint8_t n){return n==2;})){
+  finish("Complete - all SHA-1 pieces verified",true);return;
+ }
+ unsigned char randomness[12]={};
+ if(RAND_bytes(randomness,sizeof(randomness))!=1){
+  const auto tick=(uint64_t)Clock::now().time_since_epoch().count();
+  for(size_t i=0;i<sizeof(randomness);i++)randomness[i]=(unsigned char)(tick>>(i%8)*8);
+ }
+ std::string peerId="-TF0200-";
+ for(unsigned char b:randomness)peerId+=(char)('A'+b%26);
+ std::mutex stateGuard;
+ std::mutex metricsGuard;
+ std::atomic<int> completeCount{(int)std::count(states.begin(),states.end(),uint8_t(2))};
+ std::atomic<bool> storageFailure{false};
+ uint64_t sampleBytes=0;
+ auto sampleTime=Clock::now();
+ auto release=[&](uint32_t idx){
+  std::lock_guard<std::mutex> g(stateGuard);
+  if(states[idx]==1)states[idx]=0;
+ };
+ auto reserve=[&](const Session& session)->int{
+  std::lock_guard<std::mutex> g(stateGuard);
+  for(size_t i=0;i<states.size();i++){
+   if(states[i]==0&&hasPiece(session.pieces,(uint32_t)i)){
+    states[i]=1;return (int)i;
+   }
+  }
+  return -1;
+ };
+ int emptyRounds=0,round=0;
+ while(!cancelled()&&!storageFailure.load()&&completeCount.load()<(int)pieceCount&&emptyRounds<5){
+  round++;
+  publish("Discovering peers (round "+std::to_string(round)+")...");
+  uint64_t remaining=0;
+  for(size_t i=0;i<pieceCount;i++)if(states[i]!=2)remaining+=pieceSize(m,(uint32_t)i);
+  std::vector<Peer> peers;
+  for(size_t i=0;i<m.trackers.size()&&!cancelled();i++){
+   const std::string& announce=m.trackers[i];
+   publish("Tracker "+std::to_string(i+1)+"/"+std::to_string(m.trackers.size())+"...");
+   auto found=(announce.rfind("udp://",0)==0)?
+       udpFallback(m,announce,peerId,remaining):tracker(m,announce,peerId,remaining);
+   peers.insert(peers.end(),found.begin(),found.end());
+   if(peers.size()>=80)break;
+  }
+  if(peers.empty()&&m.name=="debian-13.7.0-amd64-netinst.iso"&&!cancelled()){
+   auto fallback=udpFallback(m,"udp://tracker.opentrackr.org:1337/announce",peerId,remaining);
+   peers.insert(peers.end(),fallback.begin(),fallback.end());
+  }
+  // Ignore duplicate tracker results and peers advertising invalid endpoints.
+  std::sort(peers.begin(),peers.end(),[](const Peer& a,const Peer& b){
+   return a.ip==b.ip?a.port<b.port:a.ip<b.ip;
+  });
+  peers.erase(std::unique(peers.begin(),peers.end(),[](const Peer& a,const Peer& b){
+   return a.port==b.port&&a.ip==b.ip;
+  }),peers.end());
+  {std::lock_guard<std::mutex> g(mutex_);state_.peerCount=(int)peers.size();}
+  trace("Discovery round "+std::to_string(round)+": "+std::to_string(peers.size())+" unique peers");
+  if(peers.empty()){
+   emptyRounds++;
+   for(int k=0;k<20&&!cancelled();k++)std::this_thread::sleep_for(std::chrono::milliseconds(100));
+   continue;
+  }
+  const int startPieces=completeCount.load();
+  std::atomic<size_t> nextPeer{0};
+  constexpr int maxWorkers=4;
+  std::vector<std::thread> workers;
+  workers.reserve(maxWorkers);
+  for(int workerId=0;workerId<maxWorkers;workerId++){
+   workers.emplace_back([&,workerId](){
+    FILE* output=fopen(target.c_str(),"r+b");
+    if(!output){
+     storageFailure.store(true);trace("Worker file open FAILED errno="+std::to_string(errno));return;
+    }
+    while(!cancelled()&&!storageFailure.load()&&completeCount.load()<(int)pieceCount){
+     size_t peerIndex=nextPeer.fetch_add(1);
+     if(peerIndex>=peers.size())break;
+     const Peer& p=peers[peerIndex];
+     Session session;
+     session.address=p.ip+":"+std::to_string(p.port);
+     // Keep PS5-compatible BLOCKING sockets; fcntl(O_NONBLOCK) fails with EACCES.
+     session.fd=dial(p.ip,p.port,7);
+     if(session.fd<0)continue;
+     if(!handshake(session,m,peerId)){close(session.fd);continue;}
+     {std::lock_guard<std::mutex> g(mutex_);state_.activePeers++;}
+     trace("Worker "+std::to_string(workerId)+" connected "+session.address);
+     if(awaitPeerReady(session,m,cancellation_)){
+      while(!cancelled()&&!storageFailure.load()&&completeCount.load()<(int)pieceCount){
+       int idx=reserve(session);
+       if(idx<0){
+        trace("Peer has no further needed pieces "+session.address);
+        break;
+       }
+       std::string piece;
+       const auto begun=Clock::now();
+       const bool received=downloadPiece(session,m,(uint32_t)idx,piece,cancellation_);
+       if(!received){release((uint32_t)idx);break;}
+       bool persisted=fseeko(output,(off_t)((uint64_t)idx*m.piece),SEEK_SET)==0 &&
+           fwrite(piece.data(),1,piece.size(),output)==piece.size() && fflush(output)==0;
+       if(!persisted){
+        trace("STORAGE WRITE FAILURE piece="+std::to_string(idx)+" errno="+std::to_string(errno));
+        release((uint32_t)idx);storageFailure.store(true);break;
+       }
+       {
+        std::lock_guard<std::mutex> g(stateGuard);
+        verified[(size_t)idx]=true;
+        states[(size_t)idx]=2;  // Mark verified only AFTER persistent file write.
+        saveState(resume,verified);
+       }
+       completeCount.fetch_add(1);
+       {std::lock_guard<std::mutex> g(mutex_);
+        state_.verifiedPieces++;state_.completedBytes+=piece.size();
+        state_.transferredBytes+=piece.size();
+        state_.status="Downloading: "+std::to_string(completeCount.load())+"/"+std::to_string(pieceCount)+" pieces";
+       }
+       {
+        std::lock_guard<std::mutex> g(metricsGuard);
+        sampleBytes+=piece.size();
+        const auto now=Clock::now();
+        double elapsed=std::chrono::duration<double>(now-sampleTime).count();
+        if(elapsed>=1.0){
+         const double instant=sampleBytes/elapsed;
+         std::lock_guard<std::mutex> g2(mutex_);
+         state_.downBps=state_.downBps>0?state_.downBps*0.6+instant*0.4:instant;
+         sampleBytes=0;sampleTime=now;
+        }
+       }
+       if((idx%16)==0||completeCount.load()==(int)pieceCount)
+        trace("SHA1 verified piece="+std::to_string(idx)+" total="+std::to_string(completeCount.load())+"/"+std::to_string(pieceCount));
+       (void)begun;
+      }
+     }else trace("Peer did not become ready "+session.address);
+     close(session.fd);
+     {std::lock_guard<std::mutex> g(mutex_);state_.activePeers--;}
+    }
+    fclose(output);
+   });
+  }
+  for(auto& worker:workers)worker.join();
+  if(completeCount.load()>startPieces){emptyRounds=0;trace("Round "+std::to_string(round)+" advanced "+std::to_string(completeCount.load()-startPieces)+" pieces");}
+  else{emptyRounds++;trace("No verified pieces in round "+std::to_string(round));}
+  if(!cancelled()&&completeCount.load()<(int)pieceCount){
+   publish("Refreshing tracker; verified data retained");
+   for(int i=0;i<10&&!cancelled();i++)std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+ }
+ if(cancelled())finish("Stopped - verified pieces safely kept",false);
+ else if(storageFailure.load())finish("Disk write error; see Logs",false);
+ else if(completeCount.load()==(int)pieceCount)finish("Complete - all SHA-1 pieces verified",true);
+ else finish("Stalled: no verified data from peers; check Logs and retry",false);
 }
 }

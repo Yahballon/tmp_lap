@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.1.4 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.2.0 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -16,7 +16,9 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Internal PS5 and optional USB0 root selection; idle-only switching.
 - **Six bundled legal Linux torrents:** the original Debian 13.7.0 netinst plus five additional official Ubuntu and Linux Mint releases. GitHub Actions validates each bencoded single-file torrent's piece hashes, file length, and expected ISO name; the Debian metadata SHA-256 is pinned.
 - The library displays readable titles and approximate ISO sizes, with D-Pad selection and X to download the chosen torrent.
-- Live transferred bytes, downloaded speed estimate, piece progress, tracker and peer counts.
+- Four concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
+- Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
+- Import additional safe single-file BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
 
 ## Bundled test torrents
 
@@ -31,6 +33,12 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 
 Only .torrent metadata files are packaged. The ISO files themselves are downloaded over BitTorrent upon selection. Tracker/peer connectivity remains hardware-untested.
 
+## Transfer engine v0.2.0
+
+A new stateful wire-protocol engine fixes the common issue where peers shake hands successfully but no useful pieces are requested. It sends INTERESTED once, processes BITFIELD/HAVE/UNCHOKE, reserves only pieces the peer actually advertises, pipelines up to eight 16 KiB requests per piece, verifies each SHA-1 digest and persists it before advancing progress. Four workers schedule distinct pieces in parallel, with bounded timeouts and retry rounds. A duplicate/invalid peer can't mark a piece completed.
+
+GitHub Actions now runs an **actual host-side C++ engine integration test**, using two localhost peers holding different pieces of the same ISO fixture, plus a tracker, corrupted-disk repair and verified resume.
+
 ## PS5 TCP connectivity fix (v0.1.3)
 
 The prior versions used `fcntl(fd, F_SETFL, flags | O_NONBLOCK)`. Real PS5 logs showed this returned **EACCES / errno=13 for every single peer**, preventing any download. Torrent Flow now uses normal blocking TCP sockets with SO_SNDTIMEO and SO_RCVTIMEO set before connecting, matching the known working PS5 WWW Speedtest client. This avoids the forbidden `fcntl` path while preserving connection failure logs and verified torrent pieces.
@@ -40,7 +48,7 @@ The provided PS5 log confirmed that the Debian UDP tracker returned 64 peers, pr
 ## Important known limitations
 
 - Single-file BitTorrent v1 only. No multi-file torrents, magnet links, DHT, PEX, or peer encryption. HTTP/HTTPS/UDP trackers are supported; only IPv4 peers are used.
-- Single peer connection at a time; transfer throughput and swarm availability may be limited.
+- Maximum four parallel peer connections. Peer discovery still relies on torrent trackers, so DHT-only swarms remain unsupported.
 - Incoming connections, true seeding, upload speeds, pause/resume while open, and arbitrary torrent picker are not supported in the first build. SQUARE cancels the transfer and verified data remains on disk.
 - Peer logic now respects CHOKE/UNCHOKE and requests pieces in a bounded pipeline; peer compatibility and complete download on an actual PS5 remain **unverified**.
 - HTTP trackers transmit announce metadata unencrypted; only transfer legal, trusted content.
@@ -66,7 +74,7 @@ USB0:
 - Cache: /mnt/usb0/ps5-torrent/cache
 - Downloads: /mnt/usb0/ps5-torrent/downloads
 
-The six .torrent fixtures ship under assets/test and are selected with the controller; no typing or manual USB import is required.
+The six .torrent fixtures ship under assets/test and are selected with the controller. Advanced users may import other v1 single-file .torrent files via the cache folders; multi-file and magnet metadata are not supported.
 
 ## Controller
 
@@ -87,7 +95,7 @@ The independent GitHub Actions workflow is stored at [build-ps5-torrent.yml](../
 
 Source files: native/main.cpp (UI), native/torrent_engine.cpp/.hpp (protocol engine).
 
-The release workflow runs only on a successful push build to main. PR builds upload test artifacts but do not publish releases. Extract the generated PPSA99684.zip into /data/homebrew/ so /data/homebrew/PPSA99684/eboot.bin exists.
+Both host integration tests and PS5 compilation/package checks must succeed before the release workflow runs. The release workflow runs only on a successful push build to main. PR builds upload test artifacts but do not publish releases. Extract the generated PPSA99684.zip into /data/homebrew/ so /data/homebrew/PPSA99684/eboot.bin exists.
 
 GPL-3.0-or-later; no BitFiend source code copied.
 
