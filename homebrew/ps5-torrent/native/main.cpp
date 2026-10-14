@@ -56,7 +56,9 @@ int main(){
  torrent::DownloadManager manager;
  int page=0,librarySelected=0,downloadSelected=0,settingSelected=0;
  unsigned previous=0;
- std::string notice="Ready. Add torrents from Library or enable Auto Download.";
+ std::string notice=manager.isRecoveryMode()? 
+     "RECOVERY MODE: previous download crash. Open Downloads and press X to resume.":
+     "Ready. Add torrents from Library or enable Auto Download.";
  auto library=torrent::discoverTorrents();
  const char* tabs[]={"Dashboard","Torrent Library","Downloads","Settings","Logs","About"};
  const char* sub[]={"Queue overview","All available torrents","All download jobs","Automatic downloads","Live diagnostics","Engine information"};
@@ -118,16 +120,25 @@ int main(){
   }
   if(pressed&hui::pad_bits::kCross){
    if(page==0){
-    if(library.empty())notice="No torrent files available";
+    if(manager.isRecoveryMode()){
+     manager.resumeAfterRecovery();
+     notice="Recovery cleared. Pending downloads may resume now.";
+    }
+    else if(library.empty())notice="No torrent files available";
     else{std::string err;if(manager.enqueue(library[0],&err))notice="Ubuntu Desktop queued";else notice=err;}
    }else if(page==1&&!library.empty()){
     std::string err;
     if(manager.enqueue(library[(size_t)librarySelected],&err))
      notice="Added to Downloads: "+torrent::testDisplayName(library[(size_t)librarySelected]);
     else notice=err;
-   }else if(page==2&&!jobs.empty()){
-    manager.retry((size_t)downloadSelected);
-    notice="Retry requested (failed/cancelled jobs only)";
+   }else if(page==2){
+    if(manager.isRecoveryMode()){
+     manager.resumeAfterRecovery();
+     notice="Crash recovery acknowledged; pending downloads enabled.";
+    }else if(!jobs.empty()){
+     manager.retry((size_t)downloadSelected);
+     notice="Retry requested (failed/cancelled jobs only)";
+    }
    }else if(page==3){
     if(settingSelected==0)manager.setAutoDownload(!settings.autoDownload);
     if(settingSelected==1)manager.setMaxActive(settings.maxActive>=3?1:settings.maxActive+1);
@@ -154,7 +165,7 @@ int main(){
   d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",462,55,21,mint);
-  text(d,font,atlas,"v0.4.1",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.4.2",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<6;i++){
    float y=144+i*106;card(d,43,y,302,91,page==i);
@@ -190,7 +201,7 @@ int main(){
    }
    text(d,font,atlas,"QUICK ACTIONS",1420,612,22,mint);
    text(d,font,atlas,"R1  Library / Downloads",1420,684,21);
-   text(d,font,atlas,"X   Queue Ubuntu test",1420,742,21);
+   text(d,font,atlas,manager.isRecoveryMode()?"X   Resume paused queue":"X   Queue Ubuntu test",1420,742,21);
    text(d,font,atlas,"SQUARE  Stop all active",1420,800,21);
    text(d,font,atlas,"Auto: "+std::string(settings.autoDownload?"Enabled":"Disabled"),1420,870,22,settings.autoDownload?mint:gold);
    text(d,font,atlas,"Settings saved automatically",1420,923,17,muted);
@@ -198,7 +209,7 @@ int main(){
    const bool downloads=page==2;
    card(d,386,125,1496,865);
    text(d,font,atlas,downloads?"ALL DOWNLOADS":"TORRENT LIBRARY",423,198,41);
-   text(d,font,atlas,downloads?"X Retry failed  |  SQUARE Cancel selected  |  D-Pad Select":
+   text(d,font,atlas,downloads?(manager.isRecoveryMode()?"RECOVERY: Press X to resume pending jobs | SQUARE Cancel selected":"X Retry failed  |  SQUARE Cancel selected  |  D-Pad Select"):
         "X Queue selected  |  SQUARE Download All  |  TRIANGLE Refresh",424,253,21,muted);
    const size_t count=downloads?jobs.size():library.size();
    const int selected=downloads?downloadSelected:librarySelected;
@@ -256,7 +267,7 @@ int main(){
    card(d,386,125,1496,866);
    text(d,font,atlas,"ABOUT TORRENT FLOW",429,213,43);
    const char* lines[]={
-    "v0.4.1 / PPSA99684  |  BitTorrent v1 / Multi-file support",
+    "v0.4.2 / PPSA99684  |  BitTorrent v1 / Multi-file support",
     "Multi-download queue with independent cancel per torrent",
     "Persistent queue stored in /data/ps5-torrent/cache/queue.db",
     "Automatic folder: /data/ps5-torrent/torrents",
