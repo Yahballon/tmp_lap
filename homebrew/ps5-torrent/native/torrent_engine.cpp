@@ -185,19 +185,62 @@ bool sendMsg(int fd,uint8_t id,const std::string& body={}){std::string b(5+body.
 uint32_t pieceSize(const Meta& m,uint32_t index){uint64_t remain=m.bytes-(uint64_t)index*m.piece;return(uint32_t)std::min<uint64_t>(m.piece,remain);}
 bool shaPiece(const Meta& m,uint32_t index,const std::string& bytes){unsigned char digest[20];SHA1((const unsigned char*)bytes.data(),bytes.size(),digest);return memcmp(digest,m.pieces.data()+index*20,20)==0;}
 bool hasPiece(const std::string& bits,uint32_t index){return index/8<bits.size()&&(uint8_t(bits[index/8])&(0x80>>(index%8)));}
-bool grab(int fd,const Meta& m,uint32_t idx,std::string& bits,std::string& output,std::atomic<bool>& cancelled){
- const uint32_t n=pieceSize(m,idx);output.assign(n,0);std::vector<bool> got((n+16383)/16384,false);
- int requested=0,finished=0,idle=0;bool interested=false;
- while(!cancelled&&idle++<120){
-  if(!interested){if(!sendMsg(fd,2))return false;interested=true;}
-  if(hasPiece(bits,idx)&&requested==0){for(uint32_t offset=0;offset<n;offset+=16384){uint32_t len=std::min<uint32_t>(16384,n-offset);std::string req(12,0);store32(&req[0],idx);store32(&req[4],offset);store32(&req[8],len);if(!sendMsg(fd,6,req))return false;requested++;}}
-  uint32_t len=0;char head[4];if(!recvAll(fd,head,4))return false;len=be32(head);if(len>1024*1024)return false;if(!len)continue;
-  std::string msg(len,0);if(!recvAll(fd,&msg[0],len))return false;uint8_t id=uint8_t(msg[0]);
-  if(id==5){bits=msg.substr(1);idle=0;}
-  if(id==4&&len==5){uint32_t have=be32(msg.data()+1);if(have/8>=bits.size())bits.resize(have/8+1,0);bits[have/8]|=(char)(0x80>>(have%8));idle=0;}
-  if(id==7&&len>=9&&be32(msg.data()+1)==idx){uint32_t begin=be32(msg.data()+5);uint32_t count=len-9;if(begin<n&&count<=n-begin&&begin%16384==0&&count<=16384){memcpy(&output[begin],msg.data()+9,count);int block=begin/16384;if(!got[block]){got[block]=true;finished++;}idle=0;}}
-  if(requested&&finished==requested)return shaPiece(m,idx,output);
+bool grab(int fd,const Meta& m,uint32_t idx,std::string& bits,std::string& output,bool& choked,std::atomic<bool>& cancelled){
+ const uint32_t n=pieceSize(m,idx);
+ output.assign(n,0);
+ const size_t blocks=(n+16383)/16384;
+ std::vector<bool> got(blocks,false),requested(blocks,false);
+ size_t finished=0;
+ int outstanding=0,events=0;
+ if(!sendMsg(fd,2)){trace("Peer: interested send FAILED");return false;}
+ while(!cancelled.load()&&events++<256){
+  if(!bits.empty()&&!hasPiece(bits,idx)){
+   trace("Peer lacks piece "+std::to_string(idx)+"; switching to next available piece");
+   return false;
+  }
+  if(!choked&&hasPiece(bits,idx)){
+   for(size_t block=0;block<blocks&&outstanding<4;block++){
+    if(requested[block]||got[block])continue;
+    uint32_t offset=(uint32_t)block*16384;
+    uint32_t len=std::min<uint32_t>(16384,n-offset);
+    std::string req(12,0);store32(&req[0],idx);store32(&req[4],offset);store32(&req[8],len);
+    if(!sendMsg(fd,6,req)){trace("Peer request send FAILED piece="+std::to_string(idx));return false;}
+    requested[block]=true;outstanding++;
+   }
+  }
+  char header[4];
+  if(!recvAll(fd,header,4)){
+   trace("Peer read timeout/disconnected piece="+std::to_string(idx)+" errno="+std::to_string(errno));
+   return false;
+  }
+  uint32_t len=be32(header);
+  if(len>1024*1024){trace("Peer frame exceeds size limit");return false;}
+  if(len==0)continue;
+  std::string msg(len,0);
+  if(!recvAll(fd,&msg[0],len)){trace("Peer truncated frame piece="+std::to_string(idx));return false;}
+  uint8_t id=uint8_t(msg[0]);
+  if(id==0){choked=true;outstanding=0;for(size_t k=0;k<blocks;k++)if(!got[k])requested[k]=false;trace("Peer CHOKED");}
+  else if(id==1){choked=false;trace("Peer UNCHOKED");}
+  else if(id==5){bits=msg.substr(1);trace("Peer bitfield: "+std::to_string(bits.size())+" bytes");}
+  else if(id==4&&len==5){uint32_t have=be32(msg.data()+1);if(have<(uint32_t)m.pieces.size()/20){if(have/8>=bits.size())bits.resize(have/8+1,0);bits[have/8]|=(char)(0x80>>(have%8));}}
+  else if(id==7&&len>=9&&be32(msg.data()+1)==idx){
+   uint32_t begin=be32(msg.data()+5),count=len-9;
+   if(begin<n&&count<=n-begin&&begin%16384==0&&count==std::min<uint32_t>(16384,n-begin)){
+    size_t b=begin/16384;
+    if(!got[b]){
+     memcpy(&output[begin],msg.data()+9,count);
+     got[b]=true;finished++;
+     if(outstanding>0)outstanding--;
+    }
+   }
+   if(finished==blocks){
+    if(shaPiece(m,idx,output))return true;
+    trace("SHA-1 piece verification FAILED at "+std::to_string(idx));
+    return false;
+   }
+  }
  }
+ trace(cancelled.load()?"Piece transfer cancelled":"Peer frame limit exceeded / unresponsive");
  return false;
 }
 void saveState(const std::string& p,const std::vector<bool>& verified){std::string temp=p+".tmp";FILE* f=fopen(temp.c_str(),"wb");if(!f)return;for(bool b:verified)fputc(b?'1':'0',f);if(fclose(f)!=0){remove(temp.c_str());return;}rename(temp.c_str(),p.c_str());}
