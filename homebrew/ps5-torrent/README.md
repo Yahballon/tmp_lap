@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.4.1 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.4.2 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -19,6 +19,16 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
 - Import additional safe BitTorrent v1 metadata by copying `.torrent` files to `/data/ps5-torrent/cache` or `/mnt/usb0/ps5-torrent/cache` (then Triangle to refresh).
+
+## PS5 illegal syscall and crash-loop hotfix (v0.4.2)
+
+Real PS5 testing of v0.4.1 produced `SYSTEM_ILLEGAL_FUNCTION_CALL` immediately after printing `Metadata OK`. Its storage validator attempted unsupported `lstat()` / `readlink()` syscalls on PS5. Unlike a regular `errno`, a kernel illegal-syscall trap can terminate the entire process without adding a normal error log line.
+
+The native PS5 code path **no longer calls lstat/readlink or uses O_NOFOLLOW**. It uses the earlier proven `stat` / `mkdir` / ordinary `open` APIs, plus strict torrent metadata path-component, size and duplicate-path validation. The host build retains strict symlink tests. Because the PS5 does not offer a verified no-follow syscall in this build, **do not manually create symbolic links inside `/data/ps5-torrent/downloads`**; output symlink protection is weaker on PS5 until a supported native API is established. There is no silent claim of equivalent security.
+
+A persistent crash-recovery marker (`/data/ps5-torrent/cache/recovery.hold`) suspends automatic queue launches after an interrupted session or when upgrading old queued jobs without a clean-exit marker. On the Downloads tab press **X** to explicitly unlock and resume the queue. Crash recovery survives a normal exit until the user resumes; existing verified data and queue entries are preserved. The log now identifies each filesystem stage before entering it.
+
+CI compiles the native file-storage branch through the preprocessor to confirm that no `lstat`, `readlink` or `O_NOFOLLOW` calls remain, exercises a simulated process crash and recovery, and reruns single-file, multi-file, queue and PS5 build tests. The fix cannot be fully validated without a real PS5 test.
 
 ## PS5 storage + networking regression fix (v0.4.1)
 
