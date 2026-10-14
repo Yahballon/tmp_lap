@@ -1,28 +1,43 @@
-# Ebook Reader v0.1.2
-Native PS5 bookshelf inspired by the uploaded wooden-themed React eBook Reader, built on blackbearreloaded/ps5-homebrew-ui.
+# Ebook Reader v0.1.3 — USB bridge support
+
+Native PS5 EPUB/PDF text reader. Title ID: `PPSA99741`.
+
+## What's new
+
+The ebook reader now uses the **same working USB access pattern as Payload LauncherX**. When the PS5 app sandbox denies `/mnt/usb0/Books` with `Operation not permitted`, it launches the bundled read-only `bookscan.elf` through an already-running compatible `elfldr` on loopback TCP port **9021**. The helper runs separately, scans books on USB and exposes a restricted catalogue/selected-file transfer service to the reader on loopback TCP port **9175**.
+
+The application does **not** change the reader process's privileges, patch the kernel, or write to USB storage. Helper requests are limited to regular EPUB/PDF files (128 MiB max each) underneath the configured USB Books folder; symlinks and traversal are rejected.
+
+## USB books
+
+1. Put your ebook files under `/mnt/usb0/Books/`, including nested author subfolders.
+2. Have a compatible PS5 `elfldr` already running on `127.0.0.1:9021`, just as with Payload LauncherX.
+3. Install the complete PS5 folder including `bookscan.elf`. The file must sit alongside `eboot.bin`.
+4. Start Ebook Reader. On startup it loads its local library and requests the USB catalogue through the helper. Press **OPTIONS** to rescan after adding books. Books detected via the helper appear in the normal bookshelf.
+5. Press **X** on a USB book. The app downloads that one file over the local bridge to its own writable cache under `/download0/ebook-reader-cache` (or the data-library cache fallback), then reads it. **The original USB file remains untouched.**
+
+The **TRIANGLE** storage panel still displays direct sandbox paths for diagnostics. An EPERM result for those paths can coexist with a functioning separate USB helper. The helper status is displayed independently at the bottom.
+
+## Alternative file storage
+
+For environments without elfldr, add legally obtained EPUB/PDF files to the installed `/data/homebrew/PPSA99741/assets/Books/` directory through an authorized PS5 FTP/file manager, then rescan. The app also checks `/download0/Books` and `/download0/ebooks` where available. Preserve your personal books and saved data when updating the app.
 
 ## Features
-- Wooden shelf with book tiles, list mode, collections and favourites.
-- Recursive local/USB library scanning, including /mnt/usb0/Books and its nested subfolders. Case-insensitive .EPUB/.PDF suffixes and fallback readable-file checks for USB filesystem stat quirks.
-- USB path diagnostics in the Import view, showing accessible/unavailable mounts and detected books. Use Triangle to refresh while viewing USB paths.
-- Direct reading from USB or optional copying to /data/ebooks.
-- EPUB chapter order, XHTML text reflow, two-column reading.
-- PDF plain extractable-text preview, not a PDF graphics engine.
-- Saved favourites, reading progress, and metadata with atomic file replacement.
 
-## DualSense
-D-pad navigates; Cross opens/next page; Circle back/exit; L1/R1 switches library collection or reader page; L2/R2 jumps 10 pages in reader; R2 toggles list/grid in library; Square favourites in library and last page in reader; Triangle imports via USB or jumps to first page; Options rescans library; L3 asks to delete a locally imported file.
+- Wood-themed native TV bookshelf, collection tabs, list/grid mode and DualSense controls
+- Native EPUB chapter text extraction and simple PDF extractable-text preview
+- Favourite books, persisted reading progress, local file import and storage diagnostics
+- Separate, bounded, read-only USB helper modelled on Payload LauncherX
+- Full GitHub Actions executable/package tests, versioned release and TESTBUILDS catalog entry
 
-## Files and limitations
-Put .epub or .pdf books in /data/ebooks, or /mnt/usb0/Books (including author subdirectories). Press Triangle to display USB path diagnostics or Options to rescan the whole library. Import copies the source to /data/ebooks. 128 MiB file cap and 12 MiB single decompressed EPUB entry cap. DRM, scanned PDFs, EPUB graphics, complex EPUB formatting, embedded PDF font encoding, and full PDF rendering are not supported. The EPUB reflow is text-only. This is a native reimplementation, NOT a pixel-exact 1:1 browser port. On-device PS5 testing is outstanding.
+## Known limitations
 
-## Build and install
-The dedicated build-ebook-reader.yml workflow uses PS5-DevBridge, zlib and a PS5 OpenGL SDK. After a successful verified main-branch build, the ZIP should be published under tag ebook-reader-v0.1.2. Download PPSA99741.zip, extract PPSA99741 to /data/homebrew and register with a compatible PS5 homebrew launcher.
+Requires a compatible already-running elfldr for accessing an inaccessible USB mount. The USB helper runs outside the reader sandbox, so only use a trusted loader/runtime. Firmware-specific helper execution must be tested on the real console: passing CI alone is not hardware confirmation. DRM and EPUB imagery/CSS are unsupported; PDF is text preview only. Readable book file limit: 128 MiB. FTP fallback requires an authorized file manager.
 
-Source license: GPL-3.0-or-later. Respect dependency licenses.
+## Building
 
-## USB troubleshooting
-On the library screen press **Triangle**, then check **USB PATH STATUS**. A path reading `ERROR: No such file or directory` means it is not visible from this app runtime; try a different USB mount / reconnect the drive and press Triangle again. `0 books, N files` means the folder opened but no supported EPUB/PDF was accepted at that level. Maximum single file: 128 MiB. The scanner reads files directly on the USB; import is optional.
+Dedicated workflow: [build-ebook-reader.yml](../../.github/workflows/build-ebook-reader.yml). Uses PS5-DevBridge, OpenGL SDK, zlib and its native payload SDK to compile `bookscan.elf`; both `eboot.bin` and `bookscan.elf` are verified in the installable `PPSA99741.zip`.
 
-## Sandboxed USB drives
-A PS5 loader may deny direct `/mnt/usb0` access with `EPERM (Operation not permitted)`. The v0.1.2 app provides an app-local alternative: place `.epub` or `.pdf` books using your FTP/file manager into `/data/homebrew/PPSA99741/assets/Books/`. In the app this is `/app0/assets/Books/`. Restart Ebook Reader, then press OPTIONS to rescan. Book files are not included in the release; do not delete your personal books during upgrades. The app also scans `/download0/Books` and `/download0/ebooks` where available. This release does not bypass PS5 filesystem permissions.
+Release tag: `ebook-reader-v0.1.3`.
+
+Source license: GPL-3.0-or-later, respecting dependency licenses.
