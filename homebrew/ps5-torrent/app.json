@@ -1,13 +1,14 @@
 {
   "name": "Torrent Flow",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "titleId": "PPSA99684",
   "contentId": "UP9000-PPSA99684_00-TORRENTFLOW00000",
   "slug": "ps5-torrent",
   "author": "YAHBALLON",
   "storage": {
     "cache": "/data/ps5-torrent/cache",
-    "downloads": "/data/ps5-torrent/downloads"
+    "downloads": "/data/ps5-torrent/downloads",
+    "logs": "/data/ps5-torrent/logs"
   },
   "license": "GPL-3.0-or-later"
 }
