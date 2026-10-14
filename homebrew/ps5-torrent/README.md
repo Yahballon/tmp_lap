@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.1.3 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.1.4 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -48,10 +48,10 @@ The provided PS5 log confirmed that the Debian UDP tracker returned 64 peers, pr
 
 ## Diagnostic logs
 
-- Primary log folder: `/data/homebrew/PPSA99684/logs/`
-- Active log: `/data/homebrew/PPSA99684/logs/torrent.log`
-- Rotated log: `torrent.log.old.log` (after about 1 MiB)
-- If the installed app folder is not writable, fallback: `/data/ps5-torrent/logs/torrent.log`
+- **Fixed log folder:** `/data/ps5-torrent/logs/`
+- **Active log:** `/data/ps5-torrent/logs/torrent.log`
+- **Rotated log:** `/data/ps5-torrent/logs/torrent.log.old.log` (after about 1 MiB)
+- Logs are never written to the installed app folder (`/data/homebrew/PPSA99684/logs/`). Old logs from prior versions remain untouched and are not migrated.
 - The **Logs** tab shows the exact active log path and most recent log lines.
 - Logs include network addresses and should be reviewed/redacted before publishing publicly.
 - Statuses include DNS errors, tracker responses, socket timeouts, peer handshakes, and piece hash checks.
