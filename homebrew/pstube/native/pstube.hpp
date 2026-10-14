@@ -32,6 +32,7 @@ class Service {
  Snapshot state_;
  bool persist() const;
 };
+void queue_thumbnails(const std::vector<Video>& videos);
 bool valid_id(const std::string&);
 std::vector<Video> parse_search(const std::string&);
 std::string json_string(const std::string&,const std::string&);
