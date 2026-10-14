@@ -92,10 +92,10 @@ inline const char* path(const char* relative) {
     static char slots[32][1024];
     static unsigned index = 0;
     const unsigned slot = (index++) % 32;
-    // Sprite art alone may be external. Fonts/maps/audio always use the verified
-    // package root, so a partial HD skin cannot break scene loading.
-    const char* base = (relative && std::strncmp(relative,"res/sprites/",12)==0
-                        && hd_enabled()) ? hd_root() : root();
+    // Since v0.1.14 all HD sprites are bundled IN the tested package.
+    // Never let an outdated optional USB/HD art folder shadow the assets
+    // built into PPSA99642. This makes upgrades reliable through TESTBUILDS.
+    const char* base = root();
     std::snprintf(slots[slot], sizeof(slots[slot]), "%s%s", base, relative);
     return slots[slot];
 }

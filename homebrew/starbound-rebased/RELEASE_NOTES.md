@@ -22,3 +22,12 @@ The native PS5 resource resolver now accepts a complete **separate original-art 
 
 This release **actually contains** the six new original PNG graphics as part of the installable `PPSA99642.zip`. Previous v0.1.13 had only an optional loader and silently fell back to the old art.
 The installed player, enemy, tiles, pink/cyan logo and app icon are from the provided artwork. The sky renders by default when the image loads. The build copies sprites after any legacy atlas generator and checks all six PNGs byte-for-byte inside the ZIP. Preserves fixed sprite atlas dimensions, World1-1 level CSV, controller and PS5 diagnostics. Experimental; verify menu/world/characters against screenshots on console.
+
+## v0.1.15 — PS5 Screenshot Alignment Fix
+
+- Corrected the 16px engine frame Y offset for HD player animation atlas: source (1,9) now maps to (2,18) as required by Gold872 (previous v0.1.14 was offset by 16 HD pixels per row).
+- Aligned all enemy frames to the source atlas origin; composed tall armored enemies across contiguous 2x height, restored slime animations for enemies 70/71 in World1-1.
+- Reduced landscape clutter and cloud/HUD overlap; dark blue HUD backdrop and scenery behind the game.
+- Ground ID 384 now renders as solid pink crystalline rock; no grass texture in every stacked layer. Stone obstacle ID 289 draws a matching pink tile.
+- Bundled resources now take priority over outdated external USB override packs.
+- CI requires correct sprite source-frame coverage and embedded image byte-for-byte consistency before the automated GitHub release.
