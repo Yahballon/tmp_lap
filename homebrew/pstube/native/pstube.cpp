@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <dirent.h>
+#include <atomic>
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
