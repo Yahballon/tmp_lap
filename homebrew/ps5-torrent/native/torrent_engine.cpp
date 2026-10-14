@@ -3,6 +3,10 @@
 // HTTP tracker + IPv4 TCP peers. The SHA-1 hash is required by the protocol.
 #include "torrent_engine.hpp"
 #include <openssl/sha.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include "ca_bundle.inc"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -87,7 +91,7 @@ bool parse(const std::string& s,size_t& pos,B& out,int depth=0){
 }
 std::string hex(const unsigned char* p,size_t n){static const char* digits="0123456789abcdef";std::string v;for(size_t i=0;i<n;i++){v+=digits[p[i]>>4];v+=digits[p[i]&15];}return v;}
 std::string enc(const unsigned char* p,size_t n){static const char* digits="0123456789ABCDEF";std::string v;for(size_t i=0;i<n;i++){unsigned char c=p[i];if((c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='-'||c=='_'||c=='.'||c=='~')v+=char(c);else{v+='%';v+=digits[c>>4];v+=digits[c&15];}}return v;}
-struct Meta {std::string name,announce,hash,pieces;uint64_t bytes=0;uint32_t piece=0;};
+struct Meta {std::string name,announce,hash,pieces;std::vector<std::string> trackers;uint64_t bytes=0;uint32_t piece=0;};
 bool metadata(const std::string& path,Meta& m,std::string& error){
  std::string raw;if(!readAll(path,raw)){error="Cannot read .torrent metadata";return false;}
  B root;size_t pos=0;if(!parse(raw,pos,root)||pos!=raw.size()||root.type!='d'){error="Invalid bencoded torrent";return false;}
@@ -99,12 +103,35 @@ bool metadata(const std::string& path,Meta& m,std::string& error){
  if(info.type!='d'||info.get("files").type=='l'){error="Only single-file v1 torrents supported";return false;}
  if(m.name.empty()||m.name=="."||m.name==".."||m.name.find('/')!=std::string::npos||m.name.find('\\')!=std::string::npos||m.name.find("..")!=std::string::npos||m.name.find('\0')!=std::string::npos||m.name.size()>180){error="Unsafe torrent filename";return false;}
  if(!m.bytes||m.bytes>16ULL*1024*1024*1024||m.piece<16384||m.piece>4*1024*1024||m.pieces.size()%20||m.pieces.size()/20!=(m.bytes+m.piece-1)/m.piece){error="Invalid torrent size or piece hashes";return false;}
- if(m.announce.rfind("http://",0)!=0){error="Torrent needs an HTTP tracker (HTTPS/UDP unsupported in v0.1)";return false;}
+ auto addTracker=[&](const std::string& url){
+  if((url.rfind("http://",0)==0||url.rfind("https://",0)==0||url.rfind("udp://",0)==0)&&url.size()<1000&&
+     std::find(m.trackers.begin(),m.trackers.end(),url)==m.trackers.end()&&m.trackers.size()<12)m.trackers.push_back(url);
+ };
+ addTracker(m.announce);
+ const B& tiers=root.get("announce-list");
+ if(tiers.type=='l')for(const auto& tier:tiers.list){
+  if(tier.type!='l')continue;
+  for(const auto& value:tier.list)if(value.type=='s')addTracker(value.v);
+ }
+ if(m.trackers.empty()){error="No supported HTTP, HTTPS or UDP tracker in metadata";return false;}
  unsigned char digest[20];SHA1((const unsigned char*)raw.data()+info.start,info.end-info.start,digest);m.hash.assign((char*)digest,20);return true;
 }
-struct Url{std::string host,path;int port=80;};
+struct Url{std::string host,path;int port=80;bool tls=false;};
 bool url(const std::string& input,Url& out){
- if(input.rfind("http://",0)!=0)return false;std::string rem=input.substr(7);size_t slash=rem.find('/');std::string authority=rem.substr(0,slash);out.path=slash==std::string::npos?"/":rem.substr(slash);size_t colon=authority.find(':');out.host=authority.substr(0,colon);if(colon!=std::string::npos){std::string port=authority.substr(colon+1);if(port.empty()||port.size()>5||port.find_first_not_of("0123456789")!=std::string::npos)return false;out.port=atoi(port.c_str());}
+ size_t prefix=0;
+ if(input.rfind("https://",0)==0){prefix=8;out.tls=true;out.port=443;}
+ else if(input.rfind("http://",0)==0){prefix=7;out.tls=false;out.port=80;}
+ else return false;
+ const std::string rem=input.substr(prefix);
+ size_t slash=rem.find('/');const std::string authority=rem.substr(0,slash);
+ out.path=slash==std::string::npos?"/":rem.substr(slash);
+ size_t colon=authority.rfind(':');
+ out.host=authority.substr(0,colon);
+ if(colon!=std::string::npos){
+  const std::string port=authority.substr(colon+1);
+  if(port.empty()||port.size()>5||port.find_first_not_of("0123456789")!=std::string::npos)return false;
+  out.port=atoi(port.c_str());
+ }
  return !out.host.empty()&&out.host.size()<200&&out.port>0&&out.port<=65535&&out.path.size()<2000;
 }
 int dial(const std::string& host,int port,int seconds){
