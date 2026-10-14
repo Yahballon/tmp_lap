@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "8ed37050d39f04b4e1e84c8c1bf71a53dfaf019d6d3ff9fa515205e8cbe1f36a",
+  "version": "e369b8edf579b72fe9a814daa99fea32d07e684aa44090827ba7970310b7fafb",
   "repository": "Yahballon/tmp_lap",
   "app_count": 6,
   "apps": [
@@ -60,14 +60,14 @@
       "name": "Torrent Flow",
       "slug": "ps5-torrent",
       "title_id": "PPSA99684",
-      "version": "0.2.1",
-      "tag": "ps5-torrent-v0.2.1",
+      "version": "0.3.0",
+      "tag": "ps5-torrent-v0.3.0",
       "zip_name": "PPSA99684.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-torrent-v0.2.1/PPSA99684.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-torrent-v0.2.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-torrent-v0.3.0/PPSA99684.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-torrent-v0.3.0",
       "source": "homebrew/ps5-torrent",
-      "size_bytes": 9134538,
-      "published_at": "2026-10-14T08:54:58Z"
+      "size_bytes": 9151160,
+      "published_at": "2026-10-14T09:11:46Z"
     },
     {
       "name": "Payload LauncherX",
