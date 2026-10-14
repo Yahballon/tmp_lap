@@ -1,0 +1,196 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "pstube.hpp"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include "ca_bundle.inc"
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+#include <limits>
+#include <memory>
+#include <string_view>
+namespace pstube {
+namespace {
+constexpr size_t kMaxJson=2*1024*1024;
+const char* kSave="/download0/pstube.txt";
+const char* kFallback="/data/pstube/state.txt";
+bool host_ok(const std::string& h) {
+ if(h.empty()||h.size()>128||h.front()=='.'||h.back()=='.')return false;
+ for(unsigned char c:h)if(!std::isalnum(c)&&c!='.'&&c!='-')return false;
+ return h.find('.')!=std::string::npos&&h.find("..")==std::string::npos;
+}
+bool https(const std::string& host,const std::string& path,std::string& payload,std::string& error) {
+ if(!host_ok(host)||path.empty()||path.front()!='/'){error="Invalid HTTPS target";return false;}
+ SSL_CTX* ctx=SSL_CTX_new(TLS_client_method());
+ if(!ctx){error="TLS initialization failed";return false;}
+ SSL_CTX_set_min_proto_version(ctx,TLS1_2_VERSION);
+ SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,nullptr);
+ BIO* bio=BIO_new_mem_buf(kCaBundle,-1);
+ int count=0;
+ if(bio){auto* store=SSL_CTX_get_cert_store(ctx);while(X509* cert=PEM_read_bio_X509(bio,nullptr,nullptr,nullptr)){if(X509_STORE_add_cert(store,cert)==1)++count;X509_free(cert);}BIO_free(bio);ERR_clear_error();}
+ if(!count){error="Trusted CA bundle unavailable";SSL_CTX_free(ctx);return false;}
+ addrinfo hints{};hints.ai_socktype=SOCK_STREAM;hints.ai_family=AF_UNSPEC;
+ addrinfo* addresses=nullptr;
+ if(getaddrinfo(host.c_str(),"443",&hints,&addresses)!=0){error="DNS lookup failed";SSL_CTX_free(ctx);return false;}
+ int fd=-1;
+ for(auto* a=addresses;a;a=a->ai_next){
+  fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);if(fd<0)continue;
+  timeval tv{8,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+  if(connect(fd,a->ai_addr,a->ai_addrlen)==0)break;
+  close(fd);fd=-1;
+ }
+ freeaddrinfo(addresses);
+ if(fd<0){error="Connection unavailable";SSL_CTX_free(ctx);return false;}
+ SSL* ssl=SSL_new(ctx);
+ if(!ssl){close(fd);SSL_CTX_free(ctx);error="TLS allocation failed";return false;}
+ SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host.c_str());SSL_set1_host(ssl,host.c_str());
+ if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){error="TLS verification failed";SSL_free(ssl);close(fd);SSL_CTX_free(ctx);return false;}
+ std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: PSTUBE/0.1.0\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+ bool ok=true;
+ for(size_t off=0;off<request.size();){
+  int n=SSL_write(ssl,request.data()+off,(int)(request.size()-off));if(n<=0){ok=false;error="HTTP send failed";break;}off+=(size_t)n;
+ }
+ std::string response;
+ if(ok){char buf[8192];for(;;){int n=SSL_read(ssl,buf,sizeof(buf));if(n<=0)break;if(response.size()+(size_t)n>kMaxJson+8192){ok=false;error="Response too large";break;}response.append(buf,(size_t)n);}}
+ SSL_shutdown(ssl);SSL_free(ssl);close(fd);SSL_CTX_free(ctx);
+ if(!ok)return false;
+ size_t sep=response.find("\r\n\r\n");if(sep==std::string::npos){error="Invalid HTTP response";return false;}
+ std::string headers=response.substr(0,sep),lower=headers;
+ int code=0;if(std::sscanf(headers.c_str(),"HTTP/%*s %d",&code)!=1){error="Invalid HTTP status";return false;}
+ if(code!=200){error="Service HTTP "+std::to_string(code);return false;}
+ std::transform(lower.begin(),lower.end(),lower.begin(),[](unsigned char c){return (char)std::tolower(c);});
+ std::string_view body(response.data()+sep+4,response.size()-sep-4);
+ if(lower.find("transfer-encoding: chunked")==std::string::npos)payload.assign(body);
+ else {
+  size_t p=0;
+  while(p<body.size()){
+   size_t line=body.find("\r\n",p);if(line==std::string_view::npos||line-p>40){error="Invalid chunked response";return false;}
+   std::string part(body.substr(p,line-p));const size_t semicolon=part.find(';');if(semicolon!=std::string::npos)part.resize(semicolon);
+   char* end=nullptr;unsigned long n=strtoul(part.c_str(),&end,16);
+   if(end==part.c_str()||*end||n>kMaxJson||payload.size()+n>kMaxJson){error="Invalid chunk size";return false;}
+   p=line+2;if(n==0)break;
+   if(n>body.size()-p){error="Truncated chunk";return false;}
+   payload.append(body.data()+p,n);p+=n;
+   if(p+2>body.size()||body.substr(p,2)!="\r\n"){error="Invalid chunk separator";return false;}p+=2;
+  }
+ }
+ return !payload.empty();
+}
+void skip(std::string_view s,size_t& p){while(p<s.size()&&(s[p]==' '||s[p]=='\t'||s[p]=='\r'||s[p]=='\n'))++p;}
+size_t value_end(std::string_view s,size_t p){
+ if(p>=s.size())return p;
+ char c=s[p];
+ if(c=='"'){
+  for(size_t i=p+1;i<s.size();++i){if(s[i]=='\\'){++i;continue;}if(s[i]=='"')return i+1;}return s.size();
+ }
+ if(c=='{'||c=='['){char close=c=='{'?'}':']';char open=c;int depth=0;bool str=false;
+  for(size_t i=p;i<s.size();++i){if(str){if(s[i]=='\\'){++i;continue;}if(s[i]=='"')str=false;}else {if(s[i]=='"')str=true;else if(s[i]==open)depth++;else if(s[i]==close&&--depth==0)return i+1;}}return s.size();
+ }
+ size_t e=p;while(e<s.size()&&s[e]!=','&&s[e]!='}'&&s[e]!=']'&&!std::isspace((unsigned char)s[e]))++e;return e;
+}
+std::string_view field(std::string_view obj,std::string_view key){
+ size_t p=0;skip(obj,p);if(p==obj.size()||obj[p++]!='{')return {};
+ while(p<obj.size()){skip(obj,p);if(p>=obj.size()||obj[p]=='}'||obj[p]!='"')break;
+  size_t end=value_end(obj,p);std::string_view k=obj.substr(p+1,end-p-2);p=end;skip(obj,p);if(p>=obj.size()||obj[p++]!=':')break;skip(obj,p);
+  size_t e=value_end(obj,p);if(k==key)return obj.substr(p,e-p);
+  p=e;skip(obj,p);if(p>=obj.size()||obj[p++]!=',')break;
+ }return {};
+}
+std::string decode(std::string_view s){
+ if(s.size()<2||s[0]!='"')return {};
+ std::string o;
+ for(size_t p=1;p+1<s.size()&&o.size()<512;p++){
+  unsigned char c=s[p];
+  if(c=='\\'&&p+1<s.size()-1){c=s[++p];if(c=='n'||c=='r'||c=='t')c=' ';else if(c=='u'){if(p+4<s.size())p+=4;c='?';}}
+  if(c>=32)o+=(char)c;
+ }return o;
+}
+int integer(std::string_view s){return std::atoi(std::string(s).c_str());}
+long longnum(std::string_view s){return std::atol(std::string(s).c_str());}
+std::string stable_path(const std::string& id){return "/data/pstube/downloads/"+id+".mp4";}
+bool save_text(const char* path,const std::string& payload){
+ std::string temp=std::string(path)+".tmp";FILE* f=std::fopen(temp.c_str(),"wb");if(!f)return false;
+ bool ok=std::fwrite(payload.data(),1,payload.size(),f)==payload.size()&&std::fflush(f)==0&&::fsync(fileno(f))==0;
+ ok=std::fclose(f)==0&&ok;if(!ok){unlink(temp.c_str());return false;}
+ if(rename(temp.c_str(),path)!=0){unlink(temp.c_str());return false;}return true;
+}
+void mkdirs(){mkdir("/data/pstube",0700);mkdir("/data/pstube/downloads",0700);}
+struct Work {Service* svc;std::string query;std::string id;int kind;Video video;};
+}
+bool valid_id(const std::string& s){
+ if(s.size()!=11)return false;
+ for(char c:s)if(!std::isalnum((unsigned char)c)&&c!='_'&&c!='-')return false;
+ return true;
+}
+std::string json_string(const std::string& obj,const std::string& name){return decode(field(obj,name));}
+std::string escape_url(const std::string& s){
+ const char* h="0123456789ABCDEF";std::string o;
+ for(unsigned char c:s){if(std::isalnum(c)||c=='-'||c=='_'||c=='.'||c=='~')o+=(char)c;else {o+='%';o+=h[c>>4];o+=h[c&15];}}return o;
+}
+std::vector<Video> parse_search(const std::string& s){
+ std::vector<Video> out;size_t p=0;skip(s,p);if(p==s.size()||s[p++]!='[')return out;
+ while(p<s.size()&&out.size()<60){skip(s,p);if(s[p]==']')break;size_t e=value_end(s,p);if(e==p)break;auto v=std::string_view(s).substr(p,e-p);p=e;
+  if(decode(field(v,"type"))=="video"){Video a;a.id=decode(field(v,"videoId"));a.title=decode(field(v,"title"));a.author=decode(field(v,"author"));a.length=integer(field(v,"lengthSeconds"));a.views=longnum(field(v,"viewCount"));a.live=field(v,"liveNow")=="true";
+   if(valid_id(a.id)&&!a.title.empty())out.push_back(std::move(a));
+  }skip(s,p);if(p>=s.size()||s[p++]!=',')break;
+ }return out;
+}
+Service::Service(){
+ mkdirs();
+ for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[16384]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
+  size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
+   if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
+   if(line.substr(0,2)=="F "&&valid_id(line.substr(2))&&fav_.size()<300)fav_.push_back(line.substr(2));
+  }break;}
+}
+Service::~Service(){while(busy_.load())usleep(25000);}
+bool Service::persist()const{
+ std::string out="PSTUBE:1\nI "+instance_+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
+ return save_text(kSave,out)||save_text(kFallback,out);
+}
+std::vector<std::string> Service::favourites()const{std::lock_guard<std::mutex> g(mutex_);return fav_;}
+bool Service::is_favourite(const std::string& id)const{std::lock_guard<std::mutex> g(mutex_);return std::find(fav_.begin(),fav_.end(),id)!=fav_.end();}
+bool Service::toggle_favourite(const std::string& id){
+ if(!valid_id(id))return false;std::lock_guard<std::mutex> g(mutex_);
+ auto it=std::find(fav_.begin(),fav_.end(),id);if(it==fav_.end()){if(fav_.size()>=300)return false;fav_.push_back(id);}else fav_.erase(it);return persist();
+}
+void Service::set_instance(const std::string& s){if(!host_ok(s))return;std::lock_guard<std::mutex> g(mutex_);instance_=s;persist();}
+std::string Service::instance()const{std::lock_guard<std::mutex> g(mutex_);return instance_;}
+Snapshot Service::snapshot()const{std::lock_guard<std::mutex> g(mutex_);return state_;}
+bool Service::search(const std::string& query){
+ if(query.empty()||query.size()>100||busy_.exchange(true))return false;
+ {std::lock_guard<std::mutex> g(mutex_);state_.searching=true;state_.status="Searching videos...";}
+ auto* w=new Work{this,query,"",0,{}};
+ pthread_t th{};pthread_attr_t a;pthread_attr_init(&a);pthread_attr_setstacksize(&a,1024*1024);
+ int rc=pthread_create(&th,&a,[](void* p)->void* {
+  std::unique_ptr<Work> work((Work*)p);Service& svc=*work->svc;
+  std::string data,error,host=svc.instance();
+  bool ok=https(host,"/api/v1/search?q="+escape_url(work->query)+"&type=video",data,error);
+  auto videos=ok?parse_search(data):std::vector<Video>{};
+  {std::lock_guard<std::mutex> g(svc.mutex_);if(ok)svc.state_.videos=std::move(videos);
+   svc.state_.status=!ok?error:svc.state_.videos.empty()?"No matching videos":std::to_string(svc.state_.videos.size())+" results";
+   svc.state_.searching=false;}
+  svc.busy_.store(false);return nullptr;
+ },w);
+ pthread_attr_destroy(&a);if(rc){delete w;busy_.store(false);std::lock_guard<std::mutex> g(mutex_);state_.searching=false;state_.status="Unable to start search thread";return false;}
+ pthread_detach(th);return true;
+}
+bool Service::details(const std::string& id){return valid_id(id);}
+bool Service::download(const Video& video){
+ // Streaming and playback need verified media URL handling; do not claim success or
+ // create fake completed downloads until a format-supported media pipeline exists.
+ if(!valid_id(video.id))return false;
+ std::lock_guard<std::mutex> g(mutex_);
+ state_.status="Video download unavailable in v0.1.0 (media backend not yet integrated)";
+ return false;
+}
+} // namespace pstube
