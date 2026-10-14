@@ -90,6 +90,11 @@ def recolor_cell(cell, atlas, sprite_id, is_background):
     colored = np.where(dark[..., None], AI_NAVY[None,None,:], colored)
     out = arr.copy()
     out[..., :3] = np.clip(np.rint(colored), 0, 255).astype(np.uint8)
+    # CRITICAL: SDL_LoadSharedTexture uses the EXACT (147,187,236) RGB
+    # color-key even for fully opaque pixels in the upstream PNG. Repainting
+    # the keyed backdrop turns transparent sky into filled square boxes!
+    original_key = np.all(arr[..., :3] == (147, 187, 236), axis=2)
+    out[original_key] = arr[original_key]
     out[..., 3] = alpha
     return Image.fromarray(out, "RGBA")
 
@@ -100,9 +105,9 @@ for name, size, columns, rows, pitchx, pitchy, ox, oy in atlases:
     output = Image.new("RGBA", original.size, (0, 0, 0, 0))
     # Copy alpha for the entire canvas (including special sprite rectangles
     # crossing row boundaries) and then recolor only samples inside sourceRect.
-    base = np.asarray(original, dtype=np.uint8).copy()
-    base[..., :3] = 0
-    output = Image.fromarray(base, "RGBA")
+    # Preserve color-key gutters and unused sheet regions too. They are
+    # deliberately not RGBA-transparent in some upstream files.
+    output = original.copy()
     for row in range(rows):
         for col in range(columns):
             index = row * columns + col
@@ -122,6 +127,9 @@ for name, size, columns, rows, pitchx, pitchy, ox, oy in atlases:
     final = Image.fromarray(out, "RGBA")
     assert final.size == original.size
     assert final.getchannel("A").tobytes() == original.getchannel("A").tobytes()
+    orig_mask=np.all(np.asarray(original)[...,:3] == (147,187,236),axis=2)
+    final_mask=np.all(np.asarray(final)[...,:3] == (147,187,236),axis=2)
+    assert np.array_equal(orig_mask,final_mask), ("SDL color-key changed",name)
     dest = target / name
     dest.parent.mkdir(parents=True, exist_ok=True)
     final.save(dest, optimize=True)

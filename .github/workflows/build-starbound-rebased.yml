@@ -193,6 +193,11 @@ jobs:
                   got=Image.open(io.BytesIO(z.read(root+'assets/res/sprites/'+rel))).convert('RGBA')
                   assert ref.size==got.size==size, rel
                   assert got.getchannel('A').tobytes()==ref.getchannel('A').tobytes(), ('Atlas alpha changed',rel)
+                  import numpy as np
+                  a=np.asarray(ref)
+                  b=np.asarray(got)
+                  keyed=(147,187,236)
+                  assert np.array_equal(np.all(a[:,:,:3]==keyed,axis=2),np.all(b[:,:,:3]==keyed,axis=2)), ('SDL color-key mask changed',rel)
                   assert got.tobytes()!=ref.tobytes(), ('Missing original pink/cyan reskin',rel)
               # Logo, window icon and sky come unchanged from uploaded user art.
               for rel in ('icons/logo.png','icons/windowicon.png','backgrounds/alien_sky.png'):
