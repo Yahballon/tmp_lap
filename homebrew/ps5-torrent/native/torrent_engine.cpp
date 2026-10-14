@@ -133,7 +133,7 @@ struct Meta{
  std::vector<FileEntry> files;
  uint64_t bytes=0;
  uint32_t piece=0;
- bool multi=false;
+ bool multi=false,privateTorrent=false;
 };
 // BEP 3 paths are *advisory*. Never allow a torrent to escape our folder.
 bool safePart(const std::string& s){
@@ -151,6 +151,7 @@ bool metadata(const std::string& path,Meta& m,std::string& error){
  const B& info=root.get("info");
  if(info.type!='d'){error="Missing info dictionary";return false;}
  m.name=info.get("name").v;m.announce=root.get("announce").v;
+ m.privateTorrent=info.get("private").number()==1;
  m.piece=(uint32_t)std::max<int64_t>(0,info.get("piece length").number());
  m.pieces=info.get("pieces").v;
  if(!safePart(m.name)){error="Unsafe torrent name";return false;}
@@ -557,11 +558,11 @@ bool unchunk(std::string& body){
  }
  return false;
 }
-std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left){
+std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left,int* intervalOut=nullptr,bool initial=true){
  Url u;if(!url(announce,u)){trace("TRACKER invalid HTTP(S) announce URL");return {};}
  trace(std::string(u.tls?"HTTPS":"HTTP")+" tracker "+u.host+":"+std::to_string(u.port)+" announce...");
- std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60&event=started";
- const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.2\r\nAccept: */*\r\nConnection: close\r\n\r\n";
+ std::string q=u.path+(u.path.find('?')==std::string::npos?"?":"&")+"info_hash="+enc((const unsigned char*)m.hash.data(),20)+"&peer_id="+enc((const unsigned char*)peerId.data(),20)+"&port=6889&uploaded=0&downloaded=0&left="+std::to_string(left)+"&compact=1&numwant=60"+(initial?"&event=started":"");
+ const std::string req="GET "+q+" HTTP/1.1\r\nHost: "+u.host+"\r\nUser-Agent: TorrentFlow/0.4.3\r\nAccept: */*\r\nConnection: close\r\n\r\n";
  std::string response;if(!httpResponse(u,req,response)){trace("Tracker response unavailable "+u.host);return {};}
  if(response.rfind("HTTP/1.",0)!=0||response.size()<12||response.substr(9,3)!="200"){
   trace("Tracker bad HTTP status: "+response.substr(0,std::min<size_t>(response.size(),120)));return {};
@@ -587,10 +588,14 @@ std::vector<Peer> tracker(const Meta& m,const std::string& announce,const std::s
    if(ip.size()<64&&port>0&&port<=65535&&peers.size()<100)peers.push_back({ip,port});
   }
  }
- trace("Tracker response OK: "+std::to_string(peers.size())+" peers");return peers;
+ const int64_t interval=root.get("interval").number(180);
+ const int64_t minimum=root.get("min interval").number(0);
+ if(intervalOut)*intervalOut=(int)std::max<int64_t>(120,std::min<int64_t>(3600,std::max<int64_t>(interval,minimum)));
+ trace("Tracker response OK: "+std::to_string(peers.size())+" peers interval="+std::to_string(intervalOut?*intervalOut:interval));
+ return peers;
 }
 void store64(char* p,uint64_t n){for(int i=0;i<8;i++)p[i]=(char)(n>>(56-8*i));}
-std::vector<Peer> udpFallback(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left){
+std::vector<Peer> udpFallback(const Meta& m,const std::string& announce,const std::string& peerId,uint64_t left,int* intervalOut=nullptr,bool initial=true){
  if(announce.rfind("udp://",0)!=0){trace("Unsupported UDP tracker URL");return {};}
  const std::string authority=announce.substr(6,announce.find('/',6)==std::string::npos?std::string::npos:announce.find('/',6)-6);
  size_t colon=authority.rfind(':');
@@ -615,14 +620,76 @@ std::vector<Peer> udpFallback(const Meta& m,const std::string& announce,const st
  if(n<16||be32(resp)!=0||be32(resp+4)!=0x15104320){trace("UDP handshake timeout/rejected len="+std::to_string(n)+" errno="+std::to_string(errno));closeSocket(fd);return {};}
  memcpy(req,resp+8,8);store32(req+8,1);store32(req+12,0x15104321);
  memcpy(req+16,m.hash.data(),20);memcpy(req+36,peerId.data(),20);
- store64(req+56,0);store64(req+64,left);store64(req+72,0);store32(req+80,2);
+ store64(req+56,0);store64(req+64,left);store64(req+72,0);store32(req+80,initial?2:0);
  store32(req+84,0);store32(req+88,0x15381111);store32(req+92,0xffffffffU);req[96]=(char)(6889>>8);req[97]=(char)(6889&255);
  if(send(fd,req,sizeof(req),0)!=(ssize_t)sizeof(req)){trace("UDP announce send FAILED");closeSocket(fd);return {};}
  n=recv(fd,resp,sizeof(resp),0);closeSocket(fd);
  if(n<20||be32(resp)!=1||be32(resp+4)!=0x15104321){trace("UDP announce FAILED len="+std::to_string(n)+" errno="+std::to_string(errno));return {};}
+ if(intervalOut)*intervalOut=(int)std::max<uint32_t>(120,std::min<uint32_t>(3600,be32(resp+8)));
  std::vector<Peer> peers;
  for(ssize_t i=20;i+6<=n&&peers.size()<100;i+=6){char ip[INET_ADDRSTRLEN];if(!inet_ntop(AF_INET,resp+i,ip,sizeof(ip)))continue;int port=(uint8_t(resp[i+4])<<8)|uint8_t(resp[i+5]);if(port>0)peers.push_back({ip,port});}
- trace("UDP tracker returned "+std::to_string(peers.size())+" peers");return peers;
+ trace("UDP tracker returned "+std::to_string(peers.size())+" peers interval="+std::to_string(intervalOut?*intervalOut:0));return peers;
+}
+// Tracker cooldowns are per-infohash. The host cooldown is shared by all
+// concurrent jobs so Ubuntu's aliases and parallel downloads cannot produce
+// a burst of announces (the console received HTTP 503 after one every 1-3s).
+// Peer caches are NEVER shared between different info hashes.
+struct TrackerRecord {
+ std::chrono::steady_clock::time_point next{};
+ std::chrono::steady_clock::time_point lastSuccess{};
+ std::vector<Peer> cached;
+ bool announced=false;
+};
+std::mutex trackerBookMutex;
+std::map<std::string,TrackerRecord> trackerBook;
+std::map<std::string,std::chrono::steady_clock::time_point> endpointCooldown;
+std::string trackerEndpointKey(const std::string& announce){
+ const size_t start=announce.find("://");
+ if(start==std::string::npos)return announce;
+ const size_t begin=start+3;
+ const size_t end=announce.find('/',begin);
+ std::string host=announce.substr(begin,end==std::string::npos?std::string::npos:end-begin);
+ // Ubuntu's ipv6 and non-ipv6 tracker names are aliases for the same service.
+ if(host.rfind("ipv6.torrent.ubuntu.com",0)==0)host.replace(0,4,"");
+ return host;
+}
+std::vector<Peer> queryTracker(const Meta& m,const std::string& announce,
+                               const std::string& peerId,uint64_t left){
+ using Clock=std::chrono::steady_clock;
+ const std::string key=hex((const unsigned char*)m.hash.data(),20)+"|"+announce;
+ const std::string endpoint=trackerEndpointKey(announce);
+ bool initial=true;
+ {
+  std::lock_guard<std::mutex> lock(trackerBookMutex);
+  const auto now=Clock::now();
+  auto& rec=trackerBook[key];
+  const bool cached=rec.lastSuccess!=Clock::time_point{} &&
+      now-rec.lastSuccess<std::chrono::minutes(15);
+  if(now<rec.next||now<endpointCooldown[endpoint]){
+   if(cached)return rec.cached;
+   return {};
+  }
+  initial=!rec.announced;
+  rec.announced=true;
+  rec.next=now+std::chrono::seconds(120); // in-flight protection
+  endpointCooldown[endpoint]=now+std::chrono::seconds(8);
+ }
+ int interval=180;
+ std::vector<Peer> found=announce.rfind("udp://",0)==0?
+     udpFallback(m,announce,peerId,left,&interval,initial):
+     tracker(m,announce,peerId,left,&interval,initial);
+ {
+  std::lock_guard<std::mutex> lock(trackerBookMutex);
+  auto& rec=trackerBook[key];
+  rec.next=Clock::now()+std::chrono::seconds(interval);
+  if(!found.empty()){
+   rec.cached=found;
+   rec.lastSuccess=Clock::now();
+  }else if(rec.lastSuccess==Clock::time_point{}){
+   rec.cached.clear();
+  }
+ }
+ return found;
 }
 bool sendMsg(int fd,uint8_t id,const std::string& body={}){std::string b(5+body.size(),0);store32(&b[0],(uint32_t)(body.size()+1));b[4]=(char)id;std::copy(body.begin(),body.end(),b.begin()+5);return sendAll(fd,b.data(),b.size());}
 uint32_t pieceSize(const Meta& m,uint32_t index){uint64_t remain=m.bytes-(uint64_t)index*m.piece;return(uint32_t)std::min<uint64_t>(m.piece,remain);}
@@ -761,7 +828,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.2 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.3 initialized - log file: "+logPath());}
 Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
 bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){
@@ -936,15 +1003,28 @@ void Engine::run(std::string path){
   for(size_t i=0;i<m.trackers.size()&&!cancelled();i++){
    const std::string& announce=m.trackers[i];
    publish("Tracker "+std::to_string(i+1)+"/"+std::to_string(m.trackers.size())+"...");
-   auto found=(announce.rfind("udp://",0)==0)?
-       udpFallback(m,announce,peerId,remaining):tracker(m,announce,peerId,remaining);
+   auto found=queryTracker(m,announce,peerId,remaining);
    peers.insert(peers.end(),found.begin(),found.end());
    if(peers.size()>=80)break;
   }
-  if(peers.empty()&&m.name=="ubuntu-26.04.1-desktop-amd64.iso"&&!cancelled()){
-   auto fallback=udpFallback(m,"udp://tracker.opentrackr.org:1337/announce",peerId,remaining);
-   peers.insert(peers.end(),fallback.begin(),fallback.end());
+#ifndef TORRENT_HOST_TEST
+  // Public trackers improve peer discovery if an official tracker has only
+  // one peer or returns HTTP 503. Never leak private torrent info hashes.
+  // Only two known public UDP endpoints; per-torrent caches prevent floods.
+  if(!m.privateTorrent&&peers.size()<8&&!cancelled()){
+   const char* fallbacks[]={
+    "udp://tracker.opentrackr.org:1337/announce",
+    "udp://open.stealth.si:80/announce"
+   };
+   for(const char* endpoint:fallbacks){
+    if(std::find(m.trackers.begin(),m.trackers.end(),endpoint)!=m.trackers.end())continue;
+    trace("PUBLIC TRACKER fallback "+std::string(endpoint)+" original_peers="+std::to_string(peers.size()));
+    auto found=queryTracker(m,endpoint,peerId,remaining);
+    peers.insert(peers.end(),found.begin(),found.end());
+    if(peers.size()>=24||cancelled())break;
+   }
   }
+#endif
   // Ignore duplicate tracker results and peers advertising invalid endpoints.
   std::sort(peers.begin(),peers.end(),[](const Peer& a,const Peer& b){
    return a.ip==b.ip?a.port<b.port:a.ip<b.ip;
