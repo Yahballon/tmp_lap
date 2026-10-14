@@ -74,7 +74,7 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
   size_t p=0;
   while(p<body.size()){
    size_t line=body.find("\r\n",p);if(line==std::string_view::npos||line-p>40){error="Invalid chunked response";return false;}
-   std::string part(body.substr(p,line-p));part.resize(part.find(';'));
+   std::string part(body.substr(p,line-p));const size_t semicolon=part.find(';');if(semicolon!=std::string::npos)part.resize(semicolon);
    char* end=nullptr;unsigned long n=strtoul(part.c_str(),&end,16);
    if(end==part.c_str()||*end||n>kMaxJson||payload.size()+n>kMaxJson){error="Invalid chunk size";return false;}
    p=line+2;if(n==0)break;
