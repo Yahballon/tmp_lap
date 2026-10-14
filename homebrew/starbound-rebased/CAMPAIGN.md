@@ -69,6 +69,9 @@ AI, dynamic lift timing and destructible shortcuts; it is not a complete engine
 or controller playtest. Negative tests corrupt exits, IDs, checkpoints and
 transitions to ensure the validator fails. CI installs the maps after all raster
 generators/reference work, then checks packaged bytes against the tracked maps.
+The native and desktop jobs also execute the actual patched C++ level parser
+against all 32 property files. The TESTBUILDS catalog opts in to Starbound Rebased
+prereleases; drafts and other titles' prereleases remain excluded.
 
 ## Hardware acceptance checklist
 

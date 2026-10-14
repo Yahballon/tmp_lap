@@ -15,8 +15,12 @@ def patch(path, old, new):
     file.write_text(text.replace(old, new), encoding='utf-8')
 
 shutil.copytree(ROOT / 'campaign', ROOT / 'res/data', dirs_exist_ok=True)
-patch('include/systems/MenuSystem.h', 'const int maxLevel = 1;\n   const int maxSublevel = 1;',
-      'const int maxLevel = 8;\n   const int maxSublevel = 4;')
+menu = (engine / 'include/systems/MenuSystem.h').read_text()
+if 'const int maxLevel = 1;\n   const int maxSublevel = 1;' in menu:
+    patch('include/systems/MenuSystem.h', 'const int maxLevel = 1;\n   const int maxSublevel = 1;',
+          'const int maxLevel = 8;\n   const int maxSublevel = 4;')
+elif 'const int maxLevel = 8;\n   const int maxSublevel = 4;' not in menu:
+    raise RuntimeError('Unexpected engine level menu bounds')
 patch('include/Level.h', '   Vector2i playerStart;',
       '   Vector2i playerStart;\n   Vector2i checkpoint = Vector2i(0, 0);')
 patch('include/Level.h', '      data.nextLevel =\n          loadCoordinate(',

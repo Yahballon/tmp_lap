@@ -17,8 +17,11 @@ def main():
         with urllib.request.urlopen(req,timeout=30) as response: releases=json.load(response)
         if not isinstance(releases,list):raise ValueError("Invalid GitHub API response")
         for release in releases:
-            if release.get("draft") or release.get("prerelease"):continue
+            if release.get("draft"):continue
             tag=release.get("tag_name","")
+            # Relayfall is deliberately published as an experimental TESTBUILD.
+            # Opt in only this title; other apps retain stable-only selection.
+            if release.get("prerelease") and not re.fullmatch(r"starbound-rebased-v\d+\.\d+\.\d+",tag):continue
             m=re.search(r"v(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$",tag)
             if not m:continue
             semver=tuple(map(int,m.groups()))
