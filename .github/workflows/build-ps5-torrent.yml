@@ -18,6 +18,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+      - name: Check PS5-safe TCP sockets
+        run: python3 homebrew/ps5-torrent/tests/check_ps5_socket.py
       - name: Fetch native PS5 build scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
