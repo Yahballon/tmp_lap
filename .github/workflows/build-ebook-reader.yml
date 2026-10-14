@@ -17,7 +17,11 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates zlib1g-dev
+      - name: Test USB EPUB discovery on host
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Ihomebrew/ebook-reader/native homebrew/ebook-reader/native/ebook_engine.cpp homebrew/ebook-reader/tests/usb_scan_test.cpp -lz -o /tmp/ebook-usb-scan-test
+          /tmp/ebook-usb-scan-test
       - name: Prepare PS5 scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
