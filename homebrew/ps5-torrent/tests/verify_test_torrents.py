@@ -7,7 +7,7 @@ import pathlib
 import sys
 
 # Current supported BitTorrent v1 v1 fixtures from official mirrors.
-# Specific metadata SHA256 hashes are pinned after first CI retrieval and validation.
+# SHA-256 hashes pinned from successfully verified official CI downloads (2026-10-14).
 NAMES = (
     "ubuntu-26.04.1-desktop-amd64.iso.torrent",
     "ubuntu-24.04.5.1-desktop-amd64.iso.torrent",
@@ -16,7 +16,14 @@ NAMES = (
     "xubuntu-26.04.1-desktop-amd64.iso.torrent",
     "lubuntu-26.04.1-desktop-amd64.iso.torrent",
 )
-EXPECTED_SHA256 = {}
+EXPECTED_SHA256 = {
+    "ubuntu-26.04.1-desktop-amd64.iso.torrent": "a4b59d67dfeffa07211b433cee5a0b1e545329b899be2c6cc83725cb13aafad6",
+    "ubuntu-24.04.5.1-desktop-amd64.iso.torrent": "6e60d9967257d4cedd52747e09fd2468daea27538690a62c48169aebe3cc33d5",
+    "Fedora-Workstation-Live-x86_64-44.torrent": "14d96ec3a1d56cef3eb2b64a5c7505459bbb6c0e6d88442e88c8d05dfb02bc79",
+    "kubuntu-26.04.1-desktop-amd64.iso.torrent": "ebf081bbb9f69acb3ed8c64c426f4fb1d822c126504eac75a8a47bb6231dbd61",
+    "xubuntu-26.04.1-desktop-amd64.iso.torrent": "8d3bf91f3209e1c7fa8a01758d25632f0cb107f14464477e054ec438fa3a4126",
+    "lubuntu-26.04.1-desktop-amd64.iso.torrent": "861cc6aa484cdcc369b3d1dadb2d4dc459d0f252dd1496dc2febc6a9c8694c12",
+}
 
 def decode(data: bytes, offset: int = 0, depth: int = 0):
     if depth > 24 or offset >= len(data):
