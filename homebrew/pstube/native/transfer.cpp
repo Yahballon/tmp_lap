@@ -30,7 +30,7 @@ bool parse_url(const std::string& url,Url& out){
  return out.path.find('\r')==std::string::npos&&out.path.find('\n')==std::string::npos&&out.path.find('#')==std::string::npos;
 }
 bool allowed_host(const std::string& host){
- static const char* providers[]={"googlevideo.com","yewtu.be","inv.nadeko.net","invidious.nerdvpn.de",
+ static const char* providers[]={"googlevideo.com","ytimg.com","yewtu.be","inv.nadeko.net","invidious.nerdvpn.de",
    "yt.chocolatemoo53.com","invidious.tiekoetter.com","inv.tux.pizza","invidious.private.coffee"};
  for(const char* p:providers){std::string d(p);if(host==d||(host.size()>d.size()&&host.compare(host.size()-d.size(),d.size(),d)==0&&host[host.size()-d.size()-1]=='.'))return true;}
  return false;
