@@ -43,9 +43,12 @@ assert "src/systems/MenuSystem.cpp" in patched, "Logo not made absolute"
 assert "src/systems/RenderSystem.cpp" in patched, "Font not made absolute"
 assert "src/SoundManager.cpp" in patched, "Audio not made absolute"
 assert "src/Map.cpp" in patched, "Irregular map references not made absolute"
-unwrapped=re.compile(r'(?<!SB_ASSET_PATH\\()"res/[^"\\n]*"')
 for file in source.rglob("*.cpp"):
-    assert not unwrapped.search(file.read_text()), f"Unconverted relative resource path: {file}"
+    contents=file.read_text()
+    wrapped_prefix="SB_ASSET_PATH("
+    for match in pattern.finditer(contents):
+        prefix=contents[max(0,match.start()-len(wrapped_prefix)):match.start()]
+        assert prefix==wrapped_prefix, f"Unconverted relative resource path: {file}: {match.group(0)}"
 print(f"Patched {sum(patched.values())} relative game-asset paths in {len(patched)} source files:")
 for k,v in patched.items():
     print(" ",k,v)
