@@ -66,6 +66,12 @@ const char* kUsb="/mnt/usb0/ps5-torrent";
 const char* kTest="ubuntu-26.04.1-desktop-amd64.iso.torrent";
 struct TestInfo {const char* file;const char* display;const char* size;};
 const TestInfo kTests[]={
+ {"debian-13.7.0-amd64-netinst.iso.torrent","Debian 13.7 Netinstall (Legacy)","~756 MiB"},
+ {"ubuntu-24.04.5-live-server-amd64.iso.torrent","Ubuntu 24.04.5 Server (Legacy)","~3.8 GiB"},
+ {"ubuntu-26.04.1-live-server-amd64.iso.torrent","Ubuntu 26.04.1 Server (Legacy)","~2.7 GiB"},
+ {"linuxmint-22.3-cinnamon-64bit.iso.torrent","Linux Mint 22.3 Cinnamon (Legacy)","~2.9 GiB"},
+ {"linuxmint-22.3-xfce-64bit.iso.torrent","Linux Mint 22.3 XFCE (Legacy)","~2.8 GiB"},
+ {"linuxmint-22.3-mate-64bit.iso.torrent","Linux Mint 22.3 MATE (Legacy)","~2.9 GiB"},
  {"ubuntu-26.04.1-desktop-amd64.iso.torrent","Ubuntu 26.04.1 LTS Desktop","~6.0 GiB"},
  {"ubuntu-24.04.5.1-desktop-amd64.iso.torrent","Ubuntu 24.04.5.1 LTS Desktop","~5.8 GiB"},
  {"Fedora-Workstation-Live-x86_64-44.torrent","Fedora Workstation 44 (Multi-file)","~2.7 GiB"},
