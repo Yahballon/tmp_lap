@@ -679,7 +679,7 @@ void saveState(const std::string& p,const std::vector<bool>& verified){std::stri
 }
 std::string logPath(){std::lock_guard<std::mutex> guard(logMutex);return ensureLogPath();}
 std::vector<std::string> recentLogs(){std::lock_guard<std::mutex> guard(logMutex);return logRing;}
-Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.3.1 initialized - log file: "+logPath());}
+Engine::Engine(){sockets_=std::make_shared<SocketRegistry>();state_.status="Ready";setUsb(false);trace("Torrent Flow v0.4.0 initialized - log file: "+logPath());}
 Engine::~Engine(){stop();if(runner_.joinable())runner_.join();}
 Engine& engine(){static Engine instance;return instance;}
 bool inspectTorrent(const std::string& path,TorrentInfo& output,std::string& error){
@@ -776,8 +776,7 @@ void Engine::run(std::string path){
  };
  Meta m;std::string error;
  if(!metadata(path,m,error)){finish(error,false);return;}
- trace("Metadata OK file="+m.name+" bytes="+std::to_string(m.bytes)+
-       " pieces="+std::to_string(m.pieces.size()/20)+" trackers="+std::to_string(m.trackers.size()));
+ trace("Metadata OK "+std::string(m.multi?"MULTI-FILE":"SINGLE-FILE")+" root="+m.name+" files="+std::to_string(m.files.size())+" bytes="+std::to_string(m.bytes)+" pieces="+std::to_string(m.pieces.size()/20)+" trackers="+std::to_string(m.trackers.size()));
  std::string base;
  {
   std::lock_guard<std::mutex> g(mutex_);
@@ -789,12 +788,12 @@ void Engine::run(std::string path){
   base=state_.usb?kUsb:kHome;
  }
  if(!createDirectories(base)){finish("Storage directory unavailable",false);return;}
- const std::string target=base+"/downloads/"+m.name;
+ OutputLayout layout(m,base+"/downloads");
+ std::string storageError;
+ if(!layout.prepare(storageError)){finish(storageError,false);return;}
+ const std::string target=layout.destination();
  const std::string resume=base+"/cache/"+hex((const unsigned char*)m.hash.data(),20)+".resume";
- FILE* initial=fopen(target.c_str(),"r+b");
- if(!initial)initial=fopen(target.c_str(),"w+b");
- if(!initial){finish("Cannot open download destination errno="+std::to_string(errno),false);return;}
- trace("Download destination: "+target);
+ trace("Download destination: "+target+" files="+std::to_string(layout.fileCount()));
  const size_t pieceCount=m.pieces.size()/20;
  std::vector<uint8_t> states(pieceCount,0); // 0=missing, 1=in flight, 2=verified
  std::vector<bool> verified(pieceCount,false);
@@ -803,17 +802,15 @@ void Engine::run(std::string path){
  for(size_t i=0;i<pieceCount&&!cancelled();i++){
   const uint32_t n=pieceSize(m,(uint32_t)i);
   check.resize(n);
-  if(fseeko(initial,(off_t)((uint64_t)i*m.piece),SEEK_SET)==0 &&
-     fread(&check[0],1,n,initial)==n &&
+  if(layout.read((uint64_t)i*m.piece,&check[0],n) &&
      shaPiece(m,(uint32_t)i,check)){
    states[i]=2;verified[i]=true;
    std::lock_guard<std::mutex> g(mutex_);
    state_.verifiedPieces++;state_.completedBytes+=n;
   }
   if((i%512)==511)trace("Resume verified "+std::to_string(i+1)+"/"+std::to_string(pieceCount)+" pieces scanned");
-  clearerr(initial);
  }
- fclose(initial);
+
  if(cancelled()){finish("Stopped during resume verification",false);return;}
  if(std::all_of(states.begin(),states.end(),[](uint8_t n){return n==2;})){
   finish("Complete - all SHA-1 pieces verified",true);return;
@@ -889,10 +886,8 @@ void Engine::run(std::string path){
   for(int workerId=0;workerId<maxWorkers;workerId++){
    workers.emplace_back([&,workerId](){
     activeSockets=sockets_.get();
-    FILE* output=fopen(target.c_str(),"r+b");
-    if(!output){
-     storageFailure.store(true);trace("Worker file open FAILED errno="+std::to_string(errno));activeSockets=nullptr;return;
-    }
+    // File segments are opened independently per verified piece.
+
     while(!cancelled()&&!storageFailure.load()&&completeCount.load()<(int)pieceCount){
      size_t peerIndex=nextPeer.fetch_add(1);
      if(peerIndex>=peers.size())break;
@@ -916,8 +911,7 @@ void Engine::run(std::string path){
        const auto begun=Clock::now();
        const bool received=downloadPiece(session,m,(uint32_t)idx,piece,cancellation_);
        if(!received){release((uint32_t)idx);break;}
-       bool persisted=fseeko(output,(off_t)((uint64_t)idx*m.piece),SEEK_SET)==0 &&
-           fwrite(piece.data(),1,piece.size(),output)==piece.size() && fflush(output)==0;
+       bool persisted=layout.write((uint64_t)idx*m.piece,piece.data(),piece.size());
        if(!persisted){
         trace("STORAGE WRITE FAILURE piece="+std::to_string(idx)+" errno="+std::to_string(errno));
         release((uint32_t)idx);storageFailure.store(true);break;
@@ -956,7 +950,6 @@ void Engine::run(std::string path){
      closeSocket(session.fd);
      {std::lock_guard<std::mutex> g(mutex_);state_.activePeers--;}
     }
-    fclose(output);
     activeSockets=nullptr;
    });
   }
