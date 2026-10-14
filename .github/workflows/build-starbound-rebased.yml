@@ -154,6 +154,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,zipfile,pathlib,struct
+          from PIL import Image
           p=pathlib.Path('app/dist/PPSA99642.zip')
           assert p.is_file() and p.stat().st_size>500000
           with zipfile.ZipFile(p) as z:
