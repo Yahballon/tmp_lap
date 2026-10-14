@@ -14,7 +14,7 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 - Restart/resume by rehashing existing output file; cache includes a per-torrent resume snapshot.
 - Persistent separate cache and download directories.
 - Internal PS5 and optional USB0 root selection; idle-only switching.
-- **Six refreshed legal desktop Linux release torrents** from official Ubuntu and Fedora sources. GitHub Actions validates their bencoded single-file metadata, piece hash count, expected image name and size, and pins downloaded metadata hashes after first build.
+- **Six refreshed legal desktop Linux release torrents** from official Ubuntu and Linux Mint sources. GitHub Actions validates their bencoded single-file metadata, piece hash count, expected image name and size, and pins downloaded metadata hashes after first build.
 - The library displays readable titles and approximate ISO sizes. X queues the selected torrent; SQUARE queues all torrents (Download All).
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
@@ -59,7 +59,7 @@ Settings can be changed using the PS5 Settings tab (X on highlighted row), or by
 | --- | --- | --- |
 | Ubuntu 26.04.1 LTS Desktop | 6.0 GiB | [Ubuntu 26.04](https://releases.ubuntu.com/26.04/) |
 | Ubuntu 24.04.5.1 LTS Desktop | 5.8 GiB | [Ubuntu 24.04](https://releases.ubuntu.com/24.04/) |
-| Fedora Workstation 44 | 2.7 GiB | [Fedora torrents](https://torrent.fedoraproject.org/) |
+| Linux Mint LMDE 7 Cinnamon | 3.0 GiB | [LMDE 7](https://www.linuxmint.com/edition.php?id=325) |
 | Kubuntu 26.04.1 LTS | 4.7 GiB | [Kubuntu releases](https://cdimage.ubuntu.com/kubuntu/releases/26.04/release/) |
 | Xubuntu 26.04.1 LTS | 4.8 GiB | [Xubuntu releases](https://cdimage.ubuntu.com/xubuntu/releases/26.04/release/) |
 | Lubuntu 26.04.1 LTS | 3.7 GiB | [Lubuntu releases](https://cdimage.ubuntu.com/lubuntu/releases/26.04/release/) |
