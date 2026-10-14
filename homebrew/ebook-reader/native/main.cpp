@@ -43,7 +43,7 @@ void book(DrawList& d,const Font& f,unsigned atlas,const ebook::BookEntry& b,flo
  d.rounded_rect({x+35,y+248,139,5},2,Color::rgb(0x130908));
  d.rounded_rect({x+35,y+248,std::min(139.f,139.f*(float)b.progress/10000.f),5},2,gold);
 }
-std::vector<std::string> dirs(){return {"/data/ebooks","/download0/ebooks","/mnt/usb0/Books","/mnt/usb0/books","/mnt/usb1/Books"};}
+std::vector<std::string> dirs(){return {"/data/ebooks","/download0/ebooks","/mnt/usb0/Books","/mnt/usb1/Books","/mnt/usb0","/mnt/usb1","/mnt/usb2"};}
 }
 int main(){
  hui::ps5::Display display;if(!display.open())hui::sys::park();
@@ -109,7 +109,7 @@ int main(){
    }
   }else{
    if(pressed&hui::pad_bits::kTriangle){importer=true;ebook::scan_imports(imports);importSelect=0;}
-   if(pressed&hui::pad_bits::kOptions){ebook::scan_books(dirs(),books);selected=0;message="Library scanned.";}
+   if(pressed&hui::pad_bits::kOptions){ebook::scan_books(dirs(),books);ebook::scan_imports(imports);selected=0;message="Library scanned: "+std::to_string(books.size())+" books / "+std::to_string(imports.size())+" USB files";}
    if(pressed&hui::pad_bits::kR1){filter=(filter+1)%5;selected=0;}
    if(pressed&hui::pad_bits::kL1){filter=(filter+4)%5;selected=0;}
    if(pressed&hui::pad_bits::kR2)list=!list;
@@ -145,7 +145,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.0",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.1",1873,57,22,gold,Align::right);
   if(reader){
    txt(d,font,atlas,cut(document.title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
@@ -164,13 +164,22 @@ int main(){
    txt(d,font,atlas,"L1/R1  Turn page    L2/R2  Jump 10    TRIANGLE First    SQUARE Last    CIRCLE Bookshelf",960,1037,20,cream,Align::center);
   }else if(importer){
    txt(d,font,atlas,"IMPORT BOOKS FROM USB",95,161,36);
-   txt(d,font,atlas,"Copy a .pdf or .epub file to USB0/Books, then select it below.",95,211,23,muted);
-   if(imports.empty())txt(d,font,atlas,"No PDF or EPUB files found on USB0 / USB1.",96,312,28,gold);
+   txt(d,font,atlas,"USB0/Books and nested folders are scanned. Books can also be opened directly from the shelf.",95,211,19,muted);
+   if(imports.empty())txt(d,font,atlas,"No readable EPUB / PDF found. Check USB path status on the right.",96,312,23,gold);
    int begin=std::max(0,importSelect-9);
-   for(int i=begin;i<(int)imports.size()&&i<begin+11;++i){
-    float y=249+(i-begin)*65.f;panel(d,92,y,1737,57,i==importSelect);
-    txt(d,font,atlas,cut(imports[i].title,84),115,y+38,22);
-    txt(d,font,atlas,imports[i].format,1790,y+37,20,gold,Align::right);
+   for(int i=begin;i<(int)imports.size()&&i<begin+9;++i){
+    float y=249+(i-begin)*74.f;panel(d,92,y,1168,65,i==importSelect);
+    txt(d,font,atlas,cut(imports[i].title,49),115,y+38,22);
+    txt(d,font,atlas,imports[i].format,1234,y+38,20,gold,Align::right);
+   }
+   panel(d,1280,249,562,693);
+   txt(d,font,atlas,"USB PATH STATUS",1310,295,24,gold);
+   const auto& checks=ebook::last_scan_report();
+   for(size_t i=0;i<checks.size()&&i<9;i++){
+      const auto& check=checks[i];float y=339+(float)i*65;
+      txt(d,font,atlas,cut(check.path,36),1308,y,19,cream);
+      const std::string result=check.opened?std::to_string(check.books)+" books, "+std::to_string(check.candidates)+" files":("ERROR: "+check.error);
+      txt(d,font,atlas,cut(result,47),1310,y+24,15,check.opened?gold:Color::rgb(0xffa785));
    }
    txt(d,font,atlas,"X Import selected    TRIANGLE Rescan    CIRCLE Back",95,1038,21,cream);
   }else{
@@ -189,7 +198,10 @@ int main(){
     d.gradient_rect({65,y+160,1783,43},0,Color::rgb(0x915829),Color::rgb(0x341808));
     d.line(65,y+160,1848,y+160,3,Color::rgb(0xc48943));
    }
-   if(count==0)txt(d,font,atlas,"No books in this collection. Import via TRIANGLE.",960,481,29,muted,Align::center);
+   if(count==0){
+      txt(d,font,atlas,"No books in this collection.",960,481,29,muted,Align::center);
+      txt(d,font,atlas,"Press TRIANGLE to check USB paths, or OPTIONS to rescan.",960,530,22,gold,Align::center);
+   }
    if(count>0){
     int pageSize=list?9:15;
     libraryScroll=selected/pageSize;

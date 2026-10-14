@@ -314,20 +314,65 @@ bool pdf(const std::string& path,Document& out){
  append_lines(out,all);return !out.lines.empty();
 }
 bool isbook(const std::string& s){return ends(s,".epub")||ends(s,".pdf");}
-void collect(const std::string& dir,std::vector<BookEntry>& out,std::set<std::string>& seen){
- DIR* d=opendir(dir.c_str());if(!d)return;
- struct dirent* ent;
- while((ent=readdir(d))!=nullptr){
-  std::string n=ent->d_name;if(n=="."||n==".."||!isbook(n))continue;
-  const std::string path=dir+"/"+n;
-  struct stat st{};if(stat(path.c_str(),&st)!=0||!S_ISREG(st.st_mode)||st.st_size>int64_t(kMaxInput))continue;
-  if(seen.insert(path).second){
-   BookEntry b;b.path=path;b.title=clean_title(n);
-   b.format=ends(n,".pdf")?"PDF":"EPUB";
-   b.collection=(lower(n).find("comic")!=std::string::npos)?"Comics":"Fiction";
-   b.author="Unknown Author";out.push_back(std::move(b));
-  }
+std::vector<ScanSource> lastReport;
+// Scan ordinary folders, nested author folders, and USB mounts. Keep all work
+// bounded: max 4 directory levels, max 12000 examined entries per source.
+void collect(const std::string& path,std::vector<BookEntry>& out,
+             std::set<std::string>& seen,ScanSource& status,
+             size_t& remaining,int depth=0) {
+ DIR* d=opendir(path.c_str());
+ if(!d) {
+   if(depth==0)status.error=std::strerror(errno);
+   return;
  }
+ if(depth==0)status.opened=true;
+ ++status.folders;
+ struct dirent* entry;
+ while(remaining>0 && (entry=readdir(d))!=nullptr) {
+  --remaining;
+  std::string name=entry->d_name;
+  if(name=="."||name==".."||name.empty()||name.size()>240)continue;
+  std::string full=path+"/"+name;
+  if(full.size()>1000)continue;
+  struct stat st{};
+  const bool stat_ok=stat(full.c_str(),&st)==0;
+  // Some homebrew/USB layers do not provide a usable st_mode. For
+  // book candidates, fall back to fopen/fseek so readable files appear.
+  if(isbook(name)){
+    ++status.candidates;
+    if(stat_ok && S_ISDIR(st.st_mode))continue;
+    bool valid=false;
+    if(stat_ok && S_ISREG(st.st_mode) && st.st_size>=0 &&
+       st.st_size<=static_cast<off_t>(kMaxInput))valid=true;
+    if(!valid && (!stat_ok || !S_ISREG(st.st_mode))){
+      FILE* fp=fopen(full.c_str(),"rb");
+      if(fp){
+        if(fseek(fp,0,SEEK_END)==0){
+          long sz=ftell(fp);
+          valid=sz>=0 && (size_t)sz<=kMaxInput;
+        }
+        fclose(fp);
+      }
+    }
+    if(!valid)continue;
+    if(!seen.insert(full).second)continue;
+    BookEntry b;b.path=full;b.title=clean_title(name);
+    b.format=ends(name,".pdf")?"PDF":"EPUB";
+    b.collection=(lower(name).find("comic")!=std::string::npos)?"Comics":"Fiction";
+    b.author="Unknown Author";
+    out.push_back(std::move(b));
+    ++status.books;
+    continue;
+  }
+  if(depth>=3)continue;
+  bool is_directory=stat_ok&&S_ISDIR(st.st_mode);
+  if(!is_directory && !stat_ok){
+    DIR* nested=opendir(full.c_str());
+    if(nested){closedir(nested);is_directory=true;}
+  }
+  if(is_directory)collect(full,out,seen,status,remaining,depth+1);
+ }
+ if(remaining==0 && status.error.empty())status.error="Scan limit reached";
  closedir(d);
 }
 std::string escape_state(const std::string& s){
@@ -361,17 +406,32 @@ bool read_document(const std::string& path,Document& out){
  if(out.title.empty())out.title=clean_title(path);
  return ok;
 }
+const std::vector<ScanSource>& last_scan_report(){return lastReport;}
 bool scan_books(const std::vector<std::string>& dirs,std::vector<BookEntry>& books){
- std::set<std::string> seen;books.clear();
- for(const auto& dir:dirs)collect(dir,books,seen);
+ std::set<std::string> seen;books.clear();lastReport.clear();
+ for(const auto& root:dirs){
+   ScanSource status;status.path=root;size_t remaining=12000;
+   collect(root,books,seen,status,remaining);
+   lastReport.push_back(std::move(status));
+ }
  std::sort(books.begin(),books.end(),[](const BookEntry& a,const BookEntry& b){
    return lower(a.title)<lower(b.title);
- });load_state(books);return true;
+ });
+ load_state(books);return true;
 }
 bool scan_imports(std::vector<BookEntry>& found){
- std::set<std::string> seen;found.clear();
- for(auto d:{"/mnt/usb0/Books","/mnt/usb0/books","/mnt/usb0","/mnt/usb1/Books","/mnt/usb1/books"})
-    collect(d,found,seen);
+ std::set<std::string> seen;found.clear();lastReport.clear();
+ for(const char* root:{
+     "/mnt/usb0/Books","/mnt/usb0/books","/mnt/usb0/BOOKS",
+     "/mnt/usb1/Books","/mnt/usb1/books","/mnt/usb1/BOOKS",
+     "/mnt/usb0","/mnt/usb1","/mnt/usb2"}) {
+    ScanSource status;status.path=root;size_t remaining=12000;
+    collect(root,found,seen,status,remaining);
+    lastReport.push_back(std::move(status));
+ }
+ std::sort(found.begin(),found.end(),[](const BookEntry& a,const BookEntry& b){
+    return lower(a.title)<lower(b.title);
+ });
  return true;
 }
 std::string state_directory(){return dir();}
