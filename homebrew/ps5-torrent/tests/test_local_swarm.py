@@ -57,10 +57,10 @@ class Peer(socketserver.BaseRequestHandler):
         has=self.server.pieces
         try:
             handshake=recv_exact(sock,68)
-            if handshake[:20]!=b"\x13BitTorrent protocol" or handshake[28:48]!=INFO_HASH:
+            if handshake[:20]!=b"\x13BitTorrent protocol" or handshake[28:48]!=getattr(self.server, "info_hash", INFO_HASH):
                 raise AssertionError("client handshake was invalid")
             # Return a normal peer handshake, then choke, bitfield and unchoke.
-            sock.sendall(b"\x13BitTorrent protocol"+b"\0"*8+INFO_HASH+b"-MOCK00-ABCDEFGHIJKL")
+            sock.sendall(b"\x13BitTorrent protocol"+b"\0"*8+getattr(self.server, "info_hash", INFO_HASH)+b"-MOCK00-ABCDEFGHIJKL")
             mask = sum(0x80 >> i for i in has)
             messages=frame(0)+frame(5,bytes([mask]))+frame(1)
             # Deliberately fragment message boundaries to exercise recvAll.
