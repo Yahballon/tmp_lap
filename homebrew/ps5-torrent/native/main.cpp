@@ -119,7 +119,7 @@ int main(){
   if(pressed&hui::pad_bits::kCross){
    if(page==0){
     if(library.empty())notice="No torrent files available";
-    else{std::string err;if(manager.enqueue(library[0],&err))notice="Debian queued";else notice=err;}
+    else{std::string err;if(manager.enqueue(library[0],&err))notice="Ubuntu Desktop queued";else notice=err;}
    }else if(page==1&&!library.empty()){
     std::string err;
     if(manager.enqueue(library[(size_t)librarySelected],&err))
@@ -154,7 +154,7 @@ int main(){
   d.line(63,51,95,51,4,mint);d.line(79,35,79,67,4,mint);
   text(d,font,atlas,"TORRENT FLOW",127,55,35);
   text(d,font,atlas,"by YAHBALLON",462,55,21,mint);
-  text(d,font,atlas,"v0.3.1",1830,56,23,white,Align::right);
+  text(d,font,atlas,"v0.3.2",1830,56,23,white,Align::right);
   card(d,27,125,335,872);
   for(int i=0;i<6;i++){
    float y=144+i*106;card(d,43,y,302,91,page==i);
@@ -190,7 +190,7 @@ int main(){
    }
    text(d,font,atlas,"QUICK ACTIONS",1420,612,22,mint);
    text(d,font,atlas,"R1  Library / Downloads",1420,684,21);
-   text(d,font,atlas,"X   Queue Debian test",1420,742,21);
+   text(d,font,atlas,"X   Queue Ubuntu test",1420,742,21);
    text(d,font,atlas,"SQUARE  Stop all active",1420,800,21);
    text(d,font,atlas,"Auto: "+std::string(settings.autoDownload?"Enabled":"Disabled"),1420,870,22,settings.autoDownload?mint:gold);
    text(d,font,atlas,"Settings saved automatically",1420,923,17,muted);
@@ -256,7 +256,7 @@ int main(){
    card(d,386,125,1496,866);
    text(d,font,atlas,"ABOUT TORRENT FLOW",429,213,43);
    const char* lines[]={
-    "v0.3.1 / PPSA99684  |  Independent BitTorrent v1 client",
+    "v0.3.2 / PPSA99684  |  Independent BitTorrent v1 client",
     "Multi-download queue with independent cancel per torrent",
     "Persistent queue stored in /data/ps5-torrent/cache/queue.db",
     "Automatic folder: /data/ps5-torrent/torrents",

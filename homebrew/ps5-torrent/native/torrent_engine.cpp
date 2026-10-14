@@ -63,15 +63,15 @@ const char* kUsb="/tmp/torrent-flow-host-test-usb";
 const char* kHome="/data/ps5-torrent";
 const char* kUsb="/mnt/usb0/ps5-torrent";
 #endif
-const char* kTest="debian-13.7.0-amd64-netinst.iso.torrent";
+const char* kTest="ubuntu-26.04.1-desktop-amd64.iso.torrent";
 struct TestInfo {const char* file;const char* display;const char* size;};
 const TestInfo kTests[]={
- {"debian-13.7.0-amd64-netinst.iso.torrent","Debian 13.7 netinst","~756 MiB"},
- {"ubuntu-26.04.1-live-server-amd64.iso.torrent","Ubuntu 26.04.1 LTS Server","~2.7 GiB"},
- {"ubuntu-24.04.5-live-server-amd64.iso.torrent","Ubuntu 24.04.5 LTS Server","~3.8 GiB"},
- {"linuxmint-22.3-cinnamon-64bit.iso.torrent","Linux Mint 22.3 Cinnamon","~2.9 GiB"},
- {"linuxmint-22.3-xfce-64bit.iso.torrent","Linux Mint 22.3 Xfce","~2.8 GiB"},
- {"linuxmint-22.3-mate-64bit.iso.torrent","Linux Mint 22.3 MATE","~2.9 GiB"}
+ {"ubuntu-26.04.1-desktop-amd64.iso.torrent","Ubuntu 26.04.1 LTS Desktop","~6.0 GiB"},
+ {"ubuntu-24.04.5.1-desktop-amd64.iso.torrent","Ubuntu 24.04.5.1 LTS Desktop","~5.8 GiB"},
+ {"lmde-7-cinnamon-64bit.iso.torrent","Linux Mint LMDE 7 Cinnamon","~3.0 GiB"},
+ {"kubuntu-26.04.1-desktop-amd64.iso.torrent","Kubuntu 26.04.1 LTS","~4.7 GiB"},
+ {"xubuntu-26.04.1-desktop-amd64.iso.torrent","Xubuntu 26.04.1 LTS","~4.8 GiB"},
+ {"lubuntu-26.04.1-desktop-amd64.iso.torrent","Lubuntu 26.04.1 LTS","~3.7 GiB"}
 };
 bool isDir(const std::string& p){struct stat st{};return stat(p.c_str(),&st)==0&&S_ISDIR(st.st_mode);}
 bool mkdirs(const std::string& p){if(p.empty()||p.size()>300||p[0]!='/')return false;std::string s;for(char c:p){s+=c;if(c=='/'&&s.size()>1)mkdir(s.c_str(),0755);}return mkdir(s.c_str(),0755)==0||isDir(s);}
@@ -534,7 +534,7 @@ std::string storageRoot(){return kHome;}
 
 bool createDirectories(const std::string& path){return mkdirs(path)&&mkdirs(path+"/cache")&&mkdirs(path+"/downloads");}
 const char* sampleTorrentName(){return kTest;}
-const char* sampleTorrentPath(){return "/app0/assets/test/debian-13.7.0-amd64-netinst.iso.torrent";}
+const char* sampleTorrentPath(){return "/app0/assets/test/ubuntu-26.04.1-desktop-amd64.iso.torrent";}
 std::string testDisplayName(const std::string& path){
  for(const auto& test:kTests)if(path.size()>=strlen(test.file)&&path.compare(path.size()-strlen(test.file),strlen(test.file),test.file)==0)return test.display;
  const size_t slash=path.find_last_of('/');
@@ -702,7 +702,7 @@ void Engine::run(std::string path){
    peers.insert(peers.end(),found.begin(),found.end());
    if(peers.size()>=80)break;
   }
-  if(peers.empty()&&m.name=="debian-13.7.0-amd64-netinst.iso"&&!cancelled()){
+  if(peers.empty()&&m.name=="ubuntu-26.04.1-desktop-amd64.iso"&&!cancelled()){
    auto fallback=udpFallback(m,"udp://tracker.opentrackr.org:1337/announce",peerId,remaining);
    peers.insert(peers.end(),fallback.begin(),fallback.end());
   }

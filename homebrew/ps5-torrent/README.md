@@ -1,6 +1,6 @@
 # Torrent Flow for PS5
 
-**Native PS5 BitTorrent test client by YAHBALLON — v0.3.1 — PPSA99684**
+**Native PS5 BitTorrent test client by YAHBALLON — v0.3.2 — PPSA99684**
 
 > Experimental first build. Not tested on physical PS5 hardware. Full protocol interoperability is not yet established.
 
@@ -9,12 +9,12 @@ Torrent Flow is an original console-friendly download dashboard backed by a comp
 ## Features
 
 - Six controller-accessible views: Dashboard, Torrent Library, Downloads, Settings, Logs, About.
-- HTTP, certificate-verified HTTPS and UDP BitTorrent trackers (including announce-list fallbacks) and IPv4 TCP peer connections. Debian includes an optional OpenTrackr fallback.
+- HTTP, certificate-verified HTTPS and UDP BitTorrent trackers (including announce-list fallbacks) and IPv4 TCP peer connections.
 - SHA-1 integrity verification per piece, independent of progress claims.
 - Restart/resume by rehashing existing output file; cache includes a per-torrent resume snapshot.
 - Persistent separate cache and download directories.
 - Internal PS5 and optional USB0 root selection; idle-only switching.
-- **Six bundled legal Linux torrents:** the original Debian 13.7.0 netinst plus five additional official Ubuntu and Linux Mint releases. GitHub Actions validates each bencoded single-file torrent's piece hashes, file length, and expected ISO name; the Debian metadata SHA-256 is pinned.
+- **Six refreshed legal desktop Linux release torrents** from official Ubuntu and Linux Mint sources. GitHub Actions validates their bencoded single-file metadata, piece hash count, expected image name and size, and pins downloaded metadata hashes after first build.
 - The library displays readable titles and approximate ISO sizes. X queues the selected torrent; SQUARE queues all torrents (Download All).
 - Eight concurrent PS5-compatible TCP peer workers with bitfield/HAVE/UNCHOKE negotiation and pipelined 16 KiB requests.
 - Live transfer speed (smoothed), ETA, piece progress, tracker/peer counts, persistent diagnostic logs.
@@ -53,16 +53,18 @@ After a fully SHA-1 verified successful download, the corresponding **user-suppl
 
 Settings can be changed using the PS5 Settings tab (X on highlighted row), or by editing `settings.ini` before launching. Download data lives in `/data/ps5-torrent/downloads/` by default.
 
-## Bundled test torrents
+## Bundled test torrents (v0.3.2)
 
-| Name | Approx. ISO size | Official metadata source |
+| Distribution | Approximate ISO size | Official torrent directory |
 | --- | --- | --- |
-| Debian 13.7 netinst | 756 MiB | [Debian CD images](https://www.debian.org/CD/torrent-cd/) |
-| Ubuntu 26.04.1 LTS Server | 2.7 GiB | [Ubuntu 26.04.1](https://releases.ubuntu.com/26.04/) |
-| Ubuntu 24.04.5 LTS Server | 3.8 GiB | [Ubuntu 24.04.5](https://releases.ubuntu.com/24.04/) |
-| Linux Mint 22.3 Cinnamon | 2.9 GiB | [Mint release post](https://blog.linuxmint.com/?p=4981) |
-| Linux Mint 22.3 Xfce | 2.8 GiB | [Mint release post](https://blog.linuxmint.com/?p=4981) |
-| Linux Mint 22.3 MATE | 2.9 GiB | [Mint release post](https://blog.linuxmint.com/?p=4981) |
+| Ubuntu 26.04.1 LTS Desktop | 6.0 GiB | [Ubuntu 26.04](https://releases.ubuntu.com/26.04/) |
+| Ubuntu 24.04.5.1 LTS Desktop | 5.8 GiB | [Ubuntu 24.04](https://releases.ubuntu.com/24.04/) |
+| Linux Mint LMDE 7 Cinnamon | 3.0 GiB | [LMDE 7](https://www.linuxmint.com/edition.php?id=325) |
+| Kubuntu 26.04.1 LTS | 4.7 GiB | [Kubuntu releases](https://cdimage.ubuntu.com/kubuntu/releases/26.04/release/) |
+| Xubuntu 26.04.1 LTS | 4.8 GiB | [Xubuntu releases](https://cdimage.ubuntu.com/xubuntu/releases/26.04/release/) |
+| Lubuntu 26.04.1 LTS | 3.7 GiB | [Lubuntu releases](https://cdimage.ubuntu.com/lubuntu/releases/26.04/release/) |
+
+These are official, freely redistributable installer images. They were selected for wider distribution and more promising swarm availability, **not on verified real-time seeder counts**. Current peer counts vary with time, tracker and network. The PS5 client's limited protocol support also affects actual download performance.
 
 Only .torrent metadata files are packaged. The ISO files themselves are downloaded over BitTorrent upon selection. Tracker/peer connectivity remains hardware-untested.
 
