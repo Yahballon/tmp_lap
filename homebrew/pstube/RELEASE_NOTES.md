@@ -1,15 +1,13 @@
-# PSTUBE v0.1.0 — Development Alpha
+# PSTUBE v0.2.0 — Playback Beta
 
-A new native PS5 console application by YAHBALLON.
+PSTUBE by YAHBALLON adds a real software decode pipeline and MP4 download manager.
 
-- Fullscreen, controller-navigable native UI
-- Invidious-powered video search with TLS verification and asynchronous requests
-- Local favourites persistence and a video details screen
-- Distinct tabs for Home, Search, Trending, Favorites, Downloads, History and Settings
-- Initial PS5 build/install scaffold
+- Resolve combined MP4 streams through the configured public Invidious API.
+- TLS-verified download to /data/pstube/downloads with atomic .part completion and progress.
+- Decode completed MP4 video with FFmpeg, render with native OpenGL and queue audio through SDL2.
+- Full DualSense play/pause/back controls, Downloads list, working Trending endpoint and provider switching.
+- Saved favourites and completed files survive application updates.
 
-**Important:** This is a development alpha. Actual YouTube video/audio playback, downloads, thumbnails and account subscriptions are not implemented yet. No completed-playback claims are made.
+**Limitations:** Playback requires first downloading a compatible combined MP4 stream; high-resolution separate adaptive audio/video formats, thumbnails, YouTube login, background playback and subscriptions are not supported. Invidious APIs and signed media URLs may be unavailable or restricted. First real-hardware playback test pending.
 
-Install: unzip `PPSA99762.zip` into `/data/homebrew/` and register with a compatible loader. Real PS5 hardware validation is outstanding.
-
-Source revision: refer to the release's target commit.
+Install: extract PPSA99762.zip to /data/homebrew, replace the previous version, and re-register in the loader. Source and GPL notice in the repository.
