@@ -115,7 +115,7 @@ jobs:
           data['titleId']='PPSA99642'
           data['conceptId']='99642'
           data['contentId']='UP9000-PPSA99642_00-STARBOUNDREBASE1'
-          data['contentVersion']='01.000.013'
+          data['contentVersion']='01.000.014'
           data['localizedParameters']['en-US']['titleName']='Starbound Rebased'
           path.write_text(json.dumps(data,indent=2)+'\n')
           PY
@@ -207,6 +207,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=starbound-rebased-v0.1.12
+          tag=starbound-rebased-v0.1.13-hd-loader
           if gh release view "$tag" >/dev/null 2>&1; then exit 0; fi
-          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.12 World1-1 Compatibility Test" --notes "Temporary Gold872 World1-1 compatibility reference using the pinned upstream level CSV and properties with hue-shifted original tile/character/enemy atlases. Menu PNG source-cropping bug fixed. Uses only 1-1 in stage selection; preserves v0.1.10 performance and YAHBALLON HUD. This is an experimental reference build; artwork licensing requires review before general redistribution."
+          gh release create "$tag" app/dist/PPSA99642.zip --target "$GITHUB_SHA" --title "Starbound Rebased v0.1.13 HD Asset Loader" --notes "Preserves v0.1.12 World1-1 behavior, sprite source coordinates, menu crop and rendering fixes. Supports the optional separately supplied HD art pack at /mnt/usb0/homebrew/starbound-rebased-hd/res/sprites or /data/starbound-rebased/hd/res/sprites. The new artwork is NOT bundled into this code-only runtime; it must be copied separately. The blue background stays unchanged without an external HD pack."

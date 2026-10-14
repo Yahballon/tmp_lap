@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fix cut-off PS5 unframed PNGs and keep the 1-1 compatibility test focused."""
+"""Fix unframed textures and opt-in to the user-provided HD sky when installed."""
 from pathlib import Path
 import sys
 
@@ -37,9 +37,13 @@ patch("src/TextureManager.cpp",
       SDL_RenderCopy(renderer, sbBackgroundTexture, nullptr, &backgroundRect);
    else
       SDL_RenderFillRect(renderer, &backgroundRect);''',
-    '''   // Accurate Gold872 1-1 comparison mode: keep the reference flat sky
-   // instead of layering dark translucent planet/clouds over gameplay.
-   SDL_RenderFillRect(renderer, &backgroundRect);''')
+    '''   // Keep the v0.1.12 reference sky until the complete new HD art
+   // pack has been installed. Do not regress reference-world geometry.
+   if (currentColor == BackgroundColor::BLUE &&
+       sb_resources::hd_enabled() && sbBackgroundTexture)
+      SDL_RenderCopy(renderer, sbBackgroundTexture, nullptr, &backgroundRect);
+   else
+      SDL_RenderFillRect(renderer, &backgroundRect);''')
 
 patch("include/systems/MenuSystem.h",
       "   const int maxLevel = 8;\n   const int maxSublevel = 4;",

@@ -47,13 +47,56 @@ inline const char* root() {
     }();
     return selected;
 }
+
+inline const char* hd_root() {
+    // Only enable the alternate source when the entire HD pack is present.
+    // An incomplete USB transfer must never replace working in-package art.
+    static const char* selected=[]() -> const char* {
+        static const char* candidates[] = {
+            "/mnt/usb0/homebrew/starbound-rebased-hd/",
+            "/mnt/ext0/homebrew/starbound-rebased-hd/",
+            "/data/starbound-rebased/hd/",
+            "/data/homebrew/PPSA99642/hd/",
+        };
+        static const char* required[] = {
+            "res/sprites/characters/PlayerSpriteSheet.png",
+            "res/sprites/characters/EnemySpriteSheet.png",
+            "res/sprites/blocks/BlockTileSheet.png",
+            "res/sprites/icons/logo.png",
+            "res/sprites/backgrounds/alien_sky.png",
+        };
+        char filename[512];
+        for (const char* base: candidates) {
+            bool complete=true;
+            for (const char* relative: required) {
+                std::snprintf(filename,sizeof(filename),"%s%s",base,relative);
+                FILE* fp=std::fopen(filename,"rb");
+                if (!fp) { complete=false; break; }
+                std::fclose(fp);
+            }
+            if (complete) {
+                log("HD_ASSET_ROOT_FOUND",base);
+                return base;
+            }
+        }
+        log("HD_ASSET_ROOT_MISS","using built-in source art");
+        return "";
+    }();
+    return selected;
+}
+inline bool hd_enabled() { return hd_root()[0] != '\0'; }
+
 inline const char* path(const char* relative) {
     // Rotating buffers avoid lifetime issues for multiple arguments and allow
     // callers expecting const char*, std::string or std::ifstream filenames.
     static char slots[32][1024];
     static unsigned index = 0;
     const unsigned slot = (index++) % 32;
-    std::snprintf(slots[slot], sizeof(slots[slot]), "%s%s", root(), relative);
+    // Sprite art alone may be external. Fonts/maps/audio always use the verified
+    // package root, so a partial HD skin cannot break scene loading.
+    const char* base = (relative && std::strncmp(relative,"res/sprites/",12)==0
+                        && hd_enabled()) ? hd_root() : root();
+    std::snprintf(slots[slot], sizeof(slots[slot]), "%s%s", base, relative);
     return slots[slot];
 }
 } // namespace sb_resources
