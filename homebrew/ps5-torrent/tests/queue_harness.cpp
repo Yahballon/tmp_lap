@@ -40,6 +40,28 @@ int main(int argc,char** argv){
   }
   std::cerr<<"Auto download scan did not complete\n";return 9;
  }
+ if(mode=="--cancel-auto"&&argc==2){
+  torrent::DownloadManager m;
+  m.setAutoDownload(true);m.setMaxActive(1);m.setScanSeconds(2);
+  bool requested=false,observedCancelled=false;
+  auto start=std::chrono::steady_clock::now();
+  while(std::chrono::steady_clock::now()-start<std::chrono::seconds(8)){
+   m.tick();
+   auto jobs=m.jobs();
+   if(jobs.size()==1&&jobs[0].running&&!requested){
+    m.cancel(0);requested=true;
+   }
+   if(requested&&jobs.size()==1&&jobs[0].cancelled)observedCancelled=true;
+   if(observedCancelled&&jobs.size()==1&&jobs[0].running){
+    std::cerr<<"Cancelled auto job was restarted by folder watcher\n";return 12;
+   }
+   std::this_thread::sleep_for(std::chrono::milliseconds(65));
+  }
+  auto jobs=m.jobs();
+  std::cout<<"AUTO CANCEL requested="<<requested<<" persisted_cancelled="
+           <<observedCancelled<<" phase="<<(jobs.empty()?"none":jobs[0].phase)<<'\n';
+  return requested&&observedCancelled&&jobs.size()==1&&jobs[0].cancelled?0:13;
+ }
  if(mode=="--history"&&argc==2){
   torrent::DownloadManager m;
   auto jobs=m.jobs();
