@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "7144c111b2f0f6533b201e6c29869b70460956996f29ef6a8212821e9353f25f",
+  "version": "55a5f49143feef8b8e1e24db5e3d3cbbca2cb55232c8bc1b624f0e069b0040bb",
   "repository": "Yahballon/tmp_lap",
   "app_count": 6,
   "apps": [
@@ -47,14 +47,14 @@
       "name": "Starbound Rebased",
       "slug": "starbound-rebased",
       "title_id": "PPSA99642",
-      "version": "0.1.22",
-      "tag": "starbound-rebased-v0.1.22",
+      "version": "0.1.23",
+      "tag": "starbound-rebased-v0.1.23",
       "zip_name": "PPSA99642.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-rebased-v0.1.22/PPSA99642.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-rebased-v0.1.22",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/starbound-rebased-v0.1.23/PPSA99642.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/starbound-rebased-v0.1.23",
       "source": "homebrew/starbound-rebased",
-      "size_bytes": 8204717,
-      "published_at": "2026-10-14T18:38:47Z"
+      "size_bytes": 8210643,
+      "published_at": "2026-10-14T19:15:22Z"
     },
     {
       "name": "Torrent Flow",
