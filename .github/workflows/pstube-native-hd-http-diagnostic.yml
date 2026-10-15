@@ -30,3 +30,13 @@ jobs:
             -lssl -lcrypto -o /tmp/pstube-range-probe
       - name: Compare verified native HTTPS ranges
         run: timeout 115s /tmp/pstube-range-probe
+      - name: Diagnose HD offset alignment
+        run: |
+          g++ -std=c++20 -O2 -pthread -I/tmp -Ihomebrew/pstube/native \
+            homebrew/pstube/tests/probe_native_hd_http.cpp \
+            homebrew/pstube/native/pstube.cpp \
+            homebrew/pstube/native/transfer.cpp \
+            homebrew/pstube/native/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-probe-http
+          /tmp/pstube-probe-http
+          python3 homebrew/pstube/tests/probe_hd_http.py
