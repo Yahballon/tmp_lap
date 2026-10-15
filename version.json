@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "0f6786a8f5f53b6db2324237bc72034231b14410dd9a03e714e8459d2b5935ce",
+  "version": "cc3151938a47beb071c688869a8478c82c1157101acaa5aa67c8f83d8246c543",
   "repository": "Yahballon/tmp_lap",
   "app_count": 10,
   "apps": [
@@ -99,14 +99,14 @@
       "name": "Audiobook Reader",
       "slug": "audiobook-reader",
       "title_id": "PPSA99784",
-      "version": "0.2.1",
-      "tag": "audiobook-reader-v0.2.1",
+      "version": "0.2.2",
+      "tag": "audiobook-reader-v0.2.2",
       "zip_name": "PPSA99784.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/audiobook-reader-v0.2.1/PPSA99784.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.2.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/audiobook-reader-v0.2.2/PPSA99784.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.2.2",
       "source": "homebrew/audiobook-reader",
-      "size_bytes": 19754735,
-      "published_at": "2026-10-15T17:39:57Z"
+      "size_bytes": 19810103,
+      "published_at": "2026-10-15T18:02:20Z"
     },
     {
       "name": "PS5 System Info",
