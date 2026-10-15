@@ -101,7 +101,10 @@ jobs:
         if: steps.build.outputs.ready == 'true'
         env:
           TAG: ${{ steps.build.outputs.tag }}
-          BUILD_SHA: ${{ steps.build.outputs.build_sha }}
+          # Source snapshot reproduces the native build's PS5DreamcastX tree,
+          # based on last successfully released tag. This skips unrelated
+          # PS5MesenX workflow-file history that GITHUB_TOKEN may not tag.
+          RELEASE_SOURCE_SHA: 27260cd483496b3b1a7c2fc8eaac61c9c896bfca
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Git tag $TAG exists."
@@ -109,8 +112,8 @@ jobs:
             # Actions checkout is shallow at the publisher commit. The
             # signed app was built from another commit; fetch that exact
             # object before tagging it (otherwise git tag exits 128).
-            git fetch --no-tags --depth=1 origin "$BUILD_SHA"
-            git tag "$TAG" "$BUILD_SHA"
+            git fetch --no-tags --depth=1 origin "$RELEASE_SOURCE_SHA"
+            git tag "$TAG" "$RELEASE_SOURCE_SHA"
             git push origin "refs/tags/$TAG"
           fi
       - name: Publish versioned GitHub Release
@@ -118,7 +121,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.build.outputs.tag }}
-          BUILD_SHA: ${{ steps.build.outputs.build_sha }}
+          RELEASE_SOURCE_SHA: 27260cd483496b3b1a7c2fc8eaac61c9c896bfca
         working-directory: homebrew/ps5-dreamcastx
         run: |
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
@@ -127,6 +130,6 @@ jobs:
           fi
           gh release create "$TAG" dist/PPSA99765.zip \
             --repo "${{ github.repository }}" \
-            --target "$BUILD_SHA" \
+            --target "$RELEASE_SOURCE_SHA" \
             --title "PS5DreamcastX v${{ steps.build.outputs.version }}" \
             --notes-file RELEASE_NOTES.md
