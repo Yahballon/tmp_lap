@@ -378,7 +378,19 @@ std::string youtube_client_version(const std::string& html){
  }
  return "2.20261010.00.00";
 }
-std::string continuation_body(const std::string& token,const std::string& version){
+std::string youtube_config_value(const std::string& html,const char* key){
+ const std::string pattern=std::string("\"")+key+"\":";
+ size_t p=html.find(pattern);
+ if(p==std::string::npos)return {};
+ p+=pattern.size();skip(html,p);
+ const std::string_view value(html.data()+p,html.size()-p);
+ const size_t end=value_end(value,0);
+ if(end<=0||end>2048)return {};
+ const std::string result=decode(value.substr(0,end),1400);
+ // Config values are passed only to the trusted YouTube endpoint.
+ return result;
+}
+std::string continuation_body(const std::string& token,const std::string& version,const std::string& visitor){
  // The tokens consist of web-safe characters; quoted text is properly escaped
  // to prevent malformed JSON or a request with an unintended command.
  auto quote=[](const std::string& value)->std::string{
@@ -391,7 +403,9 @@ std::string continuation_body(const std::string& token,const std::string& versio
   return encoded+"\"";
  };
  return "{\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":"+
-  quote(version)+",\"hl\":\"en\",\"gl\":\"US\"}},\"continuation\":"+quote(token)+"}";
+  quote(version)+",\"hl\":\"en\",\"gl\":\"US\""+
+  (visitor.empty()?std::string{}:std::string(",\"visitorData\":")+quote(visitor))+
+  "}},\"continuation\":"+quote(token)+"}";
 }
 Service::Service(){
  mkdirs();
@@ -499,7 +513,7 @@ bool Service::trending(){return search("@@TRENDING@@");}
 bool Service::search(const std::string& query){
  if(query.empty()||query.size()>100||busy_.exchange(true))return false;
  {std::lock_guard<std::mutex> g(mutex_);
-   currentQuery_=query;continuation_.clear();pagingProvider_.clear();clientVersion_.clear();providerPage_=1;
+   currentQuery_=query;continuation_.clear();pagingProvider_.clear();clientVersion_.clear();apiKey_.clear();visitorData_.clear();providerPage_=1;
    ++feedGeneration_;
    state_.searching=true;state_.loadingMore=false;state_.hasMore=false;
    state_.status="Contacting video providers...";
@@ -519,9 +533,12 @@ bool Service::search(const std::string& query){
    queue_thumbnails(directVideos);
    const std::string next=youtube_continuation(youtubeHtml);
    const std::string version=youtube_client_version(youtubeHtml);
+   const std::string key=youtube_config_value(youtubeHtml,"INNERTUBE_API_KEY");
+   const std::string visitor=youtube_config_value(youtubeHtml,"VISITOR_DATA");
    {
     std::lock_guard<std::mutex> g(svc.mutex_);
     svc.continuation_=next;svc.clientVersion_=version;
+    svc.apiKey_=key;svc.visitorData_=visitor;
     svc.pagingProvider_.clear();
     svc.state_.videos=std::move(directVideos);
     svc.state_.hasMore=!next.empty();
@@ -580,21 +597,21 @@ bool Service::search(const std::string& query){
 }
 bool Service::load_more(){
  if(busy_.exchange(true))return false;
- std::string token,version,query,host;
+ std::string token,version,key,visitor,query,host;
  int page=0;
  {
   std::lock_guard<std::mutex> g(mutex_);
   if(!state_.hasMore||state_.searching||state_.loadingMore){
    busy_=false;return false;
   }
-  token=continuation_;version=clientVersion_;query=currentQuery_;
+  token=continuation_;version=clientVersion_;key=apiKey_;visitor=visitorData_;query=currentQuery_;
   host=pagingProvider_;page=providerPage_+1;
   if(token.empty()&&host.empty()){state_.hasMore=false;busy_=false;return false;}
   state_.loadingMore=true;
   state_.status="Loading more videos...";
  }
- struct More {Service* svc;std::string token,version,query,host;int page;};
- auto* w=new More{this,token,version,query,host,page};
+ struct More {Service* svc;std::string token,version,key,visitor,query,host;int page;};
+ auto* w=new More{this,token,version,key,visitor,query,host,page};
  pthread_t th{};pthread_attr_t attr;pthread_attr_init(&attr);
  pthread_attr_setstacksize(&attr,1024*1024);
  const int rc=pthread_create(&th,&attr,[](void* arg)->void* {
@@ -603,8 +620,10 @@ bool Service::load_more(){
   bool ok=false;std::string next;
   std::vector<Video> added;
   if(!w->token.empty()){
-   ok=https("www.youtube.com","/youtubei/v1/search?prettyPrint=false",
-     response,error,continuation_body(w->token,w->version));
+   std::string path="/youtubei/v1/search?prettyPrint=false";
+   if(!w->key.empty())path+="&key="+escape_url(w->key);
+   ok=https("www.youtube.com",path,response,error,
+     continuation_body(w->token,w->version,w->visitor));
    if(ok){added=parse_youtube_html(response);next=youtube_continuation(response);}
   }else if(!w->host.empty()){
    const bool trending=w->query=="@@TRENDING@@";
