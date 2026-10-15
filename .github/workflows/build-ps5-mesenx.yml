@@ -39,6 +39,7 @@ jobs:
           python3 -m unittest discover -s homebrew/ps5-mesenx/tests -p 'test_*.py' -v
           python3 -m py_compile homebrew/ps5-mesenx/scripts/build_title.py homebrew/ps5-mesenx/scripts/compile_ps5_core.py
           python3 homebrew/ps5-mesenx/scripts/prepare_frontend.py
+          python3 homebrew/ps5-mesenx/scripts/build_title.py --prepare-only
       - name: Check out pinned MesenCE Libretro HD NES core
         run: |
           mkdir -p homebrew/ps5-mesenx/build
