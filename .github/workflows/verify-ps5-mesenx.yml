@@ -30,7 +30,12 @@ jobs:
         run: |
           python3 homebrew/ps5-mesenx/scripts/preflight.py
           python3 -m unittest discover -s homebrew/ps5-mesenx/tests -v
-      - name: Prepare isolated NES PS5 frontend sources\n        run: |\n          python3 homebrew/ps5-mesenx/scripts/prepare_frontend.py\n          test -f homebrew/ps5-mesenx/build/port-src/snes/src/core_session.cpp\n          grep -q "PPSA99206" homebrew/ps5-mesenx/build/port-src/snes/sce_sys/param.json\n      - name: Compile native bridge C++ syntax (Linux host)
+      - name: Prepare isolated NES PS5 frontend sources
+        run: |
+          python3 homebrew/ps5-mesenx/scripts/prepare_frontend.py
+          test -f homebrew/ps5-mesenx/build/port-src/snes/src/core_session.cpp
+          grep -q "PPSA99206" homebrew/ps5-mesenx/build/port-src/snes/sce_sys/param.json
+      - name: Compile native bridge C++ syntax (Linux host)
         run: |
           M=homebrew/ps5-mesenx/upstream/MesenCE
           P=homebrew/ps5-mesenx/upstream/PS5SNESX
@@ -43,4 +48,5 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang make libevdev-dev libsdl2-dev libx11-dev libgl1-mesa-dev
           cd homebrew/ps5-mesenx/upstream/MesenCE
-          mkdir -p MacOS\n          make -j 3 core LTO=false SYSTEM_LIBEVDEV=true
+          mkdir -p MacOS
+          make -j 3 core LTO=false SYSTEM_LIBEVDEV=true
