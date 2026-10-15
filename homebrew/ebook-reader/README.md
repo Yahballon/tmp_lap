@@ -1,4 +1,4 @@
-# Ebook Reader v0.1.5 — USB bridge support
+# Ebook Reader v0.1.6 — USB bridge support
 
 Native PS5 EPUB/PDF text reader. Title ID: `PPSA99741`.
 
@@ -38,14 +38,14 @@ Requires a compatible already-running elfldr for accessing an inaccessible USB m
 
 Dedicated workflow: [build-ebook-reader.yml](../../.github/workflows/build-ebook-reader.yml). Uses PS5-DevBridge, OpenGL SDK, zlib and its native payload SDK to compile `bookscan.elf`; both `eboot.bin` and `bookscan.elf` are verified in the installable `PPSA99741.zip`.
 
-Release tag: `ebook-reader-v0.1.5`.
+Release tag: `ebook-reader-v0.1.6`.
 
 Source license: GPL-3.0-or-later, respecting dependency licenses.
 
-## v0.1.5 EPUB container fix
+## v0.1.6 EPUB container fix
 The former parser matched `<rootfiles>` when it was looking for `<rootfile>`. This caused the common error `Cannot resolve EPUB package` before the EPUB chapter data could load. The replacement checks XML start element names (also namespaced rootfile entries), skips comments, resolves the real OPF `full-path`, and includes host tests with generated standards-shaped EPUB files. This does not change USB Helper, saved book progress, or the application's Title ID.
 
-## v0.1.5: Real EPUB cover art and inline illustrations
+## v0.1.6: Real EPUB cover art and inline illustrations
 
 - **Real library covers:** EPUB2 `<meta name="cover" content="…">`, EPUB3 `properties="cover-image"`, and sane cover-file/first-image fallbacks. Cover is decoded from the ZIP file and displayed as a GPU texture in the wooden bookshelf.
 - **Illustrations in the reader:** Embedded JPEG, PNG, and static GIF assets referenced by `<img src="…">` or `<image href="…">` are resolved relative to their XHTML chapter, extracted from the archive, and shown inline in the correct text order. Images are proportionally fitted inside the two-column reading pages.
@@ -53,6 +53,17 @@ The former parser matched `<rootfiles>` when it was looking for `<rootfile>`. Th
 - **No external assets:** HTTP images and scripts are never fetched or executed. Compressed ZIP entries, decoded artwork and image count are limited to protect memory.
 - **Tests:** Generated EPUB2/3 packages with actual original JPEG covers and PNG illustrations are verified in CI.
 
-**Limitations:** This is not a CSS/XHTML layout engine. Relative inline images use reserved blocks in the book's existing paginated text layout. Animated GIF, SVG, unsupported formats, externally hosted images and DRM are unsupported. **PDF mode remains extractable-text preview**; displaying real PDF pages and their image objects needs an independently ported PDF renderer (not included in v0.1.5). Console-side verification required.
+**Limitations:** This is not a CSS/XHTML layout engine. Relative inline images use reserved blocks in the book's existing paginated text layout. Animated GIF, SVG, unsupported formats, externally hosted images and DRM are unsupported. **PDF mode remains extractable-text preview**; displaying real PDF pages and their image objects needs an independently ported PDF renderer (not included in v0.1.6). Console-side verification required.
 
-Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.5
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.6
+
+## v0.1.6: CBR / CBZ comics and in-reader zoom
+
+- **CBR** (RAR4/RAR5) and **CBZ** (ZIP) image comic files are now recognized in the bookshelf and by the existing read-only USB helper.
+- Comic images are sorted in natural numeric order (e.g. page2 before page10) and decoded one page at a time using the cross-compiled PacBrew **libarchive**.
+- First comic page becomes the library cover. Images are fitted to the TV area while maintaining aspect ratio; page textures are decoded and downscaled to at most 2048px on the longest side.
+- **Zoom:** L2 = zoom out, R2 = zoom in (100–400% in 25% increments), L3/OPTIONS = fit/reset; D-Pad = pan while zoomed; L1/R1 = previous/next page; X = next; Circle = bookshelf. Zoom also works in EPUB/PDF text preview.
+- Cover extraction runs in a worker and comic pages are decoded one at a time on a worker; rendering and OpenGL uploads stay on the main thread.
+- Existing EPUB cover/inline imagery, PDF text preview, bookmarks, USB bridge and Title ID `PPSA99741` are preserved.
+
+**Limits:** Supports unencrypted single-file RAR4/RAR5, ZIP, JPEG/PNG/GIF (not WEBP by stb decoder in this build); no password-protected or multipart archives. Comic pages: up to 20 MiB uncompressed image data and 2048px displayed texture size. Archive maximum 512 MiB via USB bridge, 1,800 pages indexed. Unreadable files show errors; some RAR compression features may be unsupported by libarchive on hardware. This does **not** add graphical PDF page rendering. Tests must pass in CI, and PS5 hardware testing remains outstanding.
