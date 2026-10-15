@@ -16,7 +16,7 @@ with ZipFile(folder/"sample.cbz","w",ZIP_DEFLATED) as zip:
     zip.writestr("README.txt","CBZ comic fixture")
     for n in (10,1,2):
         zip.writestr(f"Comic/page{n}.jpg",page(n))
-    zip.writestr("Comic\\\\page5.jpg",page(5))
+    zip.writestr("Comic\\page5.jpg",page(5))
     zip.writestr("../bad.jpg",page(19))
 with ZipFile(folder/"empty.cbz","w",ZIP_DEFLATED) as zip:
     zip.writestr("README.txt","No images")
