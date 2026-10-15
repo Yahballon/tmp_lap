@@ -191,7 +191,21 @@ Catalog scan(){
  known=out.books;
  return out;
 }
-bool fetch(const Entry& book,std::string& localPath,std::string& error){
+bool cached_copy(const Entry& book,std::string& localPath){
+ if(!safe(book.relative)||!book.bytes)return false;
+ std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
+ for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
+ char hash[24];std::snprintf(hash,sizeof(hash),"%016llx",
+                            (unsigned long long)fnv64(book.relative));
+ for(const char* root:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache",
+                        "/download0/ebook-reader-cache"}){
+   std::string path=std::string(root)+"/usb-"+hash+suffix;
+   if(valid_cached_file(path,suffix,book.bytes)){localPath=path;return true;}
+ }
+ return false;
+}
+bool fetch(const Entry& book,std::string& localPath,std::string& error,
+           ProgressCallback progress,void* context){
  std::lock_guard<std::mutex> lock(transferMutex);
  error.clear();
  ebook_log::write("USB_FETCH_START",book.relative+" bytes="+std::to_string(book.bytes));
@@ -210,6 +224,7 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
    if(valid_cached_file(prior,suffix,book.bytes)){
      localPath=prior;
      ebook_log::write("USB_CACHE_HIT",prior);
+     if(progress)progress(book.bytes,book.bytes,context);
      return true;
    }
  }
@@ -225,6 +240,9 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  if(!cleanup.complete)
    ebook_log::write("CACHE_SOFT_LIMIT","Not enough evictable entries to meet cache limit");
  // Every file in Cache is a disposable copy. USB originals and Books stay intact.
+ if(progress&&!progress(0,book.bytes,context)){
+   error="Book loading cancelled";return false;
+ }
  int fd=connect_to(kPort);
  if(fd<0){
    auto refreshed=scan();
@@ -290,6 +308,9 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
      ok=false;break;
    }
    written+=(size_t)got;
+   if(progress&&!progress(written,total,context)){
+     reason="Book loading cancelled";ok=false;break;
+   }
    if(written>=nextProgress){
      ebook_log::write("USB_PROGRESS",book.relative+" written="+
        std::to_string(written)+"/"+std::to_string(total));
