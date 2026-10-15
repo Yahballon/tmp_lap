@@ -51,7 +51,7 @@ void MediaPlayer::close(){
  quit_.store(true);
  if(!joined_){pthread_join(worker_,nullptr);joined_=true;}
  std::lock_guard<std::mutex> g(lock_);
- pixels_.clear();state_=PlaybackState{};path_.clear();remote_=false;sequence_=0;seekDeltaUs_=0;
+ pixels_.clear();state_=PlaybackState{};path_.clear();audioPath_.clear();remote_=false;sequence_=0;seekDeltaUs_=0;
 }
 bool MediaPlayer::open(const std::string& path){
  close();struct stat st{};
@@ -84,6 +84,39 @@ bool MediaPlayer::openStream(const std::string& url){
  }
  joined_=false;return true;
 }
+bool MediaPlayer::openAdaptiveStream(const std::string& videoUrl,const std::string& audioUrl){
+ close();
+ if(!media_host(videoUrl)||!media_host(audioUrl))return false;
+ if(root_certificate_file().empty())return false;
+ {
+  std::lock_guard<std::mutex> g(lock_);
+  path_=videoUrl;audioPath_=audioUrl;remote_=true;
+  state_.opening=true;state_.message="Opening HD video and audio...";
+ }
+ quit_=false;paused_=false;
+ pthread_attr_t attrs;pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,2*1024*1024);
+ const int rc=pthread_create(&worker_,&attrs,thread_entry,this);
+ pthread_attr_destroy(&attrs);
+ if(rc){std::lock_guard<std::mutex> g(lock_);state_.opening=false;state_.message="HD worker failed";return false;}
+ joined_=false;return true;
+}
+// Native integration test path: separate files emulate the YouTube adaptive pair.
+bool MediaPlayer::openAdaptiveFiles(const std::string& videoPath,const std::string& audioPath){
+ close();
+ struct stat video{},audio{};
+ if(videoPath.empty()||audioPath.empty()||stat(videoPath.c_str(),&video)!=0||
+    stat(audioPath.c_str(),&audio)!=0||video.st_size<1024||audio.st_size<1024)return false;
+ {
+  std::lock_guard<std::mutex> g(lock_);path_=videoPath;audioPath_=audioPath;remote_=false;
+  state_.opening=true;state_.message="Opening separate media tracks...";
+ }
+ quit_=false;paused_=false;
+ pthread_attr_t attrs;pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,2*1024*1024);
+ const int rc=pthread_create(&worker_,&attrs,thread_entry,this);
+ pthread_attr_destroy(&attrs);
+ if(rc){std::lock_guard<std::mutex> g(lock_);state_.opening=false;return false;}
+ joined_=false;return true;
+}
 void MediaPlayer::pause(){bool v=!paused_.load();paused_.store(v);std::lock_guard<std::mutex> g(lock_);state_.paused=v;}
 bool MediaPlayer::seekRelative(int deltaSeconds){
  if(deltaSeconds==0||deltaSeconds>300||deltaSeconds< -300)return false;
@@ -108,6 +141,9 @@ void MediaPlayer::decode(){
  AVFormatContext* fmt=avformat_alloc_context();
  fmt->interrupt_callback.callback=interrupt_cb;fmt->interrupt_callback.opaque=&quit_;
  AVCodecContext* vc=nullptr; AVCodecContext* ac=nullptr;
+ AVFormatContext* afmt=nullptr;
+ AVPacket* apkt=av_packet_alloc();AVFrame* aframe=av_frame_alloc();
+ int separateAi=-1;int64_t audioNextUs=0;bool audioEof=false;
  AVFrame* frame=av_frame_alloc();AVPacket* pkt=av_packet_alloc();
  SwsContext* sws=nullptr;SwrContext* swr=nullptr;
  SDL_AudioDeviceID audio=0;
@@ -140,6 +176,22 @@ void MediaPlayer::decode(){
   }
  }
  if(avformat_find_stream_info(fmt,nullptr)<0){error=remote_?"Cannot probe HTTPS video/audio tracks":"Invalid media streams";goto cleanup;}
+ if(!audioPath_.empty()){
+  AVDictionary* opts=nullptr;
+  if(remote_){
+   const std::string cert=root_certificate_file();
+   av_dict_set(&opts,"tls_verify","1",0);av_dict_set(&opts,"ca_file",cert.c_str(),0);
+   av_dict_set(&opts,"rw_timeout","12000000",0);av_dict_set(&opts,"timeout","12000000",0);
+   av_dict_set(&opts,"reconnect","1",0);av_dict_set(&opts,"reconnect_streamed","1",0);
+   av_dict_set(&opts,"user_agent","com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",0);
+  }
+  const int openedAudio=avformat_open_input(&afmt,audioPath_.c_str(),nullptr,&opts);
+  av_dict_free(&opts);
+  if(openedAudio<0){error="Unable to open adaptive audio stream";goto cleanup;}
+  if(avformat_find_stream_info(afmt,nullptr)<0){error="Unable to probe adaptive audio";goto cleanup;}
+  separateAi=av_find_best_stream(afmt,AVMEDIA_TYPE_AUDIO,-1,-1,nullptr,0);
+  if(separateAi<0){error="Adaptive audio track missing";goto cleanup;}
+ }
  vi=av_find_best_stream(fmt,AVMEDIA_TYPE_VIDEO,-1,-1,nullptr,0);
  if(vi<0){error="Video track missing";goto cleanup;}
  {
@@ -148,11 +200,12 @@ void MediaPlayer::decode(){
   vc=avcodec_alloc_context3(codec);
   if(!vc||avcodec_parameters_to_context(vc,fmt->streams[vi]->codecpar)<0||avcodec_open2(vc,codec,nullptr)<0){error="Video decoder failed";goto cleanup;}
  }
- ai=av_find_best_stream(fmt,AVMEDIA_TYPE_AUDIO,-1,vi,nullptr,0);
+ ai=afmt?separateAi:av_find_best_stream(fmt,AVMEDIA_TYPE_AUDIO,-1,vi,nullptr,0);
  if(ai>=0){
-  const AVCodec* codec=avcodec_find_decoder(fmt->streams[ai]->codecpar->codec_id);
+  AVFormatContext* source=afmt?afmt:fmt;
+  const AVCodec* codec=avcodec_find_decoder(source->streams[ai]->codecpar->codec_id);
   if(codec) {ac=avcodec_alloc_context3(codec);
-   if(!ac||avcodec_parameters_to_context(ac,fmt->streams[ai]->codecpar)<0||avcodec_open2(ac,codec,nullptr)<0){avcodec_free_context(&ac);ai=-1;}
+   if(!ac||avcodec_parameters_to_context(ac,source->streams[ai]->codecpar)<0||avcodec_open2(ac,codec,nullptr)<0){avcodec_free_context(&ac);ai=-1;}
   }
  }
  if(ac && SDL_InitSubSystem(SDL_INIT_AUDIO)==0){
@@ -174,7 +227,7 @@ void MediaPlayer::decode(){
   std::lock_guard<std::mutex> g(lock_);
   state_.opening=false;state_.playing=true;state_.width=vc->width;state_.height=vc->height;
   state_.duration=duration;
-  state_.message=remote_?"Streaming over HTTPS":"Playing local MP4";
+  state_.message=afmt?"HD video + AAC audio":remote_?"Streaming over HTTPS":"Playing local MP4";
  }
  {
   const AVRational tb=fmt->streams[vi]->time_base;
@@ -200,7 +253,13 @@ void MediaPlayer::decode(){
     // AVSEEK_FLAG_BACKWARD finds a decodeable keyframe; old frames are then
     // discarded until the desired timestamp is reached.
     const int rc=av_seek_frame(fmt,-1,wanted,AVSEEK_FLAG_BACKWARD);
-    if(rc>=0){
+    int arc=0;
+    if(rc>=0&&afmt){
+     const int64_t astart=afmt->start_time!=AV_NOPTS_VALUE?afmt->start_time:0;
+     arc=av_seek_frame(afmt,-1,astart+relativeUs,AVSEEK_FLAG_BACKWARD);
+    }
+    if(rc>=0&&arc>=0){
+     audioNextUs=relativeUs;audioEof=false;
      avcodec_flush_buffers(vc);if(ac)avcodec_flush_buffers(ac);
      if(swr){swr_close(swr);swr_init(swr);}
      if(audio)SDL_ClearQueuedAudio(audio);
@@ -252,6 +311,37 @@ void MediaPlayer::decode(){
        pixels_=std::move(rgba);state_.seconds=first_pts!=AV_NOPTS_VALUE?
         (frame->best_effort_timestamp-first_pts)*av_q2d(tb):elapsed/1000000.;++sequence_;
       }
+      // The HD video and audio are independent HTTP inputs. Feed the AAC
+      // decoder ahead of the video clock rather than dropping sound.
+      if(afmt&&ac&&!audioEof){
+       const int64_t targetUs=frame->best_effort_timestamp==AV_NOPTS_VALUE?
+        (int64_t)((double)(av_gettime_relative()-wall_origin)):
+        av_rescale_q(frame->best_effort_timestamp,fmt->streams[vi]->time_base,AV_TIME_BASE_Q);
+       for(int work=0;work<14&&!quit_&&!audioEof&&audioNextUs<targetUs+300000;work++){
+        if(av_read_frame(afmt,apkt)<0){audioEof=true;break;}
+        if(apkt->stream_index!=separateAi){av_packet_unref(apkt);continue;}
+        int64_t pts=apkt->pts!=AV_NOPTS_VALUE?apkt->pts:apkt->dts;
+        if(pts!=AV_NOPTS_VALUE)audioNextUs=av_rescale_q(pts,afmt->streams[separateAi]->time_base,AV_TIME_BASE_Q);
+        if(avcodec_send_packet(ac,apkt)>=0){
+         while(!quit_&&avcodec_receive_frame(ac,aframe)==0){
+          if(audio&&swr&&audioNextUs+25000>=discardBeforeUs){
+           const int cap=(int)av_rescale_rnd(swr_get_delay(swr,ac->sample_rate)+aframe->nb_samples,48000,ac->sample_rate,AV_ROUND_UP);
+           if(cap>0&&cap<96000){
+            std::vector<uint8_t> pcm((size_t)cap*4);uint8_t* dst[]={pcm.data()};
+            const int n=swr_convert(swr,dst,cap,(const uint8_t**)aframe->extended_data,aframe->nb_samples);
+            if(n>0){
+             while(SDL_GetQueuedAudioSize(audio)>48000*4&&!quit_)sleep_us(10000);
+             if(!quit_)SDL_QueueAudio(audio,pcm.data(),(uint32_t)n*4);
+            }
+           }
+          }
+          av_frame_unref(aframe);
+         }
+        }
+        av_packet_unref(apkt);
+        audioNextUs+=(int64_t)AV_TIME_BASE*1024/48000;
+       }
+      }
      }else if(audio&&swr){
       const int cap=(int)av_rescale_rnd(swr_get_delay(swr,ac->sample_rate)+frame->nb_samples,48000,ac->sample_rate,AV_ROUND_UP);
       if(cap>0&&cap<48000*2){
@@ -275,8 +365,10 @@ cleanup:
  if(audio){SDL_ClearQueuedAudio(audio);SDL_CloseAudioDevice(audio);SDL_QuitSubSystem(SDL_INIT_AUDIO);}
  if(swr)swr_free(&swr);if(sws)sws_freeContext(sws);
  av_packet_free(&pkt);av_frame_free(&frame);
+ av_packet_free(&apkt);av_frame_free(&aframe);
  avcodec_free_context(&vc);avcodec_free_context(&ac);
  if(fmt)avformat_close_input(&fmt);
+ if(afmt)avformat_close_input(&afmt);
  std::lock_guard<std::mutex> g(lock_);
  state_.playing=false;state_.opening=false;state_.ended=!quit_.load();
  if(!error.empty())state_.message=error;
