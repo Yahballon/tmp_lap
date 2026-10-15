@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "76223864bbec4e45039bd210a5a6b0dfa5166f17d64e1516c9efdba37cc5b730",
+  "version": "389c4a4312e6a25766065ad76e1432bb8a7bc9ab8fd00e9e4f4c5106abfb9371",
   "repository": "Yahballon/tmp_lap",
   "app_count": 9,
   "apps": [
@@ -73,14 +73,14 @@
       "name": "Ebook Reader",
       "slug": "ebook-reader",
       "title_id": "PPSA99741",
-      "version": "0.2.5",
-      "tag": "ebook-reader-v0.2.5",
+      "version": "0.2.6",
+      "tag": "ebook-reader-v0.2.6",
       "zip_name": "PPSA99741.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ebook-reader-v0.2.5/PPSA99741.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.5",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ebook-reader-v0.2.6/PPSA99741.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.6",
       "source": "homebrew/ebook-reader",
-      "size_bytes": 6650147,
-      "published_at": "2026-10-15T10:10:01Z"
+      "size_bytes": 6651410,
+      "published_at": "2026-10-15T10:30:19Z"
     },
     {
       "name": "PSTUBE",
