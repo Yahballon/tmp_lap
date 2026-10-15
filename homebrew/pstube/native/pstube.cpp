@@ -31,7 +31,8 @@ bool host_ok(const std::string& h) {
  for(unsigned char c:h)if(!std::isalnum(c)&&c!='.'&&c!='-')return false;
  return h.find('.')!=std::string::npos&&h.find("..")==std::string::npos;
 }
-bool https(const std::string& host,const std::string& path,std::string& payload,std::string& error) {
+bool https(const std::string& host,const std::string& path,std::string& payload,std::string& error,
+           const std::string& postBody="",int redirects=0) {
  if(!host_ok(host)||path.empty()||path.front()!='/'){error="Invalid HTTPS target";return false;}
  SSL_CTX* ctx=SSL_CTX_new(TLS_client_method());
  if(!ctx){error="TLS initialization failed";return false;}
@@ -57,7 +58,11 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  if(!ssl){close(fd);SSL_CTX_free(ctx);error="TLS allocation failed";return false;}
  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host.c_str());SSL_set1_host(ssl,host.c_str());
  if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){error="TLS verification failed";SSL_free(ssl);close(fd);SSL_CTX_free(ctx);return false;}
- std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: text/html,application/json;q=0.9,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+ std::string request=(postBody.empty()?"GET ":"POST ")+path+
+ " HTTP/1.1\r\nHost: "+host+
+ "\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: text/html,application/json;q=0.9,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
+ if(!postBody.empty())request+="Content-Type: application/json\r\nOrigin: https://www.youtube.com\r\nContent-Length: "+std::to_string(postBody.size())+"\r\n";
+ request+="\r\n"+postBody;
  bool ok=true;
  for(size_t off=0;off<request.size();){
   int n=SSL_write(ssl,request.data()+off,(int)(request.size()-off));if(n<=0){ok=false;error="HTTP send failed";break;}off+=(size_t)n;
@@ -69,6 +74,24 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  size_t sep=response.find("\r\n\r\n");if(sep==std::string::npos){error="Invalid HTTP response";return false;}
  std::string headers=response.substr(0,sep),lower=headers;
  int code=0;if(std::sscanf(headers.c_str(),"HTTP/%*s %d",&code)!=1){error="Invalid HTTP status";return false;}
+ if(code==301||code==302||code==303||code==307||code==308){
+  if(redirects>=3){error="Too many HTTPS redirects";return false;}
+  const auto start=headers.find("Location: ");
+  const auto lowerStart=headers.find("location: ");
+  const auto at=start!=std::string::npos?start:lowerStart;
+  if(at==std::string::npos){error="HTTP redirect missing Location";return false;}
+  const size_t valueStart=at+(start!=std::string::npos?10:10);
+  const auto end=headers.find("\r\n",valueStart);
+  const std::string location=headers.substr(valueStart,end==std::string::npos?std::string::npos:end-valueStart);
+  // Restrict redirects to the original HTTPS YouTube host to avoid credential leaks.
+  std::string safePath=location;
+  if(safePath.rfind("https://www.youtube.com/",0)==0)safePath=safePath.substr(23);
+  else if(safePath.rfind("/",0)!=0){error="Unsupported redirect destination";return false;}
+  if(host!="www.youtube.com"||safePath.size()>2048||safePath.find("\r")!=std::string::npos||safePath.find("\n")!=std::string::npos){
+   error="Unexpected YouTube redirect";return false;
+  }
+  return https(host,safePath,payload,error,{},redirects+1);
+ }
  if(code!=200){error="Service HTTP "+std::to_string(code);return false;}
  std::transform(lower.begin(),lower.end(),lower.begin(),[](unsigned char c){return (char)std::tolower(c);});
  std::string_view body(response.data()+sep+4,response.size()-sep-4);
