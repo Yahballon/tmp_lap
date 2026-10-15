@@ -1,15 +1,7 @@
-# Audiobook Reader v0.2.0
+# Audiobook Reader v0.2.1
 
-New dedicated USB audiobook library at `/mnt/usb0/ABooks`, using an independent, read-only `abookscan.elf` launched by an existing elfldr on port 9021 (private helper service port 9177).
+Fix USB audiobooks in dedicated ABooks folders. Probe /mnt/usb0/ABooks, /mnt/usb1/ABooks and compatible fallbacks. The read-only elfldr helper now reports exact mount diagnostics instead of a generic 'not accessible' message. New logs include USB_HELPER_START, USB_ROOT, USB_SCAN_DONE/ERROR and SCAN_LOCAL, stored at /data/AudioBookReader/audiobook-reader.log.
 
-- Recursive `.m4b` discovery on USB with stable entries in the aluminum bookshelf.
-- Separate local book folder: `/data/AudioBookReader/Books`.
-- Per-app diagnostics: `/data/AudioBookReader/audiobook-reader.log`.
-- Listening progress and favorites: `/data/AudioBookReader/progress.tsv`.
-- Temporary USB copy cache: `/data/AudioBookReader/Cache`, with transfer progress, cancellation and resume-on-disconnect recovery.
-- ABooks helper packaged directly into `PPSA99784.zip`.
-- Original UI, controller input, chapter navigation, native M4B playback and existing saved settings retained.
+Install: update PPSA99784.zip under /data/homebrew, register with the compatible homebrew loader, and keep elfldr running on port 9021. Put DRM-free .m4b files on USB in ABooks or locally in /data/AudioBookReader/Books. Existing listening progress, favorites and audio cache are preserved.
 
-**Installation:** Extract `PPSA99784.zip` to `/data/homebrew` and register through a compatible loader; copy your own DRM-free `.m4b` files to the USB or local ABooks/Books directory.
-
-**Known limitations:** USB requires an active elfldr on TCP 9021. M4B is copied locally before playback; adequate free disk space is required. Only non-DRM codecs available in the native FFmpeg build are supported. Actual hardware verification is still required.
+Known limitations: USB mounts and elfldr must be accessible from the jailbreak runtime. USB audiobooks are copied to /data/AudioBookReader/Cache before playback. No DRM support. Hardware playback is not verified by CI.
