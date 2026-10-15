@@ -47,7 +47,7 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  int fd=-1;
  for(auto* a=addresses;a;a=a->ai_next){
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);if(fd<0)continue;
-  timeval tv{8,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+  timeval tv{5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
   if(connect(fd,a->ai_addr,a->ai_addrlen)==0)break;
   close(fd);fd=-1;
  }
@@ -57,7 +57,7 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  if(!ssl){close(fd);SSL_CTX_free(ctx);error="TLS allocation failed";return false;}
  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host.c_str());SSL_set1_host(ssl,host.c_str());
  if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){error="TLS verification failed";SSL_free(ssl);close(fd);SSL_CTX_free(ctx);return false;}
- std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: PSTUBE/0.1.0\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+ std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: PSTUBE/0.2.1\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
  bool ok=true;
  for(size_t off=0;off<request.size();){
   int n=SSL_write(ssl,request.data()+off,(int)(request.size()-off));if(n<=0){ok=false;error="HTTP send failed";break;}off+=(size_t)n;
@@ -260,24 +260,58 @@ std::string pick_mp4(const std::string& json){
  }
  return winner;
 }
+
 bool Service::trending(){return search("@@TRENDING@@");}
 bool Service::search(const std::string& query){
  if(query.empty()||query.size()>100||busy_.exchange(true))return false;
- {std::lock_guard<std::mutex> g(mutex_);state_.searching=true;state_.status="Searching videos...";}
+ {std::lock_guard<std::mutex> g(mutex_);state_.searching=true;state_.status="Contacting video providers...";}
  auto* w=new Work{this,query,"",0,{}};
  pthread_t th{};pthread_attr_t a;pthread_attr_init(&a);pthread_attr_setstacksize(&a,1024*1024);
  int rc=pthread_create(&th,&a,[](void* p)->void* {
   std::unique_ptr<Work> work((Work*)p);Service& svc=*work->svc;
-  std::string data,error,host=svc.instance();
-  bool ok=https(host,work->query=="@@TRENDING@@"?"/api/v1/trending?region=US":"/api/v1/search?q="+escape_url(work->query)+"&type=video",data,error);
-  auto videos=ok?parse_search(data):std::vector<Video>{};
-  if(ok)queue_thumbnails(videos);
-  {std::lock_guard<std::mutex> g(svc.mutex_);if(ok)svc.state_.videos=std::move(videos);
-   svc.state_.status=!ok?error:svc.state_.videos.empty()?"No matching videos":std::to_string(svc.state_.videos.size())+" results";
-   svc.state_.searching=false;}
-  svc.busy_.store(false);return nullptr;
+  const bool trending=work->query=="@@TRENDING@@";
+  const std::string path=trending?"/api/v1/trending?region=US":
+     "/api/v1/search?q="+escape_url(work->query)+"&type=video";
+  // Trusted instances from the official Invidious public-instance directory.
+  // Always try the user-selected instance first, without silently changing their preference.
+  const std::string candidates[]={
+    svc.instance(),"inv.nadeko.net","invidious.nerdvpn.de",
+    "yt.chocolatemoo53.com","invidious.tiekoetter.com"};
+  std::vector<Video> videos;
+  std::string lastError="Providers unavailable",successful;
+  for(size_t index=0;index<sizeof(candidates)/sizeof(candidates[0]);++index){
+   const std::string& host=candidates[index];
+   bool duplicate=false;
+   for(size_t earlier=0;earlier<index;++earlier)if(candidates[earlier]==host)duplicate=true;
+   if(duplicate)continue;
+   {
+    std::lock_guard<std::mutex> g(svc.mutex_);
+    svc.state_.status="Contacting "+host+"...";
+   }
+   std::string response,error;
+   if(!https(host,path,response,error)){lastError=host+": "+error;continue;}
+   videos=parse_search(response);
+   if(!videos.empty()){successful=host;break;}
+   // An empty array can be a valid response for a rare search term.
+   // Retry another instance before showing no results.
+   const bool emptyArray=response.find('[')!=std::string::npos&&
+      response.find(']')!=std::string::npos;
+   lastError=host+(emptyArray?": no matching videos":": invalid API response");
+  }
+  const bool found=!videos.empty();
+  if(found)queue_thumbnails(videos);
+  {
+   std::lock_guard<std::mutex> g(svc.mutex_);
+   if(found)svc.state_.videos=std::move(videos);
+   svc.state_.status=found?"Loaded "+std::to_string(svc.state_.videos.size())+
+      " videos via "+successful:
+      ("No videos from any provider. Last error: "+lastError);
+   svc.state_.searching=false;
+  }
+  svc.busy_.store(false,std::memory_order_release);return nullptr;
  },w);
- pthread_attr_destroy(&a);if(rc){delete w;busy_.store(false);std::lock_guard<std::mutex> g(mutex_);state_.searching=false;state_.status="Unable to start search thread";return false;}
+ pthread_attr_destroy(&a);
+ if(rc){delete w;busy_.store(false);std::lock_guard<std::mutex> g(mutex_);state_.searching=false;state_.status="Unable to start network thread";return false;}
  pthread_detach(th);return true;
 }
 bool Service::details(const std::string& id){return valid_id(id);}
