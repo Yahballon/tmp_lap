@@ -96,9 +96,19 @@ bool local_catalog(std::string& bytes){
 }
 bool start_helper(std::string& bytes,std::string& message){
  FILE *elf=fopen("/app0/abookscan.elf","rb");
- if(!elf){message="USB helper not installed: abookscan.elf";return false;}
+ if(!elf){
+  message="USB helper missing from /app0/abookscan.elf";
+  audio_log::write("USB_HELPER_MISSING",message);
+  return false;
+ }
  int fd=connect_to(kElfLoader);
- if(fd<0){fclose(elf);message="USB requires active elfldr on 127.0.0.1:9021";return false;}
+ if(fd<0){
+   fclose(elf);
+   message="USB requires elfldr on 127.0.0.1:9021";
+   audio_log::write("USB_ELFLDR_ERROR",message);
+   return false;
+  }
+  audio_log::write("USB_HELPER_START","Sending abookscan.elf to elfldr :9021");
  char buffer[8192];bool ok=true;
  while(true){
   size_t n=fread(buffer,1,sizeof(buffer),elf);
@@ -108,7 +118,11 @@ bool start_helper(std::string& bytes,std::string& message){
  fclose(elf);
  if(ok){shutdown(fd,SHUT_WR);ok=receive_catalog(fd,bytes);}
  close(fd);
- if(!ok){message="USB helper ELF did not respond on port 9021";return false;}
+ if(!ok){
+   message="USB helper did not respond on 9021";
+   audio_log::write("USB_HELPER_ERROR",message);
+   return false;
+  }
  return true;
 }
 bool parse(const std::string& bytes,Catalog& out){
@@ -120,6 +134,11 @@ bool parse(const std::string& bytes,Catalog& out){
   if(end==std::string::npos||end-p>120)return false;
   const auto header=bytes.substr(p,end-p);p=end+1;
   if(header=="DONE")return true;
+   if(header.rfind("ROOT ",0)==0){
+    out.usbRoot=header.substr(5);
+    audio_log::write("USB_ROOT",out.usbRoot);
+    continue;
+   }
   if(header.rfind("ERROR ",0)==0){out.message=header.substr(6);return true;}
   unsigned long long fileSize=0;size_t pathLen=0;
   if(std::sscanf(header.c_str(),"ITEM %zu %llu",&pathLen,&fileSize)!=2||
