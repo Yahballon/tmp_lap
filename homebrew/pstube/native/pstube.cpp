@@ -407,6 +407,10 @@ std::string continuation_body(const std::string& token,const std::string& versio
   (visitor.empty()?std::string{}:std::string(",\"visitorData\":")+quote(visitor))+
   "}},\"continuation\":"+quote(token)+"}";
 }
+// Backward-compatible helper for existing two-argument parser regression tests.
+std::string continuation_body(const std::string& token,const std::string& version){
+ return continuation_body(token,version,{});
+}
 Service::Service(){
  mkdirs();
  state_.videos=load_feed_cache();
