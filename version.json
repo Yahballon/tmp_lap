@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "c84c4521bd09479faafb956ddd3f234dee023d537031e779e23495ba90a48730",
+  "version": "1ca0256929f32fae0df202f76341abfa809d9582db9e6104095532e65864168f",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 9,
+  "app_count": 10,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -94,6 +94,19 @@
       "source": "homebrew/pstube",
       "size_bytes": 20578412,
       "published_at": "2026-10-15T12:34:26Z"
+    },
+    {
+      "name": "Audiobook Reader",
+      "slug": "audiobook-reader",
+      "title_id": "PPSA99784",
+      "version": "0.1.0",
+      "tag": "audiobook-reader-v0.1.0",
+      "zip_name": "PPSA99784.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/audiobook-reader-v0.1.0/PPSA99784.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.1.0",
+      "source": "homebrew/audiobook-reader",
+      "size_bytes": 19688690,
+      "published_at": "2026-10-15T12:39:20Z"
     },
     {
       "name": "PS5 System Info",
