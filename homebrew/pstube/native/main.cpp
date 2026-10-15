@@ -38,7 +38,8 @@ const char* symbols[]={"H","?","^","*","v","O","#"};
 const std::string keys="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_."; // 40 keys
 struct State {
  int page=0,focus=0,nav=0,selected=0,offset=0,kbd=0;
- bool keyboard=false,inspect=false,playing=false,playerStarted=false;
+ bool keyboard=false,inspect=false,playing=false,playerStarted=false,streamOpenFailed=false;
+ std::string streamErrorText;
  std::string query="PS5 gaming",notice="Search videos using Triangle or open Search.";
  pstube::Video active;
  std::vector<std::string> history;
@@ -131,17 +132,18 @@ int main(){
   s.selected=std::clamp(s.selected,0,std::max(0,(int)videos.size()-1));
   if(s.playing){
    if(pressed&hui::pad_bits::kCircle){
-    player.close();service.cancel_stream();s.playing=false;s.playerStarted=false;last_frame=0;
+    player.close();service.cancel_stream();s.playing=false;s.playerStarted=false;s.streamOpenFailed=false;last_frame=0;
     if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}
    }
    if((pressed&hui::pad_bits::kCross)&&s.playerStarted){
     if(player.snapshot().ended){
-     player.close();s.playerStarted=false;
+     player.close();s.playerStarted=false;s.streamOpenFailed=false;
      if(!service.start_stream(s.active))s.notice="Stream resolver still busy";
     }else player.pause();
    }
    if(pressed&hui::pad_bits::kTriangle)service.toggle_favourite(s.active);
    if((pressed&hui::pad_bits::kCross)&&!s.playerStarted&&!snapshot.streamResolving){
+    s.streamOpenFailed=false;
     if(!service.start_stream(s.active))s.notice="Stream resolver busy";
    }
    if(pressed&hui::pad_bits::kSquare){
@@ -171,7 +173,7 @@ int main(){
     else s.notice="Download is already active or the video ID is invalid";
    }
    if(pressed&hui::pad_bits::kCross){
-    s.inspect=false;s.playing=true;s.playerStarted=false;
+    s.inspect=false;s.playing=true;s.playerStarted=false;s.streamOpenFailed=false;
     const std::string path=service.local_path(s.active.id);
     if(!path.empty()){s.playerStarted=player.open(path);}
     else service.start_stream(s.active);
@@ -218,7 +220,7 @@ int main(){
      }else if(s.page==1&&videos.empty())s.keyboard=true;
      else if(!videos.empty()){
       s.active=videos[(size_t)s.selected];service.record_history(s.active);
-      s.inspect=false;s.playing=true;s.playerStarted=false;
+      s.inspect=false;s.playing=true;s.playerStarted=false;s.streamOpenFailed=false;
       if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}last_frame=0;
       std::string file=service.local_path(s.active.id);
       if(!file.empty())s.playerStarted=player.open(file);
@@ -229,16 +231,27 @@ int main(){
   }
   // Start FFmpeg as soon as the native Android resolver returns an HTTPS URL.
   // No complete MP4 download is needed; network buffering stays in libavformat.
-  if(s.playing&&!s.playerStarted){
+  if(s.playing&&!s.playerStarted&&!s.streamOpenFailed){
    const std::string ready=service.local_path(s.active.id);
    if(!ready.empty())s.playerStarted=player.open(ready);
    else if(snapshot.streamId==s.active.id&&!snapshot.streamUrl.empty()){
     s.playerStarted=player.openStream(snapshot.streamUrl);
-    if(!s.playerStarted)s.notice="FFmpeg could not open native HTTPS player";
+    if(!s.playerStarted){s.streamOpenFailed=true;s.streamErrorText="FFmpeg network player unavailable or TLS roots could not be opened";s.notice=s.streamErrorText;}
    }
   }
   // Fetch the next YouTube continuation only when near the bottom of a visible
   // feed, without blocking controller input or reloading existing cards.
+  // Evict old GPU thumbnail textures so a 1000+ result feed keeps showing
+  // real thumbnails on new pages instead of exhausting the fixed cache budget.
+  if(thumb_textures.size()>42){
+   for(auto it=thumb_textures.begin();it!=thumb_textures.end();){
+    bool visible=false;
+    for(int i=s.offset;i<(int)videos.size()&&i<s.offset+6;++i)
+     if(videos[(size_t)i].id==it->first){visible=true;break;}
+    if(!visible){glDeleteTextures(1,&it->second);it=thumb_textures.erase(it);}
+    else ++it;
+   }
+  }
   if(!s.playing && !s.keyboard && s.focus==1 &&
      (s.page==0||s.page==1||s.page==2) &&
      snapshot.hasMore && !snapshot.loadingMore &&
@@ -346,6 +359,7 @@ int main(){
      else if(!snapshot.streamUrl.empty())state="Opening HTTPS stream...";
     }
     if(s.playerStarted){state=st.message;isFail=st.ended&&!st.playing;}
+    if(s.streamOpenFailed){state=s.streamErrorText;isFail=true;}
     text(d,font,atlas,cut(font,state,1370,27),960,799,27,isFail?Color::rgb(0xff747a):dim,Align::center);
     if(!isFail){d.rounded_rect({505,839,910,11},5,edge);d.rounded_rect({505,839,190,11},5,blue);}
     text(d,font,atlas,isFail?"X Retry  SQUARE Save offline  CIRCLE Back":
