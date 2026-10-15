@@ -37,6 +37,6 @@ Run `.github/workflows/build-audiobook-reader.yml` via GitHub Actions; uses `PS5
 
 **Version:** v0.1.0  
 **Title ID:** PPSA99784  
-**Content ID:** UP9000-PPSA99784_00-AUDIOBOOKREADER01
+**Content ID:** UP9000-PPSA99784_00-AUDIOBOOKREADER1
 
 License: GPL-3.0-or-later. Code derived from the GPL-compatible PS5 homebrew UI and development boilerplate.
