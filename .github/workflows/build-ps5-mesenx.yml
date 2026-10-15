@@ -47,9 +47,27 @@ jobs:
           git clone -q https://github.com/FrederickCampbell/MesenCE-Libretro.git
           git -C MesenCE-Libretro checkout -q --detach 585ea28f2998908c062d08721f3b9bf9635a2e0e
           test -s MesenCE-Libretro/Core/NES/HdPacks/HdPackLoader.cpp
+      - name: Restore cached PS5 graphics dependencies
+        id: ps5_graphics
+        uses: actions/cache/restore@v4
+        with:
+          path: homebrew/ps5-mesenx/build/deps
+          key: ps5-mesenx-graphics-v1-${{ hashFiles('homebrew/ps5-mesenx/scripts/bootstrap_native.sh') }}
       - name: Bootstrap native PS5 Vulkan and Payload SDK
+        if: steps.ps5_graphics.outputs.cache-hit != 'true'
         timeout-minutes: 280
         run: bash homebrew/ps5-mesenx/scripts/bootstrap_native.sh
+      - name: Cache verified native PS5 graphics toolchain
+        if: steps.ps5_graphics.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: homebrew/ps5-mesenx/build/deps
+          key: ps5-mesenx-graphics-v1-${{ hashFiles('homebrew/ps5-mesenx/scripts/bootstrap_native.sh') }}
+      - name: Verify cached or freshly built toolchain
+        run: |
+          test -s homebrew/ps5-mesenx/build/deps/PS5_Vulkan/build/driver/ps5/libps5vk.ps5.a
+          test -s homebrew/ps5-mesenx/build/deps/PS5_Vulkan/.deps/native/zlib/root/usr/lib/libz.a
+          test -s homebrew/ps5-mesenx/build/deps/PS5_Vulkan/runtime/libc.prx
       - name: Compile real MesenCE PS5 NES core
         timeout-minutes: 90
         env:
