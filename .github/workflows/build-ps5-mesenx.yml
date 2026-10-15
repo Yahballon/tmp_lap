@@ -1,0 +1,77 @@
+name: Build PS5MesenX (native MesenCE)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-mesenx/scripts/build_title.py'
+      - 'homebrew/ps5-mesenx/scripts/bootstrap_native.sh'
+      - 'homebrew/ps5-mesenx/scripts/compile_ps5_core.py'
+      - 'homebrew/ps5-mesenx/scripts/prepare_frontend.py'
+      - 'homebrew/ps5-mesenx/src/libretro_core_session.cpp'
+      - 'homebrew/ps5-mesenx/src/libretro_core_session.h'
+      - 'homebrew/ps5-mesenx/RELEASE_NOTES.md'
+      - '.github/workflows/build-ps5-mesenx.yml'
+  pull_request:
+    paths:
+      - 'homebrew/ps5-mesenx/scripts/**'
+      - 'homebrew/ps5-mesenx/src/libretro_*'
+      - '.github/workflows/build-ps5-mesenx.yml'
+permissions:
+  contents: write
+concurrency:
+  group: ps5-mesenx-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ps5-native-title:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 native SDK and graphics prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git ca-certificates curl wget make tar unzip zip             clang-18 lld-18 llvm-18 llvm-18-tools build-essential cmake ninja-build             pkg-config meson glslang-tools zstd bison flex libssl-dev libzstd-dev             libx11-dev libgl1-mesa-dev python3 python3-pil python3-mako python3-numpy
+          echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+      - name: Verify prepared PS5MesenX project
+        run: |
+          python3 homebrew/ps5-mesenx/scripts/preflight.py
+          python3 -m unittest discover -s homebrew/ps5-mesenx/tests -p 'test_*.py' -v
+          python3 -m py_compile homebrew/ps5-mesenx/scripts/build_title.py homebrew/ps5-mesenx/scripts/compile_ps5_core.py
+          python3 homebrew/ps5-mesenx/scripts/prepare_frontend.py
+      - name: Check out pinned MesenCE Libretro HD NES core
+        run: |
+          mkdir -p homebrew/ps5-mesenx/build
+          cd homebrew/ps5-mesenx/build
+          git clone -q https://github.com/FrederickCampbell/MesenCE-Libretro.git
+          git -C MesenCE-Libretro checkout -q --detach 585ea28f2998908c062d08721f3b9bf9635a2e0e
+          test -s MesenCE-Libretro/Core/NES/HdPacks/HdPackLoader.cpp
+      - name: Bootstrap native PS5 Vulkan and Payload SDK
+        timeout-minutes: 280
+        run: bash homebrew/ps5-mesenx/scripts/bootstrap_native.sh
+      - name: Compile real MesenCE PS5 NES core
+        timeout-minutes: 90
+        env:
+          PS5_PAYLOAD_SDK: ${{ github.workspace }}/homebrew/ps5-mesenx/build/deps/PS5_Vulkan/.deps/native/ps5-payload-sdk
+        run: python3 homebrew/ps5-mesenx/scripts/compile_ps5_core.py
+      - name: Link and sign PS5MesenX SELF, verify install ZIP
+        timeout-minutes: 60
+        env:
+          PS5_VULKAN_DIR: ${{ github.workspace }}/homebrew/ps5-mesenx/build/deps/PS5_Vulkan
+        run: python3 homebrew/ps5-mesenx/scripts/build_title.py
+      - name: Upload verified signed native PS5 app
+        uses: actions/upload-artifact@v4
+        with:
+          name: PS5MesenX-v0.1.0-PPSA99896
+          path: homebrew/ps5-mesenx/dist/PPSA99896.zip
+          if-no-files-found: error
+      - name: Release only after native linker and SELF package verification
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view ps5-mesenx-v0.1.0 -R "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Verified v0.1.0 already released"
+            exit 0
+          fi
+          gh release create ps5-mesenx-v0.1.0 homebrew/ps5-mesenx/dist/PPSA99896.zip             --repo "${{ github.repository }}" --target "${{ github.sha }}"             --title 'PS5MesenX v0.1.0 — Experimental PS5 HD NES'             --notes-file homebrew/ps5-mesenx/RELEASE_NOTES.md
