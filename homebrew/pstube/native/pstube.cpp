@@ -23,7 +23,7 @@
 #include <string_view>
 namespace pstube {
 namespace {
-constexpr size_t kMaxJson=2*1024*1024;
+constexpr size_t kMaxJson=5*1024*1024;
 const char* kSave="/download0/pstube.txt";
 const char* kFallback="/data/pstube/state.txt";
 bool host_ok(const std::string& h) {
@@ -47,7 +47,7 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  int fd=-1;
  for(auto* a=addresses;a;a=a->ai_next){
   fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);if(fd<0)continue;
-  timeval tv{8,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+  timeval tv{5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
   if(connect(fd,a->ai_addr,a->ai_addrlen)==0)break;
   close(fd);fd=-1;
  }
@@ -57,7 +57,7 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  if(!ssl){close(fd);SSL_CTX_free(ctx);error="TLS allocation failed";return false;}
  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host.c_str());SSL_set1_host(ssl,host.c_str());
  if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){error="TLS verification failed";SSL_free(ssl);close(fd);SSL_CTX_free(ctx);return false;}
- std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: PSTUBE/0.1.0\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+ std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: text/html,application/json;q=0.9,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
  bool ok=true;
  for(size_t off=0;off<request.size();){
   int n=SSL_write(ssl,request.data()+off,(int)(request.size()-off));if(n<=0){ok=false;error="HTTP send failed";break;}off+=(size_t)n;
@@ -143,6 +143,52 @@ std::string encode(const std::string& s){
   else {o+='%';o+=h[c>>4];o+=h[c&15];}
  }return o;
 }
+
+const char* kCatalogCache="/data/pstube/catalog-v1.txt";
+bool save_feed_cache(const std::vector<Video>& videos){
+ std::string data="PSTUBE-CATALOG:1\n";
+ int limit=0;
+ for(const auto& video:videos){
+  if(!valid_id(video.id)||video.title.empty())continue;
+  data+=video.id+"|"+encode(video.title)+"|"+encode(video.author)+"|"+
+        std::to_string(std::max(0,video.length))+"|"+
+        std::to_string(std::max(0L,video.views))+"\n";
+  if(++limit>=60||data.size()>65000)break;
+ }
+ return save_text(kCatalogCache,data);
+}
+std::vector<Video> load_feed_cache(){
+ std::vector<Video> videos;
+ FILE* f=fopen(kCatalogCache,"rb");if(!f)return videos;
+ char buffer[65536]{};
+ size_t count=fread(buffer,1,sizeof(buffer)-1,f);
+ bool oversized=!feof(f);fclose(f);
+ std::string data(buffer,count);
+ if(oversized||data.rfind("PSTUBE-CATALOG:1\n",0)!=0)return videos;
+ size_t offset=17;
+ while(offset<data.size()&&videos.size()<60){
+  size_t end=data.find('\n',offset);if(end==std::string::npos)break;
+  const std::string line=data.substr(offset,end-offset);offset=end+1;
+  size_t a=line.find('|'),b=a==std::string::npos?a:line.find('|',a+1);
+  size_t c=b==std::string::npos?b:line.find('|',b+1);
+  size_t d=c==std::string::npos?c:line.find('|',c+1);
+  if(a==std::string::npos||b==std::string::npos||c==std::string::npos||d==std::string::npos)continue;
+  Video v;v.id=line.substr(0,a);
+  if(!valid_id(v.id))continue;
+  v.title=unescape(line.substr(a+1,b-a-1));
+  v.author=unescape(line.substr(b+1,c-b-1));
+  const std::string duration=line.substr(c+1,d-c-1),views=line.substr(d+1);
+  auto numeric=[](const std::string& value)->bool{
+    return !value.empty()&&value.size()<12&&
+      std::all_of(value.begin(),value.end(),[](unsigned char ch){return std::isdigit(ch)!=0;});
+  };
+  if(v.title.empty()||!numeric(duration)||!numeric(views))continue;
+  v.length=std::min(864000,std::atoi(duration.c_str()));
+  v.views=std::atol(views.c_str());
+  videos.push_back(std::move(v));
+ }
+ return videos;
+}
 void mkdirs(){mkdir("/data/pstube",0700);mkdir("/data/pstube/downloads",0700);}
 struct Work {Service* svc;std::string query;std::string id;int kind;Video video;};
 }
@@ -164,8 +210,71 @@ std::vector<Video> parse_search(const std::string& s){
   }skip(s,p);if(p>=s.size()||s[p++]!=',')break;
  }return out;
 }
+
+int youtube_duration(const std::string& time){
+ int count=0,seconds=0;std::string number;
+ for(char c:time){
+  if(c>='0'&&c<='9'){if(number.size()<4)number+=c;}
+  else if(c==':'){
+   if(number.empty())return 0;
+   seconds=seconds*60+std::atoi(number.c_str());number.clear();++count;
+  }else return 0;
+ }
+ if(number.empty()||count>2)return 0;
+ seconds=seconds*60+std::atoi(number.c_str());
+ return seconds>=0&&seconds<=864000?seconds:0;
+}
+std::string youtube_run(std::string_view obj){
+ const auto runs=field(obj,"runs");size_t p=0;skip(runs,p);
+ if(p>=runs.size()||runs[p++]!='[')return {};
+ skip(runs,p);if(p>=runs.size()||runs[p]!='{')return {};
+ const auto item=runs.substr(p,value_end(runs,p)-p);
+ return decode(field(item,"text"));
+}
+std::vector<Video> parse_youtube_html(const std::string& html){
+ std::vector<Video> videos;
+ if(html.size()>kMaxJson)return videos;
+ // The public, logged-out YouTube search page contains the renderer JSON.
+ // Never interpret unrelated script data as a video: validate 11-char IDs.
+ constexpr std::string_view needle="\"videoRenderer\":{";
+ size_t from=html.find("ytInitialData");
+ if(from==std::string::npos)return videos;
+ while(videos.size()<50){
+  const size_t hit=html.find(needle,from);
+  if(hit==std::string::npos)break;
+  const size_t start=hit+needle.size()-1;
+  const size_t end=value_end(html,start);
+  if(end<=start||end>html.size()){from=hit+needle.size();continue;}
+  const std::string_view item(html.data()+start,end-start);
+  Video v;
+  v.id=decode(field(item,"videoId"));
+  v.title=youtube_run(field(item,"title"));
+  if(v.title.empty())v.title=decode(field(field(item,"title"),"simpleText"));
+  v.author=youtube_run(field(item,"longBylineText"));
+  if(v.author.empty())v.author=youtube_run(field(item,"ownerText"));
+  v.length=youtube_duration(decode(field(field(item,"lengthText"),"simpleText")));
+  const std::string count=decode(field(field(item,"viewCountText"),"simpleText"));
+  long views=0;
+  for(char c:count){
+   if(c>='0'&&c<='9'){if(views<=999999999L)views=views*10+(c-'0');}
+   else if((c<'0'||c>'9')&&c!=','&&c!='.')break;
+  }
+  v.views=views;
+  if(valid_id(v.id)&&!v.title.empty()&&
+    std::none_of(videos.begin(),videos.end(),[&](const Video& old){return old.id==v.id;})){
+   videos.push_back(std::move(v));
+  }
+  from=end;
+ }
+ return videos;
+}
 Service::Service(){
  mkdirs();
+ state_.videos=load_feed_cache();
+ if(!state_.videos.empty()){
+  state_.status="Showing last online results (cached); refreshing...";
+  queue_thumbnails(state_.videos);
+ }
  for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[65536]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
@@ -260,24 +369,76 @@ std::string pick_mp4(const std::string& json){
  }
  return winner;
 }
+
 bool Service::trending(){return search("@@TRENDING@@");}
 bool Service::search(const std::string& query){
  if(query.empty()||query.size()>100||busy_.exchange(true))return false;
- {std::lock_guard<std::mutex> g(mutex_);state_.searching=true;state_.status="Searching videos...";}
+ {std::lock_guard<std::mutex> g(mutex_);state_.searching=true;state_.status="Contacting video providers...";}
  auto* w=new Work{this,query,"",0,{}};
  pthread_t th{};pthread_attr_t a;pthread_attr_init(&a);pthread_attr_setstacksize(&a,1024*1024);
  int rc=pthread_create(&th,&a,[](void* p)->void* {
   std::unique_ptr<Work> work((Work*)p);Service& svc=*work->svc;
-  std::string data,error,host=svc.instance();
-  bool ok=https(host,work->query=="@@TRENDING@@"?"/api/v1/trending?region=US":"/api/v1/search?q="+escape_url(work->query)+"&type=video",data,error);
-  auto videos=ok?parse_search(data):std::vector<Video>{};
-  if(ok)queue_thumbnails(videos);
-  {std::lock_guard<std::mutex> g(svc.mutex_);if(ok)svc.state_.videos=std::move(videos);
-   svc.state_.status=!ok?error:svc.state_.videos.empty()?"No matching videos":std::to_string(svc.state_.videos.size())+" results";
-   svc.state_.searching=false;}
-  svc.busy_.store(false);return nullptr;
+  const bool trending=work->query=="@@TRENDING@@";
+  const std::string directQuery=trending?"PS5 gaming":work->query;
+  std::string youtubeHtml,youtubeError;
+  const bool youtubeOk=https("www.youtube.com",
+     "/results?search_query="+escape_url(directQuery),youtubeHtml,youtubeError);
+  std::vector<Video> directVideos=youtubeOk?parse_youtube_html(youtubeHtml):std::vector<Video>{};
+  if(!directVideos.empty()){
+   save_feed_cache(directVideos);
+   queue_thumbnails(directVideos);
+   {
+    std::lock_guard<std::mutex> g(svc.mutex_);
+    svc.state_.videos=std::move(directVideos);
+    svc.state_.status="Live video list from YouTube.com (public search)";
+    svc.state_.searching=false;
+   }
+   svc.busy_.store(false,std::memory_order_release);
+   return nullptr;
+  }
+
+  const std::string path=trending?"/api/v1/trending?region=US":
+     "/api/v1/search?q="+escape_url(work->query)+"&type=video";
+  // Trusted instances from the official Invidious public-instance directory.
+  // Always try the user-selected instance first, without silently changing their preference.
+  const std::string candidates[]={
+    svc.instance(),"inv.nadeko.net","invidious.nerdvpn.de",
+    "yt.chocolatemoo53.com","invidious.tiekoetter.com"};
+  std::vector<Video> videos;
+  std::string lastError=youtubeOk?"YouTube HTML contained no recognizable videos":"YouTube: "+youtubeError,successful;
+  for(size_t index=0;index<sizeof(candidates)/sizeof(candidates[0]);++index){
+   const std::string& host=candidates[index];
+   bool duplicate=false;
+   for(size_t earlier=0;earlier<index;++earlier)if(candidates[earlier]==host)duplicate=true;
+   if(duplicate)continue;
+   {
+    std::lock_guard<std::mutex> g(svc.mutex_);
+    svc.state_.status="Contacting "+host+"...";
+   }
+   std::string response,error;
+   if(!https(host,path,response,error)){lastError=host+": "+error;continue;}
+   videos=parse_search(response);
+   if(!videos.empty()){successful=host;break;}
+   // An empty array can be a valid response for a rare search term.
+   // Retry another instance before showing no results.
+   const bool emptyArray=response.find('[')!=std::string::npos&&
+      response.find(']')!=std::string::npos;
+   lastError=host+(emptyArray?": no matching videos":": invalid API response");
+  }
+  const bool found=!videos.empty();
+  if(found){save_feed_cache(videos);queue_thumbnails(videos);}
+  {
+   std::lock_guard<std::mutex> g(svc.mutex_);
+   if(found)svc.state_.videos=std::move(videos);
+   svc.state_.status=found?"Loaded "+std::to_string(svc.state_.videos.size())+
+      " videos via "+successful:
+      ("No videos from any provider. Last error: "+lastError);
+   svc.state_.searching=false;
+  }
+  svc.busy_.store(false,std::memory_order_release);return nullptr;
  },w);
- pthread_attr_destroy(&a);if(rc){delete w;busy_.store(false);std::lock_guard<std::mutex> g(mutex_);state_.searching=false;state_.status="Unable to start search thread";return false;}
+ pthread_attr_destroy(&a);
+ if(rc){delete w;busy_.store(false);std::lock_guard<std::mutex> g(mutex_);state_.searching=false;state_.status="Unable to start network thread";return false;}
  pthread_detach(th);return true;
 }
 bool Service::details(const std::string& id){return valid_id(id);}

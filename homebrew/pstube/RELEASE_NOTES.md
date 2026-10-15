@@ -1,15 +1,14 @@
-# PSTUBE v0.2.0 — Playback Beta
+# PSTUBE v0.2.1 — Video Catalog and Thumbnail Fix
 
-PSTUBE by YAHBALLON adds a real software decode pipeline and MP4 download manager.
+- **NEW**: Query real videos directly from the public YouTube search page without credentials, then fall back to community Invidious instances.
+- Automatically retry video search and Trending on multiple trusted community Invidious instances.
+- Surface the current provider and useful error messages rather than silently showing an empty page.
+- Save the last successful **real** video feed locally and restore it on startup if services fail.
+- Download JPEG thumbnails with three concurrent background workers; retry missing images for cached videos.
+- Keep favourites, downloads and video history from prior versions.
+- Test search and Trending JSON parsing in CI using representative response fixtures.
 
-- Resolve combined MP4 streams through the configured public Invidious API.
-- TLS-verified download to /data/pstube/downloads with atomic .part completion and progress.
-- Decode completed MP4 video with FFmpeg, render with native OpenGL and queue audio through SDL2.
-- Full DualSense play/pause/back controls, Downloads list, working Trending endpoint and provider switching.
-- Saved favourites, video titles, playback history and completed files survive application updates.
-- Asynchronous caching and rendering of real video thumbnails.
-- Left stick navigation and Options Settings shortcut.
+## Important limitations
+YouTube may change its public HTML structure, require consent, rate-limit unauthenticated requests or block requests on the console; public Invidious sources remain fallback options. No service can guarantee search uptime, downloads or a stable media URL. If an HTTPS request fails because the console clock is invalid, correct PS5 date/time; TLS verification stays enabled. Hardware testing of streaming, video and audio remains necessary.
 
-**Limitations:** Playback requires first downloading a compatible combined MP4 stream; high-resolution separate adaptive audio/video formats, thumbnails, YouTube login, background playback and subscriptions are not supported. Invidious APIs and signed media URLs may be unavailable or restricted. First real-hardware playback test pending.
-
-Install: extract PPSA99762.zip to /data/homebrew, replace the previous version, and re-register in the loader. Source and GPL notice in the repository.
+Install: download PPSA99762.zip, replace /data/homebrew/PPSA99762 and re-register with your homebrew loader. Existing saved content under /data/pstube is preserved.

@@ -50,7 +50,7 @@ void write_help(DrawList& d,const Font& f,unsigned a,State& s){
  text(d,f,a,help,965,1050,22,dim,Align::center);
 }
 void result_grid(DrawList& d,const Font& f,unsigned a,const std::vector<pstube::Video>& videos,const State& s,const pstube::Service& svc,Renderer& renderer,std::map<std::string,unsigned>& images){
- if(videos.empty()){text(d,f,a,"No videos available",1080,446,34,white,Align::center);text(d,f,a,"Open Search and enter a query; public API instances may be unavailable.",1080,493,22,dim,Align::center);return;}
+ if(videos.empty()){text(d,f,a,"No videos received",1080,444,34,white,Align::center);text(d,f,a,"Press Triangle to search or check your network and date/time.",1080,502,24,dim,Align::center);return;}
  d.push_clip({405,240,1485,737});
  const int columns=3;
  for(int i=s.offset;i<(int)videos.size()&&i<s.offset+9;i++){
@@ -177,9 +177,9 @@ int main(){
     s.offset=(s.selected/9)*9;
     if(pressed&hui::pad_bits::kSquare){if(!videos.empty()&&s.page!=4){service.toggle_favourite(videos[(size_t)s.selected]);s.notice="Favourites updated";}}
     if(pressed&hui::pad_bits::kCross){
-     if(s.page==6){static const char* hosts[]={"yewtu.be","inv.nadeko.net","invidious.tiekoetter.com","yt.chocolatemoo53.com"};
+     if(s.page==6){static const char* hosts[]={"inv.nadeko.net","invidious.nerdvpn.de","yt.chocolatemoo53.com","invidious.tiekoetter.com","yewtu.be"};
       auto it=std::find_if(std::begin(hosts),std::end(hosts),[&](const char* h){return service.instance()==h;});
-      size_t next=(it==std::end(hosts)?0:(size_t)(it-std::begin(hosts))+1)%4;
+      size_t next=(it==std::end(hosts)?0:(size_t)(it-std::begin(hosts))+1)%5;
       service.set_instance(hosts[next]);s.notice="Provider changed to "+service.instance();
      }else if(s.page==4&&!snapshot.jobs.empty()){
       std::string file=service.local_path(snapshot.jobs[(size_t)std::clamp(s.selected,0,(int)snapshot.jobs.size()-1)].id);
@@ -198,7 +198,7 @@ int main(){
   text(d,font,atlas,"PSTUBE",158,79,51,white);
   text(d,font,atlas,"by YAHBALLON",162,112,23,dim);
   tile(d,466,37,892,76,false);text(d,font,atlas,"Search: "+cut(font,s.query,780,24),499,84,24,dim);
-  text(d,font,atlas,"v0.2.0",1850,84,25,white,Align::right);
+  text(d,font,atlas,"v0.2.1",1850,84,25,white,Align::right);
   d.rounded_rect({0,140,374,870},0,Color::rgb(0x041226));
   for(int i=0;i<7;i++){float y=180+i*112;
    if(s.page==i||s.focus==0&&s.nav==i)tile(d,31,y,326,88,s.focus==0&&s.nav==i);
@@ -221,10 +221,13 @@ int main(){
    text(d,font,atlas,"Press Cross to change provider. Availability and rate limits vary.",430,365,23,dim);
    text(d,font,atlas,"Local favourites: /download0/pstube.txt or /data/pstube/state.txt",430,425,22,dim);
   }else{
-   if(s.page==0)text(d,font,atlas,"Search first to load real videos. No fabricated recommendations.",420,255,22,dim);
+   if(s.page==0&&videos.empty())text(d,font,atlas,"Connecting to public video services...",420,258,22,dim);
    result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
-   if(snapshot.searching)text(d,font,atlas,"Loading live results...",1710,207,23,blue,Align::right);
-   else text(d,font,atlas,snapshot.status,1850,206,21,dim,Align::right);
+   if(snapshot.searching)text(d,font,atlas,"Loading...",1850,207,22,blue,Align::right);
+   else if(!videos.empty())text(d,font,atlas,std::to_string(videos.size())+" videos",1850,206,21,dim,Align::right);
+   if(s.page==0||s.page==1||s.page==2){
+    text(d,font,atlas,cut(font,snapshot.status,1420,21),430,945,21,snapshot.searching?blue:dim);
+   }
   }
   text(d,font,atlas,cut(font,s.notice,1250,20),423,989,20,dim);
   if(s.inspect){

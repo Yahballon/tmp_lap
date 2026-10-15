@@ -1,12 +1,12 @@
-# PSTUBE v0.2.0 — Native PS5 Playback Beta
+# PSTUBE v0.2.1 — Native PS5 Playback Beta
 
 **PSTUBE by YAHBALLON** is an independent native C++ PS5 homebrew video search, download and playback client with a 1920×1080 OpenGL user interface.
 
 ## Features
-- Search using a public Invidious API over HTTPS with hostname and CA verification.
-- Live Trending search; selectable public instance from Settings using Cross.
-- Native background thumbnail downloads from the public image CDN and a disk-backed JPEG cache.
-- Persistent favourites with title/author metadata, and watch history preserved across app updates.
+- Search the public logged-out YouTube web page directly first, extract real video metadata using a native validated parser, then fall back to community Invidious instances. Both use verified HTTPS.
+- Live Trending search, automatic failover between currently documented Invidious instances, and manual provider selection in Settings.
+- Three concurrent native thumbnail workers using the public thumbnail CDN, with a disk-backed JPEG cache.
+- Persistent favourites and watch history, plus a cache of the last successful live video catalog for offline startup.
 - Left-stick navigation and Options shortcut to Settings.
 - DualSense-driven onscreen keyboard and selection navigation.
 - Persistent favourites and saved downloads stored outside app folder.
@@ -27,10 +27,13 @@ D-pad: navigate (keyboard/results/downloads). Cross: select, download/play video
 - Video is software-decoded; demanding 1080p formats may underperform.
 
 ## Version and build
-Version 0.2.0. Title ID `PPSA99762`. Release tag `pstube-v0.2.0`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
+Version 0.2.1. Title ID `PPSA99762`. Release tag `pstube-v0.2.1`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
 The workflow fetches PS5-DevBridge's native scaffold, stages PSTUBE C++ files and builds with pinned PacBrew ffmpeg, SDL2 and OpenSSL packages. GitHub Actions validates eboot and ZIP but is not hardware verification.
 
 ## Installation
 Download `PPSA99762.zip` from the validated release, extract it to `/data/homebrew/PPSA99762/` and register with ShadowMountPlus or a compatible loader. Saved data: `/download0/pstube.txt` fallback `/data/pstube/state.txt`; videos in `/data/pstube/downloads/`. Do not delete these when updating.
 
 GPL-3.0-or-later. Native renderer: https://github.com/blackbearreloaded/ps5-homebrew-ui. Media backend: FFmpeg and SDL2. Video metadata: community Invidious instances.
+
+## Catalog troubleshooting
+The Home page displays the last successful real catalog during temporary API failures and the exact provider/HTTP error. Search and Trending automatically try several community public servers. After updating, launch PSTUBE and wait for the first live fetch; press Triangle to search. Thumbnails download in three parallel workers and may arrive after titles. Network connectivity and correct PS5 date/time are essential for verified HTTPS. No fake videos are generated.
