@@ -21,7 +21,7 @@ UPSTREAMS = {
     "MesenCE": {
         "url": "https://github.com/nesdev-org/MesenCE.git",
         "sha": "4b8a196e299b3de297b204fd1208d2981562c89b",
-        "items": ["Core", "InteropDLL", "Utilities", "Sdl", "Linux", "Lua",
+        "items": ["Core", "InteropDLL", "Utilities", "Sdl", "Linux", "MacOS", "Lua",
                   "SevenZip", "makefile", "README.md", "LICENSE", "COMPILING.md"],
     },
 }

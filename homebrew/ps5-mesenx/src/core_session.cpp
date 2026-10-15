@@ -180,7 +180,7 @@ bool Session::Load(const std::string& original_path, std::vector<uint8_t> rom) {
     }
     const std::string ext = file.substr(file.find_last_of('.') == std::string::npos ?
                                             file.size() : file.find_last_of('.'));
-    if (ext != ".nes" && ext != ".NES") {
+    if (ext != ".nes" && ext != ".NES" && ext != ".zip" && ext != ".ZIP") {
         error = "This PS5MesenX milestone supports NES ROMs only";
         return false;
     }
@@ -193,7 +193,7 @@ bool Session::Load(const std::string& original_path, std::vector<uint8_t> rom) {
         error = "Could not create PS5MesenX data folders";
         return false;
     }
-    // Staged file keeps original ROM stem so Mesen finds HdPacks/<ROM stem>/hires.txt.
+    // Staged file keeps the ROM stem so Mesen finds HdPacks/<ROM stem>/hires.txt.\n    // For ZIP sources, extraction already occurred in ReadRom; stage bytes as .nes.\n    if (ext == ".zip" || ext == ".ZIP") file = Stem(file) + ".nes";
     rom_path_ = root_ + "/cache/roms/" + file;
     state_path_ = root_ + "/SaveStates/" + Stem(file) + ".mss";
     std::string payload(reinterpret_cast<const char*>(rom.data()), rom.size());
