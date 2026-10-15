@@ -24,6 +24,11 @@ bool image_file(const std::string& name) {
  return ends(name,".jpg")||ends(name,".jpeg")||ends(name,".png")||
         ends(name,".gif");
 }
+std::string normalized_name(std::string path){
+ for(char& c:path)if(c=='\\')c='/';
+ while(path.compare(0,2,"./")==0)path.erase(0,2);
+ return path;
+}
 bool safe(const std::string& path) {
  if(path.empty()||path.size()>900||path.front()=='/'||path.front()=='\\')return false;
  size_t pos=0;
@@ -34,6 +39,14 @@ bool safe(const std::string& path) {
   pos=end+1;
  }
  return true;
+}
+bool usable_image_entry(archive_entry* e){
+ const mode_t type=archive_entry_filetype(e);
+ if(type!=AE_IFREG && type!=0)return false;
+ if(archive_entry_is_encrypted(e)>0)return false;
+ const auto size=archive_entry_size(e);
+ return archive_entry_size_is_set(e)==0 ||
+        (size>0 && size<=(la_int64_t)kMaxImage);
 }
 bool natural_less(const std::string& aa,const std::string& bb){
  const auto a=lower(aa),b=lower(bb);
@@ -88,13 +101,21 @@ bool open(const std::string& path,Book& book){
   const char* raw=archive_entry_pathname_utf8(e);
   if(!raw)raw=archive_entry_pathname(e);
   if(raw){
-   std::string name=raw;
-   const auto size=archive_entry_size(e);
-   if(safe(name)&&image_file(name)&&archive_entry_filetype(e)==AE_IFREG&&
-      size>0&&size<=(la_int64_t)kMaxImage && book.pages.size()<kMaxPages)
-        book.pages.push_back(name);
+   std::string name=normalized_name(raw);
+   if(safe(name) && image_file(name) && usable_image_entry(e) &&
+      book.pages.size()<kMaxPages)
+     book.pages.push_back(std::move(name));
   }
-  archive_read_data_skip(a);
+  // libarchive handles the state transition to the next RAR entry. A
+  // negative data-skip status can occur for unsupported RAR filters;
+  // report it rather than returning an apparently empty comic.
+  const int skip=archive_read_data_skip(a);
+  if(skip<ARCHIVE_WARN){
+    book.error=archive_error_string(a)?archive_error_string(a):
+               "RAR data cannot be skipped (unsupported compression)";
+    archive_read_close(a);archive_read_free(a);
+    return false;
+  }
  }
  if(rc!=ARCHIVE_EOF){
   book.error=archive_error_string(a)?archive_error_string(a):"Cannot list comic pages";
@@ -104,7 +125,7 @@ bool open(const std::string& path,Book& book){
  std::sort(book.pages.begin(),book.pages.end(),natural_less);
  book.pages.erase(std::unique(book.pages.begin(),book.pages.end()),book.pages.end());
  if(book.pages.empty()){
-  book.error="No readable image pages in archive (encrypted or unsupported format?)";
+  book.error="CBR/CBZ contains no supported JPG, PNG or GIF images; check RAR encryption and archive integrity";
   return false;
  }
  return true;
@@ -118,10 +139,8 @@ bool extract(const Book& book,size_t index,std::string& encoded,std::string& err
  while((rc=archive_read_next_header(a,&e))==ARCHIVE_OK){
   const char* name=archive_entry_pathname_utf8(e);
   if(!name)name=archive_entry_pathname(e);
-  if(name && book.pages[index]==name &&
-      archive_entry_filetype(e)==AE_IFREG &&
-      archive_entry_size(e)>0 &&
-      archive_entry_size(e)<=(la_int64_t)kMaxImage){
+  if(name && book.pages[index]==normalized_name(name) &&
+      usable_image_entry(e)){
     found=true;
     char chunk[16384];la_ssize_t n=0;
     while((n=archive_read_data(a,chunk,sizeof(chunk)))>0){
@@ -129,12 +148,29 @@ bool extract(const Book& book,size_t index,std::string& encoded,std::string& err
       encoded.append(chunk,(size_t)n);
     }
     if(n<0){error=archive_error_string(a)?archive_error_string(a):"RAR image decode failure";found=false;}
+    if(found && encoded.empty()){error="CBR image decompressed to zero bytes";found=false;}
     break;
   }
   archive_read_data_skip(a);
  }
- if(!found && error.empty())
-   error=archive_error_string(a)?archive_error_string(a):"Comic page unavailable";
+ if(!found && error.empty()){
+   const char* detail=archive_error_string(a);
+   error=detail && *detail ? detail : "Comic page could not be decoded";
+ }
+ if(found){
+   // Ensure the payload is actually an image and not an unsupported or
+   // renamed file. RAR5 requires successful data decoding, not just a header.
+   const auto starts=[&](const char* signature,size_t n){
+     return encoded.size()>=n && std::memcmp(encoded.data(),signature,n)==0;
+   };
+   const bool valid=starts("\\xFF\\xD8",2) ||
+      starts("\\x89PNG\\r\\n\\x1a\\n",8) ||
+      starts("GIF87a",6) || starts("GIF89a",6);
+   if(!valid){
+     error="CBR page is not a decoded JPG, PNG or GIF image";
+     found=false;encoded.clear();
+   }
+ }
  archive_read_close(a);archive_read_free(a);
  return found&&!encoded.empty();
 }
