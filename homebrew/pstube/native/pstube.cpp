@@ -132,13 +132,42 @@ std::string_view field(std::string_view obj,std::string_view key){
  }return {};
 }
 std::string decode(std::string_view s,size_t limit=512){
- if(s.size()<2||s[0]!='"')return {};
- std::string o;
- for(size_t p=1;p+1<s.size()&&o.size()<limit;p++){
-  unsigned char c=s[p];
-  if(c=='\\'&&p+1<s.size()-1){c=s[++p];if(c=='n'||c=='r'||c=='t')c=' ';else if(c=='u'){if(p+4<s.size())p+=4;c='?';}}
-  if(c>=32)o+=(char)c;
- }return o;
+ if(s.size()<2||s.front()!='"')return {};
+ std::string result;result.reserve(std::min(limit,s.size()));
+ auto hx=[](char c)->int{
+  if(c>='0'&&c<='9')return c-'0';
+  if(c>='a'&&c<='f')return c-'a'+10;
+  if(c>='A'&&c<='F')return c-'A'+10;
+  return -1;
+ };
+ for(size_t p=1;p+1<s.size()&&result.size()<limit;p++){
+  unsigned char c=(unsigned char)s[p];
+  if(c!='\\'){if(c>=32)result.push_back((char)c);continue;}
+  if(p+1>=s.size()-1)break;
+  c=(unsigned char)s[++p];
+  if(c=='n'||c=='r'||c=='t')c=' ';
+  else if(c=='u'){
+   if(p+4>=s.size()-1)break;
+   unsigned cp=0;bool good=true;
+   for(int i=1;i<=4;++i){int digit=hx(s[p+i]);if(digit<0){good=false;break;}cp=cp*16+(unsigned)digit;}
+   p+=4;
+   if(!good)continue;
+   if(cp<=0x7f)c=(unsigned char)cp;
+   else{
+    if(cp<=0x7ff&&result.size()+2<=limit){
+     result.push_back((char)(0xc0|(cp>>6)));
+     result.push_back((char)(0x80|(cp&63)));
+    }else if(cp>=0x800&&cp<0xd800&&result.size()+3<=limit){
+     result.push_back((char)(0xe0|(cp>>12)));
+     result.push_back((char)(0x80|((cp>>6)&63)));
+     result.push_back((char)(0x80|(cp&63)));
+    }
+    continue;
+   }
+  }else if(c!='\\'&&c!='"'&&c!='/'&&c!='b'&&c!='f')continue;
+  if(c>=32)result.push_back((char)c);
+ }
+ return result;
 }
 int integer(std::string_view s){return std::atoi(std::string(s).c_str());}
 long longnum(std::string_view s){return std::atol(std::string(s).c_str());}
