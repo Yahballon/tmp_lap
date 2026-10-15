@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "389c4a4312e6a25766065ad76e1432bb8a7bc9ab8fd00e9e4f4c5106abfb9371",
+  "version": "c84c4521bd09479faafb956ddd3f234dee023d537031e779e23495ba90a48730",
   "repository": "Yahballon/tmp_lap",
   "app_count": 9,
   "apps": [
@@ -86,14 +86,14 @@
       "name": "PSTUBE",
       "slug": "pstube",
       "title_id": "PPSA99762",
-      "version": "0.7.1",
-      "tag": "pstube-v0.7.1",
+      "version": "0.7.2",
+      "tag": "pstube-v0.7.2",
       "zip_name": "PPSA99762.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.7.1/PPSA99762.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.7.2/PPSA99762.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.2",
       "source": "homebrew/pstube",
-      "size_bytes": 20459779,
-      "published_at": "2026-10-15T10:06:38Z"
+      "size_bytes": 20578412,
+      "published_at": "2026-10-15T12:34:26Z"
     },
     {
       "name": "PS5 System Info",
