@@ -55,5 +55,24 @@ int main(int argc,char** argv){
  first.join();second.join();
  assert(a && b);
  assert(x==y && identical(std::string(argv[1])+"/ABooks/LongAudio.M4B",x));
- std::puts("USB >40-MiB audiobook transfer, interrupted transfer recovery, local caching and concurrent caller checks passed");
+ // Protected local Books are scanned by the ELF helper, not the UI sandbox.
+ const auto local=usbaudio::scan_local();
+ assert(local.viaHelper);
+ assert(local.books.size()==1);
+ const auto onDisk=local.books.front();
+ assert(onDisk.local && onDisk.relative=="LocalVoice.m4b");
+ const std::string localKey=usbaudio::remote_path(onDisk);
+ assert(localKey=="localaudio:LocalVoice.m4b");
+ usbaudio::Entry byPath;
+ assert(usbaudio::entry_from_remote(localKey,byPath) && byPath.local);
+ std::string localCache,localError;
+ assert(usbaudio::fetch(onDisk,localCache,localError));
+ assert(identical(std::string(argv[1])+"/AudioBookReader/Books/LocalVoice.m4b",localCache));
+ std::string cover,coverError;
+ assert(usbaudio::fetch_cover(localKey,cover,coverError));
+ assert(!cover.empty()&&(unsigned char)cover[0]==0x89); // local cover.png
+ std::string usbCover,usbError;
+ assert(usbaudio::fetch_cover(usbaudio::remote_path(book),usbCover,usbError));
+ assert(!usbCover.empty()&&(unsigned char)usbCover[0]==0xff); // USB cover.jpg
+ std::puts("PASS: USB transfer, private local Books helper, cache, companion cover and concurrency");
 }
