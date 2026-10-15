@@ -66,7 +66,7 @@ def generate():
     main = source / "main_shelf.cpp"
     replace_required(main, 'PS5SNES', TITLE)
     replace_required(main, 'PPSA99205', TITLE_ID)
-    replace_required(main, '"SNES"', '"NES"')
+    replace_required(main, '"/SNES"', '"/NES"')
     replace_required(main, 'for(const char* dir:{"games","saves","settings","covers","cache","logs"})',
                     'for(const char* dir:{"games","saves","settings","covers","cache","logs","HdPacks","SaveStates","Saves"})')
 
