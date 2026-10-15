@@ -37,7 +37,8 @@ jobs:
           bridge=Path('homebrew/ebook-reader/native/usb_bridge.cpp').read_text()
           assert 'statvfs(' not in bridge, 'do not call unverified PS5 statvfs API'
           start=code.split('bool start_cover(',1)[1].split('void panel(',1)[0]
-          assert start.index('usbbooks::is_remote(b.path)') < start.index('g_coverBusy.exchange(true)')
+          assert 'g_coverBusy.exchange(true)' in start
+          assert 'usbbooks::is_remote(b.path) && (b.format=="CBR"' not in start
           assert 'ebook_log::books_directory()' in code
           print('PS5 crash regression guards passed')
           PY
