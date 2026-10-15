@@ -2,6 +2,7 @@
 // A bounded, no-browser EPUB spine reader and text-only PDF fallback.
 // Complex layouts, SVG, encrypted and image-only PDFs require a separate renderer.
 #include "ebook_engine.hpp"
+#include "ebook_log.hpp"
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -566,7 +567,7 @@ bool scan_books(const std::vector<std::string>& dirs,std::vector<BookEntry>& boo
 bool scan_imports(std::vector<BookEntry>& found){
  std::set<std::string> seen;found.clear();lastReport.clear();
  for(const char* root:{
-     "/app0/assets/Books","/download0/Books","/download0/ebooks",
+     EBOOK_DATA_ROOT "/Books","/app0/assets/Books","/download0/Books","/download0/ebooks",
      "/mnt/usb0/Books","/mnt/usb0/books","/mnt/usb0/BOOKS",
      "/mnt/usb0","/mnt/usb1/Books","/mnt/usb1","/mnt/usb2"}) {
     ScanSource status;status.path=root;size_t remaining=12000;
@@ -625,7 +626,7 @@ bool import_to_library(const std::string& source,std::string& result){
  // The ordinary app sandbox can write /download0 but may be denied
  // /data/ebooks. Do not assume console-wide filesystem elevation.
  std::string folder;
- for(const char* candidate:{"/download0/Books","/data/ebooks"}){
+ for(const char* candidate:{EBOOK_DATA_ROOT "/Books","/download0/Books","/data/ebooks"}){
    if(mkdir(candidate,0755)!=0&&errno!=EEXIST)continue;
    std::string test=std::string(candidate)+"/.ebook-write-probe";
    FILE* check=std::fopen(test.c_str(),"wb");
