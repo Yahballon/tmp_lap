@@ -50,3 +50,16 @@ jobs:
           cd homebrew/ps5-mesenx/upstream/MesenCE
           mkdir -p MacOS
           make -j 3 core LTO=false SYSTEM_LIBEVDEV=true
+      - name: Run native NES ROM smoke test through MesenCE
+        run: |
+          M=homebrew/ps5-mesenx/upstream/MesenCE
+          P=homebrew/ps5-mesenx/upstream/PS5SNESX
+          clang++ -std=c++17 -O1 -pthread \
+            -I"$M" -I"$M/Core" -I"$M/Utilities" -I"$P/ps5/frontend" \
+            -Ihomebrew/ps5-mesenx/src \
+            homebrew/ps5-mesenx/src/core_session.cpp \
+            homebrew/ps5-mesenx/tests/native_smoke.cpp \
+            "$M/InteropDLL/obj.linux-x64/MesenCore.so" \
+            -Wl,-rpath,"$GITHUB_WORKSPACE/$M/InteropDLL/obj.linux-x64" \
+            -o /tmp/mesenx-native-smoke
+          /tmp/mesenx-native-smoke
