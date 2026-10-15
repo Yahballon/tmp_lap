@@ -63,7 +63,7 @@ static void add_books(const char *dir,const char *rel,unsigned depth,unsigned *b
   struct stat st;
   if(lstat(sub,&st)!=0)continue; // never follow a symlink outside Books
   if(S_ISDIR(st.st_mode)&&depth<3){add_books(sub,relative,depth+1,budget);continue;}
-  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||(uint64_t)(uint64_t)(uint64_t)st.st_size>MAX_FILE)continue;
+  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||(uint64_t)st.st_size>MAX_FILE)continue;
   memcpy(items[item_count].relative,relative,(size_t)k+1);
   items[item_count].size=st.st_size;
   ++item_count;
@@ -117,7 +117,7 @@ static void fetch(int client,const char *name,uint64_t offset){
   if(seg && !S_ISDIR(st.st_mode))return;
  }
  struct stat st;if(lstat(path,&st)!=0||!S_ISREG(st.st_mode)||
-                st.st_size!=item->size||st.st_size<1||st.st_size>MAX_FILE)return;
+                st.st_size!=item->size||st.st_size<1||(uint64_t)st.st_size>MAX_FILE)return;
  if(offset>(uint64_t)st.st_size)return;
  FILE *f=fopen(path,"rb");if(!f)return;
  if(fseeko(f,(off_t)offset,SEEK_SET)!=0){fclose(f);return;}
