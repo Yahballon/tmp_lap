@@ -79,6 +79,36 @@ jobs:
           assert data.endswith(b'DONE\n')
           print('Read-only USB helper catalog test passed')
           PY
+      - name: Test large USB comic transfer and recovery
+        run: |
+          python3 homebrew/ebook-reader/tests/generate_usb_transfer_fixture.py /tmp/ebook-usb-stream
+          gcc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -D'EBOOK_USB_ROOT="/tmp/ebook-usb-stream/Books"' \
+            -DPORT=19175 -DEBOOK_USB_TEST_DROP_ONCE \
+            homebrew/ebook-reader/helper/bookscan.c -o /tmp/ebook-usb-server-test
+          /tmp/ebook-usb-server-test > /tmp/ebook-usb-server.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          python3 - <<'PY'
+          import socket,time
+          for i in range(60):
+              try:
+                  with socket.create_connection(('127.0.0.1',19175),0.2):
+                      break
+              except (ConnectionRefusedError,TimeoutError,OSError):
+                  time.sleep(0.1)
+          else:
+              raise AssertionError("USB helper test server did not start")
+          PY
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
+            -DEBOOK_USB_BRIDGE_PORT=19175 \
+            -D'EBOOK_USB_CACHE_ROOT="/tmp/ebook-usb-stream/cache"' \
+            -Ihomebrew/ebook-reader/native \
+            homebrew/ebook-reader/native/usb_bridge.cpp \
+            homebrew/ebook-reader/tests/usb_transfer_test.cpp \
+            -o /tmp/ebook-usb-transfer-test
+          /tmp/ebook-usb-transfer-test /tmp/ebook-usb-stream
+          cat /tmp/ebook-usb-server.log
       - name: Prepare PS5 scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -94,7 +124,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.011')
+          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.012')
           d['localizedParameters']['en-US']['titleName']='Ebook Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -140,9 +170,9 @@ jobs:
           p=pathlib.Path('app/dist/PPSA99741')
           e=(p/'eboot.bin').read_bytes()
           assert len(e)>1000 and struct.unpack('<I',e[:4])[0]==0x1d3d154f
-          assert b'v0.2.1' in e
+          assert b'v0.2.2' in e
           j=json.loads((p/'sce_sys/param.json').read_text())
-          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.011'
+          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.012'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/Books/README.txt','bookscan.elf']:
             assert (p/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99741.zip') as z:
@@ -152,7 +182,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Ebook-Reader-v0.2.1
+          name: Ebook-Reader-v0.2.2
           path: app/dist/PPSA99741.zip
           if-no-files-found: error
       - name: Publish release
@@ -160,5 +190,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ebook-reader-v0.2.1 >/dev/null 2>&1; then exit 0; fi
-          gh release create ebook-reader-v0.2.1 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.2.1" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md
+          if gh release view ebook-reader-v0.2.2 >/dev/null 2>&1; then exit 0; fi
+          gh release create ebook-reader-v0.2.2 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.2.2" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md

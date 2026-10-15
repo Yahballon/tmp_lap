@@ -22,8 +22,10 @@
 #endif
 #define MAX_BOOKS 256
 #define MAX_PATH 512
-#define MAX_FILE (512U * 1024U * 1024U)
-#define PORT 9175
+#define MAX_FILE (2ULL * 1024ULL * 1024ULL * 1024ULL)
+#ifndef PORT
+#define PORT 9176
+#endif
 struct Item {char relative[MAX_PATH];off_t size;};
 static struct Item items[MAX_BOOKS];
 static unsigned item_count;
@@ -61,9 +63,8 @@ static void add_books(const char *dir,const char *rel,unsigned depth,unsigned *b
   struct stat st;
   if(lstat(sub,&st)!=0)continue; // never follow a symlink outside Books
   if(S_ISDIR(st.st_mode)&&depth<3){add_books(sub,relative,depth+1,budget);continue;}
-  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||st.st_size>MAX_FILE)continue;
-  strncpy(items[item_count].relative,relative,MAX_PATH-1);
-  items[item_count].relative[MAX_PATH-1]='\0';
+  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||(uint64_t)st.st_size>MAX_FILE)continue;
+  memcpy(items[item_count].relative,relative,(size_t)k+1);
   items[item_count].size=st.st_size;
   ++item_count;
  }
@@ -94,7 +95,7 @@ static int emit_catalog(int fd){
  return write_all(fd,"DONE\n",5);
 }
 #ifndef EBOOK_USB_TEST
-static void fetch(int client,const char *name){
+static void fetch(int client,const char *name,uint64_t offset){
  if(!*selected_root)scan();
  const struct Item *item=NULL;
  for(unsigned i=0;i<item_count;i++)if(strcmp(name,items[i].relative)==0){item=&items[i];break;}
@@ -116,15 +117,22 @@ static void fetch(int client,const char *name){
   if(seg && !S_ISDIR(st.st_mode))return;
  }
  struct stat st;if(lstat(path,&st)!=0||!S_ISREG(st.st_mode)||
-                st.st_size!=item->size||st.st_size<1||st.st_size>MAX_FILE)return;
+                st.st_size!=item->size||st.st_size<1||(uint64_t)st.st_size>MAX_FILE)return;
+ if(offset>(uint64_t)st.st_size)return;
  FILE *f=fopen(path,"rb");if(!f)return;
- char line[80];n=snprintf(line,sizeof(line),"DATA %lld\n",(long long)st.st_size);
+ if(fseeko(f,(off_t)offset,SEEK_SET)!=0){fclose(f);return;}
+ char line[80];n=snprintf(line,sizeof(line),"DATA %lld\n",(long long)((uint64_t)st.st_size-offset));
  if(n>0&&write_all(client,line,(size_t)n)){
   char buf[16384];size_t got;size_t total=0;
   while((got=fread(buf,1,sizeof(buf),f))!=0){
    if(!write_all(client,buf,got))break;
    total+=got;
    if(total>MAX_FILE)break;
+#ifdef EBOOK_USB_TEST_DROP_ONCE
+   // Simulate a dropped connection in host integration tests. Retries
+   // using a positive offset must still deliver the rest of the file.
+   if(offset==0 && total>=4U*1024U*1024U)break;
+#endif
   }
  }
  fclose(f);
@@ -138,17 +146,24 @@ static void serve(void){
  if(bind(s,(struct sockaddr *)&addr,sizeof(addr))!=0||listen(s,3)!=0){close(s);return;}
  for(int i=0;i<120;i++){
   fd_set set;FD_ZERO(&set);FD_SET(s,&set);
-  struct timeval idle={15,0};
+  struct timeval idle={600,0};
   if(select(s+1,&set,NULL,NULL,&idle)<=0)break;
   int c=accept(s,NULL,NULL);if(c<0)continue;
-  struct timeval timeout={5,0};
+  struct timeval timeout={90,0};
   setsockopt(c,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
   setsockopt(c,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
   char request[600];int n=recv(c,request,sizeof(request)-1,0);
   if(n>0){request[n]='\0';
    char *nl=strchr(request,'\n');if(nl)*nl='\0';
    if(!strcmp(request,"LIST"))emit_catalog(c);
-   else if(!strncmp(request,"FETCH ",6)&&strlen(request+6)<MAX_PATH)fetch(c,request+6);
+   else if(!strncmp(request,"FETCH ",6)&&strlen(request+6)<MAX_PATH)fetch(c,request+6,0);
+   else if(!strncmp(request,"FETCHR ",7)){
+     char *end=NULL;
+     errno=0;
+     const unsigned long long offset=strtoull(request+7,&end,10);
+     if(!errno && end && *end==' ' && strlen(end+1)<MAX_PATH)
+       fetch(c,end+1,(uint64_t)offset);
+   }
   }
   close(c);
  }

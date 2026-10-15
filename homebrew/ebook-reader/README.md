@@ -1,4 +1,4 @@
-# Ebook Reader v0.2.1 — USB bridge support
+# Ebook Reader v0.2.2 — USB bridge support
 
 Native PS5 EPUB/PDF text reader. Title ID: `PPSA99741`.
 
@@ -38,7 +38,7 @@ Requires a compatible already-running elfldr for accessing an inaccessible USB m
 
 Dedicated workflow: [build-ebook-reader.yml](../../.github/workflows/build-ebook-reader.yml). Uses PS5-DevBridge, OpenGL SDK, zlib and its native payload SDK to compile `bookscan.elf`; both `eboot.bin` and `bookscan.elf` are verified in the installable `PPSA99741.zip`.
 
-Release tag: `ebook-reader-v0.2.1`.
+Release tag: `ebook-reader-v0.2.2`.
 
 Source license: GPL-3.0-or-later, respecting dependency licenses.
 
@@ -68,36 +68,36 @@ Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.6
 
 **Limits:** Supports unencrypted single-file RAR4/RAR5, ZIP, JPEG/PNG/GIF (not WEBP by stb decoder in this build); no password-protected or multipart archives. Comic pages: up to 20 MiB uncompressed image data and 2048px displayed texture size. Archive maximum 512 MiB via USB bridge, 1,800 pages indexed. Unreadable files show errors; some RAR compression features may be unsupported by libarchive on hardware. This does **not** add graphical PDF page rendering. Tests must pass in CI, and PS5 hardware testing remains outstanding.
 
-## v0.2.1: Bookshelf layout and zoom reset
+## v0.2.2: Bookshelf layout and zoom reset
 
 - Two non-overlapping rows with five books each per screen, so real books no longer collide with covers on the next shelf. Multi-page collections remain navigable.
 - Real JPEG/PNG/CBR/CBZ covers occupy the entire book front using centre-cropped UVs rather than a small aspect-fit thumbnail, and selection is kept around the frame.
 - Every page change keeps the zoom factor but resets panning to start at the top edge. Comic pages are top-aligned even when the original picture is letterboxed; EPUB/PDF text starts from the first text row. D-pad panning is still available after the page change.
 - A geometry regression test covers shelf spacing, crop ratios and top alignment for 125–400% zoom.
 
-Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.1
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.2
 
-## v0.2.1: Reach the full bottom of zoomed pages
+## v0.2.2: Reach the full bottom of zoomed pages
 
 Zoom panning boundaries are now calculated from the actual rendered image rectangle (portrait, landscape, and square) instead of a fixed approximation. At 125%–400%, the D-Pad can reach the final image row. Opening a new page preserves the chosen zoom but resets scrolling to its beginning.
 
 **Square** toggles **Single Page / Double Page** for EPUB and PDF text-reading mode. Double Page displays two consecutive text columns (34 lines); Single Page displays a single centred paper page (17 lines). The reading position is preserved when switching. L1/R1 and X continue turning pages; progress remains saved. Comics retain their single full-screen panel and existing Square = Last Page shortcut.
 
-Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.1
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.2
 
-## v0.2.1: Fix Single Page text overflow at zoom
+## v0.2.2: Fix Single Page text overflow at zoom
 
 Single-page EPUB/PDF text and illustrations are now clipped to the physical sheet instead of the full spread; at 175% and other zoom levels the first glyph lines up with the paper's left margin. Pan can still reach the far right and bottom. The page number, reading mode and zoom percentage are shown beneath the book, not on top of the text. USB/comics/saved progress remain unchanged.
 
-Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.1
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.2
 
-## v0.2.1 — Full-width single-page layout
+## v0.2.2 — Full-width single-page layout
 
 Square switches EPUB/PDF to a full-width parchment page, using the same book box as the double-page reader but displaying one reflowed column across the entire reading canvas. There are no black/brown side gutters in Single Page mode. Text is intelligently wrapped to around 89 characters per line (instead of retaining old narrow 49-character lines); inline illustrations are remapped, and switching views preserves the approximate source-text position. The existing 100–400% zoom/pan, USB support, saved progress and CBR/CBZ remain working.
 
-Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.1
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.2
 
-## v0.2.1 — Better CBR/RAR support
+## v0.2.2 — Better CBR/RAR support
 
 - CBR files are **RAR4 or RAR5 comics containing JPEG/PNG/GIF image pages**, not a standalone image format. The native comic reader can decode these from USB or local libraries. The first page is used as cover artwork and pages are sorted numerically.
 - Fix local `.cbr` and `.cbz` automatically appearing under **Comics**, even without “comic” in the filename.
@@ -106,3 +106,15 @@ Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.1
 - GitHub Actions now tests actual compressed RAR4 **and** RAR5 member bytes, not merely a header, alongside CBZ images and USB scanning.
 
 Usage: place `.cbr` in `/mnt/usb0/Books/` (or the app-specific local Books directory), refresh via OPTIONS, choose **Comics** with L1/R1, then X to open. Keep the existing `elfldr` USB helper running on port 9021. Password-protected or multi-volume RAR files cannot be read.
+
+## v0.2.2: Fix large USB CBR transfers
+
+- Larger comics (up to 2 GiB) can be catalogued and copied, instead of the previous 512 MiB limit.
+- Dedicated book helper remains available for 10 minutes of idle browsing rather than stopping after 15 seconds; transfer and socket timeouts are increased for slow USB reads/writes.
+- **Resumable transfer:** the reader now requests the remaining bytes if the USB helper disconnects halfway through a file, rather than discarding the transferred part. Three recovery attempts are allowed per attempt.
+- Book cache selection checks writable storage and enough free space before beginning a large transfer. Errors identify whether the USB socket, cache write or storage capacity was the problem, including transferred MiB.
+- Foreground and background USB copy operations are serialized; large USB comics are not copied merely to retrieve bookshelf cover thumbnails.
+- The bridge listens on local port **9176** for this new version, ensuring that the packaged updated helper is launched instead of a stale v0.2.1 helper on 9175. A compatible elfldr must still run on **9021**.
+- Includes a host integration test of a 16 MiB simulated CBR, forced mid-stream disconnection, correct byte-for-byte resume, and concurrent requests. PDF/EPUB/CBZ and all saved progress remain compatible.
+
+Install the new PPSA99741.zip from TESTBUILDS without deleting saved data. USB books remain at `/mnt/usb0/Books`. A full comic must fit in available writable PS5 cache space to open; this implementation does not stream directly into the RAR decoder. Physical PS5 testing is still required.

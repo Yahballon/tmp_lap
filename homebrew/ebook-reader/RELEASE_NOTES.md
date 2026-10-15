@@ -1,16 +1,18 @@
-# Ebook Reader v0.2.1 — CBR/RAR compatibility fix
+# Ebook Reader v0.2.2 — Large USB CBR transfer fix
 
 ## Fixed
-- CBR and CBZ books stored locally now stay in the **Comics** collection rather than being incorrectly replaced by Fiction.
-- More reliable RAR4/RAR5 image entry recognition, including Windows-style backslash paths, optional ./ path prefixes and archives with incomplete file type metadata.
-- Added decompressed JPEG/PNG/GIF validation and informative errors for unreadable or encrypted comic images.
-- Host CI verifies complete RAR4 and RAR5 file decompression instead of checking just archive headers.
+- Removed the fragile five-second transfer timeout; the client now waits up to 60 seconds and the USB helper up to 90 seconds per socket operation.
+- Read-only helper remains available for 10 minutes of idle browsing, supports comic archives up to 2 GiB and exposes a fresh bridge endpoint on localhost port 9176.
+- If a comic transfer is interrupted, the reader tries to resume from the last successfully written byte (up to three retries).
+- Parallel background/foreground USB fetches can no longer compete for the single-threaded helper. The bookshelf will not pre-download huge USB CBR/CBZ files just to obtain cover thumbnails.
+- Cache location is selected based on available free space before copying. A failed download now reports its stage and MiB transferred instead of the vague 'USB transfer incomplete or cache write failed'.
 
-## Preserved
-Existing EPUB/PDF full-width and single/double pages, reading progress, cover art, DualSense zoom/pan, CBR/CBZ reader, and read-only USB helper.
+## Verification
+- Native ELF/helper/ZIP compilation and archive tests.
+- New host-side integration test sends a synthetic 16 MiB CBR through the helper with a deliberately interrupted connection and checks the exact restored bytes and concurrent request serialization.
 
 ## Install
-Download `PPSA99741.zip` and install via TESTBUILDS. CBR/CBZ files may reside in `/mnt/usb0/Books/` or the app-local Books library. For USB access keep compatible elfldr running on port 9021. Press OPTIONS to rescan and choose the Comics collection.
+Update to `PPSA99741.zip` through TESTBUILDS. Leave `elfldr` active on port 9021 and your comics under `/mnt/usb0/Books`. The new app uses book bridge port 9176 and preserves existing books, settings, progress, CBR/CBZ and EPUB/PDF support.
 
-## Limitations
-Password-protected or multi-part RAR archives, exotic/unsupported RAR filters and non-JPEG/PNG/GIF images are not supported. Tested in CI; actual PS5 hardware test is still required.
+## Known limitations
+The console still requires enough writable storage to cache the complete CBR file. Password-protected and multipart RAR files are unsupported; actual PS5 validation is pending.

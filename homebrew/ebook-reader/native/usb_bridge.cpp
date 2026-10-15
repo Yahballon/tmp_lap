@@ -11,15 +11,25 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <cstdint>
+#include <mutex>
+#include <string>
 
 namespace usbbooks {
 namespace {
-constexpr int kPort=9175,kElfLoader=9021;
-constexpr size_t kMaxCatalog=196608,kMaxFile=512*1024*1024;
+#ifndef EBOOK_USB_BRIDGE_PORT
+#define EBOOK_USB_BRIDGE_PORT 9176
+#endif
+#ifndef EBOOK_USB_CACHE_ROOT
+#define EBOOK_USB_CACHE_ROOT "/download0/ebook-reader-cache"
+#endif
+constexpr int kPort=EBOOK_USB_BRIDGE_PORT,kElfLoader=9021;
+constexpr size_t kMaxCatalog=196608,kMaxFile=2ULL*1024*1024*1024;
 std::vector<Entry> known;
+std::mutex transferMutex;
 bool safe(const std::string& s){
  if(s.empty()||s.size()>510||s[0]=='/'||s.back()=='/')return false;
  size_t at=0;
@@ -46,7 +56,7 @@ bool send_all(int fd,const char *data,size_t len){
 }
 int connect_to(int port){
  int fd=socket(AF_INET,SOCK_STREAM,0);if(fd<0)return -1;
- timeval tv{5,0};setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+ timeval tv{60,0};setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
  setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
  sockaddr_in address{};address.sin_family=AF_INET;
  address.sin_port=htons((uint16_t)port);
@@ -64,6 +74,18 @@ bool receive_catalog(int fd,std::string& bytes){
   if(bytes.size()>=5 && bytes.compare(bytes.size()-5,5,"DONE\n")==0)break;
  }
  return bytes.find("EBOOK1\n")!=std::string::npos;
+}
+bool read_data_header(int fd,size_t expected){
+ std::string line;char ch=0;
+ for(int i=0;i<90;i++){
+   if(recv(fd,&ch,1,0)!=1)return false;
+   if(ch=='\n')break;
+   line+=ch;
+ }
+ if(ch!='\n')return false;
+ unsigned long long length=0;
+ return std::sscanf(line.c_str(),"DATA %llu",&length)==1 &&
+        length==(unsigned long long)expected;
 }
 bool local_catalog(std::string& bytes){
  int fd=connect_to(kPort);if(fd<0)return false;
@@ -112,16 +134,33 @@ uint64_t fnv64(const std::string& name){
  for(unsigned char c:name){h^=c;h*=1099511628211ULL;}
  return h;
 }
-bool cachedir(std::string& dir){
- for(const char* path:{"/download0/ebook-reader-cache","/data/ebooks/.reader-cache"}){
+bool cachedir(size_t needed,std::string& dir,std::string& why){
+ // Comics are larger than ebooks; a writable mount can still be full.
+ size_t biggest=0;
+ bool writeable=false;
+
+ for(const char* path:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache"}){
   const std::string base=path;
   const auto slash=base.find_last_of('/');
   if(slash!=std::string::npos)mkdir(base.substr(0,slash).c_str(),0755);
   if(mkdir(path,0755)!=0&&errno!=EEXIST)continue;
   const auto test=base+"/.write-probe";
   FILE* f=fopen(test.c_str(),"wb");
-  if(f){fclose(f);remove(test.c_str());dir=base;return true;}
+  if(f){
+   fclose(f);remove(test.c_str());writeable=true;
+   struct statvfs fs{};
+   if(statvfs(base.c_str(),&fs)!=0){dir=base;return true;}
+   const unsigned long long freeBytes=(unsigned long long)fs.f_bavail*fs.f_frsize;
+   biggest=std::max(biggest,(size_t)std::min(freeBytes,(unsigned long long)SIZE_MAX));
+   if(freeBytes >= (unsigned long long)needed + 8ULL*1024*1024){
+     dir=base;return true;
+   }
+  }
  }
+ if(!writeable)why="No writable Ebook Reader cache directory";
+ else why="Insufficient cache storage: need "+
+       std::to_string((needed+1048575)/1048576)+" MiB, free "+
+       std::to_string(biggest/1048576)+" MiB";
  return false;
 }
 } // namespace
@@ -145,10 +184,12 @@ Catalog scan(){
  return out;
 }
 bool fetch(const Entry& book,std::string& localPath,std::string& error){
+ std::lock_guard<std::mutex> lock(transferMutex);
+ error.clear();
  if(!safe(book.relative)||book.bytes==0||book.bytes>kMaxFile){error="Invalid USB book";return false;}
  bool found=false;for(const auto& b:known)if(b.relative==book.relative && b.bytes==book.bytes)found=true;
  if(!found){error="USB catalogue expired; press OPTIONS to refresh";return false;}
- std::string folder;if(!cachedir(folder)){error="No writable local book cache in /download0";return false;}
+ std::string folder;if(!cachedir(book.bytes,folder,error))return false;
  std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
  for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
  char hex[24];std::snprintf(hex,sizeof(hex),"%016llx",(unsigned long long)fnv64(book.relative));
@@ -183,33 +224,74 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  if(request.size()>600 || !send_all(fd,request.data(),request.size())){
   close(fd);error="USB fetch request failed";return false;
  }
- std::string header;char c=0;
- for(int i=0;i<90;i++){
-  if(recv(fd,&c,1,0)!=1)break;
-  if(c=='\n')break;
-  header+=c;
- }
- unsigned long long total=0;
- if(c!='\n'||std::sscanf(header.c_str(),"DATA %llu",&total)!=1||total!=book.bytes){
+ const size_t total=book.bytes;
+ if(!read_data_header(fd,total)){
   close(fd);error="USB helper rejected book or size changed";return false;
  }
  const std::string tmp=localPath+".part";
  FILE* f=fopen(tmp.c_str(),"wb");
- if(!f){close(fd);error="Cannot create local book cache";return false;}
- size_t written=0;bool ok=true;char buf[16384];
- while(written<(size_t)total){
-  size_t need=std::min(sizeof(buf),(size_t)total-written);
-  ssize_t got=recv(fd,buf,need,0);
-  if(got<=0){ok=false;break;}
-  if(fwrite(buf,1,(size_t)got,f)!=(size_t)got){ok=false;break;}
-  written+=(size_t)got;
+ if(!f){
+   const int code=errno;
+   close(fd);
+   error="Cannot create comic cache: "+std::string(std::strerror(code));
+   return false;
  }
- if(fflush(f)!=0)ok=false;
- if(fclose(f)!=0)ok=false;
- close(fd);
- if(!ok||written!=(size_t)total||rename(tmp.c_str(),localPath.c_str())!=0){
-  remove(tmp.c_str());error="USB transfer incomplete or cache write failed";return false;
+ size_t written=0;bool ok=true;char buf[32768];
+ int ioCode=0;
+ const char* reason=nullptr;
+ int reconnects=0;
+ while(written<total){
+   const size_t needed=std::min(sizeof(buf),total-written);
+   ssize_t got=recv(fd,buf,needed,0);
+   if(got<0 && errno==EINTR)continue;
+   if(got<=0){
+     ioCode=got<0?errno:0;
+     // File transfers may drop during a long USB read. Ask the helper
+     // for the remaining bytes instead of discarding successful data.
+     close(fd);fd=-1;
+     if(reconnects++<3){
+       fd=connect_to(kPort);
+       if(fd<0){
+         auto status=scan();
+         if(status.viaHelper)fd=connect_to(kPort);
+       }
+       if(fd>=0){
+         const std::string retry="FETCHR "+std::to_string(written)+" "+
+                                 book.relative+"\n";
+         if(retry.size()<=600 && send_all(fd,retry.data(),retry.size()) &&
+            read_data_header(fd,total-written)){
+           ioCode=0;continue;
+         }
+         close(fd);fd=-1;
+       }
+     }
+     reason=got==0?"USB connection ended before file completed":
+                     "USB read interrupted or timed out";
+     ok=false;break;
+   }
+   if(fwrite(buf,1,(size_t)got,f)!=(size_t)got){
+     ioCode=errno;
+     reason="Cannot write comic to cache";
+     ok=false;break;
+   }
+   written+=(size_t)got;
  }
- return true;
+ if(fflush(f)!=0 && ok){
+   ioCode=errno;reason="Cache flush failed";ok=false;
+ }
+ if(fclose(f)!=0 && ok){
+   ioCode=errno;reason="Cache close failed";ok=false;
+ }
+ if(fd>=0)close(fd);
+ if(ok && written==total){
+   if(rename(tmp.c_str(),localPath.c_str())==0)return true;
+   ioCode=errno;reason="Cannot finalize cache file";ok=false;
+ }
+ remove(tmp.c_str());
+ error=std::string(reason?reason:"USB transfer truncated")+
+       " ("+std::to_string(written/1048576)+"/"+
+       std::to_string(((size_t)total+1048575)/1048576)+" MiB)";
+ if(ioCode)error+=": "+std::string(std::strerror(ioCode));
+ return false;
 }
 } // namespace usbbooks
