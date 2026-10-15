@@ -295,8 +295,9 @@ std::vector<Video> parse_youtube_html(const std::string& html){
  // Never interpret unrelated script data as a video: validate 11-char IDs.
  constexpr std::string_view needle="\"videoRenderer\":{";
  size_t from=html.find("ytInitialData");
+ if(from==std::string::npos)from=html.find("\"videoRenderer\":{");
  if(from==std::string::npos)return videos;
- while(videos.size()<50){
+ while(videos.size()<60){
   const size_t hit=html.find(needle,from);
   if(hit==std::string::npos)break;
   const size_t start=hit+needle.size()-1;
@@ -324,6 +325,55 @@ std::vector<Video> parse_youtube_html(const std::string& html){
   from=end;
  }
  return videos;
+}
+// Continuations come from the same live YouTube response as the video cards.
+// Do not invent page tokens or use a fixed result offset.
+std::string youtube_continuation(const std::string& json){
+ size_t start=0;
+ std::string result;
+ constexpr std::string_view marker="\"continuationItemRenderer\":{";
+ while((start=json.find(marker,start))!=std::string::npos){
+  const size_t obj=start+marker.size()-1;
+  const size_t end=value_end(json,obj);
+  if(end<=obj||end>json.size()){start+=marker.size();continue;}
+  const std::string_view item(json.data()+obj,end-obj);
+  const auto endpoint=field(item,"continuationEndpoint");
+  const auto command=field(endpoint,"continuationCommand");
+  auto token=decode(field(command,"token"),4096);
+  if(token.size()>=16&&token.size()<4096)result=std::move(token);
+  start=end;
+ }
+ return result;
+}
+std::string youtube_client_version(const std::string& html){
+ constexpr const char* keys[]={"INNERTUBE_CONTEXT_CLIENT_VERSION","clientVersion"};
+ for(const char* key:keys){
+  const std::string prefix=std::string("\"")+key+"\"";
+  size_t p=html.find(prefix);
+  if(p==std::string::npos)continue;
+  p=html.find(':',p+prefix.size());if(p==std::string::npos)continue;
+  ++p;skip(html,p);
+  const auto v=decode(std::string_view(html).substr(p),80);
+  if(v.size()>6&&v.size()<65&&
+     std::all_of(v.begin(),v.end(),[](unsigned char c){return std::isalnum(c)||c=='.'||c=='-';}))
+   return v;
+ }
+ return "2.20261010.00.00";
+}
+std::string continuation_body(const std::string& token,const std::string& version){
+ // The tokens consist of web-safe characters; quoted text is properly escaped
+ // to prevent malformed JSON or a request with an unintended command.
+ auto quote=[](const std::string& value)->std::string{
+  const char* digits="0123456789abcdef";std::string encoded="\"";
+  for(unsigned char c:value){
+   if(c=='"'||c=='\\'){encoded+='\\';encoded+=(char)c;}
+   else if(c<32){encoded+="\\u00";encoded+=digits[c>>4];encoded+=digits[c&15];}
+   else encoded+=(char)c;
+  }
+  return encoded+"\"";
+ };
+ return "{\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":"+
+  quote(version)+",\"hl\":\"en\",\"gl\":\"US\"}},\"continuation\":"+quote(token)+"}";
 }
 Service::Service(){
  mkdirs();
