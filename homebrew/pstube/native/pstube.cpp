@@ -213,7 +213,10 @@ std::vector<Video> parse_search(const std::string& s){
 Service::Service(){
  mkdirs();
  state_.videos=load_feed_cache();
- if(!state_.videos.empty())state_.status="Showing last online results (cached); refreshing...";
+ if(!state_.videos.empty()){
+  state_.status="Showing last online results (cached); refreshing...";
+  queue_thumbnails(state_.videos);
+ }
  for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[65536]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
