@@ -22,7 +22,7 @@
 #endif
 #define MAX_BOOKS 256
 #define MAX_PATH 512
-#define MAX_FILE (512U * 1024U * 1024U)
+#define MAX_FILE (2ULL * 1024ULL * 1024ULL * 1024ULL)
 #define PORT 9175
 struct Item {char relative[MAX_PATH];off_t size;};
 static struct Item items[MAX_BOOKS];
@@ -138,10 +138,10 @@ static void serve(void){
  if(bind(s,(struct sockaddr *)&addr,sizeof(addr))!=0||listen(s,3)!=0){close(s);return;}
  for(int i=0;i<120;i++){
   fd_set set;FD_ZERO(&set);FD_SET(s,&set);
-  struct timeval idle={15,0};
+  struct timeval idle={600,0};
   if(select(s+1,&set,NULL,NULL,&idle)<=0)break;
   int c=accept(s,NULL,NULL);if(c<0)continue;
-  struct timeval timeout={5,0};
+  struct timeval timeout={90,0};
   setsockopt(c,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
   setsockopt(c,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
   char request[600];int n=recv(c,request,sizeof(request)-1,0);
