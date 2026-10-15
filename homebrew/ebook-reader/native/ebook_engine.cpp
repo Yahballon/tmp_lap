@@ -109,6 +109,34 @@ std::string attr(const std::string& tag,const char* name){
  }
  return {};
 }
+// Locate an XML start element by its *complete* local name. Substring
+// searches for "<rootfile" also match "<rootfiles>", the EPUB container
+// wrapper, causing a missing full-path error in otherwise valid EPUBs.
+size_t xml_start(const std::string& xml,const char* local,size_t from=0){
+ while((from=xml.find('<',from))!=std::string::npos){
+  if(xml.compare(from,4,"<!--")==0){
+   const size_t end=xml.find("-->",from+4);
+   if(end==std::string::npos)return std::string::npos;
+   from=end+3;continue;
+  }
+  size_t p=from+1;
+  if(p>=xml.size())return std::string::npos;
+  const auto first=(unsigned char)xml[p];
+  if(!std::isalpha(first)&&first!='_'){from=p;continue;}
+  const size_t start=p;
+  while(p<xml.size()){
+   const unsigned char c=(unsigned char)xml[p];
+   if(!std::isalnum(c)&&c!='_'&&c!='-'&&c!='.'&&c!=':')break;
+   ++p;
+  }
+  const std::string qualified=xml.substr(start,p-start);
+  const auto colon=qualified.find_last_of(':');
+  const std::string name=qualified.substr(colon==std::string::npos?0:colon+1);
+  if(name==local)return from;
+  from=p;
+ }
+ return std::string::npos;
+}
 std::string tag_text(const std::string& s,const char* tag){
  std::string needle="<";needle+=tag;
  size_t p=s.find(needle);if(p==std::string::npos)return {};
@@ -204,24 +232,31 @@ bool epub(const std::string& path,Document& out){
  Zip zip;if(!zip.open(path)){out.error="EPUB ZIP container is invalid or too large";return false;}
  std::string container;
  if(!zip.get("META-INF/container.xml",container)){out.error="Missing EPUB container.xml";return false;}
- size_t p=container.find("<rootfile");if(p==std::string::npos){out.error="Missing EPUB package file";return false;}
- auto q=container.find('>',p);if(q==std::string::npos)return false;
- const std::string opfPath=attr(container.substr(p,q-p),"full-path");
- if(opfPath.empty()){out.error="Cannot resolve EPUB package";return false;}
- std::string opf;if(!zip.get(opfPath,opf)){out.error="Cannot read EPUB package";return false;}
+ size_t p=0,q=0;
+ std::string opfPath;
+ // Choose the first valid rootfile, including namespaced <ocf:rootfile>.
+ // Never match the <rootfiles> parent or a comment containing "rootfile".
+ for(p=xml_start(container,"rootfile");p!=std::string::npos;p=xml_start(container,"rootfile",q+1)){
+  q=container.find('>',p);
+  if(q==std::string::npos){out.error="Malformed EPUB container.xml";return false;}
+  const auto value=decode(attr(container.substr(p,q-p+1),"full-path"));
+  opfPath=resolve("",value);
+  if(!opfPath.empty())break;
+ }
+ if(opfPath.empty()){out.error="Cannot resolve EPUB package: missing rootfile full-path";return false;}
+ std::string opf;if(!zip.get(opfPath,opf)){out.error="Cannot read EPUB package: "+opfPath;return false;}
  out.title=decode(tag_text(opf,"dc:title"));
  out.author=decode(tag_text(opf,"dc:creator"));
  std::map<std::string,std::string> manifest;
  p=0;
- while((p=opf.find("<item",p))!=std::string::npos){
+ while((p=xml_start(opf,"item",p))!=std::string::npos){
   q=opf.find('>',p);if(q==std::string::npos)break;
   auto tag=opf.substr(p,q-p+1);p=q+1;
-  if(tag.find("<itemref")!=std::string::npos)continue;
   const auto id=attr(tag,"id"),href=attr(tag,"href");
   if(!id.empty()&&!href.empty())manifest[id]=resolve(opfPath,href);
  }
  p=0;size_t total=0;
- while((p=opf.find("<itemref",p))!=std::string::npos && total<1500){
+ while((p=xml_start(opf,"itemref",p))!=std::string::npos && total<1500){
   q=opf.find('>',p);if(q==std::string::npos)break;
   auto tag=opf.substr(p,q-p+1);p=q+1;
   const auto id=attr(tag,"idref");

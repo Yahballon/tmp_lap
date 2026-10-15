@@ -1,12 +1,20 @@
-# Ebook Reader v0.1.3 — USB EPUB Bridge
+# Ebook Reader v0.1.4 — EPUB package parsing fix
 
-Fixes the situation where `/mnt/usb0/Books` is blocked by the native PS5 app sandbox.
+### Fixed
 
-- Bundles `bookscan.elf` and talks to an already-running `elfldr` at `127.0.0.1:9021` (same strategy as Payload LauncherX).
-- The read-only helper scans `/mnt/usb0/Books`, including nested subfolders, and returns filenames and sizes to the native bookshelf.
-- Books on the USB can be opened through a local file transfer on port `9175`, using the app's own temporary cache. No USB writes or sandbox changes.
-- Preserves favourite books, reading progress and the original Title ID `PPSA99741`.
+- Standard EPUB archives with `META-INF/container.xml` were incorrectly rejected with **Cannot resolve EPUB package**. The parser matched the plural `<rootfiles>` wrapper instead of the actual `<rootfile full-path="...">` element.
+- Match complete XML element names instead of string prefixes, including namespaced `<ocf:rootfile>` and `<item>`/`<itemref>` package elements.
+- Handle single/double quoted and whitespace-separated XML attributes, comments containing decoy tags, and multiple rootfile declarations.
+- Preserve bounded archive decoding, path traversal protections, and existing local/USB book handling.
 
-**Install:** Extract `PPSA99741.zip` into `/data/homebrew/` and ensure `PPSA99741/bookscan.elf` sits next to `eboot.bin`. Keep your existing book files and saved settings. Have the same elfldr service used by Payload LauncherX running on port 9021. Rescan using OPTIONS.
+### Testing
 
-**Limitations:** Requires on-console firmware/loader testing; build success does not guarantee the helper can start on every firmware. EPUB support is text-focused and PDF support remains text preview only.
+Added generated EPUB fixtures for standard and namespaced package containers, comments, multiple rootfiles, and invalid paths. CI must pass EPUB extraction tests and full native PS5 ZIP validation before release.
+
+### Install
+
+Update to `PPSA99741.zip` from this release through TESTBUILD APP. Same Title ID `PPSA99741`, and same `bookscan.elf` USB bridge and ports `9021/9175`.
+
+### Known limitations
+
+EPUB text reflow only; image-heavy layouts, DRM and advanced CSS are unsupported. PDF remains a text preview. Actual PS5 reading of your books still requires a console test.
