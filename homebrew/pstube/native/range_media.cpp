@@ -101,9 +101,12 @@ bool retrieve(const Url& url,unsigned long long offset,
   if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){
    error="HD TLS peer verification failed";break;
   }
+  const char* ua=url.path.find("c=VISIONOS")!=std::string::npos?
+   "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15":
+   "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip";
   const std::string request=
    "GET "+url.path+" HTTP/1.1\r\nHost: "+url.host+
-   "\r\nUser-Agent: com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip"+
+   "\r\nUser-Agent: "+ua+
    "\r\nAccept: */*\r\nAccept-Encoding: identity\r\nRange: bytes="+
     std::to_string(offset)+"-"+std::to_string(last)+
    "\r\nConnection: close\r\n\r\n";
