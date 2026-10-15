@@ -45,19 +45,24 @@ jobs:
           curl --fail --location --silent --show-error \
             https://raw.githubusercontent.com/libarchive/libarchive/76d41c18cf53c888afb2c9477fd595a5d3984192/libarchive/test/test_read_format_rar5_compressed.rar.uu \
             -o /tmp/comic-fixtures/rar5.uu
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/libarchive/libarchive/76d41c18cf53c888afb2c9477fd595a5d3984192/libarchive/test/test_read_format_rar.rar.uu \
+            -o /tmp/comic-fixtures/rar4.uu
           python3 - <<'PY'
           import binascii,pathlib
-          lines=pathlib.Path('/tmp/comic-fixtures/rar5.uu').read_bytes().splitlines()
-          assert lines[0].startswith(b'begin ')
-          payload=b''.join(binascii.a2b_uu(line) for line in lines[1:] if line not in (b'end',b'',b'\x60'))
-          assert payload.startswith(b'Rar!\x1a\x07\x01\x00')
-          pathlib.Path('/tmp/comic-fixtures/rar5.cbr').write_bytes(payload)
+          for version in ('rar4','rar5'):
+              lines=pathlib.Path(f'/tmp/comic-fixtures/{version}.uu').read_bytes().splitlines()
+              assert lines[0].startswith(b'begin ')
+              payload=b''.join(binascii.a2b_uu(line) for line in lines[1:]
+                               if line not in (b'end',b'',b'\x60'))
+              assert payload.startswith(b'Rar!\x1a\x07')
+              pathlib.Path(f'/tmp/comic-fixtures/{version}.cbr').write_bytes(payload)
           PY
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -Ihomebrew/ebook-reader/native \
             homebrew/ebook-reader/native/comic_archive.cpp \
             homebrew/ebook-reader/tests/comic_archive_test.cpp \
             -larchive -o /tmp/ebook-comic-test
-          /tmp/ebook-comic-test /tmp/comic-fixtures /tmp/comic-fixtures/rar5.cbr
+          /tmp/ebook-comic-test /tmp/comic-fixtures /tmp/comic-fixtures/rar5.cbr /tmp/comic-fixtures/rar4.cbr
       - name: Test remote ELF USB scanner on host
         run: |
           mkdir -p /tmp/ebook-usb-test/Books/Author
@@ -89,7 +94,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.010')
+          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.011')
           d['localizedParameters']['en-US']['titleName']='Ebook Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -135,9 +140,9 @@ jobs:
           p=pathlib.Path('app/dist/PPSA99741')
           e=(p/'eboot.bin').read_bytes()
           assert len(e)>1000 and struct.unpack('<I',e[:4])[0]==0x1d3d154f
-          assert b'v0.2.0' in e
+          assert b'v0.2.1' in e
           j=json.loads((p/'sce_sys/param.json').read_text())
-          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.010'
+          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.011'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/Books/README.txt','bookscan.elf']:
             assert (p/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99741.zip') as z:
@@ -147,7 +152,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Ebook-Reader-v0.2.0
+          name: Ebook-Reader-v0.2.1
           path: app/dist/PPSA99741.zip
           if-no-files-found: error
       - name: Publish release
@@ -155,5 +160,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ebook-reader-v0.2.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create ebook-reader-v0.2.0 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.2.0" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md
+          if gh release view ebook-reader-v0.2.1 >/dev/null 2>&1; then exit 0; fi
+          gh release create ebook-reader-v0.2.1 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.2.1" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md
