@@ -369,7 +369,9 @@ std::string youtube_client_version(const std::string& html){
   if(p==std::string::npos)continue;
   p=html.find(':',p+prefix.size());if(p==std::string::npos)continue;
   ++p;skip(html,p);
-  const auto v=decode(std::string_view(html).substr(p),80);
+  const std::string_view candidate(html.data()+p,html.size()-p);
+  const size_t end=value_end(candidate,0);
+  const auto v=decode(candidate.substr(0,end),80);
   if(v.size()>6&&v.size()<65&&
      std::all_of(v.begin(),v.end(),[](unsigned char c){return std::isalnum(c)||c=='.'||c=='-';}))
    return v;
