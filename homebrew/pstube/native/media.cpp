@@ -31,7 +31,11 @@ bool media_host(const std::string& u){
 // FFmpeg's native TLS backend reads roots from this on-console file.
 std::string root_certificate_file(){
  static const std::string path=[]{
+  #ifdef PSTUBE_HOST_TEST
+  const char* names[]={"/tmp/pstube-host-roots.pem"};
+#else
   const char* names[]={"/data/pstube/certificates.pem","/download0/pstube-roots.pem"};
+#endif
   mkdir("/data/pstube",0700);
   for(const char* target:names){
    FILE* f=fopen(target,"wb");if(!f)continue;
