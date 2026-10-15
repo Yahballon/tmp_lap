@@ -142,7 +142,7 @@ int main(){
  auto atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  const bool logReady=audio_log::prepare();
- audio_log::write("BOOT","Audiobook Reader v0.2.0 started; PPSA99784");
+ audio_log::write("BOOT","Audiobook Reader v0.2.1 started; PPSA99784");
  audio_log::write("DATA","Local: "+audio_log::books_directory()+
                          " Log: "+audio_log::filename());
  std::vector<audio::Book> books;
@@ -151,6 +151,8 @@ int main(){
   if(g_openBusy.load())return;
   audio_log::write("SCAN_BEGIN","Searching local Books and USB ABooks");
   audio::scan(paths(),books);
+  audio_log::write("SCAN_LOCAL","Books="+std::to_string(books.size())+
+     " Path="+audio_log::books_directory());
   usbCatalog=usbaudio::scan();
   for(const auto& remote:usbCatalog.books){
    audio::Book b;
@@ -164,6 +166,7 @@ int main(){
   std::sort(books.begin(),books.end(),[](const auto& a,const auto& b){return a.title<b.title;});
   audio_log::write("SCAN_DONE","Books="+std::to_string(books.size())+
     " USB="+std::to_string(usbCatalog.books.size())+
+    " Root="+usbCatalog.usbRoot+
     " Status="+usbCatalog.message);
  };
  refresh();
@@ -297,7 +300,7 @@ int main(){
   d.bordered_rect({24,19,58,57},10,Color::rgb(0x1c3545),2,kSteel);
   for(int i=0;i<5;i++)d.line(35+i*8,49-(i%3)*7,35+i*8,55+(i%3)*7,3,kCyan);
   txt(d,font,atlas,"AUDIOBOOK READER by YAHBALLON",109,58,31,kWhite);
-  txt(d,font,atlas,"v0.2.0",1878,58,22,kCyan,Align::right);
+  txt(d,font,atlas,"v0.2.1",1878,58,22,kCyan,Align::right);
   if(viewing){
    auto st=player.snapshot();
    const auto& b=books[ids[selected]];
