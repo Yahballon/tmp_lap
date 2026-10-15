@@ -33,7 +33,15 @@ export PS5_PAYLOAD_SDK_FORK="$work/PS5_PayloadSDK"
 (
   cd "$work/PS5_Vulkan"
   bash tools/setup-native-dependencies.sh
-  make
+  # The PS5_Vulkan demo app may fail before RADV is available. Its
+  # native link tool and libc.prx are the only make outputs we require.
+  if ! make > "$work/ps5-vulkan-prepare.log" 2>&1; then
+    if [[ ! -x build/host/ps5-native-tool || ! -s runtime/libc.prx ]]; then
+      tail -n 100 "$work/ps5-vulkan-prepare.log" >&2
+      exit 1
+    fi
+    echo "Vulkan native tools ready; optional demo app skipped"
+  fi
   bash tools/build-radv.sh release
 )
 git -C PS5_VulkanTemplate submodule update --init external/glm
