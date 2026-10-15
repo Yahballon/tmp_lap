@@ -466,7 +466,7 @@ int main(){
        }
        if(ok){
         ebook_log::write("OPEN_OK",source);
-        for(auto& pair:pageImagesfree_texture(pair.second);
+        for(auto& pair:pageImages)free_texture(pair.second);
         pageImages.clear();lastRenderedImagePage=-1;
         free_texture(comicPageTexture);comicTexturePage=-1;
         readerZoom=1.f;readerPanX=readerPanY=0.f;
