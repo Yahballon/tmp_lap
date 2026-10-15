@@ -1,0 +1,44 @@
+name: Port PS5MesenX core (PS5 Clang)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-mesenx/scripts/compile_ps5_core.py'
+      - '.github/workflows/port-ps5-mesenx-core.yml'
+permissions:
+  contents: read
+jobs:
+  ps5-mesence-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git ca-certificates curl wget make tar clang-18 lld-18 llvm-18 llvm-18-tools python3
+          echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+      - name: Install pinned public PS5 SDK
+        run: |
+          mkdir -p homebrew/ps5-mesenx/build/sdk
+          cd homebrew/ps5-mesenx/build/sdk
+          git clone -q https://github.com/mihawk-99/PS5_PayloadSDK.git
+          git clone -q --depth 1 https://github.com/mihawk-99/PS5_VulkanTemplate.git
+          export PS5_PAYLOAD_SDK_FORK="$PWD/PS5_PayloadSDK"
+          bash PS5_VulkanTemplate/ps5/tools/setup-sdk.sh
+      - name: Fetch pinned HD-capable MesenCE Libretro
+        run: |
+          cd homebrew/ps5-mesenx/build
+          git clone -q https://github.com/FrederickCampbell/MesenCE-Libretro.git
+          git -C MesenCE-Libretro checkout -q --detach 585ea28f2998908c062d08721f3b9bf9635a2e0e
+          test -s MesenCE-Libretro/Core/NES/HdPacks/HdPackLoader.cpp
+      - name: Cross-compile MesenCE NES core for PS5
+        env:
+          PS5_PAYLOAD_SDK: ${{ github.workspace }}/homebrew/ps5-mesenx/build/sdk/PS5_VulkanTemplate/.deps/native/ps5-payload-sdk
+        run: python3 homebrew/ps5-mesenx/scripts/compile_ps5_core.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ps5-mesenx-cross-compiled-core
+          path: homebrew/ps5-mesenx/build/ps5-core/libmesen_ce_nes.ps5.a
+          if-no-files-found: error
