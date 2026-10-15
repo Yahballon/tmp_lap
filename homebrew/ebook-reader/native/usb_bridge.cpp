@@ -18,7 +18,7 @@
 namespace usbbooks {
 namespace {
 constexpr int kPort=9175,kElfLoader=9021;
-constexpr size_t kMaxCatalog=196608,kMaxFile=128*1024*1024;
+constexpr size_t kMaxCatalog=196608,kMaxFile=512*1024*1024;
 std::vector<Entry> known;
 bool safe(const std::string& s){
  if(s.empty()||s.size()>510||s[0]=='/'||s.back()=='/')return false;
@@ -37,7 +37,7 @@ bool safe(const std::string& s){
  if(ext==std::string::npos)return false;
  std::string suffix=s.substr(ext);
  for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
- return suffix==".epub"||suffix==".pdf";
+ return suffix==".epub"||suffix==".pdf"||suffix==".cbr"||suffix==".cbz";
 }
 bool send_all(int fd,const char *data,size_t len){
  size_t off=0;
@@ -149,7 +149,8 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  bool found=false;for(const auto& b:known)if(b.relative==book.relative && b.bytes==book.bytes)found=true;
  if(!found){error="USB catalogue expired; press OPTIONS to refresh";return false;}
  std::string folder;if(!cachedir(folder)){error="No writable local book cache in /download0";return false;}
- const std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
+ std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
+ for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
  char hex[24];std::snprintf(hex,sizeof(hex),"%016llx",(unsigned long long)fnv64(book.relative));
  localPath=folder+"/usb-"+hex+suffix;
  // Reuse previously transferred books. Checking the file magic avoids
@@ -164,7 +165,10 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
      fclose(check);
      if(valid && ((suffix==".epub" && signature[0]=='P' && signature[1]=='K') ||
                   (suffix==".pdf" && signature[0]=='%' && signature[1]=='P' &&
-                   signature[2]=='D' && signature[3]=='F')))return true;
+                   signature[2]=='D' && signature[3]=='F') ||
+                  (suffix==".cbr" && signature[0]=='R' && signature[1]=='a' &&
+                   signature[2]=='r' && signature[3]=='!') ||
+                  (suffix==".cbz" && signature[0]=='P' && signature[1]=='K')))return true;
    }
  }
  // Local cache is title-specific and never touches original USB content.
