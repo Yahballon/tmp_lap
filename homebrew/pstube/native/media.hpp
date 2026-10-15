@@ -16,6 +16,7 @@ class MediaPlayer {
 public:
  MediaPlayer()=default;~MediaPlayer();
  bool open(const std::string& path);
+ bool openStream(const std::string& url);
  void close();
  void pause();
  PlaybackState snapshot() const;
@@ -29,6 +30,7 @@ private:
  std::atomic<bool> quit_{false},paused_{false};
  PlaybackState state_;
  std::string path_;
+ bool remote_=false;
  std::vector<unsigned char> pixels_;
  uint64_t sequence_=0;
 };

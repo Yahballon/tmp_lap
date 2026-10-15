@@ -38,7 +38,8 @@ const char* symbols[]={"H","?","^","*","v","O","#"};
 const std::string keys="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_."; // 40 keys
 struct State {
  int page=0,focus=0,nav=0,selected=0,offset=0,kbd=0;
- bool keyboard=false,inspect=false,playing=false,playerStarted=false;
+ bool keyboard=false,inspect=false,playing=false,playerStarted=false,streamOpenFailed=false;
+ std::string streamErrorText;
  std::string query="PS5 gaming",notice="Search videos using Triangle or open Search.";
  pstube::Video active;
  std::vector<std::string> history;
@@ -131,15 +132,23 @@ int main(){
   s.selected=std::clamp(s.selected,0,std::max(0,(int)videos.size()-1));
   if(s.playing){
    if(pressed&hui::pad_bits::kCircle){
-    player.close();s.playing=false;s.playerStarted=false;last_frame=0;
+    player.close();service.cancel_stream();s.playing=false;s.playerStarted=false;s.streamOpenFailed=false;last_frame=0;
     if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}
    }
-   if((pressed&hui::pad_bits::kCross)&&s.playerStarted)player.pause();
+   if((pressed&hui::pad_bits::kCross)&&s.playerStarted){
+    if(player.snapshot().ended){
+     player.close();s.playerStarted=false;s.streamOpenFailed=false;
+     if(!service.start_stream(s.active))s.notice="Stream resolver still busy";
+    }else player.pause();
+   }
    if(pressed&hui::pad_bits::kTriangle)service.toggle_favourite(s.active);
-   if((pressed&hui::pad_bits::kCross)&&!s.playerStarted){
-    bool failed=false;
-    for(const auto& job:snapshot.jobs)if(job.id==s.active.id&&job.state=="Failed")failed=true;
-    if(failed)service.download(s.active);
+   if((pressed&hui::pad_bits::kCross)&&!s.playerStarted&&!snapshot.streamResolving){
+    s.streamOpenFailed=false;
+    if(!service.start_stream(s.active))s.notice="Stream resolver busy";
+   }
+   if(pressed&hui::pad_bits::kSquare){
+    if(service.download(s.active))s.notice="Saving video in Downloads";
+    else s.notice="Download already in progress";
    }
   }
   else if(pressed&hui::pad_bits::kCircle){
@@ -164,10 +173,10 @@ int main(){
     else s.notice="Download is already active or the video ID is invalid";
    }
    if(pressed&hui::pad_bits::kCross){
-    s.inspect=false;s.playing=true;s.playerStarted=false;
+    s.inspect=false;s.playing=true;s.playerStarted=false;s.streamOpenFailed=false;
     const std::string path=service.local_path(s.active.id);
     if(!path.empty()){s.playerStarted=player.open(path);}
-    else service.download(s.active);
+    else service.start_stream(s.active);
    }
   }else{
    if(pressed&hui::pad_bits::kL1){s.page=(s.page+6)%7;s.focus=0;s.selected=s.offset=0;if(s.page==2)service.trending();}
@@ -211,21 +220,43 @@ int main(){
      }else if(s.page==1&&videos.empty())s.keyboard=true;
      else if(!videos.empty()){
       s.active=videos[(size_t)s.selected];service.record_history(s.active);
-      s.inspect=false;s.playing=true;s.playerStarted=false;
+      s.inspect=false;s.playing=true;s.playerStarted=false;s.streamOpenFailed=false;
       if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}last_frame=0;
       std::string file=service.local_path(s.active.id);
       if(!file.empty())s.playerStarted=player.open(file);
-      else if(!service.download(s.active))s.notice="Video resolver busy; try again";
+      else if(!service.start_stream(s.active))s.notice="Video resolver busy; try again";
      }
     }
    }
   }
-  // One-click playback: enter the player immediately, and start decoding as soon
-  // as a verified complete local MP4 becomes available.
-  if(s.playing&&!s.playerStarted){
+  // Start FFmpeg as soon as the native Android resolver returns an HTTPS URL.
+  // No complete MP4 download is needed; network buffering stays in libavformat.
+  if(s.playing&&!s.playerStarted&&!s.streamOpenFailed){
    const std::string ready=service.local_path(s.active.id);
    if(!ready.empty())s.playerStarted=player.open(ready);
+   else if(snapshot.streamId==s.active.id&&!snapshot.streamUrl.empty()){
+    s.playerStarted=player.openStream(snapshot.streamUrl);
+    if(!s.playerStarted){s.streamOpenFailed=true;s.streamErrorText="FFmpeg network player unavailable or TLS roots could not be opened";s.notice=s.streamErrorText;}
+   }
   }
+  // Fetch the next YouTube continuation only when near the bottom of a visible
+  // feed, without blocking controller input or reloading existing cards.
+  // Evict old GPU thumbnail textures so a 1000+ result feed keeps showing
+  // real thumbnails on new pages instead of exhausting the fixed cache budget.
+  if(thumb_textures.size()>42){
+   for(auto it=thumb_textures.begin();it!=thumb_textures.end();){
+    bool visible=false;
+    for(int i=s.offset;i<(int)videos.size()&&i<s.offset+6;++i)
+     if(videos[(size_t)i].id==it->first){visible=true;break;}
+    if(!visible){glDeleteTextures(1,&it->second);it=thumb_textures.erase(it);}
+    else ++it;
+   }
+  }
+  if(!s.playing && !s.keyboard && s.focus==1 &&
+     (s.page==0||s.page==1||s.page==2) &&
+     snapshot.hasMore && !snapshot.loadingMore &&
+     !videos.empty()&&s.selected+5>=(int)videos.size())
+    service.load_more();
   DrawList d;d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020916),Color::rgb(0x041d38));
   for(int i=0;i<6;i++)d.arc(165,858,280+i*42,2,4.5f,6.5f,blue.with_alpha(.12f));
   d.gradient_rect({0,0,1920,140},0,Color::rgb(0x06182d),Color::rgb(0x020c19));
@@ -234,7 +265,7 @@ int main(){
   text(d,font,atlas,"PSTUBE",158,79,51,white);
   text(d,font,atlas,"by YAHBALLON",162,112,23,dim);
   tile(d,466,37,892,76,false);text(d,font,atlas,"Search: "+cut(font,s.query,780,24),499,84,24,dim);
-  text(d,font,atlas,"v0.4.0",1850,84,25,white,Align::right);
+  text(d,font,atlas,"v0.5.0",1850,84,25,white,Align::right);
   d.rounded_rect({0,140,374,870},0,Color::rgb(0x041226));
   for(int i=0;i<7;i++){float y=180+i*112;
    if(s.page==i||s.focus==0&&s.nav==i)tile(d,31,y,326,88,s.focus==0&&s.nav==i);
@@ -266,7 +297,9 @@ int main(){
    if(s.page==0&&videos.empty())text(d,font,atlas,"Connecting to public video services...",420,258,22,dim);
    result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
    if(snapshot.searching)text(d,font,atlas,"Loading...",1850,207,22,blue,Align::right);
-   else if(!videos.empty())text(d,font,atlas,std::to_string(videos.size())+" videos",1850,206,21,dim,Align::right);
+   if(snapshot.loadingMore)text(d,font,atlas,"Loading more videos...",1470,990,20,blue,Align::right);
+   else if(!videos.empty())text(d,font,atlas,std::to_string(videos.size())+
+     (snapshot.hasMore?"+ videos":" videos"),1850,206,21,dim,Align::right);
    if(s.page==0||s.page==1||s.page==2){
     text(d,font,atlas,cut(font,snapshot.status,1420,21),430,945,21,snapshot.searching?blue:dim);
    }
@@ -318,25 +351,25 @@ int main(){
     auto ti=thumb_textures.find(s.active.id);
     if(ti!=thumb_textures.end())d.image(ti->second,{545,195,830,467},kFullUv,Color::rgb(0x8b99ac),18);
     text(d,font,atlas,cut(font,s.active.title,1400,41),960,740,41,white,Align::center);
-    std::string state="Preparing video...";
-    float progress=0;
+    std::string state="Connecting to video...";
     bool isFail=false;
-    for(const auto& job:snapshot.jobs)if(job.id==s.active.id){
-     state=job.state;progress=job.progress;
-     if(job.state=="Failed"){isFail=true;state=job.error.empty()?snapshot.status:job.error;}
+    if(snapshot.streamId==s.active.id){
+     if(!snapshot.streamError.empty()){state=snapshot.streamError;isFail=true;}
+     else if(snapshot.streamResolving)state="Resolving stream URL...";
+     else if(!snapshot.streamUrl.empty())state="Opening HTTPS stream...";
     }
-    if(s.playerStarted)state=st.message;
-    else if(!snapshot.jobs.empty()&&!isFail)state+="  "+std::to_string((int)progress)+"%";
+    if(s.playerStarted){state=st.message;isFail=st.ended&&!st.playing;}
+    if(s.streamOpenFailed){state=s.streamErrorText;isFail=true;}
     text(d,font,atlas,cut(font,state,1370,27),960,799,27,isFail?Color::rgb(0xff747a):dim,Align::center);
-    d.rounded_rect({505,839,910,11},5,edge);
-    d.rounded_rect({505,839,910*std::clamp(progress/100.f,0.f,1.f),11},5,blue);
-    if(isFail)text(d,font,atlas,"X Retry    TRIANGLE Favourite    CIRCLE Back",960,902,23,dim,Align::center);
+    if(!isFail){d.rounded_rect({505,839,910,11},5,edge);d.rounded_rect({505,839,190,11},5,blue);}
+    text(d,font,atlas,isFail?"X Retry  SQUARE Save offline  CIRCLE Back":
+      "Buffering...  SQUARE Save offline  CIRCLE Back",960,902,23,dim,Align::center);
    }
    if(s.playerStarted&&st.ended)text(d,font,atlas,cut(font,st.message,1200,27),960,900,27,dim,Align::center);
    d.rounded_rect({0,980,1920,100},0,Color::rgb(0x06152b));
    text(d,font,atlas,cut(font,s.active.title,1200,25),50,1035,24,white);
    text(d,font,atlas,s.playerStarted?(st.paused?"X Resume   TRIANGLE Favourite   CIRCLE Back":
-    "X Pause   TRIANGLE Favourite   CIRCLE Back"):"Resolving media   CIRCLE Back",1870,1035,21,dim,Align::right);
+    "X Pause   TRIANGLE Favourite   CIRCLE Back"):"Connecting stream   CIRCLE Back",1870,1035,21,dim,Align::right);
   }
   if(!s.playing)write_help(d,font,atlas,s);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();

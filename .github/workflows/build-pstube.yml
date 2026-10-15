@@ -30,7 +30,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.004')
+          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.005')
           d['localizedParameters']['en-US']['titleName']='PSTUBE'
           p.write_text(json.dumps(d,indent=2)+'\n')
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
@@ -42,6 +42,22 @@ jobs:
             app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
             -lssl -lcrypto -o /tmp/pstube-catalog-test
           /tmp/pstube-catalog-test
+      - name: Validate YouTube continuation JSON and pagination (native C++)
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/pstube/tests/pagination_test.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-pagination-test
+          /tmp/pstube-pagination-test
+      - name: Test real YouTube page 2 over native HTTPS (network diagnostic)
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/pstube/tests/live_pagination_test.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-live-pagination-test
+          timeout 80s /tmp/pstube-live-pagination-test
       - name: Verify native C++ Android API stream resolution
         run: |
           g++ -std=c++20 -O2 -pthread -Iapp/src \
@@ -49,6 +65,36 @@ jobs:
             app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
             -lssl -lcrypto -o /tmp/pstube-native-player-test
           /tmp/pstube-native-player-test
+      - name: Verify native FFmpeg reads HTTPS video before download completes (diagnostic)
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          /tmp/pstube-native-player-test /tmp/pstube-stream-uri.txt
+          python3 - <<'PY'
+          import os,subprocess,re
+          path="/tmp/pstube-stream-uri.txt"
+          with open(path) as handle: url=handle.read().strip()
+          os.remove(path)
+          if not (url.startswith("https://") and ".googlevideo.com" in url[:200]):
+              raise SystemExit("Unsafe test URI")
+          try:
+              result=subprocess.run([
+                "ffprobe","-v","error","-tls_verify","1","-ca_file",
+                "/etc/ssl/certs/ca-certificates.crt","-rw_timeout","12000000",
+                "-probesize","500000","-analyzeduration","2000000",
+                "-select_streams","v:0","-show_entries",
+                "stream=codec_name,width,height","-of","default=nw=1",url
+              ],capture_output=True,text=True,timeout=40)
+              if result.returncode:
+                  print("HTTPS FFmpeg probe failed; status",result.returncode,
+                        "HTTP403", "403" in result.stderr,
+                        "TLS", "certificate" in result.stderr.lower())
+                  raise SystemExit(result.returncode)
+              print("Native FFmpeg HTTPS can probe first video frames:",
+                    result.stdout.strip()[:180])
+          finally:
+              pass
+          PY
       - name: Verify native full MP4 download (network diagnostic)
         continue-on-error: true
         timeout-minutes: 3
@@ -67,7 +113,7 @@ jobs:
           def check(domain):
               try:
                   request=urllib.request.Request('https://'+domain+'/api/v1/search?q=ps5&type=video',
-                      headers={'User-Agent':'PSTUBE/0.4.0','Accept':'application/json'})
+                      headers={'User-Agent':'PSTUBE/0.5.0','Accept':'application/json'})
                   with urllib.request.urlopen(request,timeout=8) as response:
                       data=json.load(response)
                   valid=isinstance(data,list) and sum(bool(x.get('videoId')) for x in data if isinstance(x,dict))
@@ -136,9 +182,9 @@ jobs:
           root=pathlib.Path('app/dist/PPSA99762')
           executable=(root/'eboot.bin').read_bytes()
           assert len(executable)>1000 and struct.unpack('<I',executable[:4])[0]==0x1D3D154F
-          assert b'v0.4.0' in executable
+          assert b'v0.5.0' in executable
           d=json.loads((root/'sce_sys/param.json').read_text())
-          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.004'
+          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.005'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/videos/pstube-selftest.mp4']:
             assert (root/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99762.zip') as z:
@@ -147,7 +193,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PSTUBE-v0.4.0
+          name: PSTUBE-v0.5.0
           path: app/dist/PPSA99762.zip
           if-no-files-found: error
       - name: Publish alpha release
@@ -155,5 +201,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view pstube-v0.4.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create pstube-v0.4.0 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.4.0 (Native YouTube Playback)" --notes-file homebrew/pstube/RELEASE_NOTES.md
+          if gh release view pstube-v0.5.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create pstube-v0.5.0 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.5.0 (Instant Streaming & Infinite Scroll)" --notes-file homebrew/pstube/RELEASE_NOTES.md

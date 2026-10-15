@@ -65,6 +65,22 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
   request+="Content-Type: application/json\r\nOrigin: https://www.youtube.com\r\nContent-Length: "+std::to_string(postBody.size())+"\r\n";
   if(postBody.find("\"clientName\":\"ANDROID\"")!=std::string::npos){
    request+="X-YouTube-Client-Name: 3\r\nX-YouTube-Client-Version: 21.26.364\r\n";
+  }else if(postBody.find("\"clientName\":\"WEB\"")!=std::string::npos){
+   // Search continuation requires the real WEB client version from page config.
+   const std::string label="\"clientVersion\":\"";
+   size_t at=postBody.find(label);
+   std::string version;
+   if(at!=std::string::npos){
+    at+=label.size();const auto end=postBody.find('"',at);
+    version=postBody.substr(at,end==std::string::npos?0:end-at);
+   }
+   if(version.size()>6&&version.size()<60&&
+     std::all_of(version.begin(),version.end(),[](unsigned char x){
+      return std::isalnum(x)||x=='.'||x=='-';
+     })){
+    request+="X-YouTube-Client-Name: 1\r\nX-YouTube-Client-Version: "+
+       version+"\r\n";
+   }
   }
  }
  request+="\r\n"+postBody;
@@ -295,8 +311,9 @@ std::vector<Video> parse_youtube_html(const std::string& html){
  // Never interpret unrelated script data as a video: validate 11-char IDs.
  constexpr std::string_view needle="\"videoRenderer\":{";
  size_t from=html.find("ytInitialData");
+ if(from==std::string::npos)from=html.find("\"videoRenderer\":{");
  if(from==std::string::npos)return videos;
- while(videos.size()<50){
+ while(videos.size()<60){
   const size_t hit=html.find(needle,from);
   if(hit==std::string::npos)break;
   const size_t start=hit+needle.size()-1;
@@ -324,6 +341,57 @@ std::vector<Video> parse_youtube_html(const std::string& html){
   from=end;
  }
  return videos;
+}
+// Continuations come from the same live YouTube response as the video cards.
+// Do not invent page tokens or use a fixed result offset.
+std::string youtube_continuation(const std::string& json){
+ size_t start=0;
+ std::string result;
+ constexpr std::string_view marker="\"continuationItemRenderer\":{";
+ while((start=json.find(marker,start))!=std::string::npos){
+  const size_t obj=start+marker.size()-1;
+  const size_t end=value_end(json,obj);
+  if(end<=obj||end>json.size()){start+=marker.size();continue;}
+  const std::string_view item(json.data()+obj,end-obj);
+  const auto endpoint=field(item,"continuationEndpoint");
+  const auto command=field(endpoint,"continuationCommand");
+  auto token=decode(field(command,"token"),4096);
+  if(token.size()>=16&&token.size()<4096)result=std::move(token);
+  start=end;
+ }
+ return result;
+}
+std::string youtube_client_version(const std::string& html){
+ constexpr const char* keys[]={"INNERTUBE_CONTEXT_CLIENT_VERSION","clientVersion"};
+ for(const char* key:keys){
+  const std::string prefix=std::string("\"")+key+"\"";
+  size_t p=html.find(prefix);
+  if(p==std::string::npos)continue;
+  p=html.find(':',p+prefix.size());if(p==std::string::npos)continue;
+  ++p;skip(html,p);
+  const std::string_view candidate(html.data()+p,html.size()-p);
+  const size_t end=value_end(candidate,0);
+  const auto v=decode(candidate.substr(0,end),80);
+  if(v.size()>6&&v.size()<65&&
+     std::all_of(v.begin(),v.end(),[](unsigned char c){return std::isalnum(c)||c=='.'||c=='-';}))
+   return v;
+ }
+ return "2.20261010.00.00";
+}
+std::string continuation_body(const std::string& token,const std::string& version){
+ // The tokens consist of web-safe characters; quoted text is properly escaped
+ // to prevent malformed JSON or a request with an unintended command.
+ auto quote=[](const std::string& value)->std::string{
+  const char* digits="0123456789abcdef";std::string encoded="\"";
+  for(unsigned char c:value){
+   if(c=='"'||c=='\\'){encoded+='\\';encoded+=(char)c;}
+   else if(c<32){encoded+="\\u00";encoded+=digits[c>>4];encoded+=digits[c&15];}
+   else encoded+=(char)c;
+  }
+  return encoded+"\"";
+ };
+ return "{\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":"+
+  quote(version)+",\"hl\":\"en\",\"gl\":\"US\"}},\"continuation\":"+quote(token)+"}";
 }
 Service::Service(){
  mkdirs();
@@ -355,7 +423,7 @@ Service::Service(){
    state_.jobs.push_back(Job{id,id,100.0f,"Complete","",stable_path(id)});
   }closedir(d);}
 }
-Service::~Service(){while(busy_.load()||downloading_.load())usleep(25000);}
+Service::~Service(){while(busy_.load()||downloading_.load()||resolvingStream_.load())usleep(25000);}
 bool Service::persist()const{
  std::string out="PSTUBE:1\nI "+instance_+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
  for(const auto& v:favorite_meta_)if(valid_id(v.id))out+="V "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
@@ -430,7 +498,12 @@ std::string pick_mp4(const std::string& json){
 bool Service::trending(){return search("@@TRENDING@@");}
 bool Service::search(const std::string& query){
  if(query.empty()||query.size()>100||busy_.exchange(true))return false;
- {std::lock_guard<std::mutex> g(mutex_);state_.searching=true;state_.status="Contacting video providers...";}
+ {std::lock_guard<std::mutex> g(mutex_);
+   currentQuery_=query;continuation_.clear();pagingProvider_.clear();clientVersion_.clear();providerPage_=1;
+   ++feedGeneration_;
+   state_.searching=true;state_.loadingMore=false;state_.hasMore=false;
+   state_.status="Contacting video providers...";
+ }
  auto* w=new Work{this,query,"",0,{}};
  pthread_t th{};pthread_attr_t a;pthread_attr_init(&a);pthread_attr_setstacksize(&a,1024*1024);
  int rc=pthread_create(&th,&a,[](void* p)->void* {
@@ -444,10 +517,16 @@ bool Service::search(const std::string& query){
   if(!directVideos.empty()){
    save_feed_cache(directVideos);
    queue_thumbnails(directVideos);
+   const std::string next=youtube_continuation(youtubeHtml);
+   const std::string version=youtube_client_version(youtubeHtml);
    {
     std::lock_guard<std::mutex> g(svc.mutex_);
+    svc.continuation_=next;svc.clientVersion_=version;
+    svc.pagingProvider_.clear();
     svc.state_.videos=std::move(directVideos);
-    svc.state_.status="Live video list from YouTube.com (public search)";
+    svc.state_.hasMore=!next.empty();
+    svc.state_.status="YouTube Search: "+std::to_string(svc.state_.videos.size())+
+       " videos"+(next.empty()?" (no continuation available)":" - scroll down to load more");
     svc.state_.searching=false;
    }
    svc.busy_.store(false,std::memory_order_release);
@@ -486,7 +565,8 @@ bool Service::search(const std::string& query){
   if(found){save_feed_cache(videos);queue_thumbnails(videos);}
   {
    std::lock_guard<std::mutex> g(svc.mutex_);
-   if(found)svc.state_.videos=std::move(videos);
+   if(found){svc.state_.videos=std::move(videos);svc.pagingProvider_=successful;
+     svc.state_.hasMore=svc.state_.videos.size()>=10;}
    svc.state_.status=found?"Loaded "+std::to_string(svc.state_.videos.size())+
       " videos via "+successful:
       ("No videos from any provider. Last error: "+lastError);
@@ -496,6 +576,74 @@ bool Service::search(const std::string& query){
  },w);
  pthread_attr_destroy(&a);
  if(rc){delete w;busy_.store(false);std::lock_guard<std::mutex> g(mutex_);state_.searching=false;state_.status="Unable to start network thread";return false;}
+ pthread_detach(th);return true;
+}
+bool Service::load_more(){
+ if(busy_.exchange(true))return false;
+ std::string token,version,query,host;
+ int page=0;
+ {
+  std::lock_guard<std::mutex> g(mutex_);
+  if(!state_.hasMore||state_.searching||state_.loadingMore){
+   busy_=false;return false;
+  }
+  token=continuation_;version=clientVersion_;query=currentQuery_;
+  host=pagingProvider_;page=providerPage_+1;
+  if(token.empty()&&host.empty()){state_.hasMore=false;busy_=false;return false;}
+  state_.loadingMore=true;
+  state_.status="Loading more videos...";
+ }
+ struct More {Service* svc;std::string token,version,query,host;int page;};
+ auto* w=new More{this,token,version,query,host,page};
+ pthread_t th{};pthread_attr_t attr;pthread_attr_init(&attr);
+ pthread_attr_setstacksize(&attr,1024*1024);
+ const int rc=pthread_create(&th,&attr,[](void* arg)->void* {
+  std::unique_ptr<More> w((More*)arg);Service& svc=*w->svc;
+  std::string response,error;
+  bool ok=false;std::string next;
+  std::vector<Video> added;
+  if(!w->token.empty()){
+   ok=https("www.youtube.com","/youtubei/v1/search?prettyPrint=false",
+     response,error,continuation_body(w->token,w->version));
+   if(ok){added=parse_youtube_html(response);next=youtube_continuation(response);}
+  }else if(!w->host.empty()){
+   const bool trending=w->query=="@@TRENDING@@";
+   const std::string path=trending?
+      "/api/v1/trending?region=US&page="+std::to_string(w->page):
+      "/api/v1/search?q="+escape_url(w->query)+
+        "&type=video&page="+std::to_string(w->page);
+   ok=https(w->host,path,response,error);
+   if(ok)added=parse_search(response);
+  }
+  if(ok&& !added.empty())queue_thumbnails(added);
+  {
+   std::lock_guard<std::mutex> g(svc.mutex_);
+   size_t newCount=0;
+   for(const auto& v:added){
+    if(svc.state_.videos.size()>=1800)break;
+    const auto& list=svc.state_.videos;
+    if(std::none_of(list.begin(),list.end(),[&](const Video& existing){return existing.id==v.id;})){
+     svc.state_.videos.push_back(v);newCount++;
+    }
+   }
+   if(!w->token.empty())svc.continuation_=next;
+   else if(ok)svc.providerPage_=w->page;
+   // Do not spin repeatedly on a failing or duplicate page.
+   svc.state_.hasMore=ok&&newCount>0&&svc.state_.videos.size()<1800&&
+     (!w->token.empty()?!next.empty():added.size()>=8);
+   svc.state_.status=!ok?"Couldn't load the next page: "+error:
+     newCount?std::to_string(svc.state_.videos.size())+" videos - scroll for more":
+              "End of available search results";
+   svc.state_.loadingMore=false;
+  }
+  svc.busy_.store(false,std::memory_order_release);return nullptr;
+ },w);
+ pthread_attr_destroy(&attr);
+ if(rc){
+  delete w;busy_=false;
+  std::lock_guard<std::mutex> g(mutex_);
+  state_.loadingMore=false;state_.status="Unable to start paging worker";return false;
+ }
  pthread_detach(th);return true;
 }
 bool Service::details(const std::string& id){return valid_id(id);}
@@ -598,6 +746,60 @@ bool resolve_android_mp4(const std::string& id,std::string& mediaUrl,std::string
  }
  mediaUrl=std::move(candidate);
  return true;
+}
+void Service::cancel_stream(){
+ std::lock_guard<std::mutex> g(mutex_);
+ state_.streamId.clear();state_.streamUrl.clear();state_.streamError.clear();
+ state_.streamResolving=false;
+}
+bool Service::start_stream(const Video& video){
+ if(!valid_id(video.id)||resolvingStream_.exchange(true))return false;
+ {
+  std::lock_guard<std::mutex> g(mutex_);
+  state_.streamId=video.id;
+  state_.streamUrl.clear();state_.streamError.clear();state_.streamResolving=true;
+ }
+ auto* work=new Work{this,"",video.id,3,video};
+ pthread_t thread{};pthread_attr_t attr;
+ pthread_attr_init(&attr);pthread_attr_setstacksize(&attr,1024*1024);
+ const int rc=pthread_create(&thread,&attr,[](void* ptr)->void*{
+  std::unique_ptr<Work> w((Work*)ptr);Service& svc=*w->svc;
+  std::string url,error;
+  if(!resolve_android_mp4(w->id,url,error)){
+   const std::string androidError=error;
+   const std::string host=svc.instance();
+   std::string page,webError;
+   if(https("www.youtube.com","/watch?v="+w->id,page,webError))
+    url=pick_youtube_video_mp4(page,webError);
+   if(url.empty()){
+    std::string response,apiError;
+    if(https(host,"/api/v1/videos/"+w->id,response,apiError))
+     url=pick_mp4(response);
+    if(url.empty())
+     error=androidError+"; Web: "+webError+"; Invidious: "+apiError;
+   }
+  }
+  // A stream URL is kept only in volatile memory and discarded when leaving
+  // the player. Do not log signed query parameters.
+  {
+   std::lock_guard<std::mutex> g(svc.mutex_);
+   if(svc.state_.streamId==w->id){
+    svc.state_.streamUrl=std::move(url);
+    svc.state_.streamError=svc.state_.streamUrl.empty()?
+      (error.empty()?"No direct HTTPS stream available":error):std::string();
+    svc.state_.streamResolving=false;
+   }
+  }
+  svc.resolvingStream_.store(false,std::memory_order_release);return nullptr;
+ },work);
+ pthread_attr_destroy(&attr);
+ if(rc){
+  delete work;resolvingStream_=false;
+  std::lock_guard<std::mutex> g(mutex_);
+  state_.streamResolving=false;state_.streamError="Could not start stream resolver";
+  return false;
+ }
+ pthread_detach(thread);return true;
 }
 bool Service::download(const Video& video){
  if(!valid_id(video.id)||downloading_.exchange(true))return false;

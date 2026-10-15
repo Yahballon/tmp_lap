@@ -1,12 +1,9 @@
-# PSTUBE v0.4.0 — Native Stream Resolver
+# PSTUBE v0.5.0 — Native Streaming & Infinite Search Scroll
 
-- New: Native HTTPS Innertube Android player support in the PS5 C++ application. No Windows PC, bridge server or companion application is required.
-- Verify available combined MP4 (H.264/AAC) URLs from YouTube's Android client, which can return direct URLs even when the web player returns HTTP 302 or signatureCipher.
-- Secure TLS verification, HTTP POST and safe YouTube redirects; preserve existing YouTube web and Invidious fallback.
-- Correctly decode JSON Unicode escape sequences in media URLs (including encoded query ampersands).
-- Keep automatic playback after a verified downloaded MP4 and existing TV UI, favourites, downloads, thumbnails and self-test.
-- Add real network tests against the public Android player API and verify actual MP4 magic bytes in CI.
+- Play progressive signed MP4 URLs straight through native FFmpeg HTTPS without waiting for the entire file to finish downloading.
+- Keep SSL certificate and hostname verification enabled using trusted certificate roots from the installed PS5 package. Configure HTTP timeouts, buffering and retries.
+- Downloading to the Downloads library is now a separate action (**Square** while playing).
+- Add background infinite search pagination: YouTube continuation tokens and Invidious page numbers; deduplicate results, keep the selected item, and indicate when further results are loading.
+- Preserve video thumbnails, history, favourites and existing complete downloads.
 
-**Limitations:** YouTube decides which videos are playable unauthenticated. Some videos require login, proof-of-origin tokens, a JavaScript signature solver or only offer adaptive streams. PSTUBE explicitly reports these failures; it does not defeat DRM, bypass authentication, or guarantee playback of every video. Full-download-before-play and physical PS5 audio/video testing remain necessary.
-
-Install the verified PPSA99762.zip into /data/homebrew/PPSA99762 and refresh TESTBUILDS. Saved data under /data/pstube and /download0/pstube is preserved.
+Known limitations: Direct YouTube playback may require login, JS signature solving, PO tokens or separate adaptive tracks; no claim is made that every YouTube video works. The FFmpeg network backend and audio/video sync require real PS5 testing. Online search pagination depends on external YouTube API structures, which may change. Existing saved media is preserved.

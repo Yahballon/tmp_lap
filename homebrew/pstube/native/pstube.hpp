@@ -7,12 +7,15 @@
 namespace pstube {
 struct Video {std::string id,title,author,description,thumbnail;int length=0;long views=0;bool live=false;};
 struct Job {std::string id,title;float progress=0;std::string state,error,path;};
-struct Snapshot {std::vector<Video> videos;std::vector<Job> jobs;std::string status="Search for videos to begin";bool searching=false;};
+struct Snapshot {std::vector<Video> videos;std::vector<Job> jobs;std::string status="Search for videos to begin";bool searching=false,loadingMore=false,hasMore=false;std::string streamId,streamUrl,streamError;bool streamResolving=false;};
 class Service {
  public:
  Service();~Service();
  bool search(const std::string& query);
  bool trending();
+ bool load_more();
+ bool start_stream(const Video& video);
+ void cancel_stream();
  bool details(const std::string& id);
  bool download(const Video& video);
  std::string local_path(const std::string& videoId) const;
@@ -28,7 +31,10 @@ class Service {
  std::string instance()const;
  private:
  mutable std::mutex mutex_;
- std::atomic<bool> busy_{false},downloading_{false};
+ std::atomic<bool> busy_{false},downloading_{false},resolvingStream_{false};
+ std::string currentQuery_,continuation_,clientVersion_,pagingProvider_;
+ int providerPage_=1;
+ uint64_t feedGeneration_=0;
  std::atomic<int> download_progress_{0};
  std::string downloading_id_;
  std::string instance_="yewtu.be";

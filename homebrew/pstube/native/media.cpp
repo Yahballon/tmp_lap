@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "media.hpp"
 #include <SDL.h>
+#include "ca_bundle.inc"
 extern "C" {
+#include <libavutil/dict.h>
+#include <libavutil/error.h>
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/imgutils.h>
@@ -18,6 +21,28 @@ extern "C" {
 #include <unistd.h>
 namespace pstube {
 namespace {
+bool media_host(const std::string& u){
+ if(u.rfind("https://",0)!=0||u.size()>16000)return false;
+ const auto end=u.find_first_of("/?#",8);
+ const std::string host=u.substr(8,end==std::string::npos?std::string::npos:end-8);
+ return host=="googlevideo.com"||
+   (host.size()>16&&host.compare(host.size()-16,16,".googlevideo.com")==0);
+}
+// FFmpeg's native TLS backend reads roots from this on-console file.
+std::string root_certificate_file(){
+ static const std::string path=[]{
+  const char* names[]={"/data/pstube/certificates.pem","/download0/pstube-roots.pem"};
+  mkdir("/data/pstube",0700);
+  for(const char* target:names){
+   FILE* f=fopen(target,"wb");if(!f)continue;
+   const size_t size=strlen(kCaBundle);
+   const bool ok=fwrite(kCaBundle,1,size,f)==size&&fflush(f)==0&&fsync(fileno(f))==0;
+   if(fclose(f)==0&&ok)return std::string(target);
+  }
+  return std::string();
+ }();
+ return path;
+}
 int interrupt_cb(void* ctx){return ((std::atomic<bool>*)ctx)->load() ? 1:0;}
 void sleep_us(int n){if(n>0)usleep((useconds_t)n);}
 }
@@ -26,17 +51,37 @@ void MediaPlayer::close(){
  quit_.store(true);
  if(!joined_){pthread_join(worker_,nullptr);joined_=true;}
  std::lock_guard<std::mutex> g(lock_);
- pixels_.clear();state_=PlaybackState{};path_.clear();sequence_=0;
+ pixels_.clear();state_=PlaybackState{};path_.clear();remote_=false;sequence_=0;
 }
 bool MediaPlayer::open(const std::string& path){
  close();struct stat st{};
  if(path.empty()||stat(path.c_str(),&st)!=0||st.st_size<1024)return false;
- {std::lock_guard<std::mutex> g(lock_);path_=path;state_.opening=true;state_.message="Opening video...";}
+ {std::lock_guard<std::mutex> g(lock_);path_=path;remote_=false;state_.opening=true;state_.message="Opening local video...";}
  quit_=false;paused_=false;
  pthread_attr_t attrs;pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,2*1024*1024);
  int rc=pthread_create(&worker_,&attrs,thread_entry,this);
  pthread_attr_destroy(&attrs);
  if(rc){std::lock_guard<std::mutex> g(lock_);state_.opening=false;state_.message="Decoder worker failed";return false;}
+ joined_=false;return true;
+}
+bool MediaPlayer::openStream(const std::string& url){
+ close();
+ if(!media_host(url))return false;
+ const std::string ca=root_certificate_file();
+ if(ca.empty()){std::lock_guard<std::mutex> g(lock_);state_.message="Trusted TLS certificates unavailable";return false;}
+ {
+  std::lock_guard<std::mutex> g(lock_);
+  path_=url;remote_=true;state_.opening=true;state_.message="Buffering stream...";
+ }
+ quit_=false;paused_=false;
+ pthread_attr_t attrs;pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,2*1024*1024);
+ int rc=pthread_create(&worker_,&attrs,thread_entry,this);
+ pthread_attr_destroy(&attrs);
+ if(rc){
+  std::lock_guard<std::mutex> g(lock_);
+  state_.opening=false;state_.message="Could not start streaming worker";
+  return false;
+ }
  joined_=false;return true;
 }
 void MediaPlayer::pause(){bool v=!paused_.load();paused_.store(v);std::lock_guard<std::mutex> g(lock_);state_.paused=v;}
@@ -56,8 +101,33 @@ void MediaPlayer::decode(){
  SDL_AudioDeviceID audio=0;
  std::string error;
  int vi=-1,ai=-1;
- if(avformat_open_input(&fmt,path_.c_str(),nullptr,nullptr)<0){error="Unable to open MP4";goto cleanup;}
- if(avformat_find_stream_info(fmt,nullptr)<0){error="Invalid media streams";goto cleanup;}
+ {
+  AVDictionary* opts=nullptr;
+  if(remote_){
+   const std::string cert=root_certificate_file();
+   av_dict_set(&opts,"tls_verify","1",0);
+   av_dict_set(&opts,"ca_file",cert.c_str(),0);
+   av_dict_set(&opts,"rw_timeout","12000000",0);
+   av_dict_set(&opts,"timeout","12000000",0);
+   av_dict_set(&opts,"reconnect","1",0);
+   av_dict_set(&opts,"reconnect_streamed","1",0);
+   av_dict_set(&opts,"reconnect_delay_max","3",0);
+   av_dict_set(&opts,"user_agent","com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",0);
+   av_dict_set(&opts,"multiple_requests","1",0);
+  }
+  if(remote_ && avformat_network_init()<0){
+   av_dict_free(&opts);error="FFmpeg network stack unavailable";goto cleanup;
+  }
+  const int opened=avformat_open_input(&fmt,path_.c_str(),nullptr,&opts);
+  av_dict_free(&opts);
+  if(opened<0){
+   char reason[128]{};
+   av_strerror(opened,reason,sizeof(reason));
+   error=std::string(remote_?"Verified HTTPS stream failed: ":"Unable to open MP4: ")+reason;
+   goto cleanup;
+  }
+ }
+ if(avformat_find_stream_info(fmt,nullptr)<0){error=remote_?"Cannot probe HTTPS video/audio tracks":"Invalid media streams";goto cleanup;}
  vi=av_find_best_stream(fmt,AVMEDIA_TYPE_VIDEO,-1,-1,nullptr,0);
  if(vi<0){error="Video track missing";goto cleanup;}
  {
@@ -84,7 +154,7 @@ void MediaPlayer::decode(){
  if(!vc->width||!vc->height||vc->width>3840||vc->height>2160){error="Video resolution unsupported";goto cleanup;}
  sws=sws_getContext(vc->width,vc->height,vc->pix_fmt,vc->width,vc->height,AV_PIX_FMT_RGBA,SWS_BILINEAR,nullptr,nullptr,nullptr);
  if(!sws){error="Video pixel conversion unavailable";goto cleanup;}
- {std::lock_guard<std::mutex> g(lock_);state_.opening=false;state_.playing=true;state_.width=vc->width;state_.height=vc->height;state_.message="Playing local MP4";}
+ {std::lock_guard<std::mutex> g(lock_);state_.opening=false;state_.playing=true;state_.width=vc->width;state_.height=vc->height;state_.message=remote_?"Streaming over HTTPS":"Playing local MP4";}
  {
   const AVRational tb=fmt->streams[vi]->time_base;
   const AVRational rate=fmt->streams[vi]->avg_frame_rate;
