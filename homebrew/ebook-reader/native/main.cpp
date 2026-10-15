@@ -138,6 +138,8 @@ int main(){
  std::vector<ebook::BookEntry> books,imports;
  usbbooks::Catalog usbCatalog;
  auto refresh=[&](){
+   // USB bridge's known catalogue is shared with the cover worker.
+   if(g_coverBusy.load())return;
    ebook::scan_books(dirs(),books);
    usbCatalog=usbbooks::scan();
    for(const auto& item:usbCatalog.books){
@@ -180,7 +182,18 @@ int main(){
   {
     std::vector<CoverResult> finished;
     {std::lock_guard<std::mutex> lock(g_coverLock);finished.swap(g_coverReady);}
-    for(auto& item:finished)covers[item.path]=make_image(renderer,item.bytes);
+    for(auto& item:finished){
+      auto found=covers.find(item.path);
+      if(found!=covers.end())free_texture(found->second);
+      covers[item.path]=make_image(renderer,item.bytes);
+   }
+   // Limit accumulated artwork to avoid unbounded video-memory growth.
+   if(covers.size()>54){
+      auto it=covers.begin();
+      while(covers.size()>40 && it!=covers.end()){
+         free_texture(it->second);it=covers.erase(it);
+      }
+   }
   }
   std::vector<size_t> visible;
   for(size_t i=0;i<books.size();++i){
