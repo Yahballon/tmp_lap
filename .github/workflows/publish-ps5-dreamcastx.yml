@@ -106,6 +106,10 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Git tag $TAG exists."
           else
+            # Actions checkout is shallow at the publisher commit. The
+            # signed app was built from another commit; fetch that exact
+            # object before tagging it (otherwise git tag exits 128).
+            git fetch --no-tags --depth=1 origin "$BUILD_SHA"
             git tag "$TAG" "$BUILD_SHA"
             git push origin "refs/tags/$TAG"
           fi
