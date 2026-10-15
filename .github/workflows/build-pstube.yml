@@ -49,6 +49,15 @@ jobs:
             app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
             -lssl -lcrypto -o /tmp/pstube-native-player-test
           /tmp/pstube-native-player-test
+      - name: Verify native full MP4 download (network diagnostic)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/pstube/tests/native_download_test.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-native-download-test
+          timeout 110s /tmp/pstube-native-download-test
       - name: Probe public API availability (non-blocking diagnostic)
         continue-on-error: true
         run: |
