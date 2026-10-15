@@ -1,15 +1,25 @@
-# PS5DreamcastX v0.1.1
+# PS5DreamcastX v0.1.2
 
-## Changed
+## Fixes
 
-- Native app installation and content folder is now `/data/homebrew/PS5DreamcastX/`.
-- Game backups can be placed in `/data/homebrew/PS5DreamcastX/games/`.
-- Automatically discover `/mnt/usb0/PS5DreamcastX/` through `/mnt/usb7/PS5DreamcastX/`, selecting the `games/` subfolder when present.
-- USB access is on by default for **new** installs; enable `USB drives` and restart if an existing `frontend.cfg` has `usb = 0`. Requires elfldr on port 9021.
-- Keep other Flycast USB folder names, and save/BIOS/cover support.
-- The **PS5 title ID and the TESTBUILDS ZIP filename remain PPSA99765** as required by existing metadata and catalog discovery.
-- Self-update now expects a package rooted at `PS5DreamcastX/`.
+- The internal library and user content now use **`/data/PS5DreamcastX/`**:
+  `games/`, `bios/`, `covers/`, `data/` (saves/VMUs), logs, cheats,
+  configuration, shaders and network settings. App binaries remain under
+  `/data/homebrew/PS5DreamcastX/` as a separate install.
+- The app attempts filesystem elevation (elfldr port 9021) even when USB
+  browsing has been disabled, so the external data folder is accessible.
+- Corrected the cover-flow renderer: use Flycast's working `drawCover()`
+  and aspect-correct `imageFill()` so portrait artwork fills the game case,
+  rather than appearing tiny in its top-left corner.
+- Preserve USB auto-discovery under `/mnt/usb0..7/PS5DreamcastX/`.
+- Ensure video-output metadata and in-app updater still reference the
+  **installed** title, never the writable data directory.
+- Correct the branded build-version parser.
+- The unchanged PS5 title ID and TESTBUILDS ZIP filename are `PPSA99765`.
 
-**Migration warning:** v0.1.0 cannot rename its installed directory through self-update. Stop the app, move the previous PPSA99765 install folder to PS5DreamcastX preserving user data, and install this new ZIP over it.
+**Data migration:** Copy existing games, BIOS, covers and save files from
+the previous app directory to `/data/PS5DreamcastX/`. No user data is
+removed or automatically moved. On systems without /data access the app
+falls back to the mounted application directory.
 
-Based on native PSFlycast (GPL-2.0-or-later), with original notices preserved.
+Based on PSFlycast. Original upstream GPL notices remain intact.

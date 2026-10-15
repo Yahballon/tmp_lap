@@ -2,7 +2,7 @@
 
 **Dreamcast emulation on PS5 with a PS5GBAX-inspired animated cover-flow shelf.**
 
-Version **0.1.1** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.1.2** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -23,7 +23,7 @@ frontend and title metadata, bootstraps PS5_Vulkan/RADV and SDK dependencies,
 then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the workflow uploads `PPSA99765.zip`
-to the independent tag `ps5-dreamcastx-v0.1.1`. PR builds create only
+to the independent tag `ps5-dreamcastx-v0.1.2`. PR builds create only
 test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
@@ -39,20 +39,46 @@ Build output: `dist/PPSA99765.zip`. A heavy RADV dependency build may exceed
 GitHub-hosted time/resources; inspect Actions logs if it does. Compilation is
 not a substitute for testing games on a real PS5.
 
-## Install & game locations
+## App installation vs persistent data
 
-The ZIP **remains named `PPSA99765.zip`** for the TESTBUILDS catalog.
-The **folder inside** it is now `PS5DreamcastX/`, rather than `PPSA99765/`.
-The PS5 Title ID **remains `PPSA99765`** in `sce_sys/param.json` (required by PS5 loaders).
-
-Use a compatible ShadowMount loader to install and launch:
+The testbuild ZIP stays named `PPSA99765.zip` (title ID in PS5 metadata).
+It contains one install directory, `PS5DreamcastX/`:
 
 ```text
-/data/homebrew/PS5DreamcastX/eboot.bin
-/data/homebrew/PS5DreamcastX/games/<your-legally-obtained-backup>.chd
-/data/homebrew/PS5DreamcastX/bios/
-/data/homebrew/PS5DreamcastX/data/       # Saves and VMUs
+/data/homebrew/PS5DreamcastX/eboot.bin       # PS5 executable
+/data/homebrew/PS5DreamcastX/sce_sys/        # PS5 metadata/icon
 ```
+
+**All emulator data is separate**, under `/data/PS5DreamcastX/`:
+
+```text
+/data/PS5DreamcastX/games/                  # internal games (CHD, GDI, CDI, CUE)
+/data/PS5DreamcastX/bios/                   # optional BIOS
+/data/PS5DreamcastX/covers/                 # downloaded and custom cover art
+/data/PS5DreamcastX/data/                   # saves, VMUs, library/history
+/data/PS5DreamcastX/data/savestates/        # save states
+/data/PS5DreamcastX/vmu/                    # VMU export/import
+/data/PS5DreamcastX/cheats/
+/data/PS5DreamcastX/logs/
+/data/PS5DreamcastX/frontend.cfg            # UI/USB settings
+/data/PS5DreamcastX/emu.cfg                 # emulator settings
+/data/PS5DreamcastX/network.cfg             # SMB library
+```
+
+The directories are created automatically at startup when filesystem
+elevation succeeds. PS5DreamcastX tries `elfldr` at port **9021** before
+selecting the data location, even when USB browsing is switched off.
+If external /data cannot be opened, the app continues using its mounted
+app directory as a fallback; check the boot log for `storage: app=... data=...`.
+The empty-library screen shows the actual path used by the process.
+
+**Migration from v0.1.1:** Before running this new build, back up the
+existing `games/`, `bios/`, `covers/`, `data/` (saves),
+`frontend.cfg`, `emu.cfg` and `network.cfg` from the old app
+directory `/data/homebrew/PS5DreamcastX/` and copy/move them under
+`/data/PS5DreamcastX/`. The app does **not** delete or automatically
+move them. Leave `eboot.bin`, `sce_sys/`, `sce_module/` and
+`BUILD.txt` under the installation directory.
 
 ### USB games
 
@@ -75,19 +101,6 @@ USB access **requires filesystem elevation** (a jailbreak with
 New installations default to enabling USB; an existing `frontend.cfg`
 with `usb = 0` retains that preference until manually enabled.
 In the library use **L1/R1** to select the USB tab and **Square** to rescan.
-
-### Upgrading from v0.1.0
-
-The old app installed at `/data/homebrew/PPSA99765/`. Stop the app,
-then **move/rename that existing directory to**
-`/data/homebrew/PS5DreamcastX/` over FTP/file manager. This preserves
-`data/` saves, `games/`, `bios/`, and `covers/`. Extract the
-v0.1.1 `PS5DreamcastX/` folder into that new location (overwrite
-app binaries/assets, **not** your games and saves). Do not leave two
-active copies with the same Title ID. The old v0.1.0 self-updater
-expects a `PPSA99765/` ZIP and **cannot perform this folder migration**:
-install v0.1.1 manually or through a TESTBUILDS installer that honors the
-folder name inside the ZIP.
 
 ### DualSense
 

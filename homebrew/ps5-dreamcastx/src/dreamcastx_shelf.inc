@@ -45,16 +45,10 @@ void drawDreamcastXShelf(ImDrawList *dl, Game *focused, bool selectDisk)
         const ImVec2 a=V(x0,y0-skew*0.45f),b=V(x1,y0+skew*0.45f);
         const ImVec2 c=V(x1,y1-skew*0.45f),d=V(x0,y1+skew*0.45f);
         const bool selected=i==sh.focus && dist<0.52f && !lib.details;
-        const ImTextureID cover=coverTexture(g);
-        if(cover!=ImTextureID())
-        {
-            const float rh=std::min(130.f,h*0.35f),top=floor+10.f+dist*5.f;
-            dl->AddImageQuad(cover,V(x0,top+rh),V(x1,top+rh),
-                V(x1,top),V(x0,top),V(0,0),V(1,0),V(1,1),V(0,1),
-                col::rgba(180,210,255,46));
-            gradientV(dl,x0,top,w,rh,col::rgba(6,10,20,168),
-                col::rgba(6,10,20,252));
-        }
+        // Use Flycast's normal imageFill() via drawCover(): its texture
+        // coordinates/aspect crop are handled correctly by the PS5 renderer.
+        // The previous AddImageQuad drew art at 1/2 size in the top-left.
+        softDisc(dl,x,floor+22.f,150.f*scale,col::rgba(12,29,48,60),18);
         if(spread>0.04f)
         {
             const float side=delta<0?-9.f:9.f;
@@ -65,12 +59,7 @@ void drawDreamcastXShelf(ImDrawList *dl, Game *focused, bool selectDisk)
         if(selected)
             glow(dl,x0-8,y0-11,w+16,h+22,14,
                 alpha(col::accent,0.73f),24);
-        if(cover!=ImTextureID())
-            dl->AddImageQuad(cover,a,b,c,d,
-                V(0,0),V(1,0),V(1,1),V(0,1),
-                selected?col::rgba(255,255,255,255):col::rgba(219,229,247,255));
-        else
-            drawCover(dl,g,x0,y0,w,h,7.f,std::clamp(1.f-dist,0.f,1.f));
+        drawCover(dl,g,x0,y0,w,h,7.f,std::clamp(1.f-dist,0.f,1.f));
         dl->AddLine(a,b,col::rgba(221,233,255,175),2.f*S);
         dl->AddLine(b,c,col::rgba(103,130,166,205),2.f*S);
         dl->AddLine(c,d,col::rgba(87,114,152,194),2.f*S);

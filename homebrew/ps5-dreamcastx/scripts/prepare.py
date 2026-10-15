@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.1.1"
+VERSION="0.1.2"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -56,10 +56,10 @@ def adapt():
         t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
                     '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
     marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.1.1"' not in t:
+    if marker in t and '"v0.1.2"' not in t:
         t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.1.1");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.1");',1)
+            'const ImVec2 vs = textSize(regular(), 17, "v0.1.2");\n\t'
+            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.2");',1)
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
 
@@ -83,13 +83,63 @@ void findUsbDirs()
 }
 
 '''+m[end:]
+    # App binaries stay in /data/homebrew/PS5DreamcastX/; all emulator
+    # user content/settings belong in /data/PS5DreamcastX/ when elevated.
+    # A sandbox-only launch still works with a clearly logged fallback.
+    m,n=re.subn(r'(^std::string rootDir;[ \t]*$)', r'\\1\\nstd::string appDir;', m, count=1, flags=re.M)
+    assert n==1, "ps5::rootDir declaration missing"
+
+    m,n=re.subn(r'if \\(ps5::options\\(\\)\\.usb\\)\\n\\t\\{\\n\\t\\t// Before any other thread exists',
+                'if (true) // external /data storage also needs elevation; USB browsing remains optional\\n\\t{\\n\\t\\t// Before any other thread exists',
+                m,count=1)
+    assert n==1, "Expected startup elevation gate changed"
+
+    start=m.index('\\tstd::vector<std::string> candidates;', m.index('int main(int argc, char *argv[])'))
+    end=m.index('\\tps5::loadOptions(ps5::rootDir);',start)
+    m=m[:start]+'''    // Locate the installed PS5 title before selecting its *separate* data root.
+    std::vector<std::string> candidates;
+    if (ps5::elevated)
+    {
+        candidates.push_back("/data/homebrew/PS5DreamcastX");
+        candidates.push_back("/mnt/sandbox/PPSA99765_000/app0");
+    }
+    candidates.push_back("/app0");
+    candidates.push_back("/download0");
+    for (const std::string& candidate : candidates)
+        if ((candidate == "/download0" || hasFile(candidate + "/eboot.bin"))
+            && writableDir(candidate))
+        {
+            ps5::appDir = candidate + "/";
+            break;
+        }
+    if (ps5::appDir.empty())
+        ps5::appDir = "/app0/";
+
+    const std::string externalData = "/data/PS5DreamcastX";
+    if (ps5::elevated && writableDir(externalData))
+        ps5::rootDir = externalData + "/";
+    else
+    {
+        ps5::rootDir = ps5::appDir; // PS5 loader/sandbox fallback
+        ps5::diag::mark("storage: /data/PS5DreamcastX unavailable: using %s",
+                        ps5::rootDir.c_str());
+    }
+    ps5::diag::mark("storage: app=%s data=%s", ps5::appDir.c_str(), ps5::rootDir.c_str());
+'''+m[end:]
+    # The app's param.json belongs to the install folder, not the user data folder.
+    m=m.replace('hasFile(ps5::rootDir + "sce_sys/param.json")',
+                'hasFile(ps5::appDir + "sce_sys/param.json")')
+    m=m.replace('(ps5::rootDir + "sce_sys/param.json").c_str()',
+                '(ps5::appDir + "sce_sys/param.json").c_str()')
+    assert 'storage: app=%s data=%s' in m
+    assert 'const std::string externalData = "/data/PS5DreamcastX";' in m
     main.write_text(m)
     shutil.copy2(ROOT/"src/dreamcastx_usb.inc",p/"dreamcastx_usb.inc")
 
     library=p/"ps5_library.cpp"
     l=library.read_text()
     l=l.replace('"/data/homebrew/PPSA99765/"',
-                '"/data/homebrew/PS5DreamcastX/", "/data/homebrew/PPSA99765/"')
+                '"/data/PS5DreamcastX/", "/data/homebrew/PS5DreamcastX/", "/data/homebrew/PPSA99765/"')
     library.write_text(l)
 
     # Fresh installs discover USB sources automatically when elfldr is available.
@@ -98,6 +148,18 @@ void findUsbDirs()
     f=frontend.read_text()
     assert f.count("bool usb = false;") == 1
     frontend.write_text(f.replace("bool usb = false;", "bool usb = true;", 1))
+    hdr=frontend.read_text()
+    assert "extern std::string rootDir;" in hdr
+    frontend.write_text(hdr.replace("extern std::string rootDir;", 
+                                    "extern std::string rootDir;\\nextern std::string appDir;", 1))
+
+    # Remove saved /data content paths from the old app's search, and keep
+    # them mapped to the chosen root for backwards-compatible recents.
+    main_text=main.read_text()
+    assert '"/data/homebrew/PS5DreamcastX/"' in main_text
+    main_text=main_text.replace('"/data/homebrew/PS5DreamcastX/", "/mnt/sandbox/"',
+                                '"/data/PS5DreamcastX/", "/data/homebrew/PS5DreamcastX/", "/mnt/sandbox/"')
+    main.write_text(main_text)
 
     # Never offer another tmp_lap application's ZIP as an update.
     # The upstream download/update code uses a release list; constrain both
@@ -109,6 +171,19 @@ void findUsbDirs()
     u=u.replace('constexpr const char *TitleFolder = "PPSA99765/";',
                 'constexpr const char *TitleFolder = "PS5DreamcastX/";')
     assert 'constexpr const char *TitleFolder = "PS5DreamcastX/";' in u
+    # Title self-update stages/install binaries inside appDir, never in /data/.
+    u=u.replace('return rootDir + "update/";', 'return appDir + "update/";')
+    u=u.replace('swapIn(rootDir, work + "new/", work + "old/", files, why, restored)',
+                'swapIn(appDir, work + "new/", work + "old/", files, why, restored)')
+    u=u.replace('readLine(rootDir + "BUILD.txt")', 'readLine(appDir + "BUILD.txt")')
+    # The fork's brand has a longer prefix than PSFlyCast, fix version parsing.
+    assert 'ownTag = buildLine.substr(10, buildLine.find_first_of(", ", 10) - 10);' in u
+    u=u.replace('ownTag = buildLine.substr(10, buildLine.find_first_of(", ", 10) - 10);',
+                'ownTag = buildLine.substr(sizeof("PS5DreamcastX ") - 1, '
+                'buildLine.find_first_of(", ", sizeof("PS5DreamcastX ") - 1) '
+                '- (sizeof("PS5DreamcastX ") - 1));')
+    assert 'swapIn(appDir,' in u and 'readLine(appDir + "BUILD.txt")' in u
+
     tag='release.tag = entry["tag_name"].get<std::string>();'
     if tag not in u:
         raise RuntimeError("Upstream updater tag hook changed")
@@ -132,9 +207,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 2',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 3',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.1"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.2"',v)
     assert n==1
     ver.write_text(v)
 
@@ -143,10 +218,12 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.001"
+    data["contentVersion"]="01.000.002"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
     meta.write_text(json.dumps(data,indent=2)+"\n")
+    # Leave restart/update targeting the title installation while settings
+    # and the emulator's writable content use the external data directory.
     # Generated from an original vector design; original Flycast icon not copied.
     out=ROOT/"build/icon0.png"
     cmd("python3",str(ROOT/"assets/generate_icon.py"),str(out))
