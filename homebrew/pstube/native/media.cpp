@@ -160,7 +160,9 @@ void MediaPlayer::decode(){
    av_dict_set(&opts,"reconnect","1",0);
    av_dict_set(&opts,"reconnect_streamed","1",0);
    av_dict_set(&opts,"reconnect_delay_max","3",0);
-   av_dict_set(&opts,"user_agent","com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",0);
+   av_dict_set(&opts,"user_agent",audioPath_.empty()?
+     "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip":
+     "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip",0);
    av_dict_set(&opts,"multiple_requests","1",0);
   }
   if(remote_ && avformat_network_init()<0){
@@ -183,7 +185,9 @@ void MediaPlayer::decode(){
    av_dict_set(&opts,"tls_verify","1",0);av_dict_set(&opts,"ca_file",cert.c_str(),0);
    av_dict_set(&opts,"rw_timeout","12000000",0);av_dict_set(&opts,"timeout","12000000",0);
    av_dict_set(&opts,"reconnect","1",0);av_dict_set(&opts,"reconnect_streamed","1",0);
-   av_dict_set(&opts,"user_agent","com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",0);
+   av_dict_set(&opts,"user_agent",audioPath_.empty()?
+     "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip":
+     "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip",0);
   }
   const int openedAudio=avformat_open_input(&afmt,audioPath_.c_str(),nullptr,&opts);
   av_dict_free(&opts);
