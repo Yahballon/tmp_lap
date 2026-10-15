@@ -61,6 +61,20 @@ jobs:
               for host,message in executor.map(check,domains):
                   print('Catalog provider:',host,message)
           PY
+      - name: Exercise C++ renderer parser with live YouTube HTML (diagnostic)
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          request=urllib.request.Request('https://www.youtube.com/results?search_query=ps5',
+            headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                     'Accept':'text/html,application/json;q=0.9,*/*;q=0.8','Accept-Encoding':'identity'})
+          with urllib.request.urlopen(request,timeout=15) as response:
+              html=response.read(5*1024*1024)
+          open('/tmp/pstube-youtube.html','wb').write(html)
+          print('Live YouTube HTML bytes:',len(html))
+          PY
+          /tmp/pstube-catalog-test /tmp/pstube-youtube.html
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
