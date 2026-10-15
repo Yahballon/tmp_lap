@@ -7,6 +7,11 @@
 #include "audio_player.hpp"
 #include "library.hpp"
 #include "chapters.hpp"
+#include "usb_bridge.hpp"
+#include "audio_log.hpp"
+#include <atomic>
+#include <mutex>
+#include <pthread.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -59,9 +64,73 @@ void case_art(DrawList& d,const Font& f,unsigned a,const audio::Book& b,float x,
  if(b.position>0&&b.duration>0)bar(d,x+16,y+h-13,w-32,5,(float)(b.position/b.duration));
 }
 std::vector<std::string> paths(){
- return {audio::root()+"/Books","/app0/assets/Books","/download0/Books","/download0/Audiobooks",
- "/data/audiobooks","/data/Audiobooks","/mnt/usb0/Audiobooks","/mnt/usb0/Books",
- "/mnt/usb1/Audiobooks","/mnt/usb1/Books","/mnt/usb0","/mnt/usb1"};
+ // Never recursively scan the data root: it also stores Logs, Cache and state.
+ // The dedicated helper exposes /mnt/usb0/ABooks through elfldr :9021.
+ return {audio::root()+"/Books","/app0/assets/ABooks","/download0/ABooks"};
+}
+struct OpenTask {
+ audio::Book book;
+ usbaudio::Entry entry;
+ bool remote=false;
+};
+struct OpenResult {
+ std::string source,local,error,title,author;
+ double duration=0;
+ std::vector<audio::Chapter> chapters;
+ bool ok=false;
+};
+std::atomic<bool> g_openBusy{false},g_openCancel{false};
+std::atomic<size_t> g_openDone{0},g_openTotal{0};
+std::atomic<int> g_openStage{0}; // 1 USB transfer, 2 metadata
+std::mutex g_openMutex;
+std::vector<OpenResult> g_openResults;
+bool transfer_progress(size_t done,size_t total,void*){
+ g_openDone.store(done);g_openTotal.store(total);
+ return !g_openCancel.load();
+}
+void* open_worker(void* pointer){
+ OpenTask* task=static_cast<OpenTask*>(pointer);
+ OpenResult result;
+ result.source=task->book.path;
+ result.local=task->book.path;
+ result.title=task->book.title;
+ result.author=task->book.author;
+ result.duration=task->book.duration;
+ if(task->remote){
+  g_openStage.store(1);
+  result.ok=usbaudio::fetch(task->entry,result.local,result.error,transfer_progress,nullptr);
+ }else result.ok=true;
+ if(result.ok&&!g_openCancel.load()){
+  g_openStage.store(2);
+  result.chapters=audio::chapters(result.local,&result.duration,&result.author,&result.title);
+ }else if(g_openCancel.load()){result.ok=false;result.error="Audiobook loading cancelled";}
+ if(g_openCancel.load()){result.ok=false;result.error="Audiobook loading cancelled";}
+ {std::lock_guard<std::mutex> lock(g_openMutex);
+  g_openResults.push_back(std::move(result));
+ }
+ delete task;
+ g_openBusy.store(false);
+ return nullptr;
+}
+bool start_open(const audio::Book& book,std::string& error){
+ if(g_openBusy.exchange(true))return false;
+ g_openCancel.store(false);
+ g_openStage.store(0);g_openDone.store(0);g_openTotal.store(0);
+ OpenTask* task=new OpenTask;task->book=book;
+ if(usbaudio::is_remote(book.path)){
+  task->remote=true;
+  if(!usbaudio::entry_from_remote(book.path,task->entry)){
+   error="USB catalogue changed; press OPTIONS to refresh";
+   delete task;g_openBusy.store(false);return false;
+  }
+ }
+ pthread_t thread{};
+ if(pthread_create(&thread,nullptr,open_worker,task)!=0){
+  error="Cannot start audiobook loading worker";
+  delete task;g_openBusy.store(false);return false;
+ }
+ pthread_detach(thread);
+ return true;
 }
 }
 int main(){
@@ -72,11 +141,38 @@ int main(){
  if(!font.load(bytes))hui::sys::park();
  auto atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
+ const bool logReady=audio_log::prepare();
+ audio_log::write("BOOT","Audiobook Reader v0.2.0 started; PPSA99784");
+ audio_log::write("DATA","Local: "+audio_log::books_directory()+
+                         " Log: "+audio_log::filename());
  std::vector<audio::Book> books;
- audio::scan(paths(),books);
+ usbaudio::Catalog usbCatalog;
+ auto refresh=[&](){
+  if(g_openBusy.load())return;
+  audio_log::write("SCAN_BEGIN","Searching local Books and USB ABooks");
+  audio::scan(paths(),books);
+  usbCatalog=usbaudio::scan();
+  for(const auto& remote:usbCatalog.books){
+   audio::Book b;
+   b.path=usbaudio::remote_path(remote);
+   b.title=audio::clean_title(remote.relative);
+   b.author="USB Storage";
+   b.bytes=(int64_t)remote.bytes;
+   books.push_back(std::move(b));
+  }
+  audio::load(books);
+  std::sort(books.begin(),books.end(),[](const auto& a,const auto& b){return a.title<b.title;});
+  audio_log::write("SCAN_DONE","Books="+std::to_string(books.size())+
+    " USB="+std::to_string(usbCatalog.books.size())+
+    " Status="+usbCatalog.message);
+ };
+ refresh();
  audio::Player player;
  std::vector<audio::Chapter> chapters;
- std::string message="M4B Audiobooks | Built by YAHBALLON";
+ std::string message=logReady?
+    "Local Books + USB ABooks via elfldr :9021":
+    "WARNING: /data/AudioBookReader log directory is not writable";
+ std::string loadingTitle,playingPath;
  int selected=0,filter=0,scroll=0,chapterIndex=0;
  bool viewing=false,chapterMode=false,exitDialog=false,closing=false;
  bool list=false;
@@ -88,14 +184,12 @@ int main(){
   return result;
  };
  auto snapshotProgress=[&](){
-  if(viewing && selected>=0){
-   auto indexes=visible();
-   if(selected<(int)indexes.size()){
-    auto& book=books[indexes[selected]];
-    auto state=player.snapshot();
-    if(state.duration>0)book.duration=state.duration;
-    if(state.seconds>0)book.position=state.seconds;
-   }
+  if(!viewing||playingPath.empty())return;
+  const auto state=player.snapshot();
+  for(auto& book:books)if(book.path==playingPath){
+   if(state.duration>0)book.duration=state.duration;
+   if(state.seconds>0)book.position=state.seconds;
+   break;
   }
  };
  for(;;){
@@ -103,12 +197,42 @@ int main(){
   unsigned pressed=0,now=held;
   for(size_t i=0;i<n;i++){pressed|=events[i].buttons&~now;now=events[i].buttons;}
   held=now;
+  if(g_openBusy.load()){
+   if(pressed&hui::pad_bits::kCircle)g_openCancel.store(true);
+   pressed=0;now=0;
+  }
   if(--holdCooldown<=0){
    if(now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;
    if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;
    if(now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;
    if(now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
    holdCooldown=12;
+  }
+  std::vector<OpenResult> ready;
+  {std::lock_guard<std::mutex> lock(g_openMutex);ready.swap(g_openResults);}
+  for(auto& result:ready){
+   if(!result.ok){
+    message="Cannot open audiobook: "+result.error;
+    audio_log::write("OPEN_ERROR",result.source+" "+result.error);
+    continue;
+   }
+   auto book=std::find_if(books.begin(),books.end(),[&](const auto& b){return b.path==result.source;});
+   if(book==books.end())continue;
+   if(!result.title.empty())book->title=result.title;
+   if(!result.author.empty())book->author=result.author;
+   if(result.duration>0)book->duration=result.duration;
+   if(player.start(result.local,book->position)){
+    playingPath=book->path;
+    chapters=std::move(result.chapters);
+    chapterIndex=0;
+    for(size_t i=0;i<chapters.size();i++)
+     if(chapters[i].start<=book->position)chapterIndex=(int)i;
+    viewing=true;chapterMode=false;message="";
+    audio_log::write("OPEN_OK",playingPath+" local="+result.local);
+   }else{
+    message="Unable to open cached or local M4B file";
+    audio_log::write("PLAYER_ERROR",result.local);
+   }
   }
   auto ids=visible();
   selected=std::clamp(selected,0,std::max(0,(int)ids.size()-1));
@@ -117,7 +241,7 @@ int main(){
    else if(pressed&hui::pad_bits::kCross){exitDialog=false;closing=true;}
   }else if(pressed&hui::pad_bits::kCircle){
    if(chapterMode)chapterMode=false;
-   else if(viewing){snapshotProgress();player.stop();viewing=false;audio::save(books);}
+   else if(viewing){snapshotProgress();player.stop();viewing=false;playingPath.clear();audio::save(books);}
    else exitDialog=true;
   }else if(viewing){
    auto status=player.snapshot();
@@ -140,10 +264,10 @@ int main(){
      player.seek(previous);
     }
    }
-   if(status.ended&&!status.playing){snapshotProgress();player.stop();viewing=false;audio::save(books);message=status.message;}
+   if(status.ended&&!status.playing){snapshotProgress();audio_log::write("PLAY_END",playingPath+" "+status.message);player.stop();viewing=false;playingPath.clear();audio::save(books);message=status.message;}
    if(++saveTicker>=280){saveTicker=0;snapshotProgress();audio::save(books);}
   }else{
-   if(pressed&hui::pad_bits::kOptions){audio::scan(paths(),books);selected=0;message="Library refreshed";}
+   if(pressed&hui::pad_bits::kOptions){refresh();selected=0;message="Library: "+std::to_string(books.size())+" books; "+usbCatalog.message;}
    if(pressed&hui::pad_bits::kR1){filter=(filter+1)%3;selected=0;}
    if(pressed&hui::pad_bits::kL1){filter=(filter+2)%3;selected=0;}
    if(pressed&hui::pad_bits::kR2)list=!list;
@@ -154,16 +278,18 @@ int main(){
    if(pressed&hui::pad_bits::kRight)selected=std::min((int)ids.size()-1,selected+1);
    if((pressed&hui::pad_bits::kSquare)&&!ids.empty()){books[ids[selected]].favorite=!books[ids[selected]].favorite;audio::save(books);}
    if((pressed&hui::pad_bits::kCross)&&!ids.empty()){
-    auto& b=books[ids[selected]];double duration=b.duration;
-    chapters=audio::chapters(b.path,&duration,&b.author,&b.title);
-    if(duration>0)b.duration=duration;
-    chapterIndex=0;
-    for(size_t i=0;i<chapters.size();i++)if(chapters[i].start<=b.position)chapterIndex=(int)i;
-    if(player.start(b.path,b.position)){viewing=true;chapterMode=false;message="";}
-    else message="Unable to open M4B from selected storage path";
+    const auto found=std::find_if(books.begin(),books.end(),[&](const auto& b){return b.path==playingPath;});
+   const auto& b=found!=books.end()?*found:books.front();
+    audio_log::write("OPEN_REQUEST",b.path);
+    if(start_open(b,message)){loadingTitle=b.title;message="";}
+    else if(message.empty())message="Audiobook loader already running";
    }
   }
-  if(closing){snapshotProgress();player.stop();audio::save(books);pad.close();renderer.release();display.close();hui::sys::quit();}
+  if(closing && !g_openBusy.load()){
+   snapshotProgress();player.stop();audio::save(books);
+   audio_log::write("EXIT","Audiobook Reader closed safely");
+   pad.close();renderer.release();display.close();hui::sys::quit();
+  }
   DrawList d;
   d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x172533),Color::rgb(0x070e18));
   d.gradient_rect({0,0,1920,94},0,Color::rgb(0x536b82),Color::rgb(0x152536));
@@ -171,7 +297,7 @@ int main(){
   d.bordered_rect({24,19,58,57},10,Color::rgb(0x1c3545),2,kSteel);
   for(int i=0;i<5;i++)d.line(35+i*8,49-(i%3)*7,35+i*8,55+(i%3)*7,3,kCyan);
   txt(d,font,atlas,"AUDIOBOOK READER by YAHBALLON",109,58,31,kWhite);
-  txt(d,font,atlas,"v0.1.0",1878,58,22,kCyan,Align::right);
+  txt(d,font,atlas,"v0.2.0",1878,58,22,kCyan,Align::right);
   if(viewing){
    auto st=player.snapshot();
    const auto& b=books[ids[selected]];
@@ -225,11 +351,28 @@ int main(){
     }
    }
    if(count==0){txt(d,font,atlas,"No M4B audiobooks found.",960,455,30,kWhite,Align::center);
-    txt(d,font,atlas,"Copy .m4b files to /data/AudioBookReader/Books or /download0/Books",960,510,21,kSteel,Align::center);}
+    txt(d,font,atlas,"USB: /mnt/usb0/ABooks     Local: /data/AudioBookReader/Books",960,510,21,kSteel,Align::center);
+    txt(d,font,atlas,cut(usbCatalog.message,115),960,554,18,kMuted,Align::center);}
    txt(d,font,atlas,"PAGE "+std::to_string(scroll+1)+" / "+std::to_string(std::max(1,(count+perPage-1)/perPage)),87,1009,18,kSteel);
    txt(d,font,atlas,"X Play  L1/R1 Filter  SQUARE Favourite  OPTIONS Refresh  R2 View  O Exit",960,1052,20,kWhite,Align::center);
   }
   if(!message.empty())txt(d,font,atlas,cut(message,85),960,1000,17,kCyan,Align::center);
+  if(g_openBusy.load()){
+   const size_t total=g_openTotal.load(),done=g_openDone.load();
+   const int stage=g_openStage.load();
+   const float fraction=total?std::min(1.f,(float)((double)done/total)):0.f;
+   d.rounded_rect({0,100,1920,980},0,Color::rgb(0x040914,0.83f));
+   panel(d,278,345,1364,350,true);
+   txt(d,font,atlas,stage==1?"COPYING AUDIOBOOK FROM USB":"OPENING AUDIOBOOK",960,409,36,kWhite,Align::center);
+   txt(d,font,atlas,cut(loadingTitle,65),960,461,23,kSteel,Align::center);
+   bar(d,400,535,1120,30,stage==1?fraction:1.f);
+   if(stage==1)
+    txt(d,font,atlas,std::to_string((int)(fraction*100))+"%   "+
+       std::to_string(done/1048576)+" / "+std::to_string((total+1048575)/1048576)+
+       " MiB",960,612,24,kCyan,Align::center);
+   else txt(d,font,atlas,"Loading M4B metadata and chapters...",960,609,23,kCyan,Align::center);
+   txt(d,font,atlas,g_openCancel.load()?"Cancelling...":"CIRCLE Cancel",960,659,20,kMuted,Align::center);
+  }
   if(exitDialog){
    d.rounded_rect({0,100,1920,980},0,Color::rgb(0x030810,0.81f));
    panel(d,528,347,865,359,true);

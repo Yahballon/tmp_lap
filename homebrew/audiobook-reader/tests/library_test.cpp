@@ -1,4 +1,5 @@
 #include "../native/library.hpp"
+#include "../native/audio_log.hpp"
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -6,6 +7,11 @@
 #include <unistd.h>
 int main(){
  const std::string dir=audio::root();
+ assert(audio_log::prepare());
+ audio_log::write("TEST","Logging to /data/AudioBookReader");
+ assert(audio_log::filename()==dir+"/audiobook-reader.log");
+ struct stat logFile{};
+ assert(stat(audio_log::filename().c_str(),&logFile)==0 && logFile.st_size>0);
  mkdir(dir.c_str(),0755);mkdir((dir+"/Books").c_str(),0755);
  const std::string file=dir+"/Books/test.M4B";
  FILE* f=fopen(file.c_str(),"wb");assert(f);
