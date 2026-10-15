@@ -848,6 +848,58 @@ void Service::cancel_stream(){
  state_.streamId.clear();state_.streamUrl.clear();state_.streamError.clear();
  state_.streamResolving=false;
 }
+
+namespace {
+// No credentials, cookies or user accounts: keep ephemeral anonymous visitor
+// context only in memory and refresh it once if a public player declines it.
+struct GuestSession {std::mutex lock;std::string vision,vr;};
+GuestSession& guest_session(){static GuestSession state;return state;}
+std::string guest_visitor(const std::string& client,const std::string& version,bool force){
+ auto& state=guest_session();std::lock_guard<std::mutex> guard(state.lock);
+ std::string& token=client=="VISIONOS"?state.vision:state.vr;
+ if(!force&&!token.empty())return token;
+ // The visitor_id response belongs to YouTube's public guest protocol.
+ // No login, authorization headers or account cookies are sent.
+ const std::string request="{\"context\":{\"client\":{\"clientName\":\""+
+  client+"\",\"clientVersion\":\""+version+"\"}}}";
+ std::string response,error;
+ if(!https("youtubei.googleapis.com","/youtubei/v1/visitor_id",response,error,request))
+  return token;
+ const std::string received=decode(field(field(response,"responseContext"),"visitorData"),512);
+ const bool valid=received.size()>=10&&received.size()<512&&
+  std::all_of(received.begin(),received.end(),[](unsigned char ch){
+    return std::isalnum(ch)||ch=='-'||ch=='_'||ch=='.'||ch=='+'||
+           ch=='/'||ch=='='||ch=='%';
+  });
+ if(valid)token=received;
+ return token;
+}
+std::string with_guest_context(const std::string& body,const std::string& visitor){
+ if(visitor.empty())return body;
+ const auto at=body.find(",\"clientVersion\":");
+ if(at==std::string::npos)return body;
+ std::string request=body;
+ request.insert(at,",\"visitorData\":\""+visitor+"\"");
+ return request;
+}
+bool anonymous_player(const std::string& client,const std::string& version,
+                      const std::string& request,std::string& response,std::string& error){
+ std::string visitor=guest_visitor(client,version,false);
+ if(!https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",
+           response,error,with_guest_context(request,visitor)))return false;
+ auto status=decode(field(field(response,"playabilityStatus"),"status"));
+ if(status!="LOGIN_REQUIRED")return true;
+ // Retry only once, using a genuinely fresh guest identity.
+ visitor=guest_visitor(client,version,true);
+ if(visitor.empty())return true;
+ std::string newResponse,newError;
+ if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",
+          newResponse,newError,with_guest_context(request,visitor))){
+  response=std::move(newResponse);error.clear();
+ }
+ return true;
+}
+}
 bool Service::start_stream(const Video& video){
  if(!valid_id(video.id)||resolvingStream_.exchange(true))return false;
  {
@@ -882,11 +934,14 @@ bool Service::start_stream(const Video& video){
     "\"osName\":\"visionOS\",\"osVersion\":\"26.5.23O471\","
     "\"userAgent\":\""+agent+"\"}},"
     "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
-   if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",payload,error,body)){
+   if(anonymous_player("VISIONOS","1.02",body,payload,error)){
     const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
     if(status=="OK"&&select_stream_formats(payload,preferred,chosen,error)&&
        chosen.adaptive&&chosen.height>=(preferred==0?720:preferred))url=chosen.videoUrl;
-    else if(status!="OK")error="VisionOS player: "+(status.empty()?"invalid response":status);
+    else if(status!="OK"){
+     error="VisionOS public player: "+(status.empty()?"invalid response":status);
+     if(status=="LOGIN_REQUIRED")error+=" (YouTube rejected anonymous playback)";
+    }
     else error="VisionOS HD tracks not available";
    }
    if(url.empty())chosen={};
@@ -901,12 +956,15 @@ bool Service::start_stream(const Video& video){
     "\"deviceMake\":\"Oculus\",\"deviceModel\":\"Quest 3\","
     "\"userAgent\":\""+agent+"\"}},"
     "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
-   if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",payload,error,vr)){
+   if(anonymous_player("ANDROID_VR","1.65.10",vr,payload,error)){
     const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
     if(status=="OK"&&select_stream_formats(payload,preferred,chosen,error)&&
        chosen.adaptive&&chosen.height>=(preferred==0?720:preferred))
      url=chosen.videoUrl;
-    else if(status!="OK")error="HD player: "+(status.empty()?"invalid response":status);
+    else if(status!="OK"){
+     error="HD public player: "+(status.empty()?"invalid response":status);
+     if(status=="LOGIN_REQUIRED")error+=" (guest session not accepted)";
+    }
     else {
      const int available=chosen.height;
      chosen={};
