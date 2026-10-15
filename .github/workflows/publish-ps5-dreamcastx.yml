@@ -5,10 +5,6 @@ on:
       run_id:
         description: Verified native PS5 build run containing the ZIP artifact
         required: true
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/publish-ps5-dreamcastx.yml'
   workflow_run:
     workflows:
       - Build PS5DreamcastX (native Flycast)
