@@ -60,6 +60,10 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     b=txt.index("\n\nstubs=",a)
     txt=txt[:a]+"netlibs=[]"+txt[b:]
     txt=txt.replace("str(nfs/'lib/libnfs.a'),","")
+    # Use upstream's canary import stubs for the real PS5 libSceAgc modules.
+    # Stubs are host-link-only and must not be packaged with the title.
+    txt=replace_once(txt, "pie=out/'llvm-pie.elf'",
+        "stubs.extend([str(Path(os.environ['AGC_STUB_DIR'])/n) for n in ('libSceAgc.so','libSceAgcDriver.so')])\\npie=out/'llvm-pie.elf'".replace("\\\\n","\\n"))
     # The PS5_Vulkan setup produces a target-native zlib archive. Preserve
     # it in the final static link for NES compression and archive helpers.
     txt=txt.replace("netlibs=[]", "netlibs=[z/'lib/libz.a']")
@@ -111,6 +115,8 @@ def main():
     env["MESEN_PSBC_GENERATED_ARCHIVE"] = str(ROOT/"build/ps5-core/generated-psbc.ps5.a")
     env["PS5_VULKAN_DIR"] = str(DEPS/"PS5_Vulkan")
     run("python3", ROOT/"scripts/build_generated_psbc.py", env=env)
+    env["AGC_STUB_DIR"] = str(ROOT/"build/ps5-core/agc-imports")
+    run("python3", ROOT/"scripts/build_agc_imports.py", env=env)
     run("python3",builder,env=env)
     built=SRC/"snes/build-shelf"/(TITLE+".zip")
     assert built.is_file(), "Signed PS5 ZIP not built"
