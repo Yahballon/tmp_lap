@@ -19,7 +19,7 @@
 namespace pstube {
 namespace {
 constexpr unsigned long long MAX_FILE=2ULL*1024*1024*1024;
-constexpr unsigned long long CHUNK=256*1024; // finite Range, never "bytes=0-"
+constexpr unsigned long long CHUNK=1024*1024; // finite Range, never "bytes=0-"
 struct Url {std::string host,path;};
 bool parse(const std::string& input,Url& out){
  if(input.rfind("https://",0)!=0||input.size()>16000)return false;
@@ -185,6 +185,8 @@ bool fetch_bounded_range_media(const std::string& input,const std::string& targe
   if(total && offset>=total)break;
   const unsigned long long end=offset+CHUNK-1;
   if(!retrieve(url,offset,total?std::min(end,total-1):end,file,total,cancel,error)){
+   error="Range "+std::to_string(offset)+"-"+std::to_string(total?std::min(end,total-1):end)+
+     " failed: "+error;
    ok=false;break;
   }
   if(total==0||total>MAX_FILE){ok=false;error="Invalid HD content length";break;}
