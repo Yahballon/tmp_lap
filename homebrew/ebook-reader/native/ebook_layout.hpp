@@ -47,12 +47,11 @@ inline float top_alignment(int tex_w,int tex_h,float zoom){
 struct PanBounds {float min_x=0.f,max_x=0.f,min_y=0.f,max_y=0.f;};
 constexpr Rectangle page_clip{179.f,199.f,1562.f,744.f};
 constexpr Rectangle text_page_bounds{218.f,264.f,1484.f,650.f};
-// True text extents (first glyph at 550) and the inset of the visible
-// cream-coloured sheet. The viewport must be narrower than the whole book,
-// otherwise zoomed text bleeds into the brown margins in Single Page mode.
-constexpr Rectangle single_text_page_bounds{550.f,264.f,835.f,650.f};
-constexpr Rectangle single_sheet_clip{474.f,204.f,972.f,738.f};
-constexpr float single_first_glyph_x=550.f;
+// A single text page uses the full existing reading viewport rather than a
+// narrow centred paper card. Bounds follow the real single-column text area.
+constexpr Rectangle single_text_page_bounds{228.f,264.f,1484.f,650.f};
+constexpr Rectangle single_sheet_clip{179.f,199.f,1562.f,744.f};
+constexpr float single_first_glyph_x=228.f;
 // Legacy files store lines independent of the reader's display mode:
 // a spread shows 34 text lines (2 x 17), a single page shows 17.
 constexpr int text_rows=17;
