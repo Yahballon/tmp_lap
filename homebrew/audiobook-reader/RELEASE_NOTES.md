@@ -1,16 +1,17 @@
-# Audiobook Reader v0.2.3
+# Audiobook Reader v0.2.4
 
 ## Fixed
-- Local Books at `/data/AudioBookReader/Books` can be catalogued through the included read-only ELF helper when the PS5 app process reports `errno=1 (EPERM)` on `opendir`. Selected books are copied to the existing writable audiobook cache, preserving originals.
-- Separate `LISTLOCAL`, `FETCHLOCAL` and resume commands; helper port 9179 avoids stale resident processes.
-- Album art fallback chain: native FFmpeg embedded image, direct iTunes MP4 `covr` parser and small adjacent JPEG/PNG covers via the helper. No full USB audiobook transfer is required just to read a companion cover.
-- Per-title cover cache and existing aluminum-shelf UI retained.
-- Additional diagnostics for local helper catalog failures and companion cover transfers.
+- The **current chapter updates automatically during playback** as the player clock crosses embedded M4B chapter boundaries. No need to stop, return to the bookshelf, or reopen the audiobook.
+- Live chapter number and chapter title refresh after seeking forward/backward (D-Pad, L2/R2), chapter skips (L1/R1), resume, and ordinary continuous listening.
+- The chapter list independently marks the currently playing entry while keeping manual up/down selection stable, and switches back to live selection when the user stops navigating or opens the list anew.
+- Chapterless M4B files clearly display "No embedded chapters" instead of "Chapter 1 / 0".
+- Fixed bookshelf Cross selection to open the highlighted book when multiple books are present, and the Now Playing panel to show the actual open title even with active library filters.
 
-## File layout
-USB: `/mnt/usb0/ABooks`; local: `/data/AudioBookReader/Books`.
-Optional companion images next to the audiobook: `cover.jpg`, `folder.jpg`, `front.jpg`, `cover.png`, `folder.png` or `NameOfBook.jpg/png`.
-Cover cache: `/data/AudioBookReader/Covers`; playable cache: `/data/AudioBookReader/Cache`; logs: `/data/AudioBookReader/audiobook-reader.log`.
+## Existing features retained
+- USB M4B from `/mnt/usb0/ABooks`; local M4B from `/data/AudioBookReader/Books` via dedicated ELF helper on TCP 9179 with elfldr TCP 9021.
+- Embedded M4B cover art, raw MP4 covr fallback, companion JPEG/PNG files and persistent cover cache.
+- Progress saved under `/data/AudioBookReader/progress.tsv`, diagnostics at `/data/AudioBookReader/audiobook-reader.log`.
+- Title ID: `PPSA99784`. Preserve `/data/AudioBookReader` during update.
 
-## Installation and limitations
-Unzip `PPSA99784.zip` under `/data/homebrew/` and register with a compatible loader. Existing app data is retained. An active elfldr on port 9021 is required for local-helper fallback and USB content. When no embedded or companion artwork exists, a generated title placeholder remains; the app does not invent a published book cover. Hardware verification is still needed.
+## Verification
+Host regression test covers boundary timestamps, skips, reverse seeks, missing chapters and malformed timestamps. PS5 native build and ZIP packaging run in GitHub Actions. Hardware behavior still requires a console test.
