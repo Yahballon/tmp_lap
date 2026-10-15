@@ -1,0 +1,70 @@
+name: Publish PS5DreamcastX TESTBUILD
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-ps5-dreamcastx-testbuild.yml'
+      - 'tools/publish-dreamcastx-artifact.py'
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Build PS5DreamcastX (native Flycast)
+    types: [completed]
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: publish-ps5-dreamcastx-testbuild
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Find verified native build
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request
+          from pathlib import Path
+          app=json.loads(Path('homebrew/ps5-dreamcastx/app.json').read_text())
+          root='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']
+          def get(p):
+              req=urllib.request.Request(root+p,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],
+                  'Accept':'application/vnd.github+json','User-Agent':'DreamcastX-publisher'})
+              with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          runs=get('/actions/workflows/build-ps5-dreamcastx.yml/runs?branch=main&status=success&per_page=30')['workflow_runs']
+          found=None
+          for run in runs:
+              arts=get('/actions/runs/'+str(run['id'])+'/artifacts?per_page=50')['artifacts']
+              if any(a['name']=='PS5DreamcastX-v'+app['version'] and not a['expired'] for a in arts):
+                  found=run['id']
+                  break
+          assert found,'No verified native PS5 binary found for '+app['version']
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('run_id='+str(found)+'\nversion='+app['version']+'\n')
+          print('Using signed PS5 build',found)
+          PY
+      - name: Download signed PS5 ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: PS5DreamcastX-v${{ steps.find.outputs.version }}
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: homebrew/ps5-dreamcastx/dist
+      - name: Validate and publish publicly accessible package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_BUILD_RUN_ID: ${{ steps.find.outputs.run_id }}
+        run: |
+          python3 homebrew/ps5-dreamcastx/scripts/verify_package.py homebrew/ps5-dreamcastx/dist/PPSA99765.zip
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/publish-dreamcastx-artifact.py
