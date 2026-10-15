@@ -9,6 +9,7 @@
 #include "ebook_layout.hpp"
 #include "ebook_reflow.hpp"
 #include "ebook_log.hpp"
+#include "exit_dialog.hpp"
 #include "ebook_cover_store.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -312,7 +313,7 @@ std::vector<std::string> dirs(){return {ebook_log::books_directory(),"/app0/asse
 }
 int main(){
  const bool logAvailable=ebook_log::prepare();
- ebook_log::write("BOOT","Ebook Reader v0.2.5 started; Title ID PPSA99741");
+ ebook_log::write("BOOT","Ebook Reader v0.2.6 started; Title ID PPSA99741");
  ebook_log::write("DATA","Local Books: "+ebook_log::books_directory()+
                                 " Log: "+ebook_log::filename());
  hui::ps5::Display display;if(!display.open())hui::sys::park();
@@ -367,6 +368,8 @@ int main(){
  int lastRenderedImagePage=-1;
  int coverTick=0;
  bool reader=false,list=false,confirmDelete=false;
+ ebook_exit::Dialog exitDialog;
+ bool exitPending=false;
  int selected=0,filter=0,readerPage=0,libraryScroll=0,importSelect=0;
  bool importer=false;std::string message="USB EPUB reader via elfldr 9021 (same bridge as Payload LauncherX).";
  std::string loadingTitle;
@@ -452,7 +455,18 @@ int main(){
    if(ok)visible.push_back(i);
   }
   selected=std::clamp(selected,0,std::max(0,(int)visible.size()-1));
-  if(pressed&hui::pad_bits::kCircle){
+  // Only My Library can open the exit confirmation. While visible,
+  // suppress navigation so Cross cannot open a book behind the dialog.
+  if(exitDialog.visible){
+    const auto action=exitDialog.handle(
+       (pressed&hui::pad_bits::kCross)!=0,
+       (pressed&hui::pad_bits::kCircle)!=0);
+    if(action==ebook_exit::Action::Exit){
+      ebook_log::write("EXIT_REQUEST","Cross selected Yes");
+      exitPending=true;
+    }
+    pressed=0;now=0;
+  }else if(pressed&hui::pad_bits::kCircle){
    if(confirmDelete)confirmDelete=false;
    else if(reader){
     reader=false;inComic=false;document=ebook::Document{};
@@ -463,11 +477,21 @@ int main(){
    }
    else if(importer)importer=false;
    else {
+    exitDialog.show();
+    pressed=0;now=0;
+    ebook_log::write("EXIT_PROMPT","Press Cross Yes or Circle No");
+   }
+  }
+  // Detached cover/page workers may still use application state; wait until
+  // they finish before destroying their textures and terminating the app.
+  if(exitPending && !g_coverBusy.load() && !g_openBusy.load() &&
+     !g_comicBusy.load()){
+    ebook::save_state(books);
+    ebook_log::write("EXIT","Closing Ebook Reader cleanly");
     for(auto& item:covers)free_texture(item.second);
     for(auto& item:pageImages)free_texture(item.second);
     free_texture(comicPageTexture);
     pad.close();renderer.release();display.close();hui::sys::quit();
-   }
   }
   if(reader){
    const int oldPage=readerPage;
@@ -589,7 +613,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.2.5",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.2.6",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():
@@ -724,7 +748,8 @@ int main(){
       txt(d,font,atlas,"No accessible books in this collection.",960,481,29,muted,Align::center);
       txt(d,font,atlas,"USB bridge: "+cut(usbCatalog.message,70),960,530,22,gold,Align::center);
    }
-   if(count>0 && !g_openBusy.load() && !g_coverBusy.load() && ++coverTick%22==0){
+   if(count>0 && !exitDialog.visible && !exitPending &&
+      !g_openBusy.load() && !g_coverBusy.load() && ++coverTick%22==0){
      const int perPage=list?9:ebook_layout::per_page;
      const int start=(selected/perPage)*perPage,stop=std::min(count,start+perPage);
      bool started=false;
@@ -795,6 +820,26 @@ int main(){
     d.rounded_rect({588,948,746.f*fraction,9},4,gold);
   }
 
+  // TV-readable confirmation overlay, above the ordinary library UI.
+  if(exitDialog.visible){
+    d.rounded_rect({0,96,1920,984},0,Color::rgb(0x080502,0.77f));
+    d.shadow({513,333,894,404},20,26,Color::rgb(0x000000,0.70f));
+    d.bordered_rect({513,333,894,404},17,Color::rgb(0x3c2110),3,gold);
+    txt(d,font,atlas,"EXIT EBOOK READER?",960,421,37,cream,Align::center);
+    txt(d,font,atlas,"Are you sure you want to close the application?",
+        960,473,23,muted,Align::center);
+    panel(d,628,536,306,91);
+    panel(d,987,536,306,91,true);
+    txt(d,font,atlas,"X   YES",781,593,27,cream,Align::center);
+    txt(d,font,atlas,"O   NO",1140,593,27,gold,Align::center);
+    txt(d,font,atlas,"X Confirm exit     O Stay in library",
+        960,687,20,cream,Align::center);
+  }else if(exitPending){
+    d.rounded_rect({0,96,1920,984},0,Color::rgb(0x080502,0.78f));
+    d.bordered_rect({555,402,810,220},15,Color::rgb(0x3c2110),2,gold);
+    txt(d,font,atlas,"CLOSING EBOOK READER...",960,495,31,cream,Align::center);
+    txt(d,font,atlas,"Finishing background tasks safely",960,555,22,muted,Align::center);
+  }
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
