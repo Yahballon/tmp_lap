@@ -18,6 +18,13 @@ bool identical(const std::string& a,const std::string& b){
  }
  fclose(x);fclose(y);return valid;
 }
+struct Progress {size_t last=0,total=0;int updates=0;};
+bool update(size_t done,size_t total,void* context){
+ auto* p=static_cast<Progress*>(context);
+ assert(done<=total && done>=p->last);
+ p->last=done;p->total=total;p->updates++;
+ return true;
+}
 int main(int argc,char** argv){
  assert(argc==2);
  const auto catalog=usbbooks::scan();
@@ -27,11 +34,15 @@ int main(int argc,char** argv){
  assert(book.relative=="LargeComic.CBR");
  assert(book.bytes>40*1024*1024);
  std::string cache,error;
- assert(usbbooks::fetch(book,cache,error));
+ Progress state;
+ assert(usbbooks::fetch(book,cache,error,update,&state));
+ assert(state.updates>5 && state.last==book.bytes);
  // Reproduce the PS5 failure: this file is over 40 MiB, so it must be
  // written beneath /data/EbookReader/Cache, NOT the 21-MiB /download0 quota.
  assert(cache.rfind(std::string(argv[1])+"/EbookReader/Cache/usb-",0)==0);
  assert(identical(std::string(argv[1])+"/Books/LargeComic.CBR",cache));
+ std::string copy;
+ assert(usbbooks::cached_copy(book,copy) && copy==cache);
  // Cached copy should work without another transfer.
  std::string again,more;
  assert(usbbooks::fetch(book,again,more));
