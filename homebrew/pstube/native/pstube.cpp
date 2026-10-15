@@ -143,6 +143,52 @@ std::string encode(const std::string& s){
   else {o+='%';o+=h[c>>4];o+=h[c&15];}
  }return o;
 }
+
+const char* kCatalogCache="/data/pstube/catalog-v1.txt";
+bool save_feed_cache(const std::vector<Video>& videos){
+ std::string data="PSTUBE-CATALOG:1\n";
+ int limit=0;
+ for(const auto& video:videos){
+  if(!valid_id(video.id)||video.title.empty())continue;
+  data+=video.id+"|"+encode(video.title)+"|"+encode(video.author)+"|"+
+        std::to_string(std::max(0,video.length))+"|"+
+        std::to_string(std::max(0L,video.views))+"\n";
+  if(++limit>=60||data.size()>65000)break;
+ }
+ return save_text(kCatalogCache,data);
+}
+std::vector<Video> load_feed_cache(){
+ std::vector<Video> videos;
+ FILE* f=fopen(kCatalogCache,"rb");if(!f)return videos;
+ char buffer[65536]{};
+ size_t count=fread(buffer,1,sizeof(buffer)-1,f);
+ bool oversized=!feof(f);fclose(f);
+ std::string data(buffer,count);
+ if(oversized||data.rfind("PSTUBE-CATALOG:1\n",0)!=0)return videos;
+ size_t offset=17;
+ while(offset<data.size()&&videos.size()<60){
+  size_t end=data.find('\n',offset);if(end==std::string::npos)break;
+  const std::string line=data.substr(offset,end-offset);offset=end+1;
+  size_t a=line.find('|'),b=a==std::string::npos?a:line.find('|',a+1);
+  size_t c=b==std::string::npos?b:line.find('|',b+1);
+  size_t d=c==std::string::npos?c:line.find('|',c+1);
+  if(a==std::string::npos||b==std::string::npos||c==std::string::npos||d==std::string::npos)continue;
+  Video v;v.id=line.substr(0,a);
+  if(!valid_id(v.id))continue;
+  v.title=unescape(line.substr(a+1,b-a-1));
+  v.author=unescape(line.substr(b+1,c-b-1));
+  const std::string duration=line.substr(c+1,d-c-1),views=line.substr(d+1);
+  auto numeric=[](const std::string& value)->bool{
+    return !value.empty()&&value.size()<12&&
+      std::all_of(value.begin(),value.end(),[](unsigned char ch){return std::isdigit(ch)!=0;});
+  };
+  if(v.title.empty()||!numeric(duration)||!numeric(views))continue;
+  v.length=std::min(864000,std::atoi(duration.c_str()));
+  v.views=std::atol(views.c_str());
+  videos.push_back(std::move(v));
+ }
+ return videos;
+}
 void mkdirs(){mkdir("/data/pstube",0700);mkdir("/data/pstube/downloads",0700);}
 struct Work {Service* svc;std::string query;std::string id;int kind;Video video;};
 }
@@ -166,6 +212,8 @@ std::vector<Video> parse_search(const std::string& s){
 }
 Service::Service(){
  mkdirs();
+ state_.videos=load_feed_cache();
+ if(!state_.videos.empty())state_.status="Showing last online results (cached); refreshing...";
  for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[65536]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
@@ -299,7 +347,7 @@ bool Service::search(const std::string& query){
    lastError=host+(emptyArray?": no matching videos":": invalid API response");
   }
   const bool found=!videos.empty();
-  if(found)queue_thumbnails(videos);
+  if(found){save_feed_cache(videos);queue_thumbnails(videos);}
   {
    std::lock_guard<std::mutex> g(svc.mutex_);
    if(found)svc.state_.videos=std::move(videos);
