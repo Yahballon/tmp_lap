@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <string>
+#include <string_view>
 #include <vector>
 #include <mutex>
 #include <atomic>
@@ -47,6 +48,7 @@ ThumbnailHealth thumbnail_health();
 bool valid_id(const std::string&);
 std::vector<Video> parse_search(const std::string&);
 std::vector<Video> parse_youtube_html(const std::string&);
+std::string youtube_continuation(std::string_view source);
 std::string json_string(const std::string&,const std::string&);
 std::string escape_url(const std::string&);
 // Native HTTPS Innertube resolver. Returned URLs are ephemeral; never persist them.
