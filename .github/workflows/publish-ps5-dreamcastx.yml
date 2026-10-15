@@ -3,12 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: Verified native PS5 build run containing the ZIP artifact
-        required: true
-  workflow_run:
-    workflows:
-      - Build PS5DreamcastX (native Flycast)
-    types: [completed]
+        description: Optional verified build run (empty = newest matching build)
+        required: false
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-ps5-dreamcastx.yml'
+  schedule:
+    # A short independent publisher: no expensive Vulkan recompilation.
+    - cron: '7,27,47 * * * *'
 
 permissions:
   actions: read
@@ -20,51 +23,84 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout release metadata
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          persist-credentials: true
-      - name: Determine release version and source build
+      - name: Find newest successful matching signed PS5 artifact
         id: build
         env:
-          FROM_WORKFLOW_RUN: ${{ github.event.workflow_run.id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MANUAL_RUN_ID: ${{ inputs.run_id }}
         run: |
           python3 - <<'PY'
-          import json,os
+          import json,os,urllib.request
           from pathlib import Path
           app=json.loads(Path('homebrew/ps5-dreamcastx/app.json').read_text())
-          assert app['titleId']=='PPSA99765'
-          assert app['installFolder']=='PS5DreamcastX'
+          assert app['titleId']=='PPSA99765' and app['installFolder']=='PS5DreamcastX'
           version=app['version']
           assert app['releaseTag']==f'ps5-dreamcastx-v{version}'
-          run_id=os.getenv('FROM_WORKFLOW_RUN') or os.getenv('MANUAL_RUN_ID') or ''
-          assert run_id.isdigit(), 'A successful build workflow run ID must be supplied'
-          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
-              f.write(f'version={version}\ntag={app["releaseTag"]}\nrun_id={run_id}\n')
-          print('Publishing only verified native app',app['releaseTag'],'from run',run_id)
+          root='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']
+          token=os.environ['GH_TOKEN']
+          def get(url):
+              req=urllib.request.Request(url,headers={
+                  'Accept':'application/vnd.github+json',
+                  'Authorization':'Bearer '+token,
+                  'X-GitHub-Api-Version':'2022-11-28',
+                  'User-Agent':'PS5DreamcastX-release-publisher'})
+              with urllib.request.urlopen(req,timeout=30) as resp:
+                  return json.load(resp)
+          chosen=None
+          manual=os.getenv('MANUAL_RUN_ID','')
+          if manual:
+              assert manual.isdigit()
+              run=get(root+'/actions/runs/'+manual)
+              assert run['status']=='completed' and run['conclusion']=='success'
+              candidates=[run]
+          else:
+              data=get(root+'/actions/workflows/build-ps5-dreamcastx.yml/runs'
+                       '?branch=main&status=success&per_page=15')
+              candidates=data.get('workflow_runs',[])
+          for run in candidates:
+              if run.get('conclusion')!='success' or run.get('head_branch')!='main':
+                  continue
+              artifact_data=get(root+'/actions/runs/'+str(run['id'])+'/artifacts?per_page=50')
+              if any(a['name']=='PS5DreamcastX-v'+version and
+                     not a.get('expired',False) for a in artifact_data.get('artifacts',[])):
+                  chosen=run
+                  break
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write('version='+version+'\n')
+              out.write('tag='+app['releaseTag']+'\n')
+              out.write('ready='+('true' if chosen else 'false')+'\n')
+              if chosen:
+                  out.write('run_id='+str(chosen['id'])+'\n')
+                  out.write('build_sha='+chosen['head_sha']+'\n')
+          if chosen:
+              print('Verified',app['releaseTag'],'native PS5 build run',chosen['id'])
+          else:
+              print('No successful native artifact for',app['releaseTag'],'yet; will retry on schedule')
           PY
-      - name: Download original signed native PS5 artifact
+      - name: Download original native PS5 artifact
+        if: steps.build.outputs.ready == 'true'
         uses: actions/download-artifact@v4
         with:
           name: PS5DreamcastX-v${{ steps.build.outputs.version }}
           run-id: ${{ steps.build.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: homebrew/ps5-dreamcastx/dist
-      - name: Verify downloaded ZIP before publishing
+      - name: Verify signed ZIP
+        if: steps.build.outputs.ready == 'true'
         working-directory: homebrew/ps5-dreamcastx
         run: |
           python3 scripts/verify_package.py dist/PPSA99765.zip
           sha256sum dist/PPSA99765.zip
       - name: Publish versioned GitHub Release
+        if: steps.build.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.build.outputs.tag }}
-          BUILD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          BUILD_SHA: ${{ steps.build.outputs.build_sha }}
         working-directory: homebrew/ps5-dreamcastx
         run: |
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
