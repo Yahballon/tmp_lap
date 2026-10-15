@@ -218,21 +218,47 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  }
  const std::string tmp=localPath+".part";
  FILE* f=fopen(tmp.c_str(),"wb");
- if(!f){close(fd);error="Cannot create local book cache";return false;}
- size_t written=0;bool ok=true;char buf[16384];
+ if(!f){
+   const int code=errno;
+   close(fd);
+   error="Cannot create comic cache: "+std::string(std::strerror(code));
+   return false;
+ }
+ size_t written=0;bool ok=true;char buf[32768];
+ int ioCode=0;
+ const char* reason=nullptr;
  while(written<(size_t)total){
-  size_t need=std::min(sizeof(buf),(size_t)total-written);
-  ssize_t got=recv(fd,buf,need,0);
-  if(got<=0){ok=false;break;}
-  if(fwrite(buf,1,(size_t)got,f)!=(size_t)got){ok=false;break;}
-  written+=(size_t)got;
+   const size_t needed=std::min(sizeof(buf),(size_t)total-written);
+   ssize_t got=recv(fd,buf,needed,0);
+   if(got<0 && errno==EINTR)continue;
+   if(got<=0){
+     ioCode=got<0?errno:0;
+     reason=got==0?"USB connection closed early":"USB socket read timed out or failed";
+     ok=false;break;
+   }
+   if(fwrite(buf,1,(size_t)got,f)!=(size_t)got){
+     ioCode=errno;
+     reason="Cannot write comic to cache";
+     ok=false;break;
+   }
+   written+=(size_t)got;
  }
- if(fflush(f)!=0)ok=false;
- if(fclose(f)!=0)ok=false;
+ if(fflush(f)!=0 && ok){
+   ioCode=errno;reason="Cache flush failed";ok=false;
+ }
+ if(fclose(f)!=0 && ok){
+   ioCode=errno;reason="Cache close failed";ok=false;
+ }
  close(fd);
- if(!ok||written!=(size_t)total||rename(tmp.c_str(),localPath.c_str())!=0){
-  remove(tmp.c_str());error="USB transfer incomplete or cache write failed";return false;
+ if(ok && written==(size_t)total){
+   if(rename(tmp.c_str(),localPath.c_str())==0)return true;
+   ioCode=errno;reason="Cannot finalize cache file";ok=false;
  }
- return true;
+ remove(tmp.c_str());
+ error=std::string(reason?reason:"USB transfer truncated")+
+       " ("+std::to_string(written/1048576)+"/"+
+       std::to_string(((size_t)total+1048575)/1048576)+" MiB)";
+ if(ioCode)error+=": "+std::string(std::strerror(ioCode));
+ return false;
 }
 } // namespace usbbooks
