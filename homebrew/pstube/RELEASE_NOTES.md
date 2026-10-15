@@ -1,9 +1,11 @@
-# PSTUBE v0.5.0 — Native Streaming & Infinite Search Scroll
+# PSTUBE v0.5.1 — Search List and Navigation Fix
 
-- Play progressive signed MP4 URLs straight through native FFmpeg HTTPS without waiting for the entire file to finish downloading.
-- Keep SSL certificate and hostname verification enabled using trusted certificate roots from the installed PS5 package. Configure HTTP timeouts, buffering and retries.
-- Downloading to the Downloads library is now a separate action (**Square** while playing).
-- Add background infinite search pagination: YouTube continuation tokens and Invidious page numbers; deduplicate results, keep the selected item, and indicate when further results are loading.
-- Preserve video thumbnails, history, favourites and existing complete downloads.
+- Fix the reported issue: at the last result (e.g., 19/20), PSTUBE previously displayed only the final two videos. It now fills the final TV grid with the preceding results, retaining selection.
+- Display the visible result range, the total number of fetched videos, loading-more status and a scroll progress bar.
+- Preserve automatic YouTube search continuation from v0.5.0 to load additional video pages on D-Pad/left-stick navigation.
+- Add a host-side native C++ two-page live YouTube search test to CI.
+- Preserve the existing native player, stream playback, downloads and user settings. No PC or companion tools.
 
-Known limitations: Direct YouTube playback may require login, JS signature solving, PO tokens or separate adaptive tracks; no claim is made that every YouTube video works. The FFmpeg network backend and audio/video sync require real PS5 testing. Online search pagination depends on external YouTube API structures, which may change. Existing saved media is preserved.
+**Limitations:** Public YouTube APIs can change, rate-limit or block searches. The total result count indicates loaded videos, not a promise of all results on YouTube. The app remains subject to PS5 hardware testing.
+
+Install: replace /data/homebrew/PPSA99762 from the verified release zip and update TESTBUILDS. Saved preferences, favourites and downloads remain untouched.
