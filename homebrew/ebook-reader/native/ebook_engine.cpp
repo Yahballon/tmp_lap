@@ -492,8 +492,8 @@ void collect(const std::string& path,std::vector<BookEntry>& out,
     if(!seen.insert(full).second)continue;
     BookEntry b;b.path=full;b.title=clean_title(name);
     b.format=ends(name,".pdf")?"PDF":ends(name,".cbr")?"CBR":ends(name,".cbz")?"CBZ":"EPUB";
-    if(b.format=="CBR"||b.format=="CBZ")b.collection="Comics";
-    b.collection=(lower(name).find("comic")!=std::string::npos)?"Comics":"Fiction";
+    b.collection=(b.format=="CBR"||b.format=="CBZ"||
+                  lower(name).find("comic")!=std::string::npos)?"Comics":"Fiction";
     b.author="Unknown Author";
     out.push_back(std::move(b));
     ++status.books;
@@ -593,7 +593,9 @@ void load_state(std::vector<BookEntry>& books){
   if(fields.size()>=4)for(auto& b:books)if(b.path==fields[0]){
     b.progress=(size_t)std::strtoul(fields[1].c_str(),nullptr,10);
     b.favorite=fields[2]=="1";
-    b.collection=fields[3];
+    // Older versions saved CBR/CBZ in Fiction by mistake. Preserve
+    // favourite and progress, but migrate the incorrect shelf category.
+    b.collection=(b.format=="CBR"||b.format=="CBZ")?"Comics":fields[3];
     break;
   }
   begin=end+1;
