@@ -7,6 +7,7 @@
 #include "audio_player.hpp"
 #include "library.hpp"
 #include "chapters.hpp"
+#include "chapter_tracking.hpp"
 #include "cover_extract.hpp"
 #include "audio_cover_store.hpp"
 #define STB_IMAGE_IMPLEMENTATION
@@ -236,7 +237,7 @@ int main(){
  auto atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  const bool logReady=audio_log::prepare();
- audio_log::write("BOOT","Audiobook Reader v0.2.3 started; PPSA99784");
+ audio_log::write("BOOT","Audiobook Reader v0.2.4 started; PPSA99784");
  audio_log::write("DATA","Local: "+audio_log::books_directory()+
                          " Log: "+audio_log::filename());
  std::vector<audio::Book> books;
@@ -301,8 +302,8 @@ int main(){
  std::string loadingTitle,playingPath;
  std::map<std::string,CoverTexture> covers;
  unsigned coverTick=0;
- int selected=0,filter=0,scroll=0,chapterIndex=0;
- bool viewing=false,chapterMode=false,exitDialog=false,closing=false;
+ int selected=0,filter=0,scroll=0,chapterIndex=0,activeChapter=-1;
+ bool viewing=false,chapterMode=false,chapterManuallySelected=false,exitDialog=false,closing=false;
  bool list=false;
  unsigned held=0;int holdCooldown=0,saveTicker=0;
  auto visible=[&](){
@@ -371,10 +372,9 @@ int main(){
    if(player.start(result.local,book->position)){
     playingPath=book->path;
     chapters=std::move(result.chapters);
-    chapterIndex=0;
-    for(size_t i=0;i<chapters.size();i++)
-     if(chapters[i].start<=book->position)chapterIndex=(int)i;
-    viewing=true;chapterMode=false;message="";
+    activeChapter=audio::chapter_at(chapters,book->position);
+    chapterIndex=std::max(0,activeChapter);
+    viewing=true;chapterMode=false;chapterManuallySelected=false;message="";
     audio_log::write("OPEN_OK",playingPath+" local="+result.local);
    }else{
     message="Unable to open cached or local M4B file";
@@ -388,7 +388,7 @@ int main(){
    else if(pressed&hui::pad_bits::kCross){exitDialog=false;closing=true;}
   }else if(pressed&hui::pad_bits::kCircle){
    if(chapterMode)chapterMode=false;
-   else if(viewing){snapshotProgress();player.stop();viewing=false;playingPath.clear();audio::save(books);}
+   else if(viewing){snapshotProgress();player.stop();viewing=false;activeChapter=-1;playingPath.clear();audio::save(books);}
    else exitDialog=true;
   }else if(viewing){
    auto status=player.snapshot();
@@ -397,11 +397,26 @@ int main(){
    if(pressed&hui::pad_bits::kRight)player.skip(30);
    if(pressed&hui::pad_bits::kL2)player.skip(-60);
    if(pressed&hui::pad_bits::kR2)player.skip(60);
-   if(pressed&hui::pad_bits::kTriangle)chapterMode=!chapterMode;
+   if(pressed&hui::pad_bits::kTriangle){
+    chapterMode=!chapterMode;
+    chapterManuallySelected=false;
+    if(chapterMode)chapterIndex=std::max(0,activeChapter);
+   }
    if(chapterMode){
-    if(pressed&hui::pad_bits::kDown)chapterIndex=std::min((int)chapters.size()-1,chapterIndex+1);
-    if(pressed&hui::pad_bits::kUp)chapterIndex=std::max(0,chapterIndex-1);
-    if((pressed&hui::pad_bits::kSquare)&&!chapters.empty())player.seek(chapters[chapterIndex].start);
+    if(!chapters.empty()){
+     if(pressed&hui::pad_bits::kDown){
+      chapterIndex=std::min((int)chapters.size()-1,chapterIndex+1);
+      chapterManuallySelected=true;
+     }
+     if(pressed&hui::pad_bits::kUp){
+      chapterIndex=std::max(0,chapterIndex-1);
+      chapterManuallySelected=true;
+     }
+     if(pressed&hui::pad_bits::kSquare){
+      player.seek(chapters[chapterIndex].start);
+      chapterManuallySelected=false;
+     }
+    }
    }else{
     if((pressed&hui::pad_bits::kR1)&&!chapters.empty()){
      for(const auto& ch:chapters)if(ch.start>status.seconds+0.2){player.seek(ch.start);break;}
@@ -411,7 +426,7 @@ int main(){
      player.seek(previous);
     }
    }
-   if(status.ended&&!status.playing){snapshotProgress();audio_log::write("PLAY_END",playingPath+" "+status.message);player.stop();viewing=false;playingPath.clear();audio::save(books);message=status.message;}
+   if(status.ended&&!status.playing){snapshotProgress();audio_log::write("PLAY_END",playingPath+" "+status.message);player.stop();viewing=false;activeChapter=-1;playingPath.clear();audio::save(books);message=status.message;}
    if(++saveTicker>=280){saveTicker=0;snapshotProgress();audio::save(books);}
   }else{
    if(pressed&hui::pad_bits::kOptions){refresh();selected=0;message="Library: "+std::to_string(books.size())+" books; "+usbCatalog.message;}
@@ -425,11 +440,25 @@ int main(){
    if(pressed&hui::pad_bits::kRight)selected=std::min((int)ids.size()-1,selected+1);
    if((pressed&hui::pad_bits::kSquare)&&!ids.empty()){books[ids[selected]].favorite=!books[ids[selected]].favorite;audio::save(books);}
    if((pressed&hui::pad_bits::kCross)&&!ids.empty()){
-    const auto found=std::find_if(books.begin(),books.end(),[&](const auto& b){return b.path==playingPath;});
-   const auto& b=found!=books.end()?*found:books.front();
+    const auto& b=books[ids[selected]];
     audio_log::write("OPEN_REQUEST",b.path);
     if(start_open(b,message)){loadingTitle=b.title;message="";}
     else if(message.empty())message="Audiobook loader already running";
+   }
+  }
+  // Keep chapter metadata synchronized with the audio clock EVERY frame.
+  // Chapter-list selection stays independent while the user navigates it.
+  if(viewing && !chapters.empty()){
+   const auto playback=player.snapshot();
+   if(playback.playing && !playback.opening && !playback.seeking){
+    const int current=audio::chapter_at(chapters,playback.seconds);
+    if(current>=0 && current!=activeChapter){
+     activeChapter=current;
+     audio_log::write("CHAPTER_CHANGE",playingPath+" "+std::to_string(current+1)+
+       "/"+std::to_string(chapters.size())+" "+
+       chapters[(size_t)current].title);
+    }
+    if(!chapterManuallySelected && current>=0)chapterIndex=current;
    }
   }
   if(closing && !g_openBusy.load() && !g_coverBusy.load()){
@@ -445,10 +474,13 @@ int main(){
   d.bordered_rect({24,19,58,57},10,Color::rgb(0x1c3545),2,kSteel);
   for(int i=0;i<5;i++)d.line(35+i*8,49-(i%3)*7,35+i*8,55+(i%3)*7,3,kCyan);
   txt(d,font,atlas,"AUDIOBOOK READER by YAHBALLON",109,58,31,kWhite);
-  txt(d,font,atlas,"v0.2.3",1878,58,22,kCyan,Align::right);
+  txt(d,font,atlas,"v0.2.4",1878,58,22,kCyan,Align::right);
   if(viewing){
    auto st=player.snapshot();
-   const auto& b=books[ids[selected]];
+   const auto playing=std::find_if(books.begin(),books.end(),[&](const auto& b){
+    return b.path==playingPath;
+   });
+   const auto& b=playing!=books.end()?*playing:books.front();
    txt(d,font,atlas,"NOW PLAYING",95,163,36,kWhite);
    txt(d,font,atlas,cut(b.title,75),95,222,32,kWhite);
    panel(d,80,255,590,631);
@@ -466,12 +498,21 @@ int main(){
     for(int i=begin;i<(int)chapters.size()&&i<begin+5;i++){
       const float y=615+(i-begin)*48;
       if(i==chapterIndex)d.rounded_rect({763,y-25,985,45},5,Color::rgb(0x31475a));
-      txt(d,font,atlas,cut(chapters[i].title,56),783,y+4,19,i==chapterIndex?kCyan:kWhite);
-      txt(d,font,atlas,stamp(chapters[i].start),1730,y+4,17,kSteel,Align::right);
+      if(i==activeChapter){
+       d.rounded_rect({764,y-24,5,43},2,kCyan);
+       txt(d,font,atlas,"NOW",1670,y+4,17,kCyan,Align::right);
+      }
+      txt(d,font,atlas,cut(chapters[i].title,48),783,y+4,19,
+        i==activeChapter?kCyan:kWhite);
+      txt(d,font,atlas,stamp(chapters[i].start),1742,y+4,17,kSteel,Align::right);
     }
    }else{
-    txt(d,font,atlas,"CHAPTER "+std::to_string(chapterIndex+1)+" / "+std::to_string(chapters.size()),770,605,23,kCyan);
-    txt(d,font,atlas,chapters.empty()?"No embedded chapters":cut(chapters[chapterIndex].title,57),770,652,24,kWhite);
+    const int liveChapter=activeChapter>=0?activeChapter:audio::chapter_at(chapters,st.seconds);
+    txt(d,font,atlas,chapters.empty()?"NO EMBEDDED CHAPTERS":
+      "CHAPTER "+std::to_string(liveChapter+1)+" / "+std::to_string(chapters.size()),
+      770,605,23,kCyan);
+    txt(d,font,atlas,chapters.empty()?"No embedded chapters":
+      cut(chapters[(size_t)std::max(0,liveChapter)].title,57),770,652,24,kWhite);
     txt(d,font,atlas,cut(st.message,70),770,748,20,kMuted);
    }
    txt(d,font,atlas,"X Play/Pause  LEFT -15s  RIGHT +30s  L2/R2 +/-60s  L1/R1 Chapter  TRIANGLE List  O Library",960,1015,20,kWhite,Align::center);
