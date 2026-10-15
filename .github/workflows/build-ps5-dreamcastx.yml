@@ -66,6 +66,8 @@ jobs:
             -o /tmp/dreamcastx-usb-test tests/usb_scan_test.cpp
           /tmp/dreamcastx-usb-test
           python3 -m py_compile scripts/prepare.py scripts/verify.py assets/generate_icon.py
+          python3 -m py_compile scripts/verify_package.py
+          python3 tests/test_package_structure.py
       - name: Fetch pinned native Flycast and integrate game shelf
         run: |
           python3 scripts/prepare.py
@@ -82,23 +84,7 @@ jobs:
           JOBS: '4'
         run: bash scripts/build.sh
       - name: Verify app package
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import json, zipfile, struct
-          zip_path=Path('dist/PPSA99765.zip')
-          assert zip_path.is_file() and zip_path.stat().st_size>100000
-          with zipfile.ZipFile(zip_path) as z:
-              assert z.testzip() is None
-              files=set(z.namelist())
-              for name in ('eboot.bin','sce_sys/param.json',
-                           'sce_sys/icon0.png','sce_module/libc.prx'):
-                  assert 'PPSA99765/'+name in files, name
-              assert z.read('PS5DreamcastX/eboot.bin')[:4] == struct.pack('<I',0x1D3D154F)
-              param=json.loads(z.read('PS5DreamcastX/sce_sys/param.json'))
-              assert param['titleId']=='PPSA99765'
-          print('PASS: signed PS5 homebrew package PPSA99765.zip')
-          PY
+        run: python3 scripts/verify_package.py dist/PPSA99765.zip
       - name: Upload PS5 test build
         uses: actions/upload-artifact@v4
         with:
