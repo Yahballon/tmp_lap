@@ -86,16 +86,15 @@ void findUsbDirs()
     # App binaries stay in /data/homebrew/PS5DreamcastX/; all emulator
     # user content/settings belong in /data/PS5DreamcastX/ when elevated.
     # A sandbox-only launch still works with a clearly logged fallback.
-    m,n=re.subn(r'(^std::string rootDir;[ \t]*$)', r'\\1\\nstd::string appDir;', m, count=1, flags=re.M)
-    assert n==1, "ps5::rootDir declaration missing"
+    assert m.count("std::string rootDir;")==1
+    m=m.replace("std::string rootDir;", "std::string rootDir;" + chr(10) + "std::string appDir;", 1)
+    old="\tif (ps5::options().usb)\n\t{\n\t\t// Before any other thread exists"
+    new="\tif (true) // external /data storage needs elevation even when USB browsing is off\n\t{\n\t\t// Before any other thread exists"
+    assert m.count(old)==1, "Expected startup elevation gate changed"
+    m=m.replace(old,new,1)
 
-    m,n=re.subn(r'if \\(ps5::options\\(\\)\\.usb\\)\\n\\t\\{\\n\\t\\t// Before any other thread exists',
-                'if (true) // external /data storage also needs elevation; USB browsing remains optional\\n\\t{\\n\\t\\t// Before any other thread exists',
-                m,count=1)
-    assert n==1, "Expected startup elevation gate changed"
-
-    start=m.index('\\tstd::vector<std::string> candidates;', m.index('int main(int argc, char *argv[])'))
-    end=m.index('\\tps5::loadOptions(ps5::rootDir);',start)
+    start=m.index(chr(9)+'std::vector<std::string> candidates;', m.index('int main(int argc, char *argv[])'))
+    end=m.index(chr(9)+'ps5::loadOptions(ps5::rootDir);',start)
     m=m[:start]+'''    // Locate the installed PS5 title before selecting its *separate* data root.
     std::vector<std::string> candidates;
     if (ps5::elevated)
@@ -151,7 +150,7 @@ void findUsbDirs()
     hdr=frontend.read_text()
     assert "extern std::string rootDir;" in hdr
     frontend.write_text(hdr.replace("extern std::string rootDir;", 
-                                    "extern std::string rootDir;\\nextern std::string appDir;", 1))
+                                    "extern std::string rootDir;" + chr(10) + "extern std::string appDir;", 1))
 
     # Remove saved /data content paths from the old app's search, and keep
     # them mapped to the chosen root for backwards-compatible recents.
