@@ -57,7 +57,7 @@ jobs:
         timeout-minutes: 30
         env:
           PS5_VULKAN_DIR: ${{ github.workspace }}/homebrew/ps5-dreamcastx/build/PS5_Vulkan
-          PS5_PAYLOAD_SDK: ${{ github.workspace }}/homebrew/ps5-dreamcastx/build/sdk-dreamcastx/ps5-payload-sdk
+          PS5_PAYLOAD_SDK: ${{ github.workspace }}/homebrew/ps5-dreamcastx/build/PS5_VulkanTemplate/.deps/native/ps5-payload-sdk
           LIBSMB2_DIR: ${{ github.workspace }}/homebrew/ps5-dreamcastx/build/libsmb2
           JOBS: '4'
         run: bash scripts/build.sh

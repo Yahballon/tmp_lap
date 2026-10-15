@@ -17,6 +17,10 @@ git -C PS5_Vulkan checkout --detach 5b5e4fc2d80fdb67a4f61ba9e6a8a424026bb8a5
 git -C libsmb2 checkout --detach 7e4ff97cf00edb288b6b763888e4326842afdc76
 if [[ ! -f PS5_Mesa/.dreamcastx-patched ]]; then
   git -C PS5_Mesa checkout -B dreamcastx-patches 7b59ef27c1b09b9671bc4153c41940c3155c3af2
+  # git am creates real commits, even on clean ephemeral Actions runners.
+  # Configure the identity only inside this dependency checkout.
+  git -C PS5_Mesa config user.name "PS5DreamcastX CI"
+  git -C PS5_Mesa config user.email "ps5-dreamcastx-ci@users.noreply.github.com"
   git -C PS5_Mesa am "$work/flycast/shell/ps5/mesa/"*.patch
   touch PS5_Mesa/.dreamcastx-patched
 fi
@@ -35,11 +39,12 @@ if (( status != 0 )); then
     test -s "$p" || { echo "Bootstrap failed: $p is missing" >&2; exit "$status"; }
   done
 fi
-sdk=b5efad528e0ac1b8289f39d72a0e890ff68ff0a6
-if [[ ! -x sdk-dreamcastx/ps5-payload-sdk/bin/prospero-clang++ ]]; then
-  mkdir -p sdk-dreamcastx sdk-tree
-  git -C PS5_PayloadSDK archive "$sdk" | tar -x -C sdk-tree
-  bash sdk-tree/platform/tools/setup-sdk.sh "$work/sdk-dreamcastx/ps5-payload-sdk" "$sdk" "$work/sdk-dreamcastx"
-fi
-test -x sdk-dreamcastx/ps5-payload-sdk/bin/prospero-clang++
-echo "PS5 native dependencies ready"
+# Reuse the exact PS5_VulkanTemplate SDK pin built by bootstrap.sh.
+# The previous independent SDK checkout was redundant and out of sync.
+sdk="$work/PS5_VulkanTemplate/.deps/native/ps5-payload-sdk"
+test -x "$sdk/bin/prospero-clang++"
+test -s "$sdk/target/lib/libps5platform.a"
+# Preserve the original workflow's SDK location for any existing callers.
+mkdir -p "$work/sdk-dreamcastx"
+ln -sfn "$sdk" "$work/sdk-dreamcastx/ps5-payload-sdk"
+echo "PS5 native dependencies ready (SDK: $sdk)"
