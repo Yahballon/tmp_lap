@@ -1,12 +1,15 @@
 {
   "name": "PS5DreamcastX",
   "slug": "ps5-dreamcastx",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "titleId": "PPSA99765",
   "contentId": "UP9000-PPSA99765_00-PS5DREAMCASTX001",
-  "contentVersion": "01.000.000",
-  "releaseTag": "ps5-dreamcastx-v0.1.0",
+  "contentVersion": "01.000.001",
+  "releaseTag": "ps5-dreamcastx-v0.1.1",
   "core": "Press5elect/PSFlycast",
   "frontend": "PS5GBAX-inspired cover flow",
-  "brand": "YAHBALLON"
+  "brand": "YAHBALLON",
+  "installFolder": "PS5DreamcastX",
+  "internalGameDirectory": "/data/homebrew/PS5DreamcastX/games",
+  "usbGameDirectory": "/mnt/usb0/PS5DreamcastX/games"
 }

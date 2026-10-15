@@ -62,6 +62,9 @@ jobs:
         run: |
           clang++-18 -std=c++20 -Wall -Wextra -Wno-unused-parameter \
             -fsyntax-only tests/compile_shelf.cpp
+          clang++-18 -std=c++20 -Wall -Wextra -Wno-unused-parameter \
+            -o /tmp/dreamcastx-usb-test tests/usb_scan_test.cpp
+          /tmp/dreamcastx-usb-test
           python3 -m py_compile scripts/prepare.py scripts/verify.py assets/generate_icon.py
       - name: Fetch pinned native Flycast and integrate game shelf
         run: |
@@ -91,15 +94,15 @@ jobs:
               for name in ('eboot.bin','sce_sys/param.json',
                            'sce_sys/icon0.png','sce_module/libc.prx'):
                   assert 'PPSA99765/'+name in files, name
-              assert z.read('PPSA99765/eboot.bin')[:4] == struct.pack('<I',0x1D3D154F)
-              param=json.loads(z.read('PPSA99765/sce_sys/param.json'))
+              assert z.read('PS5DreamcastX/eboot.bin')[:4] == struct.pack('<I',0x1D3D154F)
+              param=json.loads(z.read('PS5DreamcastX/sce_sys/param.json'))
               assert param['titleId']=='PPSA99765'
           print('PASS: signed PS5 homebrew package PPSA99765.zip')
           PY
       - name: Upload PS5 test build
         uses: actions/upload-artifact@v4
         with:
-          name: PS5DreamcastX-v0.1.0
+          name: PS5DreamcastX-v0.1.1
           path: homebrew/ps5-dreamcastx/dist/PPSA99765.zip
           if-no-files-found: error
       - name: Publish versioned release after successful main build
@@ -107,12 +110,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-dreamcastx-v0.1.0 -R "${{ github.repository }}" >/dev/null 2>&1; then
+          if gh release view ps5-dreamcastx-v0.1.1 -R "${{ github.repository }}" >/dev/null 2>&1; then
             echo 'This app version has already been published.'
             exit 0
           fi
-          gh release create ps5-dreamcastx-v0.1.0 dist/PPSA99765.zip \
+          gh release create ps5-dreamcastx-v0.1.1 dist/PPSA99765.zip \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
-            --title 'PS5DreamcastX v0.1.0' \
+            --title 'PS5DreamcastX v0.1.1' \
             --notes-file RELEASE_NOTES.md

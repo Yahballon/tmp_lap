@@ -2,7 +2,7 @@
 
 **Dreamcast emulation on PS5 with a PS5GBAX-inspired animated cover-flow shelf.**
 
-Version **0.1.0** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.1.1** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -23,7 +23,7 @@ frontend and title metadata, bootstraps PS5_Vulkan/RADV and SDK dependencies,
 then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the workflow uploads `PPSA99765.zip`
-to the independent tag `ps5-dreamcastx-v0.1.0`. PR builds create only
+to the independent tag `ps5-dreamcastx-v0.1.1`. PR builds create only
 test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
@@ -39,12 +39,55 @@ Build output: `dist/PPSA99765.zip`. A heavy RADV dependency build may exceed
 GitHub-hosted time/resources; inspect Actions logs if it does. Compilation is
 not a substitute for testing games on a real PS5.
 
-## Install
+## Install & game locations
 
-Extract the produced ZIP into `/data/homebrew/PPSA99765/` and launch through
-a compatible PS5 homebrew loader. Put your **own legally obtained** Dreamcast
-backups in the app's `games/` directory and, where needed, your own BIOS in
-`bios/`. The native Flycast port also supports configured USB/SMB sources.
+The ZIP **remains named `PPSA99765.zip`** for the TESTBUILDS catalog.
+The **folder inside** it is now `PS5DreamcastX/`, rather than `PPSA99765/`.
+The PS5 Title ID **remains `PPSA99765`** in `sce_sys/param.json` (required by PS5 loaders).
+
+Use a compatible ShadowMount loader to install and launch:
+
+```text
+/data/homebrew/PS5DreamcastX/eboot.bin
+/data/homebrew/PS5DreamcastX/games/<your-legally-obtained-backup>.chd
+/data/homebrew/PS5DreamcastX/bios/
+/data/homebrew/PS5DreamcastX/data/       # Saves and VMUs
+```
+
+### USB games
+
+Plug a USB drive into the PS5. The application discovers
+`PS5DreamcastX` case-insensitively on any of `/mnt/usb0/` through
+`/mnt/usb7/` and scans the **games/** subfolder if present; otherwise
+it scans the parent `PS5DreamcastX/` directory. Existing
+`flycast/`, `dreamcast/`, `dc/`, `naomi/`, `atomiswave/`, and
+`arcade/` USB folders remain supported.
+
+```text
+/mnt/usb0/PS5DreamcastX/games/Game.chd
+/mnt/usb0/PS5DreamcastX/games/Game.gdi
+/mnt/usb1/PS5DreamcastX/AnotherGame.cdi  # if games/ absent
+```
+
+USB access **requires filesystem elevation** (a jailbreak with
+`elfldr` listening on port **9021**) and the app's
+**Settings > Library > USB drives** enabled, followed by an app restart.
+New installations default to enabling USB; an existing `frontend.cfg`
+with `usb = 0` retains that preference until manually enabled.
+In the library use **L1/R1** to select the USB tab and **Square** to rescan.
+
+### Upgrading from v0.1.0
+
+The old app installed at `/data/homebrew/PPSA99765/`. Stop the app,
+then **move/rename that existing directory to**
+`/data/homebrew/PS5DreamcastX/` over FTP/file manager. This preserves
+`data/` saves, `games/`, `bios/`, and `covers/`. Extract the
+v0.1.1 `PS5DreamcastX/` folder into that new location (overwrite
+app binaries/assets, **not** your games and saves). Do not leave two
+active copies with the same Title ID. The old v0.1.0 self-updater
+expects a `PPSA99765/` ZIP and **cannot perform this folder migration**:
+install v0.1.1 manually or through a TESTBUILDS installer that honors the
+folder name inside the ZIP.
 
 ### DualSense
 

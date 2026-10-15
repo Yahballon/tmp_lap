@@ -12,8 +12,13 @@ assert 'void drawDreamcastXShelf(' in (src/"dreamcastx_shelf.inc").read_text()
 meta=json.loads((src/"sce_sys/param.json").read_text())
 assert meta["titleId"]=="PPSA99765"
 assert meta["localizedParameters"]["en-US"]["titleName"]=="PS5DreamcastX"
-assert "PPSA99765" in (src/"build.sh").read_text()
-assert "PS5_VERSION \"0.1.0\"" in (src/"ps5_build.h").read_text()
+assert "title=PS5DreamcastX" in (src/"build.sh").read_text()
+assert "/data/homebrew/PS5DreamcastX/" in (src/"ps5_main.cpp").read_text()
+assert 'candidates.push_back("/data/homebrew/PS5DreamcastX");' in (src/"ps5_main.cpp").read_text()
+assert 'discoverDreamcastXUsbDirs("/mnt/usb", 8)' in (src/"ps5_main.cpp").read_text()
+assert 'bool usb = true;' in (src/"ps5_frontend.h").read_text()
+assert '"PS5DreamcastX/"' in (src/"ps5_update.cpp").read_text()
+assert "PS5_VERSION \"0.1.1\"" in (src/"ps5_build.h").read_text()
 feed=(src/"ps5_update.cpp").read_text()
 assert "Yahballon/tmp_lap/releases" in feed
 assert "ps5-dreamcastx-v" in feed

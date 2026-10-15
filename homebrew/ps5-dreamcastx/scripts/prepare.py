@@ -11,6 +11,8 @@ ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
+APP_FOLDER="PS5DreamcastX"
+VERSION="0.1.1"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -54,12 +56,48 @@ def adapt():
         t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
                     '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
     marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.1.0"' not in t:
+    if marker in t and '"v0.1.1"' not in t:
         t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.1.0");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.0");',1)
+            'const ImVec2 vs = textSize(regular(), 17, "v0.1.1");\n\t'
+            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.1");',1)
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
+
+    # Rename the physical ShadowMount folder, not the mandatory PPSA titleId.
+    main=p/"ps5_main.cpp"
+    m=main.read_text()
+    assert m.count('candidates.push_back("/data/homebrew/PPSA99765");') == 1
+    m=m.replace('/data/homebrew/PPSA99765/', '/data/homebrew/PS5DreamcastX/')
+    m=m.replace('candidates.push_back("/data/homebrew/PPSA99765");',
+                'candidates.push_back("/data/homebrew/PS5DreamcastX");')
+    start=m.index('void findUsbDirs()')
+    end=m.index('// The folders in emu.cfg',start)
+    m=m[:start]+'''#include "dreamcastx_usb.inc"
+
+void findUsbDirs()
+{
+    ps5::usbDirs = discoverDreamcastXUsbDirs("/mnt/usb", 8);
+    for (const std::string& dir : ps5::usbDirs)
+        ps5::diag::mark("usb: DreamcastX game directory: %s", dir.c_str());
+    ps5::diag::mark("usb: %d game folder(s)", (int)ps5::usbDirs.size());
+}
+
+'''+m[end:]
+    main.write_text(m)
+    shutil.copy2(ROOT/"src/dreamcastx_usb.inc",p/"dreamcastx_usb.inc")
+
+    library=p/"ps5_library.cpp"
+    l=library.read_text()
+    l=l.replace('"/data/homebrew/PPSA99765/"',
+                '"/data/homebrew/PS5DreamcastX/", "/data/homebrew/PPSA99765/"')
+    library.write_text(l)
+
+    # Fresh installs discover USB sources automatically when elfldr is available.
+    # Existing frontend.cfg with usb=0 stays user-controlled (enable in Settings).
+    frontend=p/"ps5_frontend.h"
+    f=frontend.read_text()
+    assert f.count("bool usb = false;") == 1
+    frontend.write_text(f.replace("bool usb = false;", "bool usb = true;", 1))
 
     # Never offer another tmp_lap application's ZIP as an update.
     # The upstream download/update code uses a release list; constrain both
@@ -67,6 +105,10 @@ def adapt():
     updater=p/"ps5_update.cpp"
     u=updater.read_text()
     u=u.replace("Press5elect/PSFlycast/releases","Yahballon/tmp_lap/releases")
+    # Self-update reads files from the packaged folder; the Title ID is NOT the installation path.
+    u=u.replace('constexpr const char *TitleFolder = "PPSA99765/";',
+                'constexpr const char *TitleFolder = "PS5DreamcastX/";')
+    assert 'constexpr const char *TitleFolder = "PS5DreamcastX/";' in u
     tag='release.tag = entry["tag_name"].get<std::string>();'
     if tag not in u:
         raise RuntimeError("Upstream updater tag hook changed")
@@ -90,9 +132,9 @@ def adapt():
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 1',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 2',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.0"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.1"',v)
     assert n==1
     ver.write_text(v)
 
@@ -101,7 +143,7 @@ def adapt():
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.000"
+    data["contentVersion"]="01.000.001"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
     meta.write_text(json.dumps(data,indent=2)+"\n")
@@ -111,6 +153,8 @@ def adapt():
     shutil.copy2(out,p/"sce_sys/icon0.png")
     script=p/"build.sh"
     s=script.read_text()
+    assert "title=PPSA99765" in s
+    s=s.replace("title=PPSA99765", "title=PS5DreamcastX", 1)
     # Old PSFlyCast startup artwork/audio must not appear under our branding.
     s=re.sub(r'^cp -- "\$src/shell/ps5/sce_sys/pic0.dds".*?\n','',s,flags=re.M)
     s=re.sub(r'^cp -- "\$src/shell/ps5/sce_sys/snd0.at9".*?\n','',s,flags=re.M)
