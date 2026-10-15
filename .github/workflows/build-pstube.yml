@@ -112,6 +112,10 @@ jobs:
             app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
             -lssl -lcrypto -o /tmp/pstube-native-pagination
           timeout 100s /tmp/pstube-native-pagination
+      - name: Diagnose multi-page YouTube continuation token structure
+        continue-on-error: true
+        timeout-minutes: 3
+        run: python3 homebrew/pstube/tests/probe_deep_pagination.py
       - name: Probe public API availability (non-blocking diagnostic)
         continue-on-error: true
         run: |
