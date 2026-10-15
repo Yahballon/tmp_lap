@@ -10,7 +10,7 @@ import shutil
 ROOT = Path(__file__).resolve().parents[1]
 ORIGINAL = ROOT / "upstream/PS5SNESX"
 OUTPUT = ROOT / "build/port-src"
-TITLE_ID = "PPSA99206"
+TITLE_ID = "PPSA99896"
 TITLE = "PS5MesenX"
 
 def replace_required(path, old, new):

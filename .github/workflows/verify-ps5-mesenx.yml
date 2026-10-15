@@ -34,7 +34,7 @@ jobs:
         run: |
           python3 homebrew/ps5-mesenx/scripts/prepare_frontend.py
           test -f homebrew/ps5-mesenx/build/port-src/snes/src/core_session.cpp
-          grep -q "PPSA99206" homebrew/ps5-mesenx/build/port-src/snes/sce_sys/param.json
+          grep -q "PPSA99896" homebrew/ps5-mesenx/build/port-src/snes/sce_sys/param.json
       - name: Compile native bridge C++ syntax (Linux host)
         run: |
           M=homebrew/ps5-mesenx/upstream/MesenCE
