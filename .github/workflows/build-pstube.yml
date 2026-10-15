@@ -30,7 +30,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.011')
+          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.012')
           d['localizedParameters']['en-US']['titleName']='PSTUBE'
           p.write_text(json.dumps(d,indent=2)+'\n')
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
@@ -158,7 +158,7 @@ jobs:
           def check(domain):
               try:
                   request=urllib.request.Request('https://'+domain+'/api/v1/search?q=ps5&type=video',
-                      headers={'User-Agent':'PSTUBE/0.7.2','Accept':'application/json'})
+                      headers={'User-Agent':'PSTUBE/0.7.3','Accept':'application/json'})
                   with urllib.request.urlopen(request,timeout=8) as response:
                       data=json.load(response)
                   valid=isinstance(data,list) and sum(bool(x.get('videoId')) for x in data if isinstance(x,dict))
@@ -249,9 +249,9 @@ jobs:
           root=pathlib.Path('app/dist/PPSA99762')
           executable=(root/'eboot.bin').read_bytes()
           assert len(executable)>1000 and struct.unpack('<I',executable[:4])[0]==0x1D3D154F
-          assert b'v0.7.2' in executable
+          assert b'v0.7.3' in executable
           d=json.loads((root/'sce_sys/param.json').read_text())
-          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.011'
+          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.012'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/videos/pstube-selftest.mp4']:
             assert (root/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99762.zip') as z:
@@ -260,7 +260,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PSTUBE-v0.7.2
+          name: PSTUBE-v0.7.3
           path: app/dist/PPSA99762.zip
           if-no-files-found: error
       - name: Publish alpha release
@@ -268,5 +268,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view pstube-v0.7.2 >/dev/null 2>&1; then exit 0; fi
-          gh release create pstube-v0.7.2 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.7.2 (Selectable HD Quality 720p/1080p)" --notes-file homebrew/pstube/RELEASE_NOTES.md
+          if gh release view pstube-v0.7.3 >/dev/null 2>&1; then exit 0; fi
+          gh release create pstube-v0.7.3 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.7.3 (Selectable HD Quality 720p/1080p)" --notes-file homebrew/pstube/RELEASE_NOTES.md
