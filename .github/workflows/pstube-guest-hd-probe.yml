@@ -1,0 +1,17 @@
+name: PSTUBE Guest HD Playback Probe
+on:
+  pull_request:
+    paths:
+      - 'homebrew/pstube/tests/guest_hd_client_probe.py'
+      - '.github/workflows/pstube-guest-hd-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  guest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify public client guest playback
+        run: python3 homebrew/pstube/tests/guest_hd_client_probe.py
