@@ -72,6 +72,23 @@ echo "PS5 shader compiler SDK source checkout: $PS5_OPENGL_SDK"
 bash tools/fetch-mesa.sh
 bash tools/build-psbc-ps5.sh
 bash tools/build-vulkan-runtime.sh
+# build-driver.sh signs two Vulkan modules using PS5_Vulkan's own native
+# host-side ELF/FSELF converter. Unlike "make" (which builds a demo), build
+# only this prerequisite using upstream's exact tools/build.sh compiler recipe.
+native="$vulkan/tooling/native"
+zlib_root="$vulkan/.deps/native/zlib/root"
+zlib_archive=$(find "$zlib_root" -type f -name libz.a -print -quit)
+test -s "$zlib_archive" || { echo "Missing pinned host zlib.a" >&2; exit 1; }
+test -f "$native/native_app_builder.cpp"
+mkdir -p "$vulkan/build/host"
+host_tool="$vulkan/build/host/ps5-native-tool"
+cxx=$(command -v clang++-18 || command -v clang++)
+"$cxx" -std=c++20 -O2 -Wall -Wextra -Werror \
+  -I "$zlib_root/usr/include" \
+  "$native/native_app_builder.cpp" "$native/self_container.cpp" \
+  "$native/elf_object.cpp" "$native/sce_module_writer.cpp" \
+  "$zlib_archive" -o "$host_tool"
+test -x "$host_tool" || { echo "Host PS5 SELF converter not built" >&2; exit 1; }
 bash tools/build-driver.sh
 for archive in \
   build/driver/ps5/libps5vk.ps5.a \
