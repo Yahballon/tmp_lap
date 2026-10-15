@@ -1,0 +1,63 @@
+# PS5MesenX — MesenCE PS5 port workspace
+
+**Status (2026-10-15): source-import / HD-pack preparation, NOT a playable PS5 build.**
+
+This independent workspace preserves the existing PS5SNESX application and imports
+the PS5 frontend and Mesen Community Edition sources at pinned revisions.
+It intentionally does not publish an `eboot.bin` or add itself to TESTBUILDS
+until a real native PS5 MesenCE core has been linked and tested.
+
+## Upstreams
+
+- PS5SNESX frontend: https://github.com/Yahballon/PS5SNESX
+- Mesen Community Edition: https://github.com/nesdev-org/MesenCE
+- Both GPL-3.0 projects; retain all original copyright, license and notices.
+
+Run the **Sync PS5MesenX upstream sources** GitHub Actions workflow to vendor
+the pinned sources into `homebrew/ps5-mesenx/upstream/`. The workflow does not
+overwrite the existing PS5SNESX repository or other homebrew projects.
+
+## Goal: NES HD Packs
+
+Zelda: Remastered is an **NES** HD pack, not an SNES ROM. MesenCE already
+has `Core/NES/HdPacks/HdPackLoader.cpp`, `HdNesPpu`, high-resolution video
+and HD audio facilities, but these are **not yet wired to the PS5 frontend**.
+
+Target PS5 paths (planned, not yet active):
+
+```text
+/data/PS5MesenX/games/nes/The Legend of Zelda.nes
+/data/PS5MesenX/HdPacks/The Legend of Zelda/hires.txt
+/data/PS5MesenX/HdPacks/The Legend of Zelda/<graphics-and-audio-assets>
+/mnt/usb0/PS5MesenX/games/nes/
+/mnt/usb0/PS5MesenX/HdPacks/
+```
+
+The pack folder must match the ROM filename without its extension; follow
+the pack author's ROM revision/hash requirements. Zelda: Remastered is
+designed for a specific US NES revision, not arbitrary Zelda ROMs.
+
+To prepare an HD pack on a PC:
+
+```bash
+python3 homebrew/ps5-mesenx/scripts/hdpack.py install \
+  ./downloaded-hd-pack.zip --rom "The Legend of Zelda.nes" \
+  --output ./PS5MesenX/HdPacks
+```
+
+The tool validates the archive structure, rejects traversal/symlinks and
+extracts into the matching game directory. This is a *staging tool*, not
+proof of PS5 playback support. No commercial ROMs, copyright-protected
+game art or third-party HD packs are bundled.
+
+## Current milestones
+
+1. [x] Define isolated project and pinned upstream source-import workflow.
+2. [x] Provide safe HD pack staging and automated tests.
+3. [ ] Compile the MesenCE native C++ core for PS5 using the SDK.
+4. [ ] Implement the MesenCE-to-PS5 session adapter, callbacks and storage.
+5. [ ] Wire video frames above 512x576, OGG audio, DualSense and SRAM/states.
+6. [ ] Load verified NES HD packs on an actual PS5.
+7. [ ] Produce signed app ZIP, release and TESTBUILDS version.json entry.
+
+Read [PORTING.md](PORTING.md) before changing the emulation backend.

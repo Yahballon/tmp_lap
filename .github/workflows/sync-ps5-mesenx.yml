@@ -1,0 +1,60 @@
+name: Sync PS5MesenX upstream sources
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-ps5-mesenx.yml'
+      - 'homebrew/ps5-mesenx/README.md'
+      - 'homebrew/ps5-mesenx/PORTING.md'
+      - 'homebrew/ps5-mesenx/scripts/**'
+      - 'homebrew/ps5-mesenx/tests/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ps5-mesenx-source-sync
+  cancel-in-progress: false
+
+jobs:
+  import-and-validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Validate HD pack safety tests
+        run: python3 -m unittest discover -s homebrew/ps5-mesenx/tests -v
+      - name: Import pinned PS5SNESX and MesenCE source trees
+        run: python3 homebrew/ps5-mesenx/scripts/sync_sources.py
+      - name: Verify source revision manifest and imported HD pack loader
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('homebrew/ps5-mesenx/upstream')
+          manifest = json.loads((root/'UPSTREAM_SOURCES.json').read_text())
+          assert set(manifest) == {'PS5SNESX', 'MesenCE'}
+          loader = (root/'MesenCE/Core/NES/HdPacks/HdPackLoader.cpp').read_text()
+          assert 'hires.txt' in loader and 'GetHdPackFolder' in loader
+          assert (root/'PS5SNESX/snes/src/core_session.cpp').is_file()
+          print('PASS: pinned upstream source import and NES HD pack engine present')
+          PY
+      - name: Commit imported source snapshot
+        run: |
+          if [ -z "$(git status --porcelain -- homebrew/ps5-mesenx/upstream)" ]; then
+            echo 'Imported sources are unchanged'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A homebrew/ps5-mesenx/upstream
+          git commit -m 'build(mesenx): vendor pinned PS5SNESX and MesenCE native sources'
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            git push origin HEAD:main && exit 0
+            sleep 3
+          done
+          exit 1
