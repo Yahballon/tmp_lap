@@ -5,7 +5,7 @@
 #include <vector>
 namespace usbaudio {
 struct Entry {std::string relative;size_t bytes=0;};
-struct Catalog {std::vector<Entry> books;std::string message;bool viaHelper=false;};
+struct Catalog {std::vector<Entry> books;std::string message;std::string usbRoot;bool viaHelper=false;};
 Catalog scan();
 using ProgressCallback=bool (*)(size_t transferred,size_t total,void* context);
 bool fetch(const Entry& book,std::string& localPath,std::string& error,

@@ -24,13 +24,17 @@
 #define MAX_PATH 512
 #define MAX_FILE (8ULL * 1024ULL * 1024ULL * 1024ULL)
 #ifndef PORT
-#define PORT 9177
+#define PORT 9178
 #endif
 struct Item {char relative[MAX_PATH];off_t size;};
 static struct Item items[MAX_BOOKS];
 static unsigned item_count;
-static const char *roots[] = {AUDIOBOOK_USB_ROOT, "/mnt/usb0/abooks", "/usb0/ABooks", "/usb0/abooks"};
+static const char *roots[] = {
+ AUDIOBOOK_USB_ROOT, "/mnt/usb0/abooks", "/mnt/usb1/ABooks", "/mnt/usb1/abooks",
+ "/usb0/ABooks", "/usb0/abooks", "/usb1/ABooks", "/usb1/abooks"
+};
 static char selected_root[MAX_PATH];
+static char last_error[148];
 
 static int write_all(int fd,const void *ptr,size_t bytes) {
  const char *p=(const char *)ptr;
@@ -71,7 +75,7 @@ static void add_books(const char *dir,const char *rel,unsigned depth,unsigned *b
  closedir(d);
 }
 static int scan(void){
- item_count=0;selected_root[0]='\0';
+ item_count=0;selected_root[0]='\0';last_error[0]='\0';
  for(unsigned r=0;r<sizeof(roots)/sizeof(roots[0]);r++){
   DIR *d=opendir(roots[r]);
   if(!d)continue;
@@ -81,11 +85,29 @@ static int scan(void){
   add_books(selected_root,"",0,&budget);
   return 1;
  }
+ // Report whether the USB mount exists separately from a missing ABooks folder.
+ // Avoid enumerating or reading other folders; only inspect mount availability.
+ struct stat mount;
+ if(stat("/mnt/usb0",&mount)==0 && S_ISDIR(mount.st_mode))
+  snprintf(last_error,sizeof(last_error),
+    "ABooks missing under /mnt/usb0 (create /mnt/usb0/ABooks); also tried usb1");
+ else if(stat("/mnt/usb1",&mount)==0 && S_ISDIR(mount.st_mode))
+  snprintf(last_error,sizeof(last_error),
+    "ABooks missing on USB; checked /mnt/usb0 and /mnt/usb1");
+ else snprintf(last_error,sizeof(last_error),
+    "USB mounts not accessible to helper (/mnt/usb0, /mnt/usb1)");
  return 0;
 }
 static int emit_catalog(int fd){
- if(!scan())return write_all(fd,"ABOOK1\nERROR USB ABooks not accessible\n",strlen("ABOOK1\nERROR USB ABooks not accessible\n"));
+ if(!scan()){
+  char output[256];
+  int n=snprintf(output,sizeof(output),"ABOOK1\nERROR %s\nDONE\n",last_error);
+  return n>0 && n<(int)sizeof(output) && write_all(fd,output,(size_t)n);
+ }
  if(!write_all(fd,"ABOOK1\n",7))return 0;
+ char root_line[560];
+ int rootlen=snprintf(root_line,sizeof(root_line),"ROOT %s\n",selected_root);
+ if(rootlen<0||rootlen>=(int)sizeof(root_line)||!write_all(fd,root_line,(size_t)rootlen))return 0;
  for(unsigned i=0;i<item_count;i++){
   const struct Item *b=&items[i];char line[96];
   int n=snprintf(line,sizeof(line),"ITEM %zu %lld\n",strlen(b->relative),(long long)b->size);

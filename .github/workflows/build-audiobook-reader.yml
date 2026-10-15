@@ -28,6 +28,36 @@ jobs:
           g++ -std=c++20 -O2 -pthread -Wall -Wextra             -Ihomebrew/audiobook-reader/native -c             homebrew/audiobook-reader/native/audio_player.cpp             $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2)             -o /tmp/audiobook-player.o
           ffmpeg -hide_banner -loglevel error -nostdin -y -f lavfi -i 'sine=frequency=440:sample_rate=48000' -t 3 -c:a aac -b:a 96k -f mp4 /tmp/audiobook-test.m4b
           ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1 /tmp/audiobook-test.m4b | grep -q aac
+      - name: Verify USB ABooks mount diagnostics
+        run: |
+          mkdir -p /tmp/audiobook-diagnostics/ABooks
+          printf 'test' > /tmp/audiobook-diagnostics/ABooks/First.m4b
+          gcc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -DAUDIOBOOK_USB_TEST \
+            -DAUDIOBOOK_USB_ROOT='"/tmp/audiobook-diagnostics/ABooks"' \
+            homebrew/audiobook-reader/helper/abookscan.c -o /tmp/abookscan-diagnostic
+          /tmp/abookscan-diagnostic > /tmp/abookscan-catalog
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path('/tmp/abookscan-catalog').read_bytes()
+          assert b'ABOOK1\n' in data
+          assert b'ROOT /tmp/audiobook-diagnostics/ABooks\n' in data
+          assert b'First.m4b' in data
+          assert data.endswith(b'DONE\n')
+          print('PASS: ABooks catalog root and M4B listing')
+          PY
+          gcc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -DAUDIOBOOK_USB_TEST \
+            -DAUDIOBOOK_USB_ROOT='"/tmp/audiobook-diagnostics/missing"' \
+            homebrew/audiobook-reader/helper/abookscan.c -o /tmp/abookscan-missing
+          /tmp/abookscan-missing > /tmp/abookscan-error
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path('/tmp/abookscan-error').read_bytes()
+          assert data.startswith(b'ABOOK1\nERROR ')
+          assert data.endswith(b'DONE\n')
+          print('PASS: missing ABooks mount returns actionable terminal diagnostic')
+          PY
       - name: Test USB ABooks discovery and interrupted transfers
         run: |
           python3 homebrew/audiobook-reader/tests/generate_usb_transfer_fixture.py /tmp/audiobook-usb-ci
@@ -117,7 +147,7 @@ jobs:
           title=metadata['titleId'];root=pathlib.Path('app/dist')/title
           exe=(root/'eboot.bin').read_bytes()
           assert len(exe)>1000 and struct.unpack('<I',exe[:4])[0]==0x1D3D154F
-          assert b'v0.2.0' in exe
+          assert b'v0.2.1' in exe
           param=json.loads((root/'sce_sys/param.json').read_text())
           assert param['titleId']==title and param['contentVersion']==metadata['contentVersion']
           for file in ['sce_sys/icon0.png','sce_module/libc.prx','assets/icon0.png','assets/fonts/inter-semibold.huifont','assets/ABooks/README.txt','abookscan.elf']:
@@ -131,7 +161,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Audiobook-Reader-v0.2.0
+          name: Audiobook-Reader-v0.2.1
           path: app/dist/PPSA99784.zip
           if-no-files-found: error
       - name: Publish release after main branch build
@@ -139,5 +169,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view audiobook-reader-v0.2.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create audiobook-reader-v0.2.0 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.0" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
+          if gh release view audiobook-reader-v0.2.1 >/dev/null 2>&1; then exit 0; fi
+          gh release create audiobook-reader-v0.2.1 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.1" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
