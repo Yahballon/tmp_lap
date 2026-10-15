@@ -22,7 +22,7 @@
 namespace usbaudio {
 namespace {
 #ifndef AUDIOBOOK_USB_BRIDGE_PORT
-#define AUDIOBOOK_USB_BRIDGE_PORT 9177
+#define AUDIOBOOK_USB_BRIDGE_PORT 9178
 #endif
 #ifndef AUDIOBOOK_USB_CACHE_ROOT
 #define AUDIOBOOK_USB_CACHE_ROOT AUDIOBOOK_DATA_ROOT "/Cache"
@@ -200,10 +200,10 @@ bool entry_from_remote(const std::string& path,Entry& out){
 Catalog scan(){
  Catalog out;
  std::string bytes;
- audio_log::write("USB_SCAN_BEGIN","Trying helper :9177 then launching through elfldr :9021");
+ audio_log::write("USB_SCAN_BEGIN","Trying helper :9178 then launching through elfldr :9021");
  if(local_catalog(bytes)){
   out.viaHelper=true;
-  audio_log::write("USB_HELPER_REUSE","Connected to ABooks helper on 9177");
+  audio_log::write("USB_HELPER_REUSE","Connected to ABooks helper on 9178");
  }else if(start_helper(bytes,out.message)){
   out.viaHelper=true;
   audio_log::write("USB_HELPER_READY","ABooks helper returned catalog");
