@@ -200,14 +200,31 @@ bool entry_from_remote(const std::string& path,Entry& out){
 Catalog scan(){
  Catalog out;
  std::string bytes;
- if(local_catalog(bytes)){out.viaHelper=true;}
- else if(start_helper(bytes,out.message)){out.viaHelper=true;}
- else return out;
- if(!parse(bytes,out)){out.message="Invalid USB helper catalog";out.books.clear();out.viaHelper=false;}
- else if(out.message.empty())out.message=std::to_string(out.books.size())+" USB audiobooks available via elfldr";
+ audio_log::write("USB_SCAN_BEGIN","Trying helper :9177 then launching through elfldr :9021");
+ if(local_catalog(bytes)){
+  out.viaHelper=true;
+  audio_log::write("USB_HELPER_REUSE","Connected to ABooks helper on 9177");
+ }else if(start_helper(bytes,out.message)){
+  out.viaHelper=true;
+  audio_log::write("USB_HELPER_READY","ABooks helper returned catalog");
+ }else{
+  known.clear();
+  audio_log::write("USB_SCAN_ERROR",out.message);
+  return out;
+ }
+ if(!parse(bytes,out)){
+  out.message="Invalid ABooks helper catalog";
+  out.books.clear();out.viaHelper=false;
+ }else if(out.message.empty()){
+  out.message=std::to_string(out.books.size())+" USB audiobooks via "+
+   (out.usbRoot.empty()?"elfldr":out.usbRoot);
+ }
  known=out.books;
+ audio_log::write(out.viaHelper?"USB_SCAN_DONE":"USB_SCAN_ERROR",
+  "USB="+std::to_string(out.books.size())+" "+out.message);
  return out;
 }
+
 bool cached_copy(const Entry& book,std::string& localPath){
  if(!safe(book.relative)||!book.bytes)return false;
  std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
