@@ -28,6 +28,36 @@ jobs:
           g++ -std=c++20 -O2 -pthread -Wall -Wextra             -Ihomebrew/audiobook-reader/native -c             homebrew/audiobook-reader/native/audio_player.cpp             $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2)             -o /tmp/audiobook-player.o
           ffmpeg -hide_banner -loglevel error -nostdin -y -f lavfi -i 'sine=frequency=440:sample_rate=48000' -t 3 -c:a aac -b:a 96k -f mp4 /tmp/audiobook-test.m4b
           ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1 /tmp/audiobook-test.m4b | grep -q aac
+      - name: Verify USB ABooks mount diagnostics
+        run: |
+          mkdir -p /tmp/audiobook-diagnostics/ABooks
+          printf 'test' > /tmp/audiobook-diagnostics/ABooks/First.m4b
+          gcc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -DAUDIOBOOK_USB_TEST \
+            -DAUDIOBOOK_USB_ROOT='"/tmp/audiobook-diagnostics/ABooks"' \
+            homebrew/audiobook-reader/helper/abookscan.c -o /tmp/abookscan-diagnostic
+          /tmp/abookscan-diagnostic > /tmp/abookscan-catalog
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path('/tmp/abookscan-catalog').read_bytes()
+          assert b'ABOOK1\n' in data
+          assert b'ROOT /tmp/audiobook-diagnostics/ABooks\n' in data
+          assert b'First.m4b' in data
+          assert data.endswith(b'DONE\n')
+          print('PASS: ABooks catalog root and M4B listing')
+          PY
+          gcc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -DAUDIOBOOK_USB_TEST \
+            -DAUDIOBOOK_USB_ROOT='"/tmp/audiobook-diagnostics/missing"' \
+            homebrew/audiobook-reader/helper/abookscan.c -o /tmp/abookscan-missing
+          /tmp/abookscan-missing > /tmp/abookscan-error
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path('/tmp/abookscan-error').read_bytes()
+          assert data.startswith(b'ABOOK1\nERROR ')
+          assert data.endswith(b'DONE\n')
+          print('PASS: missing ABooks mount returns actionable terminal diagnostic')
+          PY
       - name: Test USB ABooks discovery and interrupted transfers
         run: |
           python3 homebrew/audiobook-reader/tests/generate_usb_transfer_fixture.py /tmp/audiobook-usb-ci
