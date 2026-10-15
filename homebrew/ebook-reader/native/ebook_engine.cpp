@@ -228,23 +228,121 @@ void append_lines(Document& d,const std::string& text){
  }
  add();if(!line.empty())flush();
 }
-bool epub(const std::string& path,Document& out){
- Zip zip;if(!zip.open(path)){out.error="EPUB ZIP container is invalid or too large";return false;}
+
+// EPUB asset handling deliberately stays within this book's ZIP archive.
+// No external image URLs, HTML scripts, SVG or filesystem paths are executed.
+struct ManifestImage {std::string id,path,media,properties;};
+std::vector<ManifestImage> image_manifest(const std::string& opf,const std::string& opfPath){
+ std::vector<ManifestImage> result;
+ size_t p=0;
+ while((p=xml_start(opf,"item",p))!=std::string::npos && result.size()<3000){
+  const size_t q=opf.find('>',p);if(q==std::string::npos)break;
+  const std::string tag=opf.substr(p,q-p+1);p=q+1;
+  const std::string href=decode(attr(tag,"href"));
+  const std::string location=resolve(opfPath,href);
+  if(location.empty())continue;
+  result.push_back({attr(tag,"id"),location,lower(attr(tag,"media-type")),attr(tag,"properties")});
+ }
+ return result;
+}
+bool supported_picture(const std::string& path){
+ return ends(path,".jpg")||ends(path,".jpeg")||ends(path,".png")||ends(path,".gif");
+}
+std::string picture_from_zip(const Zip& zip,const std::string& path){
+ if(!supported_picture(path))return {};
+ std::string bytes;
+ if(!zip.get(path,bytes)||bytes.empty()||bytes.size()>3*1024*1024)return {};
+ return bytes;
+}
+std::string package_cover(const Zip& zip,const std::string& opf,const std::string& opfPath){
+ auto images=image_manifest(opf,opfPath);
+ std::string targetId;
+ size_t p=0;
+ while((p=xml_start(opf,"meta",p))!=std::string::npos){
+  const auto q=opf.find('>',p);if(q==std::string::npos)break;
+  const auto tag=opf.substr(p,q-p+1);p=q+1;
+  if(lower(attr(tag,"name"))=="cover"){targetId=attr(tag,"content");break;}
+ }
+ // EPUB3 cover-image has priority over EPUB2's legacy meta element.
+ for(const auto& im:images){
+  if(im.properties.find("cover-image")!=std::string::npos && supported_picture(im.path)){
+   auto bytes=picture_from_zip(zip,im.path);if(!bytes.empty())return bytes;
+  }
+ }
+ for(const auto& im:images){
+  if(im.id==targetId && !targetId.empty() && supported_picture(im.path)){
+   auto bytes=picture_from_zip(zip,im.path);if(!bytes.empty())return bytes;
+  }
+ }
+ // EPUBs without cover metadata sometimes use a cover.xhtml wrapper.
+ // Prefer a file with 'cover' in its filename over arbitrary chapter illustrations.
+ for(const auto& im:images){
+  if(lower(im.path).find("cover")!=std::string::npos && supported_picture(im.path)){
+   auto bytes=picture_from_zip(zip,im.path);if(!bytes.empty())return bytes;
+  }
+ }
+ for(const auto& im:images)if(supported_picture(im.path)){
+  auto bytes=picture_from_zip(zip,im.path);if(!bytes.empty())return bytes;
+ }
+ return {};
+}
+bool load_epub_opf(const Zip& zip,std::string& opfPath,std::string& opf,std::string& error){
  std::string container;
- if(!zip.get("META-INF/container.xml",container)){out.error="Missing EPUB container.xml";return false;}
+ if(!zip.get("META-INF/container.xml",container)){error="Missing EPUB container.xml";return false;}
  size_t p=0,q=0;
- std::string opfPath;
- // Choose the first valid rootfile, including namespaced <ocf:rootfile>.
- // Never match the <rootfiles> parent or a comment containing "rootfile".
  for(p=xml_start(container,"rootfile");p!=std::string::npos;p=xml_start(container,"rootfile",q+1)){
-  q=container.find('>',p);
-  if(q==std::string::npos){out.error="Malformed EPUB container.xml";return false;}
-  const auto value=decode(attr(container.substr(p,q-p+1),"full-path"));
-  opfPath=resolve("",value);
+  q=container.find('>',p);if(q==std::string::npos)break;
+  opfPath=resolve("",decode(attr(container.substr(p,q-p+1),"full-path")));
   if(!opfPath.empty())break;
  }
- if(opfPath.empty()){out.error="Cannot resolve EPUB package: missing rootfile full-path";return false;}
- std::string opf;if(!zip.get(opfPath,opf)){out.error="Cannot read EPUB package: "+opfPath;return false;}
+ if(opfPath.empty()){error="Cannot resolve EPUB package";return false;}
+ if(!zip.get(opfPath,opf)){error="Cannot read EPUB package: "+opfPath;return false;}
+ return true;
+}
+void append_chapter_with_images(Document& doc,const Zip& zip,const std::string& chapter,
+                                const std::string& chapterPath){
+ size_t cursor=0,search=0;
+ while(search<chapter.size() && doc.images.size()<48 && doc.lines.size()<100000){
+  size_t p=chapter.find('<',search);
+  if(p==std::string::npos)break;
+  size_t at=p+1;
+  if(at>=chapter.size() || chapter[at]=='/' || chapter[at]=='!'){search=p+1;continue;}
+  size_t nameEnd=at;
+  while(nameEnd<chapter.size() && (std::isalnum((unsigned char)chapter[nameEnd])||
+       chapter[nameEnd]==':'||chapter[nameEnd]=='-'||chapter[nameEnd]=='_'))++nameEnd;
+  const std::string element=lower(chapter.substr(at,nameEnd-at));
+  const auto colon=element.find_last_of(':');
+  const auto name=element.substr(colon==std::string::npos?0:colon+1);
+  if(name!="img" && name!="image"){search=p+1;continue;}
+  const size_t end=chapter.find('>',nameEnd);
+  if(end==std::string::npos)break;
+  const std::string tag=chapter.substr(p,end-p+1);
+  auto href=decode(attr(tag,"src"));
+  if(href.empty())href=decode(attr(tag,"href"));
+  if(href.empty())href=decode(attr(tag,"xlink:href"));
+  const auto internal=resolve(chapterPath,href);
+  std::string bytes=picture_from_zip(zip,internal);
+  if(!bytes.empty()){
+   append_lines(doc,strip_markup(chapter.substr(cursor,p-cursor)));
+   const size_t row=doc.lines.size()%17;
+   if(row>10){for(size_t k=row;k<17;k++)doc.lines.emplace_back();}
+   InlineImage im;im.line=doc.lines.size();im.encoded=std::move(bytes);
+   im.alt=decode(attr(tag,"alt"));
+   if(im.alt.size()>120)im.alt.resize(120);
+   doc.images.push_back(std::move(im));
+   for(int k=0;k<7;k++)doc.lines.emplace_back();
+   cursor=end+1;
+  }
+  search=end+1;
+ }
+ if(cursor<chapter.size())append_lines(doc,strip_markup(chapter.substr(cursor)));
+}
+bool epub(const std::string& path,Document& out){
+ Zip zip;if(!zip.open(path)){out.error="EPUB ZIP container is invalid or too large";return false;}
+ std::string opfPath,opf;
+ if(!load_epub_opf(zip,opfPath,opf,out.error))return false;
+ out.coverImage=package_cover(zip,opf,opfPath);
+ size_t p=0,q=0;
  out.title=decode(tag_text(opf,"dc:title"));
  out.author=decode(tag_text(opf,"dc:creator"));
  std::map<std::string,std::string> manifest;
@@ -264,7 +362,7 @@ bool epub(const std::string& path,Document& out){
   std::string chapter;if(!zip.get(it->second,chapter))continue;
   if(chapter.size()>kMaxEntry)continue;
   out.chapterStarts.push_back(out.pageCount());
-  append_lines(out,strip_markup(chapter));
+  append_chapter_with_images(out,zip,chapter,it->second);
   out.lines.emplace_back();
   ++total;
  }
@@ -434,6 +532,14 @@ std::string clean_title(std::string name){
  if(ends(name,".pdf"))name.resize(name.size()-4);
  for(char& c:name)if(c=='_'||c=='-')c=' ';
  return name;
+}
+bool read_epub_cover(const std::string& path,std::string& encoded){
+ encoded.clear();
+ Zip zip;if(!zip.open(path))return false;
+ std::string opf,opfPath,error;
+ if(!load_epub_opf(zip,opfPath,opf,error))return false;
+ encoded=package_cover(zip,opf,opfPath);
+ return !encoded.empty();
 }
 bool read_document(const std::string& path,Document& out){
  out=Document{};out.format=ends(path,".pdf")?"PDF":"EPUB";
