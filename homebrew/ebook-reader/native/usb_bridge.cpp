@@ -2,6 +2,7 @@
 // LauncherX-style USB bridge: dedicated read-only ELF helper via elfldr :9021.
 // Local library files are never sent to the USB helper.
 #include "usb_bridge.hpp"
+#include "ebook_log.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -11,7 +12,6 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <cstdint>
@@ -134,33 +134,28 @@ uint64_t fnv64(const std::string& name){
  for(unsigned char c:name){h^=c;h*=1099511628211ULL;}
  return h;
 }
-bool cachedir(size_t needed,std::string& dir,std::string& why){
- // Comics are larger than ebooks; a writable mount can still be full.
- size_t biggest=0;
- bool writeable=false;
-
+bool cachedir(std::string& dir,std::string& why){
+ // The PS5 POSIX compatibility layer does not guarantee statvfs support.
+ // Calling an unresolved runtime function when opening ANY USB book can
+ // crash the console. Only use known-good mkdir/fopen/write primitives.
+ // A full disk is reported by fwrite/fflush with errno (ENOSPC), not by a
+ // speculative filesystem-capacity query.
  for(const char* path:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache"}){
   const std::string base=path;
   const auto slash=base.find_last_of('/');
   if(slash!=std::string::npos)mkdir(base.substr(0,slash).c_str(),0755);
-  if(mkdir(path,0755)!=0&&errno!=EEXIST)continue;
-  const auto test=base+"/.write-probe";
-  FILE* f=fopen(test.c_str(),"wb");
-  if(f){
-   fclose(f);remove(test.c_str());writeable=true;
-   struct statvfs fs{};
-   if(statvfs(base.c_str(),&fs)!=0){dir=base;return true;}
-   const unsigned long long freeBytes=(unsigned long long)fs.f_bavail*fs.f_frsize;
-   biggest=std::max(biggest,(size_t)std::min(freeBytes,(unsigned long long)SIZE_MAX));
-   if(freeBytes >= (unsigned long long)needed + 8ULL*1024*1024){
-     dir=base;return true;
-   }
-  }
+  if(mkdir(path,0755)!=0 && errno!=EEXIST)continue;
+  const std::string probe=base+"/.write-probe";
+  FILE* out=fopen(probe.c_str(),"wb");
+  if(!out)continue;
+  const bool writable=fputc('x',out)!=EOF && fflush(out)==0;
+  const int code=errno;
+  fclose(out);
+  remove(probe.c_str());
+  if(writable){dir=base;return true;}
+  if(code==ENOSPC){why="No free storage for book cache";return false;}
  }
- if(!writeable)why="No writable Ebook Reader cache directory";
- else why="Insufficient cache storage: need "+
-       std::to_string((needed+1048575)/1048576)+" MiB, free "+
-       std::to_string(biggest/1048576)+" MiB";
+ why="Cannot access a writable Ebook Reader cache directory";
  return false;
 }
 } // namespace
@@ -186,10 +181,14 @@ Catalog scan(){
 bool fetch(const Entry& book,std::string& localPath,std::string& error){
  std::lock_guard<std::mutex> lock(transferMutex);
  error.clear();
+ ebook_log::write("USB_FETCH_START",book.relative+" bytes="+std::to_string(book.bytes));
  if(!safe(book.relative)||book.bytes==0||book.bytes>kMaxFile){error="Invalid USB book";return false;}
  bool found=false;for(const auto& b:known)if(b.relative==book.relative && b.bytes==book.bytes)found=true;
  if(!found){error="USB catalogue expired; press OPTIONS to refresh";return false;}
- std::string folder;if(!cachedir(book.bytes,folder,error))return false;
+ std::string folder;if(!cachedir(folder,error)){
+  ebook_log::write("USB_CACHE_ERROR",error);
+  return false;
+ }
  std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
  for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
  char hex[24];std::snprintf(hex,sizeof(hex),"%016llx",(unsigned long long)fnv64(book.relative));
@@ -209,7 +208,10 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
                    signature[2]=='D' && signature[3]=='F') ||
                   (suffix==".cbr" && signature[0]=='R' && signature[1]=='a' &&
                    signature[2]=='r' && signature[3]=='!') ||
-                  (suffix==".cbz" && signature[0]=='P' && signature[1]=='K')))return true;
+                  (suffix==".cbz" && signature[0]=='P' && signature[1]=='K'))){
+     ebook_log::write("USB_CACHE_HIT",localPath);
+     return true;
+   }
    }
  }
  // Local cache is title-specific and never touches original USB content.
@@ -240,6 +242,7 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  int ioCode=0;
  const char* reason=nullptr;
  int reconnects=0;
+ size_t nextProgress=16*1024*1024;
  while(written<total){
    const size_t needed=std::min(sizeof(buf),total-written);
    ssize_t got=recv(fd,buf,needed,0);
@@ -248,6 +251,8 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
      ioCode=got<0?errno:0;
      // File transfers may drop during a long USB read. Ask the helper
      // for the remaining bytes instead of discarding successful data.
+     ebook_log::write("USB_RETRY",book.relative+" written="+
+       std::to_string(written)+"/"+std::to_string(total));
      close(fd);fd=-1;
      if(reconnects++<3){
        fd=connect_to(kPort);
@@ -275,6 +280,11 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
      ok=false;break;
    }
    written+=(size_t)got;
+   if(written>=nextProgress){
+     ebook_log::write("USB_PROGRESS",book.relative+" written="+
+       std::to_string(written)+"/"+std::to_string(total));
+     nextProgress=written+16*1024*1024;
+   }
  }
  if(fflush(f)!=0 && ok){
    ioCode=errno;reason="Cache flush failed";ok=false;
@@ -284,7 +294,10 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  }
  if(fd>=0)close(fd);
  if(ok && written==total){
-   if(rename(tmp.c_str(),localPath.c_str())==0)return true;
+   if(rename(tmp.c_str(),localPath.c_str())==0){
+     ebook_log::write("USB_FETCH_OK",localPath+" bytes="+std::to_string(written));
+     return true;
+   }
    ioCode=errno;reason="Cannot finalize cache file";ok=false;
  }
  remove(tmp.c_str());
@@ -292,6 +305,7 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
        " ("+std::to_string(written/1048576)+"/"+
        std::to_string(((size_t)total+1048575)/1048576)+" MiB)";
  if(ioCode)error+=": "+std::string(std::strerror(ioCode));
+ ebook_log::write("USB_FETCH_ERROR",book.relative+" "+error);
  return false;
 }
 } // namespace usbbooks
