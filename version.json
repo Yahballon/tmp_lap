@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "cc3151938a47beb071c688869a8478c82c1157101acaa5aa67c8f83d8246c543",
+  "version": "dba73a856ac926c0a39fef5eb3b87fd65c38d3c3fb648dc3412f8a0f8811c803",
   "repository": "Yahballon/tmp_lap",
   "app_count": 10,
   "apps": [
@@ -86,14 +86,14 @@
       "name": "PSTUBE",
       "slug": "pstube",
       "title_id": "PPSA99762",
-      "version": "0.7.3",
-      "tag": "pstube-v0.7.3",
+      "version": "0.7.4",
+      "tag": "pstube-v0.7.4",
       "zip_name": "PPSA99762.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.7.3/PPSA99762.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.3",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.7.4/PPSA99762.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.4",
       "source": "homebrew/pstube",
-      "size_bytes": 20579293,
-      "published_at": "2026-10-15T17:52:02Z"
+      "size_bytes": 20579992,
+      "published_at": "2026-10-15T18:21:03Z"
     },
     {
       "name": "Audiobook Reader",
