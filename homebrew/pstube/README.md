@@ -3,7 +3,7 @@
 **PSTUBE by YAHBALLON** is an independent native C++ PS5 homebrew video search, download and playback client with a 1920×1080 OpenGL user interface.
 
 ## Features
-- Search using a public Invidious API over HTTPS with hostname and CA verification.
+- Search the public logged-out YouTube web page directly first, extract real video metadata using a native validated parser, then fall back to community Invidious instances. Both use verified HTTPS.
 - Live Trending search, automatic failover between currently documented Invidious instances, and manual provider selection in Settings.
 - Three concurrent native thumbnail workers using the public thumbnail CDN, with a disk-backed JPEG cache.
 - Persistent favourites and watch history, plus a cache of the last successful live video catalog for offline startup.
