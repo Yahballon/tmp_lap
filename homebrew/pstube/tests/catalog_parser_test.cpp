@@ -46,6 +46,22 @@ int main(int argc,char** argv){
   std::cout<<"Live YouTube renderer parser: "<<live.size()<<" real videos"<<std::endl;
   assert(!live.empty());
  }
+ const std::string continuationFixture=R"DATA(
+ {"onResponseReceivedCommands":[{"appendContinuationItemsAction":{"continuationItems":[
+  {"itemSectionRenderer":{"contents":[{"videoRenderer":{
+   "videoId":"J---aiyznGQ","title":{"runs":[{"text":"Page 2 video"}]},
+   "ownerText":{"runs":[{"text":"Uploader"}]},"lengthText":{"simpleText":"10:22"}
+  }}]}},
+  {"continuationItemRenderer":{"trigger":"CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+    "continuationEndpoint":{"continuationCommand":{"token":"CONTINUATION_PAGE_3"}}}}
+ ]}}]})DATA";
+ const auto page2=pstube::parse_youtube_html(continuationFixture);
+ assert(page2.size()==1 && page2[0].title=="Page 2 video");
+ assert(pstube::youtube_continuation(continuationFixture)=="CONTINUATION_PAGE_3");
+ const std::string initialFixture=R"DATA({"ytInitialData":{"contents":[
+ {"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"PAGE_TWO"}}}}
+ ]}})DATA";
+ assert(pstube::youtube_continuation(initialFixture)=="PAGE_TWO");
  assert(pstube::valid_id("J---aiyznGQ"));
  assert(!pstube::valid_id("../etc/passw"));
  std::cout<<"PSTUBE catalog parser: 2 search results, trending and malformed responses passed\n";
