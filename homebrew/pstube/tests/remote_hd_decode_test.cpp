@@ -28,7 +28,8 @@ int main(){
     std::fprintf(stderr,"Remote HD resolver %dp FAILED: %.180s\n",
        quality,snapshot.streamError.c_str());return 3;
   }
-  if(!player.openAdaptiveStream(snapshot.streamUrl,snapshot.streamAudioUrl)){
+  if(!player.openAdaptiveStream(snapshot.streamUrl,snapshot.streamAudioUrl,
+          video.id,quality)){
     std::fprintf(stderr,"Remote HD %dp: opening dual stream rejected\n",quality);
     return 4;
   }
@@ -52,7 +53,7 @@ int main(){
    std::fprintf(stderr,"Remote HD %dp: no decoded frame, state %.180s, output %dx%d\n",
      quality,state.message.c_str(),width,height);return 5;
   }
-  std::printf("Remote HD playback: native FFmpeg decoded %dx%d video with independent AAC input\n",
+  std::printf("Range-cached HD playback: native FFmpeg decoded %dx%d video with independent AAC input\n",
       width,height);
  }
  return 0;
