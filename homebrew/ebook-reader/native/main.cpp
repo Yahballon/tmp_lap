@@ -261,7 +261,9 @@ int main(){
     for(auto& item:finished){
       auto found=covers.find(item.path);
       if(found!=covers.end())free_texture(found->second);
-      covers[item.path]=make_image(renderer,item.bytes);
+      bool comicCover=false;
+      for(const auto& b:books)if(b.path==item.path){comicCover=(b.format=="CBR"||b.format=="CBZ");break;}
+      covers[item.path]=comicCover?make_comic_texture(renderer,item.bytes):make_image(renderer,item.bytes);
    }
    // Limit accumulated artwork to avoid unbounded video-memory growth.
    if(covers.size()>54){
