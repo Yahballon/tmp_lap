@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "4a7fae13ce7bb4fdfdead9f74f6e74967a37bac77da206b6337160331faee9db",
+  "version": "ed907389ad0af94c5c25f6f87e8f5ee61ef9111a576cd046ff1c9211cae9efb5",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 11,
+  "app_count": 12,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -146,6 +146,19 @@
       "source": "homebrew/payload-launcher",
       "size_bytes": 6258612,
       "published_at": "2026-10-13T07:46:14Z"
+    },
+    {
+      "name": "ThemeChanger",
+      "slug": "themechanger",
+      "title_id": "PPSA99891",
+      "version": "0.1.0",
+      "tag": "themechanger-v0.1.0",
+      "zip_name": "PPSA99891.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/themechanger-v0.1.0/PPSA99891.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/themechanger-v0.1.0",
+      "source": "homebrew/themechanger",
+      "size_bytes": 7252378,
+      "published_at": "2026-10-15T23:54:17Z"
     }
   ]
 }
