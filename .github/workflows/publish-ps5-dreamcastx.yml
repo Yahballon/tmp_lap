@@ -98,7 +98,7 @@ jobs:
       - name: Publish versioned GitHub Release
         if: steps.build.outputs.ready == 'true'
         env:
-          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.build.outputs.tag }}
           BUILD_SHA: ${{ steps.build.outputs.build_sha }}
         working-directory: homebrew/ps5-dreamcastx
