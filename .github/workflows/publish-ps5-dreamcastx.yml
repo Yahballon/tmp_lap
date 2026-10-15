@@ -32,22 +32,7 @@ jobs:
     steps:
       - name: Checkout release metadata
         uses: actions/checkout@v4
-      - name: Check release publishing credentials
-        id: release_auth
-        env:
-          RELEASE_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN }}
-        run: |
-          if [ -n "$RELEASE_TOKEN" ]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo '::error::Cannot publish a real GitHub Release: set PS5_RELEASE_TOKEN in repo Actions secrets (fine-grained PAT for Yahballon/tmp_lap, Contents: Read and write). Do NOT paste a token into chat.'
-            if [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
-              exit 1
-            fi
-          fi
       - name: Find newest successful matching signed PS5 artifact
-        if: steps.release_auth.outputs.ready == 'true'
         id: build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -118,7 +103,7 @@ jobs:
       - name: Publish versioned GitHub Release
         if: steps.build.outputs.ready == 'true'
         env:
-          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.build.outputs.tag }}
           BUILD_SHA: ${{ steps.build.outputs.build_sha }}
         working-directory: homebrew/ps5-dreamcastx
