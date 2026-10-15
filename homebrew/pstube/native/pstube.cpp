@@ -65,6 +65,22 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
   request+="Content-Type: application/json\r\nOrigin: https://www.youtube.com\r\nContent-Length: "+std::to_string(postBody.size())+"\r\n";
   if(postBody.find("\"clientName\":\"ANDROID\"")!=std::string::npos){
    request+="X-YouTube-Client-Name: 3\r\nX-YouTube-Client-Version: 21.26.364\r\n";
+  }else if(postBody.find("\"clientName\":\"WEB\"")!=std::string::npos){
+   // Search continuation requires the real WEB client version from page config.
+   const std::string label="\"clientVersion\":\"";
+   size_t at=postBody.find(label);
+   std::string version;
+   if(at!=std::string::npos){
+    at+=label.size();const auto end=postBody.find('"',at);
+    version=postBody.substr(at,end==std::string::npos?0:end-at);
+   }
+   if(version.size()>6&&version.size()<60&&
+     std::all_of(version.begin(),version.end(),[](unsigned char x){
+      return std::isalnum(x)||x=='.'||x=='-';
+     })){
+    request+="X-YouTube-Client-Name: 1\r\nX-YouTube-Client-Version: "+
+       version+"\r\n";
+   }
   }
  }
  request+="\r\n"+postBody;
