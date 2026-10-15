@@ -28,6 +28,27 @@ jobs:
           g++ -std=c++20 -O2 -pthread -Wall -Wextra             -Ihomebrew/audiobook-reader/native -c             homebrew/audiobook-reader/native/audio_player.cpp             $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2)             -o /tmp/audiobook-player.o
           ffmpeg -hide_banner -loglevel error -nostdin -y -f lavfi -i 'sine=frequency=440:sample_rate=48000' -t 3 -c:a aac -b:a 96k -f mp4 /tmp/audiobook-test.m4b
           ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1 /tmp/audiobook-test.m4b | grep -q aac
+      - name: Test embedded M4B album art extraction
+        run: |
+          python3 - <<'PY'
+          from PIL import Image,ImageDraw
+          im=Image.new('RGB',(192,256),(28,68,111))
+          d=ImageDraw.Draw(im);d.rectangle((18,18,174,238),outline='white',width=5)
+          d.ellipse((53,89,139,178),outline='yellow',width=8)
+          im.save('/tmp/audio-cover-fixture.jpg',quality=88)
+          PY
+          ffmpeg -hide_banner -loglevel error -nostdin -y \
+            -f lavfi -i 'sine=frequency=440:sample_rate=48000' -i /tmp/audio-cover-fixture.jpg \
+            -map 0:a -map 1:v -t 2 -c:a aac -c:v mjpeg -disposition:v:0 attached_pic \
+            -f mp4 /tmp/audiobook-with-cover.m4b
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
+            -D'AUDIOBOOK_DATA_ROOT="/tmp/ps5-audiobook-ci"' \
+            -Ihomebrew/audiobook-reader/native \
+            homebrew/audiobook-reader/native/cover_extract.cpp \
+            homebrew/audiobook-reader/tests/cover_test.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil) \
+            -o /tmp/audiobook-cover-test
+          /tmp/audiobook-cover-test /tmp/audiobook-with-cover.m4b /tmp/audiobook-test.m4b
       - name: Verify USB ABooks mount diagnostics
         run: |
           mkdir -p /tmp/audiobook-diagnostics/ABooks
@@ -147,7 +168,7 @@ jobs:
           title=metadata['titleId'];root=pathlib.Path('app/dist')/title
           exe=(root/'eboot.bin').read_bytes()
           assert len(exe)>1000 and struct.unpack('<I',exe[:4])[0]==0x1D3D154F
-          assert b'v0.2.1' in exe
+          assert b'v0.2.2' in exe
           param=json.loads((root/'sce_sys/param.json').read_text())
           assert param['titleId']==title and param['contentVersion']==metadata['contentVersion']
           for file in ['sce_sys/icon0.png','sce_module/libc.prx','assets/icon0.png','assets/fonts/inter-semibold.huifont','assets/ABooks/README.txt','abookscan.elf']:
@@ -161,7 +182,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Audiobook-Reader-v0.2.1
+          name: Audiobook-Reader-v0.2.2
           path: app/dist/PPSA99784.zip
           if-no-files-found: error
       - name: Publish release after main branch build
@@ -169,5 +190,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view audiobook-reader-v0.2.1 >/dev/null 2>&1; then exit 0; fi
-          gh release create audiobook-reader-v0.2.1 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.1" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
+          if gh release view audiobook-reader-v0.2.2 >/dev/null 2>&1; then exit 0; fi
+          gh release create audiobook-reader-v0.2.2 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.2" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
