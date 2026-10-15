@@ -95,7 +95,7 @@ bool local_catalog(std::string& bytes){
  close(fd);return ok;
 }
 bool start_helper(std::string& bytes,std::string& message){
- FILE *elf=fopen("/app0/aabookscan.elf","rb");
+ FILE *elf=fopen("/app0/abookscan.elf","rb");
  if(!elf){message="USB helper not installed: abookscan.elf";return false;}
  int fd=connect_to(kElfLoader);
  if(fd<0){fclose(elf);message="USB requires active elfldr on 127.0.0.1:9021";return false;}
@@ -164,7 +164,7 @@ bool cachedir(std::string& dir,std::string& why){
   fclose(out);
   remove(probe.c_str());
   if(writable){dir=base;return true;}
-  if(code==ENOSPC){why="No free storage for book cache";return false;}
+  if(code==ENOSPC){why="No free storage for audiobook cache";return false;}
  }
  why="Cannot access a writable Audiobook Reader cache directory";
  return false;
