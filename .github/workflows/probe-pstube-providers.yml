@@ -1,0 +1,42 @@
+name: Probe PSTUBE Video Providers
+on:
+  pull_request:
+    paths: ['.github/workflows/probe-pstube-providers.yml']
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Probe metadata APIs and official channel feed
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,concurrent.futures,ssl
+          sources={
+           'piped-kavin':'https://pipedapi.kavin.rocks/search?q=ps5&filter=videos',
+           'piped-leptons':'https://pipedapi.leptons.xyz/search?q=ps5&filter=videos',
+           'piped-nosebs':'https://pipedapi.nosebs.ru/search?q=ps5&filter=videos',
+           'piped-mha':'https://api-piped.mha.fi/search?q=ps5&filter=videos',
+           'piped-garuda':'https://piped-api.garudalinux.org/search?q=ps5&filter=videos',
+           'piped-adminforge':'https://pipedapi.adminforge.de/search?q=ps5&filter=videos',
+           'piped-syn':'https://pipedapi.syncpundit.io/search?q=ps5&filter=videos',
+           'piped-moomoo':'https://pipedapi.moomoo.me/search?q=ps5&filter=videos',
+           'youtube-rss':'https://www.youtube.com/feeds/videos.xml?channel_id=UCBR8-60-B28hp2BmDPdntcQ',
+           'youtube-search':'https://www.youtube.com/results?search_query=ps5',
+           'invidious-nadeko-browser':'https://inv.nadeko.net/api/v1/search?q=ps5&type=video',
+          }
+          def probe(kv):
+           name,url=kv
+           try:
+            req=urllib.request.Request(url,headers={
+              'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+              'Accept':'application/json,text/html,application/xml;q=0.9,*/*;q=0.8'})
+            with urllib.request.urlopen(req,timeout=9,context=ssl.create_default_context()) as resp:
+             data=resp.read(500000)
+             return (name,resp.status,resp.headers.get('Content-Type',''),len(data),data[:100].decode('utf-8','replace').replace('\\n',' '))
+           except Exception as e:return (name,type(e).__name__,str(e)[:100])
+          with concurrent.futures.ThreadPoolExecutor(max_workers=11) as ex:
+           for result in ex.map(probe,sources.items()):
+            print('SOURCE TEST:',*result,flush=True)
+          PY
