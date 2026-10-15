@@ -36,6 +36,16 @@ jobs:
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
           Path('app/src/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE(' + pem + ')PS5CABUNDLE";\n')
           PY
+      - name: Check real YouTube HD HTTPS Range and Client headers
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/pstube/tests/probe_native_hd_http.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-hd-http-probe
+          timeout 50s /tmp/pstube-hd-http-probe
+          python3 homebrew/pstube/tests/probe_hd_http.py
       - name: Decode real HD AVC and AAC over HTTPS with native FFmpeg
         timeout-minutes: 3
         run: |
