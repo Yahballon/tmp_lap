@@ -154,3 +154,11 @@ Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.4
 The book-open action now runs off the render thread and displays the actual USB transfer progress as percent and MiB, followed by document parsing. Press Circle while loading to cancel an active transfer. Comic CBR/CBZ cover images are extracted from the first comic page in a background job; EPUB covers are prioritized. Small validated thumbnails are saved in `/data/EbookReader/Covers/` and reused across sessions. A small progress bar displays background cover downloads. Large archive transfers continue to use `/data/EbookReader/Cache/` and never modify files in `/data/EbookReader/Books/`.
 
 Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.5
+
+## v0.2.6 — Confirm before exiting the application
+
+Press **Circle** on the **My Library** home screen to open a console-friendly modal asking **"Exit Ebook Reader?"**. The dialog offers **X YES** to save reading state and exit or **O NO** to dismiss it and remain in the library. Pressing Circle in the reading screen still returns to the library, and Circle in Storage still returns to the library. The confirmation consumes controller input while visible so Cross cannot accidentally open the book behind it.
+
+On exit, pending cover/image workers finish before their PS5 rendering resources are released, so exiting during thumbnail generation does not race their background work. Your Books folder, persistent covers, cached books, and reading progress are preserved.
+
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.6
