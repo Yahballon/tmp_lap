@@ -5,9 +5,21 @@
 #include "platform/ps5/system.hpp"
 #include "ebook_engine.hpp"
 #include "usb_bridge.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_ONLY_GIF
+#define STBI_NO_STDIO
+#include "stb_image.h"
 #include <algorithm>
 #include <cctype>
 #include <array>
+#include <atomic>
+#include <map>
+#include <mutex>
+#include <pthread.h>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -26,21 +38,89 @@ std::string read(const char* p){
  rewind(f);std::string out((size_t)n,0);
  fread(&out[0],1,out.size(),f);fclose(f);return out;
 }
+
+struct TextureImage {std::uint32_t id=0;int width=0,height=0;bool checked=false;};
+TextureImage make_image(hui::gfx::Renderer& renderer,const std::string& encoded){
+ TextureImage info;info.checked=true;
+ if(encoded.empty()||encoded.size()>3*1024*1024)return info;
+ int w=0,h=0,n=0;
+ if(!stbi_info_from_memory((const stbi_uc*)encoded.data(),(int)encoded.size(),&w,&h,&n)||
+    w<1||h<1||w>2048||h>2048||(std::int64_t)w*h>3000000)return info;
+ stbi_uc* rgba=stbi_load_from_memory((const stbi_uc*)encoded.data(),(int)encoded.size(),&w,&h,&n,4);
+ if(!rgba)return info;
+ info.id=renderer.batch().create_texture(w,h,rgba);
+ info.width=w;info.height=h;
+ stbi_image_free(rgba);return info;
+}
+void free_texture(TextureImage& t){
+ if(t.id){GLuint id=t.id;glDeleteTextures(1,&id);t.id=0;}
+ t.checked=false;
+}
+void draw_fit(DrawList& d,const TextureImage& t,float x,float y,float w,float h){
+ if(!t.id||t.width<1||t.height<1)return;
+ const float scale=std::min(w/(float)t.width,h/(float)t.height);
+ const float fitW=t.width*scale,fitH=t.height*scale;
+ d.image(t.id,{x+(w-fitW)*0.5f,y+(h-fitH)*0.5f,fitW,fitH},
+         kFullUv,Color::rgb(0xffffff));
+}
+// The file transfer/ZIP extraction runs outside the render thread. OpenGL
+// texture creation is always completed on the render thread.
+struct CoverTask {
+ std::string bookPath;
+ bool remote=false;
+ usbbooks::Entry remoteBook;
+};
+struct CoverResult{std::string path,bytes;};
+std::mutex g_coverLock;
+std::atomic<bool> g_coverBusy{false};
+std::vector<CoverResult> g_coverReady;
+void* cover_worker(void* arg){
+ CoverTask* task=(CoverTask*)arg;
+ std::string local=task->bookPath,bytes,error;
+ bool ok=true;
+ if(task->remote)ok=usbbooks::fetch(task->remoteBook,local,error);
+ if(ok)ebook::read_epub_cover(local,bytes);
+ {std::lock_guard<std::mutex> lock(g_coverLock);
+  g_coverReady.push_back({task->bookPath,std::move(bytes)});
+ }
+ delete task;
+ g_coverBusy.store(false);
+ return nullptr;
+}
+bool start_cover(const ebook::BookEntry& b){
+ if(g_coverBusy.exchange(true))return false;
+ CoverTask* task=new CoverTask;task->bookPath=b.path;
+ if(usbbooks::is_remote(b.path)){
+  task->remote=true;
+  if(!usbbooks::entry_from_remote(b.path,task->remoteBook)){
+   delete task;g_coverBusy.store(false);return false;
+  }
+ }
+ pthread_t t{};
+ if(pthread_create(&t,nullptr,cover_worker,task)!=0){
+  delete task;g_coverBusy.store(false);return false;
+ }
+ pthread_detach(t);return true;
+}
+
 void panel(DrawList& d,float x,float y,float w,float h,bool selected=false){
  d.bordered_rect({x,y,w,h},12,selected?Color::rgb(0x5b3416):wood,selected?4:1,selected?gold:edge);
 }
-void book(DrawList& d,const Font& f,unsigned atlas,const ebook::BookEntry& b,float x,float y,bool selected) {
+void book(DrawList& d,const Font& f,unsigned atlas,const ebook::BookEntry& b,float x,float y,bool selected,const TextureImage& cover) {
  d.shadow({x,y,216,282},8,13,Color::rgb(0x080301,0.65f));
  const unsigned colors[]={0x572b35,0x17454c,0x604c27,0x43355e,0x375032,0x614027};
  unsigned hash=0;for(char c:b.title)hash=hash*33+(unsigned char)c;
- Color cover=Color::rgb(colors[hash%6]);
- d.bordered_rect({x,y,208,268},4,cover,selected?5:1,selected?gold:Color::rgb(0xc49557));
- d.rounded_rect({x+7,y+4,14,260},0,Color::rgb(0x170b08,0.6f));
- d.line(x+34,y+23,x+187,y+23,2,gold);
- d.line(x+34,y+237,x+187,y+237,2,gold);
- txt(d,f,atlas,b.format,x+180,y+53,17,gold,Align::right);
- txt(d,f,atlas,cut(b.title,15),x+106,y+129,25,cream,Align::center);
- txt(d,f,atlas,cut(b.author,18),x+106,y+166,16,muted,Align::center);
+ Color coverColor=Color::rgb(colors[hash%6]);
+ d.bordered_rect({x,y,208,268},4,coverColor,selected?5:1,selected?gold:Color::rgb(0xc49557));
+ if(cover.id)draw_fit(d,cover,x+18,y+6,188,230);
+ else {
+  d.line(x+34,y+23,x+187,y+23,2,gold);
+  d.line(x+34,y+237,x+187,y+237,2,gold);
+  txt(d,f,atlas,b.format,x+180,y+53,17,gold,Align::right);
+  txt(d,f,atlas,cut(b.title,15),x+106,y+129,25,cream,Align::center);
+  txt(d,f,atlas,cut(b.author,18),x+106,y+166,16,muted,Align::center);
+ }
+ d.rounded_rect({x+7,y+4,12,259},0,Color::rgb(0x170b08,0.65f));
  if(b.favorite)txt(d,f,atlas,"* FAVOURITE",x+108,y+219,15,gold,Align::center);
  d.rounded_rect({x+35,y+248,139,5},2,Color::rgb(0x130908));
  d.rounded_rect({x+35,y+248,std::min(139.f,139.f*(float)b.progress/10000.f),5},2,gold);
@@ -58,6 +138,8 @@ int main(){
  std::vector<ebook::BookEntry> books,imports;
  usbbooks::Catalog usbCatalog;
  auto refresh=[&](){
+   // USB bridge's known catalogue is shared with the cover worker.
+   if(g_coverBusy.load())return;
    ebook::scan_books(dirs(),books);
    usbCatalog=usbbooks::scan();
    for(const auto& item:usbCatalog.books){
@@ -74,6 +156,10 @@ int main(){
  };
  refresh();
  ebook::Document document;
+ std::map<std::string,TextureImage> covers;
+ std::map<size_t,TextureImage> pageImages;
+ int lastRenderedImagePage=-1;
+ int coverTick=0;
  bool reader=false,list=false,confirmDelete=false;
  int selected=0,filter=0,readerPage=0,libraryScroll=0,importSelect=0;
  bool importer=false;std::string message="USB EPUB reader via elfldr 9021 (same bridge as Payload LauncherX).";
@@ -91,6 +177,24 @@ int main(){
    if(now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
    repeatDelay=11;
   }
+  // Upload one completed cover on the OpenGL thread, then schedule the next
+  // visible EPUB asynchronously to keep DualSense navigation responsive.
+  {
+    std::vector<CoverResult> finished;
+    {std::lock_guard<std::mutex> lock(g_coverLock);finished.swap(g_coverReady);}
+    for(auto& item:finished){
+      auto found=covers.find(item.path);
+      if(found!=covers.end())free_texture(found->second);
+      covers[item.path]=make_image(renderer,item.bytes);
+   }
+   // Limit accumulated artwork to avoid unbounded video-memory growth.
+   if(covers.size()>54){
+      auto it=covers.begin();
+      while(covers.size()>40 && it!=covers.end()){
+         free_texture(it->second);it=covers.erase(it);
+      }
+   }
+  }
   std::vector<size_t> visible;
   for(size_t i=0;i<books.size();++i){
    bool ok=filter==0||(filter==4?books[i].favorite:books[i].collection==names[filter]);
@@ -101,7 +205,11 @@ int main(){
    if(confirmDelete)confirmDelete=false;
    else if(reader){reader=false;ebook::save_state(books);}
    else if(importer)importer=false;
-   else {pad.close();renderer.release();display.close();hui::sys::quit();}
+   else {
+    for(auto& item:covers)free_texture(item.second);
+    for(auto& item:pageImages)free_texture(item.second);
+    pad.close();renderer.release();display.close();hui::sys::quit();
+   }
   }
   if(reader){
    if((pressed&(hui::pad_bits::kRight|hui::pad_bits::kR1|hui::pad_bits::kCross))
@@ -158,6 +266,10 @@ int main(){
      }
      if(available){
        if(ebook::read_document(source,document)){
+        for(auto& pair:pageImages)free_texture(pair.second);
+        pageImages.clear();lastRenderedImagePage=-1;
+        if(!document.coverImage.empty() && !covers[b.path].id)
+           covers[b.path]=make_image(renderer,document.coverImage);
         reader=true;readerPage=std::min<int>((int)document.pageCount()-1,(int)(b.progress*document.pageCount()/10000));
         message="";
        }else message="Cannot open "+b.title+": "+document.error;
@@ -175,19 +287,37 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.4",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.5",1873,57,22,gold,Align::right);
   if(reader){
    txt(d,font,atlas,cut(document.title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
    d.bordered_rect({161,180,1598,781},12,Color::rgb(0xb89d75),4,edge);
    d.rounded_rect({177,196,1566,750},5,paper);
    d.gradient_rect({952,203,16,728},0,Color::rgb(0xc9bca1),Color::rgb(0xe8dfc9));
+   if(lastRenderedImagePage!=readerPage){
+      for(auto& item:pageImages)free_texture(item.second);
+      pageImages.clear();
+      lastRenderedImagePage=readerPage;
+      const size_t first=(size_t)readerPage*34,last=first+34;
+      for(size_t i=0;i<document.images.size();++i){
+        if(document.images[i].line>=first && document.images[i].line<last)
+          pageImages[i]=make_image(renderer,document.images[i].encoded);
+      }
+   }
    for(int j=0;j<34;++j){
     size_t idx=(size_t)readerPage*34+(size_t)j;
     if(idx>=document.lines.size())break;
     int col=j/17,row=j%17;
     float x=228.f+col*794.f,y=264.f+row*38.f;
     txt(d,font,atlas,cut(document.lines[idx],52),x,y,24,ink);
+   }
+   for(const auto& item:pageImages){
+      const auto& img=document.images[item.first];
+      const size_t offset=img.line-(size_t)readerPage*34;
+      const float x=228.f+(offset/17)*794.f;
+      const float y=264.f+(offset%17)*38.f;
+      if(item.second.id)draw_fit(d,item.second,x,y,685.f,240.f);
+      else txt(d,font,atlas,"[Unsupported image]",x,y+30.f,17,ink);
    }
    txt(d,font,atlas,document.isPdfTextPreview?"PDF text preview - layout not preserved":"EPUB reader",228,231,17,Color::rgb(0x8c653a));
    txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(document.pageCount()),960,913,18,ink,Align::center);
@@ -233,6 +363,16 @@ int main(){
       txt(d,font,atlas,"No accessible books in this collection.",960,481,29,muted,Align::center);
       txt(d,font,atlas,"USB bridge: "+cut(usbCatalog.message,70),960,530,22,gold,Align::center);
    }
+   if(count>0 && !g_coverBusy.load() && ++coverTick%22==0){
+     const int start=(selected/(list?9:15))*(list?9:15),stop=std::min(count,start+(list?9:15));
+     for(int i=start;i<stop;i++){
+       const auto& b=books[visible[i]];
+       if(b.format!="EPUB" || covers.find(b.path)!=covers.end())continue;
+       // Both local and USB books use the same bounded EPUB cover extractor.
+       if(start_cover(b))break;
+       covers[b.path]=TextureImage{0,0,0,true};
+     }
+   }
    if(count>0){
     int pageSize=list?9:15;
     libraryScroll=selected/pageSize;
@@ -245,7 +385,8 @@ int main(){
       txt(d,font,atlas,b.format+"  "+b.collection+(b.favorite?"  *":""),1768,y+37,20,gold,Align::right);
      }else{
       float x=151+(index%5)*348.f,y=288+(index/5)*235.f;
-      book(d,font,atlas,b,x,y,i==selected);
+      const auto it=covers.find(b.path);
+      book(d,font,atlas,b,x,y,i==selected,it==covers.end()?TextureImage{}:it->second);
      }
     }
    }

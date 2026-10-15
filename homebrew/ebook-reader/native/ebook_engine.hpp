@@ -6,11 +6,18 @@
 #include <vector>
 
 namespace ebook {
+struct InlineImage {
+    size_t line=0;                 // Absolute text-line position; each image occupies 7 rows.
+    std::string encoded;          // Bounded original JPEG / PNG bytes from the EPUB ZIP.
+    std::string alt;
+};
 struct Document {
     std::string title;
     std::string author;
     std::string format;
     std::vector<std::string> lines;
+    std::vector<InlineImage> images;
+    std::string coverImage;
     std::vector<size_t> chapterStarts;
     std::string error;
     bool isPdfTextPreview = false;
@@ -31,6 +38,8 @@ struct ScanSource {
 };
 const std::vector<ScanSource>& last_scan_report();
 bool read_document(const std::string& path, Document& out);
+bool read_epub_cover(const std::string& path,std::string& encoded);
+
 std::string clean_title(std::string name);
 bool scan_books(const std::vector<std::string>& dirs, std::vector<BookEntry>& books);
 bool scan_imports(std::vector<BookEntry>& found);

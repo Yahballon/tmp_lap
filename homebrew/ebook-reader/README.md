@@ -1,4 +1,4 @@
-# Ebook Reader v0.1.4 — USB bridge support
+# Ebook Reader v0.1.5 — USB bridge support
 
 Native PS5 EPUB/PDF text reader. Title ID: `PPSA99741`.
 
@@ -38,9 +38,21 @@ Requires a compatible already-running elfldr for accessing an inaccessible USB m
 
 Dedicated workflow: [build-ebook-reader.yml](../../.github/workflows/build-ebook-reader.yml). Uses PS5-DevBridge, OpenGL SDK, zlib and its native payload SDK to compile `bookscan.elf`; both `eboot.bin` and `bookscan.elf` are verified in the installable `PPSA99741.zip`.
 
-Release tag: `ebook-reader-v0.1.4`.
+Release tag: `ebook-reader-v0.1.5`.
 
 Source license: GPL-3.0-or-later, respecting dependency licenses.
 
-## v0.1.4 EPUB container fix
+## v0.1.5 EPUB container fix
 The former parser matched `<rootfiles>` when it was looking for `<rootfile>`. This caused the common error `Cannot resolve EPUB package` before the EPUB chapter data could load. The replacement checks XML start element names (also namespaced rootfile entries), skips comments, resolves the real OPF `full-path`, and includes host tests with generated standards-shaped EPUB files. This does not change USB Helper, saved book progress, or the application's Title ID.
+
+## v0.1.5: Real EPUB cover art and inline illustrations
+
+- **Real library covers:** EPUB2 `<meta name="cover" content="…">`, EPUB3 `properties="cover-image"`, and sane cover-file/first-image fallbacks. Cover is decoded from the ZIP file and displayed as a GPU texture in the wooden bookshelf.
+- **Illustrations in the reader:** Embedded JPEG, PNG, and static GIF assets referenced by `<img src="…">` or `<image href="…">` are resolved relative to their XHTML chapter, extracted from the archive, and shown inline in the correct text order. Images are proportionally fitted inside the two-column reading pages.
+- **Fast UI:** Cover extraction and optional USB transfer run on a background pthread. OpenGL texture creation stays on the rendering thread; the texture cache and individual EPUB image sizes are bounded. Previously transferred USB books are reused when possible.
+- **No external assets:** HTTP images and scripts are never fetched or executed. Compressed ZIP entries, decoded artwork and image count are limited to protect memory.
+- **Tests:** Generated EPUB2/3 packages with actual original JPEG covers and PNG illustrations are verified in CI.
+
+**Limitations:** This is not a CSS/XHTML layout engine. Relative inline images use reserved blocks in the book's existing paginated text layout. Animated GIF, SVG, unsupported formats, externally hosted images and DRM are unsupported. **PDF mode remains extractable-text preview**; displaying real PDF pages and their image objects needs an independently ported PDF renderer (not included in v0.1.5). Console-side verification required.
+
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.5

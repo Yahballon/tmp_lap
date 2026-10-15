@@ -152,6 +152,21 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  const std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
  char hex[24];std::snprintf(hex,sizeof(hex),"%016llx",(unsigned long long)fnv64(book.relative));
  localPath=folder+"/usb-"+hex+suffix;
+ // Reuse previously transferred books. Checking the file magic avoids
+ // accepting unrelated or partially copied cache files.
+ struct stat cached{};
+ if(stat(localPath.c_str(),&cached)==0 &&
+    cached.st_size>=0 && (size_t)cached.st_size==book.bytes){
+   FILE* check=fopen(localPath.c_str(),"rb");
+   if(check){
+     unsigned char signature[4]={0};
+     bool valid=fread(signature,1,4,check)==4;
+     fclose(check);
+     if(valid && ((suffix==".epub" && signature[0]=='P' && signature[1]=='K') ||
+                  (suffix==".pdf" && signature[0]=='%' && signature[1]=='P' &&
+                   signature[2]=='D' && signature[3]=='F')))return true;
+   }
+ }
  // Local cache is title-specific and never touches original USB content.
  int fd=connect_to(kPort);
  if(fd<0){
