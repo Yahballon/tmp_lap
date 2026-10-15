@@ -330,9 +330,8 @@ int main(){
       if(pressed&hui::pad_bits::kRight)readerPanX-=100.f;
       if(pressed&hui::pad_bits::kUp)   readerPanY+=100.f;
       if(pressed&hui::pad_bits::kDown) readerPanY-=100.f;
-      const float limitX=760.f*(readerZoom-1.f),limitY=340.f*(readerZoom-1.f);
-      readerPanX=std::clamp(readerPanX,-limitX,limitX);
-      readerPanY=std::clamp(readerPanY,-limitY,limitY);
+      // Actual scrolling bounds are computed below, after any page change.
+      // The old 340*(zoom-1) clamp could hide the bottom half of tall comics.
    }else {
       readerPanX=readerPanY=0.f;
       if((pressed&hui::pad_bits::kRight)&&readerPage+1<pageCount)++readerPage;
@@ -341,10 +340,20 @@ int main(){
    if(pressed&hui::pad_bits::kTriangle)readerPage=0;
    if(pressed&hui::pad_bits::kSquare)readerPage=pageCount-1;
    if(oldPage!=readerPage){
-      // Keep the chosen magnification, but always start the next/previous
-      // page from its top edge instead of inheriting the old scroll offset.
+      // Retain magnification, but restart panning at the page's top edge.
       readerPanX=0.f;
       readerPanY=0.f;
+   }
+   if(readerZoom>1.01f){
+      const auto bounds=inComic
+         ? ebook_layout::comic_pan_bounds(comicTexturePage==readerPage?comicPageTexture.width:0,
+                                         comicTexturePage==readerPage?comicPageTexture.height:0,
+                                         readerZoom)
+         : ebook_layout::text_pan_bounds(readerZoom);
+      readerPanX=ebook_layout::clamp_x(readerPanX,bounds);
+      readerPanY=ebook_layout::clamp_y(readerPanY,bounds);
+   }else{
+      readerPanX=readerPanY=0.f;
    }
    if(selected>=0&&selected<(int)visible.size()){
     auto& b=books[visible[selected]];
@@ -428,7 +437,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.7",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.8",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():std::max(1,(int)document.pageCount());
