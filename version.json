@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "45c3ece7749c7551932a449f0910c6c5ad77c4982b5ce0f203f5ddbae9043adc",
+  "version": "1617c0312de361ee5c937f1d6948d460ef42f1fbe68dbc557b0d2543b03bd440",
   "repository": "Yahballon/tmp_lap",
   "app_count": 8,
   "apps": [
@@ -86,14 +86,14 @@
       "name": "PSTUBE",
       "slug": "pstube",
       "title_id": "PPSA99762",
-      "version": "0.4.0",
-      "tag": "pstube-v0.4.0",
+      "version": "0.5.0",
+      "tag": "pstube-v0.5.0",
       "zip_name": "PPSA99762.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.4.0/PPSA99762.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.4.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.5.0/PPSA99762.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.5.0",
       "source": "homebrew/pstube",
-      "size_bytes": 20331298,
-      "published_at": "2026-10-15T06:52:54Z"
+      "size_bytes": 20446749,
+      "published_at": "2026-10-15T07:29:19Z"
     },
     {
       "name": "Payload LauncherX",
