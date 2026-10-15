@@ -13,9 +13,6 @@ on:
     workflows:
       - Build PS5DreamcastX (native Flycast)
     types: [completed]
-  schedule:
-    # Retry publishing a verified artifact after its PS5_RELEASE_TOKEN has been configured.
-    - cron: '7,27,47 * * * *'
 
 permissions:
   actions: read
@@ -100,6 +97,18 @@ jobs:
         run: |
           python3 scripts/verify_package.py dist/PPSA99765.zip
           sha256sum dist/PPSA99765.zip
+      - name: Ensure verified build tag exists
+        if: steps.build.outputs.ready == 'true'
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
+          BUILD_SHA: ${{ steps.build.outputs.build_sha }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Git tag $TAG exists."
+          else
+            git tag "$TAG" "$BUILD_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
       - name: Publish versioned GitHub Release
         if: steps.build.outputs.ready == 'true'
         env:
