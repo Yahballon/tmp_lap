@@ -75,6 +75,9 @@ jobs:
           print('Live YouTube HTML bytes:',len(html))
           PY
           /tmp/pstube-catalog-test /tmp/pstube-youtube.html
+      - name: Probe public video playback formats (diagnostic)
+        continue-on-error: true
+        run: python3 homebrew/pstube/tests/probe_watch_formats.py
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
