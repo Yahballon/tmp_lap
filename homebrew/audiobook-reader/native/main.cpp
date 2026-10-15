@@ -154,6 +154,17 @@ int main(){
   audio_log::write("SCAN_LOCAL","Books="+std::to_string(books.size())+
      " Path="+audio_log::books_directory());
   usbCatalog=usbaudio::scan();
+  // Some jailbreak configurations expose USB mounts directly to the app,
+  // without the ELF helper. Try direct read-only discovery as a fallback.
+  if(usbCatalog.books.empty()){
+   std::vector<audio::Book> direct;
+   audio::scan({"/mnt/usb0/ABooks","/mnt/usb1/ABooks"},direct);
+   if(!direct.empty()){
+    audio_log::write("USB_DIRECT","Found "+std::to_string(direct.size())+
+      " M4B books through direct USB mount");
+    books.insert(books.end(),direct.begin(),direct.end());
+   }else audio_log::write("USB_DIRECT","No directly readable ABooks mount");
+  }
   for(const auto& remote:usbCatalog.books){
    audio::Book b;
    b.path=usbaudio::remote_path(remote);
