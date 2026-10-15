@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fast regression check: title ID ZIP name != install root directory."""
 import json
+import os
 import struct
 import sys
 import tempfile
@@ -24,7 +25,7 @@ with tempfile.TemporaryDirectory() as temp:
         package = tmp / "PPSA99765.zip"
         prefix = package_root + "/"
         with ZipFile(package, "w", ZIP_DEFLATED) as z:
-            z.writestr(prefix + "eboot.bin", struct.pack("<I", 0x1D3D154F) + bytes(100_001))
+            z.writestr(prefix + "eboot.bin", struct.pack("<I", 0x1D3D154F) + os.urandom(125_000))
             z.writestr(prefix + "sce_sys/param.json", json.dumps({
                 "titleId": "PPSA99765", "localizedParameters": {"en-US": {"titleName": "PS5DreamcastX"}}
             }))
