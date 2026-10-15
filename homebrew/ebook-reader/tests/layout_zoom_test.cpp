@@ -84,5 +84,35 @@ int main(){
    assert(close(textBounds.max_y,0.f)); // Page changes start at top.
  }
 
- std::puts("Book covers do not overlap; full-bleed UV crop and zoom top alignment passed");
+ // Single-page mode displays 17 rows, double-page shows two columns of 17.
+ // Switching must preserve the first visible line of the current spread.
+ for(size_t lines: {size_t(0),size_t(1),size_t(17),size_t(18),
+                    size_t(34),size_t(35),size_t(101)}){
+   const int singles=text_page_count(lines,true),doubles=text_page_count(lines,false);
+   assert(singles==std::max(1,(int)((lines+16)/17)));
+   assert(doubles==std::max(1,(int)((lines+33)/34)));
+   for(int page=0;page<doubles;page++){
+      const int single=remap_text_page(page,false,true);
+      assert(single==page*2);
+      assert(remap_text_page(single,true,false)==page);
+      assert(first_text_line(page,false)==first_text_line(single,true));
+   }
+   for(int page=0;page<singles;page++){
+      const int spread=remap_text_page(page,true,false);
+      assert(spread==page/2);
+      assert(first_text_line(spread,false)<=first_text_line(page,true));
+      assert(first_text_line(page,true)-first_text_line(spread,false)<34);
+   }
+ }
+ for(float zoom:{1.f,1.25f,2.f,3.f,4.f}){
+   const auto bounds=text_pan_bounds(zoom,true);
+   assert(bounds.min_y<=0.f && close(bounds.max_y,0.f));
+   if(zoom>1.001f && single_text_page_bounds.h*zoom>page_clip.h+0.5f){
+      const float imageBottom=264.f+(single_text_page_bounds.y+single_text_page_bounds.h-264.f)*zoom+
+                              bounds.min_y;
+      assert(close(imageBottom,page_clip.y+page_clip.h));
+   }
+ }
+ std::puts("Book cover spacing, zoom-to-bottom and Square single/double page toggle passed");
+
 }
