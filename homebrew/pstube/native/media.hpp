@@ -9,7 +9,7 @@
 namespace pstube {
 struct PlaybackState {
  bool opening=false,playing=false,paused=false,ended=false;
- int width=0,height=0; double seconds=0;
+ int width=0,height=0; double seconds=0,duration=0; bool seeking=false;
  std::string message;
 };
 class MediaPlayer {
@@ -19,6 +19,8 @@ public:
  bool openStream(const std::string& url);
  void close();
  void pause();
+ // Request a relative seek; the FFmpeg worker performs all decoder operations.
+ bool seekRelative(int deltaSeconds);
  PlaybackState snapshot() const;
  bool pull(std::vector<unsigned char>& pixels,int& w,int& h,uint64_t& seq);
 private:
@@ -28,6 +30,7 @@ private:
  pthread_t worker_{};
  bool joined_=true;
  std::atomic<bool> quit_{false},paused_{false};
+ std::atomic<int64_t> seekDeltaUs_{0};
  PlaybackState state_;
  std::string path_;
  bool remote_=false;

@@ -51,7 +51,7 @@ void MediaPlayer::close(){
  quit_.store(true);
  if(!joined_){pthread_join(worker_,nullptr);joined_=true;}
  std::lock_guard<std::mutex> g(lock_);
- pixels_.clear();state_=PlaybackState{};path_.clear();remote_=false;sequence_=0;
+ pixels_.clear();state_=PlaybackState{};path_.clear();remote_=false;sequence_=0;seekDeltaUs_=0;
 }
 bool MediaPlayer::open(const std::string& path){
  close();struct stat st{};
@@ -85,6 +85,18 @@ bool MediaPlayer::openStream(const std::string& url){
  joined_=false;return true;
 }
 void MediaPlayer::pause(){bool v=!paused_.load();paused_.store(v);std::lock_guard<std::mutex> g(lock_);state_.paused=v;}
+bool MediaPlayer::seekRelative(int deltaSeconds){
+ if(deltaSeconds==0||deltaSeconds>300||deltaSeconds< -300)return false;
+ {
+  std::lock_guard<std::mutex> g(lock_);
+  if(!state_.playing||state_.ended||quit_.load())return false;
+  state_.seeking=true;
+  state_.message="Seeking "+std::to_string(deltaSeconds>0?deltaSeconds:-deltaSeconds)+
+     " seconds "+(deltaSeconds>0?"forward":"backward");
+ }
+ seekDeltaUs_.fetch_add((int64_t)deltaSeconds*AV_TIME_BASE,std::memory_order_release);
+ return true;
+}
 PlaybackState MediaPlayer::snapshot()const{std::lock_guard<std::mutex> g(lock_);return state_;}
 bool MediaPlayer::pull(std::vector<unsigned char>& pixels,int& w,int& h,uint64_t& seq){
  std::lock_guard<std::mutex> g(lock_);
@@ -154,7 +166,16 @@ void MediaPlayer::decode(){
  if(!vc->width||!vc->height||vc->width>3840||vc->height>2160){error="Video resolution unsupported";goto cleanup;}
  sws=sws_getContext(vc->width,vc->height,vc->pix_fmt,vc->width,vc->height,AV_PIX_FMT_RGBA,SWS_BILINEAR,nullptr,nullptr,nullptr);
  if(!sws){error="Video pixel conversion unavailable";goto cleanup;}
- {std::lock_guard<std::mutex> g(lock_);state_.opening=false;state_.playing=true;state_.width=vc->width;state_.height=vc->height;state_.message=remote_?"Streaming over HTTPS":"Playing local MP4";}
+ {
+  double duration=0;
+  if(fmt->duration!=AV_NOPTS_VALUE&&fmt->duration>0)duration=(double)fmt->duration/AV_TIME_BASE;
+  else if(fmt->streams[vi]->duration!=AV_NOPTS_VALUE&&fmt->streams[vi]->duration>0)
+   duration=fmt->streams[vi]->duration*av_q2d(fmt->streams[vi]->time_base);
+  std::lock_guard<std::mutex> g(lock_);
+  state_.opening=false;state_.playing=true;state_.width=vc->width;state_.height=vc->height;
+  state_.duration=duration;
+  state_.message=remote_?"Streaming over HTTPS":"Playing local MP4";
+ }
  {
   const AVRational tb=fmt->streams[vi]->time_base;
   const AVRational rate=fmt->streams[vi]->avg_frame_rate;
@@ -163,16 +184,58 @@ void MediaPlayer::decode(){
   int64_t wall_origin=av_gettime_relative();
   int64_t first_pts=AV_NOPTS_VALUE;
   int64_t pause_at=0;
-  while(!quit_.load()&&av_read_frame(fmt,pkt)>=0){
-   while(paused_.load()&&!quit_.load()){
+  int64_t discardBeforeUs=-1;
+  while(!quit_.load()){
+   // FFmpeg format/codec/audio contexts belong only to this worker thread.
+   // Seek requests arrive from the DualSense input thread through an atomic.
+   const int64_t delta=seekDeltaUs_.exchange(0,std::memory_order_acq_rel);
+   if(delta){
+    double current=0,duration=0;
+    {std::lock_guard<std::mutex> g(lock_);current=state_.seconds;duration=state_.duration;}
+    const double next=std::clamp(current+(double)delta/AV_TIME_BASE,0.0,
+                                duration>0?std::max(0.0,duration-0.10):24.0*3600);
+    const int64_t relativeUs=(int64_t)(next*AV_TIME_BASE);
+    const int64_t offset=fmt->start_time!=AV_NOPTS_VALUE?fmt->start_time:0;
+    const int64_t wanted=offset+relativeUs;
+    // AVSEEK_FLAG_BACKWARD finds a decodeable keyframe; old frames are then
+    // discarded until the desired timestamp is reached.
+    const int rc=av_seek_frame(fmt,-1,wanted,AVSEEK_FLAG_BACKWARD);
+    if(rc>=0){
+     avcodec_flush_buffers(vc);if(ac)avcodec_flush_buffers(ac);
+     if(swr){swr_close(swr);swr_init(swr);}
+     if(audio)SDL_ClearQueuedAudio(audio);
+     if(first_pts==AV_NOPTS_VALUE){
+      const auto start=fmt->streams[vi]->start_time;
+      first_pts=start!=AV_NOPTS_VALUE?start:0;
+     }
+     discardBeforeUs=wanted;
+     wall_origin=av_gettime_relative()-relativeUs;
+     if(paused_.load())pause_at=av_gettime_relative();
+     {std::lock_guard<std::mutex> g(lock_);
+      state_.seconds=next;state_.seeking=false;state_.message="Seek complete";
+      pixels_.clear();++sequence_;
+     }
+    }else{
+     char reason[128]{};av_strerror(rc,reason,sizeof(reason));
+     std::lock_guard<std::mutex> g(lock_);
+     state_.seeking=false;state_.message=std::string("Seeking unavailable: ")+reason;
+    }
+   }
+   if(paused_.load()){
     if(!pause_at){pause_at=av_gettime_relative();if(audio)SDL_PauseAudioDevice(audio,1);}
-    sleep_us(20000);
+    sleep_us(20000);continue;
    }
    if(pause_at){wall_origin+=av_gettime_relative()-pause_at;pause_at=0;if(audio)SDL_PauseAudioDevice(audio,0);}
+   if(av_read_frame(fmt,pkt)<0)break;
    if(quit_)break;
    AVCodecContext* c=pkt->stream_index==vi?vc:pkt->stream_index==ai?ac:nullptr;
    if(c&&avcodec_send_packet(c,pkt)>=0){
     while(!quit_.load()&&avcodec_receive_frame(c,frame)==0){
+     if(discardBeforeUs>=0&&frame->best_effort_timestamp!=AV_NOPTS_VALUE){
+      const int64_t frameUs=av_rescale_q(frame->best_effort_timestamp,
+         fmt->streams[pkt->stream_index]->time_base,AV_TIME_BASE_Q);
+      if(frameUs+25000<discardBeforeUs){av_frame_unref(frame);continue;}
+     }
      if(c==vc){
       int w=vc->width,h=vc->height;
       std::vector<unsigned char> rgba((size_t)w*(size_t)h*4);

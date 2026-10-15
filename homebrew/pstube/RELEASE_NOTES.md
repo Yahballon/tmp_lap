@@ -1,9 +1,12 @@
-# PSTUBE v0.5.2 — Search continuation beyond page 2
+# PSTUBE v0.6.0 — Seek, Fullscreen and Jailbreak News
 
-- Fix the 38-video cutoff: YouTube's later search pages can encode their pagination token as a direct continuationCommand or nextContinuationData rather than continuationItemRenderer.
-- Recognize multiple real continuation response shapes and keep progressively fetching more pages while valid next tokens exist.
-- Prevent looping on a repeated continuation token.
-- Extend the native C++ live search regression to verify at least 60 real videos over 3+ pages.
-- Preserve all native player, thumbnail, favourites and downloads functionality.
+- **Default discovery search:** PS5 JAILBREAK NEWS.
+- **Rewind / forward:** D-Pad Left / Right moves by 10 seconds, L1 / R1 by 30 seconds while playing.
+- **True full-screen video:** Press Options while playing to toggle edge-to-edge video with original aspect ratio. Transient controls automatically hide when playing.
+- **Playback seek implementation:** FFmpeg does the seek asynchronously; it flushes video/audio codec and SDL audio buffers before resuming timestamp-synchronized playback.
+- Show progress and duration plus controller hints in both normal and full-screen modes.
+- Preserve existing native player, online YouTube search, auto-pagination, thumbnails, downloads and saved settings.
 
-No PC or external helper required. YouTube's public API can still change or throttle requests; results depend on the responses actually available.
+Limitations: seeking is available only on seekable MP4 files or HTTP servers supporting byte-range requests. The PS5 hardware test is still necessary; successful CI does not prove all YouTube streams allow seeking.
+
+Install the new PPSA99762.zip in /data/homebrew/PPSA99762. No PC bridge or additional user installation required.
