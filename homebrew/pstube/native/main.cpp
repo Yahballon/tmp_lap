@@ -10,6 +10,7 @@
 #include "vendor/stb_image.h"
 #include <map>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -173,6 +174,15 @@ int main(){
    if(pressed&hui::pad_bits::kR1){s.page=(s.page+1)%7;s.focus=0;s.selected=s.offset=0;if(s.page==2)service.trending();}
    if(pressed&hui::pad_bits::kTriangle){s.keyboard=true;s.page=1;s.focus=1;}
    if(pressed&hui::pad_bits::kOptions){s.page=6;s.focus=1;s.selected=0;}
+   if((pressed&hui::pad_bits::kSquare)&&s.page==6){
+    std::string file="/app0/assets/videos/pstube-selftest.mp4";
+    if(access(file.c_str(),R_OK)!=0)file="/data/homebrew/PPSA99762/assets/videos/pstube-selftest.mp4";
+    s.active=pstube::Video{"SELFTEST001","Playback and Audio Self-Test","PSTUBE"};
+    s.playerStarted=player.open(file);
+    s.playing=s.playerStarted;
+    if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}last_frame=0;
+    if(!s.playerStarted)s.notice="Self-test clip missing; check installed assets";
+   }
    if(s.focus==0){
     if(pressed&hui::pad_bits::kUp)s.nav=std::max(0,s.nav-1);
     if(pressed&hui::pad_bits::kDown)s.nav=std::min(6,s.nav+1);
@@ -245,10 +255,11 @@ int main(){
   }else if(s.page==6){
    text(d,font,atlas,"Search provider: "+service.instance(),430,310,29);
    text(d,font,atlas,"Press Cross to change fallback provider.",430,365,23,dim);
+   text(d,font,atlas,"SQUARE: Test built-in 5-second video and audio decoder",430,417,24,white);
    auto th=pstube::thumbnail_health();
-   text(d,font,atlas,"Thumbnail cache: "+th.directory,430,465,22,dim);
+   text(d,font,atlas,"Thumbnail cache: "+th.directory,430,480,22,dim);
    text(d,font,atlas,"Images: "+std::to_string(th.successful)+" OK  /  "+
-      std::to_string(th.pending)+" pending  /  "+std::to_string(th.failed)+" failed",430,509,25,th.failed?blue:green);
+      std::to_string(th.pending)+" pending  /  "+std::to_string(th.failed)+" failed",430,525,25,th.failed?blue:green);
    text(d,font,atlas,cut(font,"Last thumbnail error: "+th.lastError,1320,20),430,559,20,dim);
    text(d,font,atlas,"Local favourites: /download0/pstube.txt or /data/pstube/state.txt",430,425,22,dim);
   }else{
