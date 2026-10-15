@@ -311,6 +311,9 @@ int main(){
   {std::lock_guard<std::mutex> lock(g_coverMutex);finishedCovers.swap(g_coverReady);}
   for(const auto& item:finishedCovers){
    auto it=covers.find(item.path);
+   // If opening the same USB audiobook already produced an image, do not
+   // overwrite it with a stale empty background result.
+   if(item.encoded.empty()&&it!=covers.end()&&it->second.id)continue;
    if(it!=covers.end())free_cover(it->second);
    covers[item.path]=cover_texture(renderer,item.encoded);
    audio_log::write(item.encoded.empty()?"COVER_NONE":"COVER_DRAW",
