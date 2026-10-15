@@ -91,6 +91,9 @@ jobs:
             -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
             -t 5 -c:v libx264 -pix_fmt yuv420p -preset veryfast -crf 30 \
             -c:a aac -b:a 96k -movflags +faststart app/assets/videos/pstube-selftest.mp4
+      - name: Probe native Innertube direct media support (diagnostic)
+        continue-on-error: true
+        run: python3 homebrew/pstube/tests/probe_native_innertube.py
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
