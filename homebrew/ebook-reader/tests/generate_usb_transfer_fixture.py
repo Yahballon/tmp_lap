@@ -8,7 +8,7 @@ out.parent.mkdir(parents=True,exist_ok=True)
 with out.open('wb') as f:
     f.write(bytes.fromhex('526172211a0700'))
     chunk=bytes(range(256))*256
-    for _ in range(256):
+    for _ in range(768):
         f.write(chunk)
-assert out.stat().st_size>16*1024*1024
+assert out.stat().st_size>40*1024*1024
 print('Generated',out.stat().st_size,'bytes')

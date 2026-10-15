@@ -107,7 +107,7 @@ Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.3
 
 Usage: place `.cbr` in `/mnt/usb0/Books/` (or the app-specific local Books directory), refresh via OPTIONS, choose **Comics** with L1/R1, then X to open. Keep the existing `elfldr` USB helper running on port 9021. Password-protected or multi-volume RAR files cannot be read.
 
-## v0.2.3: Fix large USB CBR transfers
+## v0.2.2: Fix large USB CBR transfers
 
 - Larger comics (up to 2 GiB) can be catalogued and copied, instead of the previous 512 MiB limit.
 - Dedicated book helper remains available for 10 minutes of idle browsing rather than stopping after 15 seconds; transfer and socket timeouts are increased for slow USB reads/writes.
@@ -133,3 +133,18 @@ Install the new PPSA99741.zip from TESTBUILDS without deleting saved data. USB b
 **Debugging:** After reproducing a problem, get `/data/EbookReader/ebook-reader.log` with your PS5 file manager and share its last lines. Log creation depends on the PS5 sandbox allowing writes to this path. Actual console confirmation is required.
 
 Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.3
+
+## v0.2.4: Fix ENOSPC on USB CBR/CBZ books (cache quota)
+
+PS5 runtime logs revealed USB transfer was working, but `/download0/ebook-reader-cache` repeatedly failed around **21 MiB** with **No space left on device**. The entire RAR/CBR archive must be copied before libarchive can open it.
+
+- **Preferred large-comic cache:** `/data/EbookReader/Cache/`. The previously small-quota `/download0` location is a last-resort fallback, not the default. Existing verified files in older caches remain readable without downloading them again.
+- **Automatic cleanup:** The reader keeps up to approximately **768 MiB** of disposable USB book copies, evicting oldest copies first. It also removes abandoned `.part` files from interrupted transfers. It never deletes anything from `/data/EbookReader/Books/`, user settings, library progress, or logs.
+- A cache cleanup is attempted **before** a new download; size/magic validation is retained for cached EPUB, PDF, CBR and CBZ.
+- Retains resumable transfers and detailed USB diagnostic events. An explicit local file under `/data/EbookReader/Books/` can also be opened with no USB transfer or cache copy.
+- Host CI verifies a **48 MiB** simulated CBR transfer to the new data-root cache and tests that cleanup preserves books and settings.
+- If `/data/EbookReader/Cache` also lacks space or write privileges, the reader still reports the storage failure. The file cannot be read until a suitable writable filesystem has enough room.
+
+**Install:** Update `PPSA99741.zip` via TESTBUILDS, keeping saved data. USB books remain under `/mnt/usb0/Books`. Diagnostic log: `/data/EbookReader/ebook-reader.log`.
+
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.4

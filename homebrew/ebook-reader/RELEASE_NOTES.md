@@ -1,17 +1,18 @@
-# Ebook Reader v0.2.3 — Fix book-opening SIGSEGV and missing covers
+# Ebook Reader v0.2.4 — Fix CBR / CBZ USB cache full
+
+## Root cause
+PS5 diagnostics from v0.2.3 prove that the USB helper and RAR readers work, but writing a new comic to `/download0/ebook-reader-cache` stopped around 21 MiB with `ENOSPC`. This was a filesystem cache problem, not an unsupported comic format.
 
 ## Fixed
-- The v0.2.2 remote CBR/CBZ cover skip permanently set `g_coverBusy`, preventing cover extraction for unrelated EPUB books. This is corrected.
-- Removed the recently introduced, unverified POSIX `statvfs` invocation from the PS5 USB cache-selection path, replacing it with mkdir/fopen/write probes. Transfers report write/flush errors directly.
-- Background cover jobs no longer block the rest of the bookshelf when a remote comic has no readily available art.
+- Save new downloaded USB books into writable `/data/EbookReader/Cache/` first instead of the smaller `/download0` app cache.
+- Reuse valid cached files already present under the old paths without fetching them again.
+- Automatically evict the oldest disposable USB-cache files when the 768-MiB soft budget would be exceeded, including abandoned incomplete `.part` copies.
+- Preserve user-owned files and folders: `/data/EbookReader/Books/`, saved settings/progress and `ebook-reader.log` are never removed by cache cleanup.
+- Keep resumable transfers, native RAR4/RAR5 decoder, EPUB/PDF and single/double-page zoom.
+- CI adds a 48-MiB CBR transfer test verifying the data-root cache path, plus cache-cleanup and user-book-protection assertions.
 
-## Added
-- A dedicated PS5 book root: `/data/EbookReader/Books`, discovered recursively together with all previous library paths (EPUB, PDF, CBR, CBZ).
-- Persistent diagnostic log: `/data/EbookReader/ebook-reader.log`, including startup, book-open events, USB transfers/retries, and errors. Rotates at 2 MiB.
-- CI regression tests for the local folder and log, plus source guards against the crash regression and cover-worker starvation.
+## Install and verify
+Install `PPSA99741.zip` through TESTBUILDS. Do not delete books or saved data. With `elfldr` on port 9021 and the book helper on 9176, choose a CBR on USB. Check `/data/EbookReader/ebook-reader.log` for `USB_FETCH_OK /data/EbookReader/Cache/...`, then `OPEN_OK`.
 
-## Installation
-Install `PPSA99741.zip` from TESTBUILDS, keeping Title ID `PPSA99741` and saved library state. Do not remove existing USB books; `elfldr` 9021 and the USB book helper on 9176 remain supported.
-
-## Known limitations
-The identified crash triggers have been removed but actual PS5 testing is still required to confirm they explain the SIGSEGV screenshot. If another crash occurs, inspect `/data/EbookReader/ebook-reader.log` for the last successful operation. Logs are best-effort if file permissions restrict access. PDF remains a text preview; password-protected/multipart RAR remains unsupported.
+## Limits
+Copying a full comic into the cache still requires actual free space and write access under `/data/EbookReader`; this is not an on-demand RAR streaming reader. Current tests cover native compilation, transfer and safe eviction, while console hardware confirmation remains pending.
