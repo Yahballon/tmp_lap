@@ -62,15 +62,16 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     txt=txt.replace("str(nfs/'lib/libnfs.a'),","")
     # The PS5_Vulkan setup produces a target-native zlib archive. Preserve
     # it in the final static link for NES compression and archive helpers.
-    txt=txt.replace("netlibs=[]", "netlibs=[deps/'PS5_Vulkan/.deps/native/zlib/root/usr/lib/libz.a']")
+    txt=txt.replace("netlibs=[]", "netlibs=[z/'lib/libz.a']")
     a=txt.index("subprocess.run(['python3',str(deps/'filesystem-helper/tools/build-lapy-helper.py')")
     b=txt.index("licenses=app/'licenses'",a)
     txt=txt[:a]+txt[b:]
-    txt=txt.replace("PPSA99205",APP)
+    txt=txt.replace("PPSA99205",TITLE)
     # Keep a distinct human-readable app name but the correct numeric title ID.
     txt=txt.replace("'title':'"+APP+"'", "'title':'"+TITLE+"'")
     txt=txt.replace("PS5SNES-v6-Repository-Covers-by-YAHBALLON.zip",TITLE+".zip")
     txt=txt.replace("PS5SNES v6 by YAHBALLON",APP+" v0.1.0")
+    txt=txt.replace("'name':'"+APP+"'", "'name':'"+APP+" v0.1.0'")
     txt=txt.replace("'bsnes-mercury balanced'","'MesenCE-Libretro NES HD'")
     txt=txt.replace("'https://github.com/libretro/bsnes-mercury'",
                     "'https://github.com/FrederickCampbell/MesenCE-Libretro'")
@@ -99,16 +100,19 @@ def main():
         MESEN_PS5_CORE=str(CORE),
         PS5_PAYLOAD_SDK=str(DEPS/"PS5_Vulkan/.deps/native/ps5-payload-sdk"),
         LIBNFS_PREFIX=str(DEPS/"unused-libnfs"),
-        LIBZ_PREFIX=str(DEPS/"unused-zlib"))
+        LIBZ_PREFIX=str(DEPS/"PS5_Vulkan/.deps/native/zlib/root/usr"))
+    zlib = Path(env["LIBZ_PREFIX"])
+    if not (zlib/"include/zlib.h").is_file() or not (zlib/"lib/libz.a").is_file():
+        raise RuntimeError("PS5 native zlib headers/archive missing: "+str(zlib))
     run("python3",builder,env=env)
     built=SRC/"snes/build-shelf"/(TITLE+".zip")
     assert built.is_file(), "Signed PS5 ZIP not built"
     with zipfile.ZipFile(built) as z:
         assert z.testzip() is None
-        data=z.read(APP+"/eboot.bin")
+        data=z.read(TITLE+"/eboot.bin")
         assert len(data)>100000 and data[:4]==struct.pack("<I",0x1D3D154F)
-        assert APP+"/sce_sys/param.json" in z.namelist()
-        assert APP+"/sce_module/libc.prx" in z.namelist()
+        assert TITLE+"/sce_sys/param.json" in z.namelist()
+        assert TITLE+"/sce_module/libc.prx" in z.namelist()
     out=ROOT/"dist"
     out.mkdir(exist_ok=True)
     shutil.copy2(built,out/(TITLE+".zip"))
