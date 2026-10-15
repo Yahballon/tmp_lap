@@ -834,7 +834,7 @@ bool select_stream_formats(const std::string& json,int quality,StreamSelection& 
   out.videoUrl=std::move(video.url);out.audioUrl=chosen->url;
   out.height=video.height;out.adaptive=true;
   out.audioLanguage=chosen->language.empty()?"unknown":chosen->language;
-  out.audioOriginal=chosen->originConfidence>0;
+  out.audioOriginal=chosen->originConfidence==2;
   return true;
  }
  if(!mux.url.empty()){
@@ -903,7 +903,9 @@ bool resolve_android_mp4(const std::string& id,std::string& mediaUrl,std::string
 }
 void Service::cancel_stream(){
  std::lock_guard<std::mutex> g(mutex_);
- state_.streamId.clear();state_.streamUrl.clear();state_.streamError.clear();
+ state_.streamId.clear();state_.streamUrl.clear();state_.streamAudioUrl.clear();
+ state_.streamAudioLanguage.clear();state_.streamAudioOriginal=false;
+ state_.streamError.clear();
  state_.streamResolving=false;
 }
 
