@@ -110,9 +110,44 @@ int main(){
    if(zoom>1.001f && single_text_page_bounds.h*zoom>page_clip.h+0.5f){
       const float imageBottom=264.f+(single_text_page_bounds.y+single_text_page_bounds.h-264.f)*zoom+
                               bounds.min_y;
-      assert(close(imageBottom,page_clip.y+page_clip.h));
+      assert(close(imageBottom,single_sheet_clip.y+single_sheet_clip.h));
    }
  }
+ // Screenshot regression: zooming a single parchment sheet used to draw
+ // letters on top of the brown gutters. Paper, text scissor and scroll
+ // coordinates must all agree.
+ assert(single_sheet_clip.x>465.f);
+ assert(single_sheet_clip.x+single_sheet_clip.w<1455.f);
+ assert(single_sheet_clip.y>=196.f);
+ assert(single_sheet_clip.y+single_sheet_clip.h<=946.f);
+ assert(single_text_page_bounds.x>=single_sheet_clip.x);
+ assert(single_text_page_bounds.x+single_text_page_bounds.w
+          <=single_sheet_clip.x+single_sheet_clip.w);
+ for(float zoom: {1.f,1.25f,1.5f,1.75f,2.f,2.5f,3.f,3.5f,4.f}){
+    const auto b=text_pan_bounds(zoom,true);
+    assert(b.min_x<=b.max_x);
+    assert(b.min_y<=b.max_y);
+    if(zoom>1.f){
+       const float first=960.f+(single_first_glyph_x-960.f)*zoom+
+                         single_page_start_x(zoom);
+       // The first glyph must stay inside the cream sheet at every zoom.
+       assert(close(first,single_first_glyph_x));
+       assert(first>single_sheet_clip.x+25.f);
+       const float last=960.f+(single_text_page_bounds.x+
+                                single_text_page_bounds.w-960.f)*zoom+b.min_x;
+       assert(close(last,single_sheet_clip.x+single_sheet_clip.w));
+       const float bottom=264.f+
+              (single_text_page_bounds.y+single_text_page_bounds.h-264.f)*zoom+
+              b.min_y;
+       if(single_text_page_bounds.h*zoom>single_sheet_clip.h)
+          assert(close(bottom,single_sheet_clip.y+single_sheet_clip.h));
+    }else{
+       assert(close(single_page_start_x(zoom),0.f));
+    }
+    // The unzoomed text must never overlap the status/footer row.
+    assert(single_sheet_clip.y+single_sheet_clip.h<990.f);
+ }
+ std::puts("Single-page scissor, centered text start and safe footer tested");
  std::puts("Book cover spacing, zoom-to-bottom and Square single/double page toggle passed");
 
 }
