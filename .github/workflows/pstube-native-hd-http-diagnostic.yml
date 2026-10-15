@@ -1,0 +1,32 @@
+name: PSTUBE Native HD Range Diagnostic
+on:
+  pull_request:
+    paths:
+      - 'homebrew/pstube/native/range_media.cpp'
+      - 'homebrew/pstube/native/range_media.hpp'
+      - 'homebrew/pstube/tests/native_hd_range_probe_test.cpp'
+      - '.github/workflows/pstube-native-hd-http-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  range:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile native OpenSSL range probe
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          ca=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
+          Path('/tmp/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE('+ca+')PS5CABUNDLE";\n')
+          PY
+          g++ -std=c++20 -O2 -pthread -I/tmp -Ihomebrew/pstube/native \
+            homebrew/pstube/tests/native_hd_range_probe_test.cpp \
+            homebrew/pstube/native/pstube.cpp \
+            homebrew/pstube/native/transfer.cpp \
+            homebrew/pstube/native/thumbnails.cpp \
+            homebrew/pstube/native/range_media.cpp \
+            -lssl -lcrypto -o /tmp/pstube-range-probe
+      - name: Compare verified native HTTPS ranges
+        run: timeout 115s /tmp/pstube-range-probe
