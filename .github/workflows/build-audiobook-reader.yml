@@ -22,6 +22,12 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror             -D'AUDIOBOOK_DATA_ROOT="/tmp/ps5-audiobook-ci"'             homebrew/audiobook-reader/native/library.cpp             homebrew/audiobook-reader/tests/library_test.cpp             -o /tmp/audiobook-library-test
           /tmp/audiobook-library-test
+      - name: Test live chapter transitions, seeks and chapterless books
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/audiobook-reader/tests/chapter_tracking_test.cpp \
+            -o /tmp/audiobook-chapter-tracking-test
+          /tmp/audiobook-chapter-tracking-test
       - name: Test native M4B parser and player compilation on host
         run: |
           g++ -std=c++20 -O2 -pthread -Wall -Wextra             -Ihomebrew/audiobook-reader/native -c             homebrew/audiobook-reader/native/chapters.cpp             $(pkg-config --cflags libavformat libavcodec libavutil)             -o /tmp/audiobook-chapters.o
@@ -203,7 +209,7 @@ jobs:
           title=metadata['titleId'];root=pathlib.Path('app/dist')/title
           exe=(root/'eboot.bin').read_bytes()
           assert len(exe)>1000 and struct.unpack('<I',exe[:4])[0]==0x1D3D154F
-          assert b'v0.2.3' in exe
+          assert b'v0.2.4' in exe
           param=json.loads((root/'sce_sys/param.json').read_text())
           assert param['titleId']==title and param['contentVersion']==metadata['contentVersion']
           for file in ['sce_sys/icon0.png','sce_module/libc.prx','assets/icon0.png','assets/fonts/inter-semibold.huifont','assets/ABooks/README.txt','abookscan.elf']:
@@ -217,7 +223,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Audiobook-Reader-v0.2.3
+          name: Audiobook-Reader-v0.2.4
           path: app/dist/PPSA99784.zip
           if-no-files-found: error
       - name: Publish release after main branch build
@@ -225,5 +231,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view audiobook-reader-v0.2.3 >/dev/null 2>&1; then exit 0; fi
-          gh release create audiobook-reader-v0.2.3 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.3" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
+          if gh release view audiobook-reader-v0.2.4 >/dev/null 2>&1; then exit 0; fi
+          gh release create audiobook-reader-v0.2.4 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.4" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
