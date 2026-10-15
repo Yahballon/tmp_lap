@@ -7,6 +7,7 @@
 #include "usb_bridge.hpp"
 #include "comic_archive.hpp"
 #include "ebook_layout.hpp"
+#include "ebook_reflow.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -245,6 +246,7 @@ int main(){
  };
  refresh();
  ebook::Document document;
+ ebook_reflow::Layout singleText;
  comic::Book currentComic;
  bool inComic=false;
  bool singlePage=false; // Square: EPUB/PDF single vs double-page display
@@ -321,15 +323,20 @@ int main(){
    const bool oldSinglePage=singlePage;
    const float oldZoom=readerZoom;
    if(!inComic && (pressed&hui::pad_bits::kSquare)){
+      const size_t current=ebook_layout::first_text_line(readerPage,oldSinglePage);
+      const size_t originalLine=oldSinglePage?
+           ebook_reflow::source_line(singleText,current):current;
       singlePage=!singlePage;
-      readerPage=ebook_layout::remap_text_page(readerPage,oldSinglePage,singlePage);
+      const size_t next=singlePage?
+           ebook_reflow::reflowed_line(singleText,originalLine):originalLine;
+      readerPage=(int)(next/(size_t)ebook_layout::text_lines_per_view(singlePage));
       lastRenderedImagePage=-1;
       for(auto& image:pageImages)free_texture(image.second);
       pageImages.clear();
       readerPanX=readerPanY=0.f;
    }
    const int pageCount=inComic?(int)currentComic.pageCount():
-      ebook_layout::text_page_count(document.lines.size(),singlePage);
+      ebook_layout::text_page_count(singlePage?singleText.lines.size():document.lines.size(),singlePage);
    if(pressed&hui::pad_bits::kR2)readerZoom=std::min(4.f,readerZoom+0.25f);
    if(pressed&hui::pad_bits::kL2)readerZoom=std::max(1.f,readerZoom-0.25f);
    if(pressed&hui::pad_bits::kL3 || pressed&hui::pad_bits::kOptions){
@@ -442,9 +449,15 @@ int main(){
         if(!selectedComic && !document.coverImage.empty() && !covers[b.path].id)
            covers[b.path]=make_image(renderer,document.coverImage);
         inComic=selectedComic;
+        if(!selectedComic){
+          std::vector<size_t> positions;
+          for(const auto& im:document.images)positions.push_back(im.line);
+          singleText=ebook_reflow::full_width(document.lines,positions);
+        }
         reader=true;
         const size_t pages=inComic?currentComic.pageCount():document.pageCount();
-        const size_t viewPages=inComic?pages:(size_t)ebook_layout::text_page_count(document.lines.size(),singlePage);
+        const size_t viewPages=inComic?pages:(size_t)ebook_layout::text_page_count(
+                singlePage?singleText.lines.size():document.lines.size(),singlePage);
         readerPage=std::min<int>((int)viewPages-1,(int)(b.progress*viewPages/10000));
         message="";
        }else message="Cannot open "+b.title+": "+error;
@@ -462,21 +475,16 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.9",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.2.0",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():
-      ebook_layout::text_page_count(document.lines.size(),singlePage);
+      ebook_layout::text_page_count(singlePage?singleText.lines.size():document.lines.size(),singlePage);
    txt(d,font,atlas,cut(title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
    d.bordered_rect({161,180,1598,781},12,Color::rgb(0xb89d75),4,edge);
-   d.rounded_rect({177,196,1566,750},5,inComic?Color::rgb(0x101014):
-                  singlePage?Color::rgb(0x584a3a):paper);
-   if(!inComic && singlePage){
-      // Centre one paper sheet instead of showing both columns.
-      d.shadow({465,196,990,750},7,9,Color::rgb(0x140b05,0.35f));
-      d.rounded_rect({465,196,990,750},4,paper);
-   }
+   // Full-width parchment with no narrow card or unused side gutters.
+   d.rounded_rect({177,196,1566,750},5,inComic?Color::rgb(0x101014):paper);
    if(inComic){
      std::vector<ComicPageResult> finished;
      {std::lock_guard<std::mutex> lock(g_comicLock);finished.swap(g_comicReady);}
@@ -520,25 +528,28 @@ int main(){
         const size_t first=ebook_layout::first_text_line(readerPage,singlePage);
         const size_t last=first+(size_t)ebook_layout::text_lines_per_view(singlePage);
         for(size_t i=0;i<document.images.size();++i){
-          if(document.images[i].line>=first && document.images[i].line<last)
+          const size_t line=singlePage?singleText.imageLineByIndex[i]:document.images[i].line;
+          if(line>=first && line<last)
             pageImages[i]=make_image(renderer,document.images[i].encoded);
         }
      }
      const size_t firstLine=ebook_layout::first_text_line(readerPage,singlePage);
      const int linesPerView=ebook_layout::text_lines_per_view(singlePage);
+     const auto& displayLines=singlePage?singleText.lines:document.lines;
      for(int j=0;j<linesPerView;++j){
       const size_t idx=firstLine+(size_t)j;
-      if(idx>=document.lines.size())break;
+      if(idx>=displayLines.size())break;
       const int col=singlePage?0:j/17,row=j%17;
-      const float x=(singlePage?550.f:228.f)+col*794.f,y=264.f+row*38.f;
-      txt(d,font,atlas,cut(document.lines[idx],52),x,y,24,ink);
+      const float x=228.f+col*794.f,y=264.f+row*38.f;
+      txt(d,font,atlas,cut(displayLines[idx],singlePage?89:52),x,y,24,ink);
      }
      for(const auto& item:pageImages){
        const auto& img=document.images[item.first];
-       const size_t offset=img.line-firstLine;
-       const float x=(singlePage?550.f:228.f)+(singlePage?0.f:(offset/17)*794.f);
+       const size_t renderLine=singlePage?singleText.imageLineByIndex[item.first]:img.line;
+       const size_t offset=renderLine-firstLine;
+       const float x=228.f+(singlePage?0.f:(offset/17)*794.f);
        const float y=264.f+(offset%17)*38.f;
-       if(item.second.id)draw_fit(d,item.second,x,y,singlePage?790.f:685.f,240.f);
+       if(item.second.id)draw_fit(d,item.second,x,y,singlePage?1484.f:685.f,240.f);
        else txt(d,font,atlas,"[Unsupported image]",x,y+30.f,17,ink);
      }
    }
