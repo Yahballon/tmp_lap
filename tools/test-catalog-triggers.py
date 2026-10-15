@@ -38,6 +38,16 @@ for app_dir in sorted(app_dirs):
         heading = re.search(r"(?m)^name:\s*(.+?)\s*$", code)
         assert heading, f"Missing 'name' in {workflow}"
         matching.append((heading.group(1).strip("'\""), workflow.name))
+    if slug == "ps5-dreamcastx":
+        # DreamcastX deliberately separates its expensive native build from
+        # GitHub release publishing. The publisher only takes successful,
+        # already-verified PS5 artifacts and must be subscribed by catalog CI.
+        publisher = workflow_dir / "publish-ps5-dreamcastx.yml"
+        pub_code = publisher.read_text()
+        assert "gh release create" in pub_code
+        assert "Build PS5DreamcastX (native Flycast)" in pub_code
+        assert "Publish PS5DreamcastX Release" in names
+        matching.append(("Publish PS5DreamcastX Release", publisher.name))
     if not matching:
         # Some scaffold or experimental apps intentionally have no release workflow.
         continue
