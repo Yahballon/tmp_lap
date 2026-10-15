@@ -63,9 +63,8 @@ static void add_books(const char *dir,const char *rel,unsigned depth,unsigned *b
   struct stat st;
   if(lstat(sub,&st)!=0)continue; // never follow a symlink outside Books
   if(S_ISDIR(st.st_mode)&&depth<3){add_books(sub,relative,depth+1,budget);continue;}
-  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||(uint64_t)(uint64_t)st.st_size>MAX_FILE)continue;
-  strncpy(items[item_count].relative,relative,MAX_PATH-1);
-  items[item_count].relative[MAX_PATH-1]='\0';
+  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||(uint64_t)(uint64_t)(uint64_t)st.st_size>MAX_FILE)continue;
+  memcpy(items[item_count].relative,relative,(size_t)k+1);
   items[item_count].size=st.st_size;
   ++item_count;
  }
