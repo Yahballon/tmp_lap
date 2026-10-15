@@ -84,7 +84,7 @@ static int scan(void){
  return 0;
 }
 static int emit_catalog(int fd){
- if(!scan())return write_all(fd,"ABOOK1\nERROR USB ABooks not accessible\n",39);
+ if(!scan())return write_all(fd,"ABOOK1\nERROR USB ABooks not accessible\n",strlen("ABOOK1\nERROR USB ABooks not accessible\n"));
  if(!write_all(fd,"ABOOK1\n",7))return 0;
  for(unsigned i=0;i<item_count;i++){
   const struct Item *b=&items[i];char line[96];
