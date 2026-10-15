@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <cctype>
 #include <algorithm>
 #include <climits>
@@ -88,7 +89,7 @@ bool retrieve(const Url& url,unsigned long long offset,
   close(fd);fd=-1;
  }
  freeaddrinfo(nodes);
- if(fd<0){SSL_CTX_free(ctx);error=cancel?"Cancelled":"HD CDN connection failed";return false;}
+ if(fd<0){SSL_CTX_free(ctx);error=cancel.load()?"Cancelled":"HD CDN connection failed";return false;}
  SSL* ssl=SSL_new(ctx);
  if(!ssl){close(fd);SSL_CTX_free(ctx);error="HD TLS context allocation failed";return false;}
  SSL_set_fd(ssl,fd);
@@ -127,7 +128,7 @@ bool retrieve(const Url& url,unsigned long long offset,
   unsigned long long first=0,end=0,size=0;
   const auto ranges=header(headers,"content-range:");
   if(std::sscanf(ranges.c_str(),"bytes %llu-%llu/%llu",&first,&end,&size)!=3
-    ||first!=offset||end<first||end>last||size==0||size>MAX_FILE){
+    ||first!=offset||end<first||end!=std::min(last,size-1)||size==0||size>MAX_FILE){
    error="Invalid HD Content-Range";break;
   }
   if(total && total!=size){error="HD file size changed during transfer";break;}
