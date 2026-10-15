@@ -21,7 +21,11 @@ inline bool prepare(){
  const auto dir=root();
  if(mkdir(dir.c_str(),0755)!=0 && errno!=EEXIST)return false;
  const auto books=books_directory();
- if(mkdir(books.c_str(),0755)!=0 && errno!=EEXIST)return false;
+ // A read-only/missing Books folder must not suppress diagnostics.
+ mkdir(books.c_str(),0755);
+ FILE* probe=fopen(filename().c_str(),"ab");
+ if(!probe)return false;
+ fclose(probe);
  return true;
 }
 inline void write(const char* event,const std::string& detail){
