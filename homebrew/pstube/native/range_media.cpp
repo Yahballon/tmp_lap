@@ -180,17 +180,27 @@ bool fetch_bounded_range_media(const std::string& input,const std::string& targe
  FILE* file=std::fopen(tmp.c_str(),"wb");
  if(!file){error="HD cache not writable";return false;}
  bool ok=true;
- unsigned long long offset=0,total=0;
+ unsigned long long offset=0,total=0,block=CHUNK;
+ int requestCount=0;
  while(!cancel.load()){
   if(total && offset>=total)break;
-  const unsigned long long end=offset+CHUNK-1;
-  if(!retrieve(url,offset,total?std::min(end,total-1):end,file,total,cancel,error)){
-   error="Range "+std::to_string(offset)+"-"+std::to_string(total?std::min(end,total-1):end)+
-     " failed: "+error;
+  if(++requestCount>20000){ok=false;error="HD CDN made too many requests";break;}
+  const unsigned long long end=offset+block-1;
+  const unsigned long long requestedEnd=total?std::min(end,total-1):end;
+  error.clear();
+  if(!retrieve(url,offset,requestedEnd,file,total,cancel,error)){
+   // CDN accepts small bounded ranges at offsets where it rejects larger
+   // requests with HTTP 403. Never discard the successfully written prefix.
+   if(error.find("HTTP 403")!=std::string::npos&&block>4096&&!cancel.load()){
+    block=std::max(4096ULL,block/2);
+    continue;
+   }
+   error="Range "+std::to_string(offset)+"-"+std::to_string(requestedEnd)+
+     " (block "+std::to_string(block)+") failed: "+error;
    ok=false;break;
   }
   if(total==0||total>MAX_FILE){ok=false;error="Invalid HD content length";break;}
-  offset=std::min(offset+CHUNK,total);
+  offset=std::min(offset+block,total);
   percent.store((int)std::min(99ULL,offset*100/total));
  }
  if(cancel.load()){ok=false;error="Cancelled";}
