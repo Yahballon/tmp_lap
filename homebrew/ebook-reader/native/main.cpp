@@ -6,6 +6,7 @@
 #include "ebook_engine.hpp"
 #include "usb_bridge.hpp"
 #include "comic_archive.hpp"
+#include "ebook_layout.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -126,6 +127,13 @@ void draw_fit(DrawList& d,const TextureImage& t,float x,float y,float w,float h)
  d.image(t.id,{x+(w-fitW)*0.5f,y+(h-fitH)*0.5f,fitW,fitH},
          kFullUv,Color::rgb(0xffffff));
 }
+// Render cover art edge-to-edge inside the physical book border, with a
+// centred UV crop. Full cover photos must not look like stuck-on thumbnails.
+void draw_cover(DrawList& d,const TextureImage& t,float x,float y,float w,float h){
+ if(!t.id||t.width<1||t.height<1)return;
+ const auto crop=ebook_layout::cover_uv(t.width,t.height,w,h);
+ d.image(t.id,{x,y,w,h},{crop.x,crop.y,crop.w,crop.h},Color::rgb(0xffffff),3);
+}
 // The file transfer/ZIP extraction runs outside the render thread. OpenGL
 // texture creation is always completed on the render thread.
 struct CoverTask {
@@ -172,24 +180,35 @@ bool start_cover(const ebook::BookEntry& b){
 void panel(DrawList& d,float x,float y,float w,float h,bool selected=false){
  d.bordered_rect({x,y,w,h},12,selected?Color::rgb(0x5b3416):wood,selected?4:1,selected?gold:edge);
 }
-void book(DrawList& d,const Font& f,unsigned atlas,const ebook::BookEntry& b,float x,float y,bool selected,const TextureImage& cover) {
- d.shadow({x,y,216,282},8,13,Color::rgb(0x080301,0.65f));
+void book(DrawList& d,const Font& f,unsigned atlas,const ebook::BookEntry& b,float x,float y,bool selected,const TextureImage& cover){
+ constexpr float w=ebook_layout::book_width, h=ebook_layout::book_height;
+ d.shadow({x,y,w+6.f,h+7.f},8,12,Color::rgb(0x080301,0.62f));
+ if(selected)d.glow({x-3,y-3,w+6,h+6},7,7,gold);
  const unsigned colors[]={0x572b35,0x17454c,0x604c27,0x43355e,0x375032,0x614027};
- unsigned hash=0;for(char c:b.title)hash=hash*33+(unsigned char)c;
- Color coverColor=Color::rgb(colors[hash%6]);
- d.bordered_rect({x,y,208,268},4,coverColor,selected?5:1,selected?gold:Color::rgb(0xc49557));
- if(cover.id)draw_fit(d,cover,x+18,y+6,188,230);
- else {
-  d.line(x+34,y+23,x+187,y+23,2,gold);
-  d.line(x+34,y+237,x+187,y+237,2,gold);
-  txt(d,f,atlas,b.format,x+180,y+53,17,gold,Align::right);
-  txt(d,f,atlas,cut(b.title,15),x+106,y+129,25,cream,Align::center);
-  txt(d,f,atlas,cut(b.author,18),x+106,y+166,16,muted,Align::center);
+ unsigned hash=0;for(unsigned char c:b.title)hash=hash*33+c;
+ const Color placeholder=Color::rgb(colors[hash%6]);
+ // The narrow frame remains visible, but real artwork fills the entire
+ // front face. Only books without a cover get a title/format fallback.
+ d.bordered_rect({x,y,w,h},5,placeholder,selected?5.f:3.f,selected?gold:Color::rgb(0xb88a4f));
+ if(cover.id){
+    draw_cover(d,cover,x+5,y+5,w-10.f,h-10.f);
+ }else{
+    d.line(x+29,y+23,x+w-21,y+23,2,gold);
+    d.line(x+29,y+h-27,x+w-21,y+h-27,2,gold);
+    txt(d,f,atlas,b.format,x+w-25,y+54,17,gold,Align::right);
+    txt(d,f,atlas,cut(b.title,15),x+w/2,y+129,23,cream,Align::center);
+    txt(d,f,atlas,cut(b.author,18),x+w/2,y+166,16,muted,Align::center);
  }
- d.rounded_rect({x+7,y+4,12,259},0,Color::rgb(0x170b08,0.65f));
- if(b.favorite)txt(d,f,atlas,"* FAVOURITE",x+108,y+219,15,gold,Align::center);
- d.rounded_rect({x+35,y+248,139,5},2,Color::rgb(0x130908));
- d.rounded_rect({x+35,y+248,std::min(139.f,139.f*(float)b.progress/10000.f),5},2,gold);
+ // Small book-spine sheen belongs to the frame, not a label over the cover.
+ d.rounded_rect({x+4,y+5,8,h-10.f},0,Color::rgb(0x170b08,0.40f));
+ if(b.favorite){
+   d.rounded_rect({x+w-33,y+7,24,25},3,Color::rgb(0x201306,0.72f));
+   d.star(x+w-21,y+19,9,gold);
+ }
+ if(b.progress>0){
+   d.rounded_rect({x+19,y+h-12,w-38.f,4},2,Color::rgb(0x140d08,0.77f));
+   d.rounded_rect({x+19,y+h-12,std::min(w-38.f,(w-38.f)*(float)b.progress/10000.f),4},2,gold);
+ }
 }
 std::vector<std::string> dirs(){return {"/app0/assets/Books","/app0/assets/books","/app0/Books","/download0/Books","/download0/ebooks","/data/ebooks","/mnt/usb0/Books","/mnt/usb1/Books","/mnt/usb0","/mnt/usb1","/mnt/usb2"};}
 }
@@ -321,7 +340,12 @@ int main(){
    }
    if(pressed&hui::pad_bits::kTriangle)readerPage=0;
    if(pressed&hui::pad_bits::kSquare)readerPage=pageCount-1;
-   if(oldPage!=readerPage){readerPanX=readerPanY=0.f;}
+   if(oldPage!=readerPage){
+      // Keep the chosen magnification, but always start the next/previous
+      // page from its top edge instead of inheriting the old scroll offset.
+      readerPanX=0.f;
+      readerPanY=0.f;
+   }
    if(selected>=0&&selected<(int)visible.size()){
     auto& b=books[visible[selected]];
     b.progress=(size_t)((readerPage*10000ULL)/(size_t)std::max(1,pageCount));
@@ -404,7 +428,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.6",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.7",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():std::max(1,(int)document.pageCount());
@@ -429,7 +453,14 @@ int main(){
      }
    }
    d.push_clip({179,199,1562,744});
-   d.push_transform(readerZoom,960,570,readerPanX,readerPanY);
+   // A centre-pivot scales the next page away from the top and forces the
+   // user to scroll back up. Anchor EPUB text to row one, and image-based
+   // comics to the top of their fitted page inside the reading viewport.
+   const float pageTopShift=inComic && comicTexturePage==readerPage
+      ? ebook_layout::top_alignment(comicPageTexture.width,comicPageTexture.height,readerZoom)
+      : 0.f;
+   d.push_transform(readerZoom,960,inComic?ebook_layout::comic_y:264.f,
+                    readerPanX,readerPanY+pageTopShift);
    if(inComic){
      if(comicTexturePage==readerPage && comicPageTexture.id)
        draw_fit(d,comicPageTexture,183,200,1554,741);
@@ -504,17 +535,19 @@ int main(){
     txt(d,font,atlas,names[i],x+92,166,19,i==filter?gold:cream,Align::center);
    }
    d.rounded_rect({38,233,1845,767},6,Color::rgb(0x2a1607));
-   for(int row=0;row<4;row++){
-    float y=270+row*205.f;
-    d.gradient_rect({65,y+160,1783,43},0,Color::rgb(0x915829),Color::rgb(0x341808));
-    d.line(65,y+160,1848,y+160,3,Color::rgb(0xc48943));
+   for(int row=0;row<ebook_layout::rows;row++){
+    const auto plank=ebook_layout::shelf(row);
+    d.gradient_rect({plank.x,plank.y,plank.w,plank.h},0,
+                    Color::rgb(0x915829),Color::rgb(0x341808));
+    d.line(plank.x,plank.y,plank.x+plank.w,plank.y,3,Color::rgb(0xc48943));
    }
    if(count==0){
       txt(d,font,atlas,"No accessible books in this collection.",960,481,29,muted,Align::center);
       txt(d,font,atlas,"USB bridge: "+cut(usbCatalog.message,70),960,530,22,gold,Align::center);
    }
    if(count>0 && !g_coverBusy.load() && ++coverTick%22==0){
-     const int start=(selected/(list?9:15))*(list?9:15),stop=std::min(count,start+(list?9:15));
+     const int perPage=list?9:ebook_layout::per_page;
+     const int start=(selected/perPage)*perPage,stop=std::min(count,start+perPage);
      for(int i=start;i<stop;i++){
        const auto& b=books[visible[i]];
        if((b.format!="EPUB"&&b.format!="CBR"&&b.format!="CBZ") || covers.find(b.path)!=covers.end())continue;
@@ -524,7 +557,7 @@ int main(){
      }
    }
    if(count>0){
-    int pageSize=list?9:15;
+    int pageSize=list?9:ebook_layout::per_page;
     libraryScroll=selected/pageSize;
     for(int i=libraryScroll*pageSize;i<count&&i<(libraryScroll+1)*pageSize;i++){
      const auto& b=books[visible[i]];
@@ -534,13 +567,13 @@ int main(){
       txt(d,font,atlas,cut(b.title,55),119,y+37,26);
       txt(d,font,atlas,b.format+"  "+b.collection+(b.favorite?"  *":""),1768,y+37,20,gold,Align::right);
      }else{
-      float x=151+(index%5)*348.f,y=288+(index/5)*235.f;
+      const auto pos=ebook_layout::position(index);
       const auto it=covers.find(b.path);
-      book(d,font,atlas,b,x,y,i==selected,it==covers.end()?TextureImage{}:it->second);
+      book(d,font,atlas,b,pos.x,pos.y,i==selected,it==covers.end()?TextureImage{}:it->second);
      }
     }
    }
-   txt(d,font,atlas,"COLLECTION: "+std::string(names[filter])+"     "+std::to_string(count)+" books      "+std::to_string(libraryScroll+1)+" / "+std::to_string(std::max(1,(count+(list?8:14))/(list?9:15))),90,995,18,muted);
+   txt(d,font,atlas,"COLLECTION: "+std::string(names[filter])+"     "+std::to_string(count)+" books      "+std::to_string(libraryScroll+1)+" / "+std::to_string(std::max(1,(count+(list?8:ebook_layout::per_page-1))/(list?9:ebook_layout::per_page))),90,995,18,muted);
    txt(d,font,atlas,confirmDelete?"DELETE SELECTED BOOK?   X Confirm   CIRCLE Cancel":
     "X Read  L1/R1 Collection  SQUARE Favourite  TRIANGLE Storage  OPTIONS Rescan  R2 View  L3 Delete",88,1044,18,cream);
   }
