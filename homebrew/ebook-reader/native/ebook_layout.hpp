@@ -40,4 +40,55 @@ inline float top_alignment(int tex_w,int tex_h,float zoom){
  const float gap=(comic_h-rendered_h)*.5f;
  return -zoom*gap;
 }
+
+// Visible comic/text content must reach BOTH ends of the viewport after
+// zooming. Fixed clamps based on (zoom-1) prevented reaching the last part of
+// tall pages at 200–400% zoom.
+struct PanBounds {float min_x=0.f,max_x=0.f,min_y=0.f,max_y=0.f;};
+constexpr Rectangle page_clip{179.f,199.f,1562.f,744.f};
+constexpr Rectangle text_page_bounds{218.f,264.f,1484.f,650.f};
+inline Rectangle comic_image_bounds(int tex_w,int tex_h){
+ if(tex_w<=0||tex_h<=0)return {comic_x,comic_y,comic_w,comic_h};
+ const float scale=std::min(comic_w/tex_w,comic_h/tex_h);
+ const float w=tex_w*scale,h=tex_h*scale;
+ return {comic_x+(comic_w-w)*.5f,comic_y+(comic_h-h)*.5f,w,h};
+}
+inline PanBounds calculate_pan(Rectangle content,float zoom,float origin_x,float origin_y,
+                               float added_y,Rectangle viewport=page_clip){
+ PanBounds bounds;
+ if(zoom<=1.001f || content.w<=0.f || content.h<=0.f)return bounds;
+ const float left=origin_x+(content.x-origin_x)*zoom;
+ const float right=left+content.w*zoom;
+ const float top=origin_y+(content.y-origin_y)*zoom+added_y;
+ const float bottom=top+content.h*zoom;
+ if(content.w*zoom>viewport.w+0.5f){
+   bounds.min_x=viewport.x+viewport.w-right;
+   bounds.max_x=viewport.x-left;
+   // Preserve centred/focused default when there is spare space.
+   bounds.min_x=std::min(0.f,bounds.min_x);
+   bounds.max_x=std::max(0.f,bounds.max_x);
+ }
+ if(content.h*zoom>viewport.h+0.5f){
+   // Zero always means the beginning of a page; the negative bound
+   // brings its actual bottom into view, regardless of magnification.
+   bounds.min_y=std::min(0.f,viewport.y+viewport.h-bottom);
+   bounds.max_y=0.f;
+ }
+ return bounds;
+}
+inline PanBounds comic_pan_bounds(int w,int h,float zoom){
+ if(w<=0||h<=0)return {};
+ const auto content=comic_image_bounds(w,h);
+ const float shift=top_alignment(w,h,zoom);
+ return calculate_pan(content,zoom,960.f,comic_y,shift);
+}
+inline PanBounds text_pan_bounds(float zoom){
+ return calculate_pan(text_page_bounds,zoom,960.f,264.f,0.f);
+}
+inline float clamp_x(float pan,const PanBounds& bounds){
+ return std::clamp(pan,bounds.min_x,bounds.max_x);
+}
+inline float clamp_y(float pan,const PanBounds& bounds){
+ return std::clamp(pan,bounds.min_y,bounds.max_y);
+}
 } // namespace ebook_layout
