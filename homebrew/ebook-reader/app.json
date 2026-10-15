@@ -1,11 +1,11 @@
 {
   "name": "Ebook Reader",
   "slug": "ebook-reader",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "titleId": "PPSA99741",
   "contentId": "UP9000-PPSA99741_00-PS5EBOOKREADER01",
-  "contentVersion": "01.000.006",
-  "releaseTag": "ebook-reader-v0.1.6",
+  "contentVersion": "01.000.007",
+  "releaseTag": "ebook-reader-v0.1.7",
   "formats": {
     "epub": "text and inline illustrations",
     "pdf": "extractable text preview",
