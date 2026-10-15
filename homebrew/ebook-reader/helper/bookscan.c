@@ -22,7 +22,7 @@
 #endif
 #define MAX_BOOKS 256
 #define MAX_PATH 512
-#define MAX_FILE (128U * 1024U * 1024U)
+#define MAX_FILE (512U * 1024U * 1024U)
 #define PORT 9175
 struct Item {char relative[MAX_PATH];off_t size;};
 static struct Item items[MAX_BOOKS];
@@ -44,7 +44,7 @@ static int filename_ok(const char *s) {
 static int is_book(const char *s){
  size_t len=strlen(s);const char *ext=len>5?s+len-5:"";
  if(!strcasecmp(ext,".epub"))return 1;
- ext=len>4?s+len-4:"";return !strcasecmp(ext,".pdf");
+ ext=len>4?s+len-4:"";return !strcasecmp(ext,".pdf") || !strcasecmp(ext,".cbr") || !strcasecmp(ext,".cbz");
 }
 static void add_books(const char *dir,const char *rel,unsigned depth,unsigned *budget){
  if(depth>3 || item_count>=MAX_BOOKS || !*budget)return;
