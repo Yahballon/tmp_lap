@@ -129,6 +129,11 @@ static void fetch(int client,const char *name,uint64_t offset){
    if(!write_all(client,buf,got))break;
    total+=got;
    if(total>MAX_FILE)break;
+#ifdef EBOOK_USB_TEST_DROP_ONCE
+   // Simulate a dropped connection in host integration tests. Retries
+   // using a positive offset must still deliver the rest of the file.
+   if(start==0 && total>=4U*1024U*1024U)break;
+#endif
   }
  }
  fclose(f);
