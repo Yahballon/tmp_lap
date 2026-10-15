@@ -1,15 +1,20 @@
-# Ebook Reader v0.1.7 — Full-Cover Bookshelf & Zoom Page Reset
+# Ebook Reader v0.1.8 — Complete Zoom Scrolling & Single/Double Pages
 
-## Fixed
-- **Start at the top on every new page, even when zoomed:** Previous/next-page navigation now clears the previous pan position while retaining magnification. The scale origin moves from the viewport centre to the first reading row or top of the comic viewport. Landscape comic art gets an automatic top offset, so the new page is visible from its beginning.
-- **No more overlapping books:** The bookshelf uses a tested five-column, two-row grid (10 covers per screen) with 65px separation between rows instead of placing 268px-tall books only 235px apart. Wooden shelves are redrawn to align with the bottom of each row. Selection and paging continue to work with long book lists.
-- **Full-bleed real covers:** The image is rendered across the complete visible book front using centred UV cropping. No more stuck-on thumbnail/label appearance. Placeholder titles remain only for books without embedded artwork, and favourite/progress marks are kept unobtrusive.
+## Fix: Read all the way to the bottom while zoomed
+- Replace approximate fixed zoom/pan clamps with bounds derived from the actual image width, height, displayed aspect ratio, current zoom level and visible viewport.
+- At any zoom from 100% to 400%, pressing Down can now reach the very bottom of portrait, landscape, square and unusual-aspect-ratio comic pages. EPUB and PDF text preview pages also scroll fully.
+- Maintain the v0.1.7 behaviour: a new page begins at its top, with the selected zoom level retained.
 
-## Installation
-Install `PPSA99741.zip` through TESTBUILDS. Title ID stays `PPSA99741`; existing library and saved state remain compatible.
+## Added: Square switches EPUB/PDF page mode
+- Press **SQUARE** in an EPUB or PDF book to toggle **Double Page ↔ Single Page**.
+- Double-page shows two consecutive 17-line paper columns; single-page shows one centred 17-line paper sheet. The current reading position is converted to the new layout, and the image/scroll position is refreshed without reopening the book.
+- Progress saved for both modes, using position-normalized page counts; book/USB files and existing saved reading progress are preserved.
+- CBR/CBZ comics remain full-screen single-page; SQUARE continues to jump to the last page when reading comics.
 
 ## Controls
-L1/R1 previous/next page; L2/R2 zoom out/in; D-pad pan while zoomed; L3/OPTIONS reset zoom; X next page; Circle bookshelf. Same CBR/CBZ, EPUB images, USB-helper functionality.
+L1/R1 previous/next page; L2/R2 zoom out/in; D-Pad pan while zoomed; L3/OPTIONS reset zoom; SQUARE one/two page switch in EPUB/PDF; Cross next; Circle bookshelf.
 
-## Validation and limitations
-GitHub Actions checks page layout and UV calculations, zoom top alignment and compiles the complete native PS5 package. Physical-console validation is still needed. PDF remains an extractable-text preview, not a full graphics PDF renderer.
+## Validation & installation
+Build and ZIP validation, plus geometry tests covering complete vertical/horizontal pan travel at 125%, 200%, 300%, 400%, multi-aspect comics and single/double text page position conversion, are required for release.
+Install PPSA99741.zip from TESTBUILDS. Title ID PPSA99741 is unchanged.
+Physical PS5 testing remains outstanding. PDF is still a text-only preview, not full graphical PDF rendering.

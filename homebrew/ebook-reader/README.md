@@ -1,4 +1,4 @@
-# Ebook Reader v0.1.7 — USB bridge support
+# Ebook Reader v0.1.8 — USB bridge support
 
 Native PS5 EPUB/PDF text reader. Title ID: `PPSA99741`.
 
@@ -38,7 +38,7 @@ Requires a compatible already-running elfldr for accessing an inaccessible USB m
 
 Dedicated workflow: [build-ebook-reader.yml](../../.github/workflows/build-ebook-reader.yml). Uses PS5-DevBridge, OpenGL SDK, zlib and its native payload SDK to compile `bookscan.elf`; both `eboot.bin` and `bookscan.elf` are verified in the installable `PPSA99741.zip`.
 
-Release tag: `ebook-reader-v0.1.7`.
+Release tag: `ebook-reader-v0.1.8`.
 
 Source license: GPL-3.0-or-later, respecting dependency licenses.
 
@@ -68,11 +68,19 @@ Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.6
 
 **Limits:** Supports unencrypted single-file RAR4/RAR5, ZIP, JPEG/PNG/GIF (not WEBP by stb decoder in this build); no password-protected or multipart archives. Comic pages: up to 20 MiB uncompressed image data and 2048px displayed texture size. Archive maximum 512 MiB via USB bridge, 1,800 pages indexed. Unreadable files show errors; some RAR compression features may be unsupported by libarchive on hardware. This does **not** add graphical PDF page rendering. Tests must pass in CI, and PS5 hardware testing remains outstanding.
 
-## v0.1.7: Bookshelf layout and zoom reset
+## v0.1.8: Bookshelf layout and zoom reset
 
 - Two non-overlapping rows with five books each per screen, so real books no longer collide with covers on the next shelf. Multi-page collections remain navigable.
 - Real JPEG/PNG/CBR/CBZ covers occupy the entire book front using centre-cropped UVs rather than a small aspect-fit thumbnail, and selection is kept around the frame.
 - Every page change keeps the zoom factor but resets panning to start at the top edge. Comic pages are top-aligned even when the original picture is letterboxed; EPUB/PDF text starts from the first text row. D-pad panning is still available after the page change.
 - A geometry regression test covers shelf spacing, crop ratios and top alignment for 125–400% zoom.
 
-Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.7
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.8
+
+## v0.1.8: Reach the full bottom of zoomed pages
+
+Zoom panning boundaries are now calculated from the actual rendered image rectangle (portrait, landscape, and square) instead of a fixed approximation. At 125%–400%, the D-Pad can reach the final image row. Opening a new page preserves the chosen zoom but resets scrolling to its beginning.
+
+**Square** toggles **Single Page / Double Page** for EPUB and PDF text-reading mode. Double Page displays two consecutive text columns (34 lines); Single Page displays a single centred paper page (17 lines). The reading position is preserved when switching. L1/R1 and X continue turning pages; progress remains saved. Comics retain their single full-screen panel and existing Square = Last Page shortcut.
+
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.8

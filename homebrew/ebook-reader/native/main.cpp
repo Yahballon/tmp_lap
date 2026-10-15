@@ -247,6 +247,7 @@ int main(){
  ebook::Document document;
  comic::Book currentComic;
  bool inComic=false;
+ bool singlePage=false; // Square: EPUB/PDF single vs double-page display
  TextureImage comicPageTexture;
  int comicTexturePage=-1;
  std::string comicImageError;
@@ -316,8 +317,18 @@ int main(){
    }
   }
   if(reader){
-   const int pageCount=inComic?(int)currentComic.pageCount():std::max(1,(int)document.pageCount());
    const int oldPage=readerPage;
+   const bool oldSinglePage=singlePage;
+   if(!inComic && (pressed&hui::pad_bits::kSquare)){
+      singlePage=!singlePage;
+      readerPage=ebook_layout::remap_text_page(readerPage,oldSinglePage,singlePage);
+      lastRenderedImagePage=-1;
+      for(auto& image:pageImages)free_texture(image.second);
+      pageImages.clear();
+      readerPanX=readerPanY=0.f;
+   }
+   const int pageCount=inComic?(int)currentComic.pageCount():
+      ebook_layout::text_page_count(document.lines.size(),singlePage);
    if(pressed&hui::pad_bits::kR2)readerZoom=std::min(4.f,readerZoom+0.25f);
    if(pressed&hui::pad_bits::kL2)readerZoom=std::max(1.f,readerZoom-0.25f);
    if(pressed&hui::pad_bits::kL3 || pressed&hui::pad_bits::kOptions){
@@ -330,26 +341,37 @@ int main(){
       if(pressed&hui::pad_bits::kRight)readerPanX-=100.f;
       if(pressed&hui::pad_bits::kUp)   readerPanY+=100.f;
       if(pressed&hui::pad_bits::kDown) readerPanY-=100.f;
-      const float limitX=760.f*(readerZoom-1.f),limitY=340.f*(readerZoom-1.f);
-      readerPanX=std::clamp(readerPanX,-limitX,limitX);
-      readerPanY=std::clamp(readerPanY,-limitY,limitY);
+      // Actual scrolling bounds are computed below, after any page change.
+      // The old 340*(zoom-1) clamp could hide the bottom half of tall comics.
    }else {
       readerPanX=readerPanY=0.f;
       if((pressed&hui::pad_bits::kRight)&&readerPage+1<pageCount)++readerPage;
       if((pressed&hui::pad_bits::kLeft)&&readerPage>0)--readerPage;
    }
    if(pressed&hui::pad_bits::kTriangle)readerPage=0;
-   if(pressed&hui::pad_bits::kSquare)readerPage=pageCount-1;
+   // Square switches between one and two pages for EPUB/PDF;
+   // comics retain the existing 'last page' shortcut.
+   if(inComic && (pressed&hui::pad_bits::kSquare))readerPage=pageCount-1;
    if(oldPage!=readerPage){
-      // Keep the chosen magnification, but always start the next/previous
-      // page from its top edge instead of inheriting the old scroll offset.
+      // Retain magnification, but restart panning at the page's top edge.
       readerPanX=0.f;
       readerPanY=0.f;
+   }
+   if(readerZoom>1.01f){
+      const auto bounds=inComic
+         ? ebook_layout::comic_pan_bounds(comicTexturePage==readerPage?comicPageTexture.width:0,
+                                         comicTexturePage==readerPage?comicPageTexture.height:0,
+                                         readerZoom)
+         : ebook_layout::text_pan_bounds(readerZoom,singlePage);
+      readerPanX=ebook_layout::clamp_x(readerPanX,bounds);
+      readerPanY=ebook_layout::clamp_y(readerPanY,bounds);
+   }else{
+      readerPanX=readerPanY=0.f;
    }
    if(selected>=0&&selected<(int)visible.size()){
     auto& b=books[visible[selected]];
     b.progress=(size_t)((readerPage*10000ULL)/(size_t)std::max(1,pageCount));
-    if(oldPage!=readerPage)ebook::save_state(books);
+    if(oldPage!=readerPage || oldSinglePage!=singlePage)ebook::save_state(books);
    }
   }else if(importer){
    if(pressed&hui::pad_bits::kTriangle){refresh();importSelect=0;message=usbCatalog.message;}
@@ -411,7 +433,8 @@ int main(){
         inComic=selectedComic;
         reader=true;
         const size_t pages=inComic?currentComic.pageCount():document.pageCount();
-        readerPage=std::min<int>((int)pages-1,(int)(b.progress*pages/10000));
+        const size_t viewPages=inComic?pages:(size_t)ebook_layout::text_page_count(document.lines.size(),singlePage);
+        readerPage=std::min<int>((int)viewPages-1,(int)(b.progress*viewPages/10000));
         message="";
        }else message="Cannot open "+b.title+": "+error;
      }
@@ -428,14 +451,21 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.7",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.8",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
-   const int totalPages=inComic?(int)currentComic.pageCount():std::max(1,(int)document.pageCount());
+   const int totalPages=inComic?(int)currentComic.pageCount():
+      ebook_layout::text_page_count(document.lines.size(),singlePage);
    txt(d,font,atlas,cut(title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
    d.bordered_rect({161,180,1598,781},12,Color::rgb(0xb89d75),4,edge);
-   d.rounded_rect({177,196,1566,750},5,inComic?Color::rgb(0x101014):paper);
+   d.rounded_rect({177,196,1566,750},5,inComic?Color::rgb(0x101014):
+                  singlePage?Color::rgb(0x584a3a):paper);
+   if(!inComic && singlePage){
+      // Centre one paper sheet instead of showing both columns.
+      d.shadow({465,196,990,750},7,9,Color::rgb(0x140b05,0.35f));
+      d.rounded_rect({465,196,990,750},4,paper);
+   }
    if(inComic){
      std::vector<ComicPageResult> finished;
      {std::lock_guard<std::mutex> lock(g_comicLock);finished.swap(g_comicReady);}
@@ -466,43 +496,53 @@ int main(){
        draw_fit(d,comicPageTexture,183,200,1554,741);
      else txt(d,font,atlas,comicTexturePage==readerPage?comicImageError:"Loading comic page...",960,554,26,cream,Align::center);
    }else {
-     d.gradient_rect({952,203,16,728},0,Color::rgb(0xc9bca1),Color::rgb(0xe8dfc9));
+     if(!singlePage)d.gradient_rect({952,203,16,728},0,
+                                   Color::rgb(0xc9bca1),Color::rgb(0xe8dfc9));
      if(lastRenderedImagePage!=readerPage){
         for(auto& item:pageImages)free_texture(item.second);
         pageImages.clear();
         lastRenderedImagePage=readerPage;
-        const size_t first=(size_t)readerPage*34,last=first+34;
+        const size_t first=ebook_layout::first_text_line(readerPage,singlePage);
+        const size_t last=first+(size_t)ebook_layout::text_lines_per_view(singlePage);
         for(size_t i=0;i<document.images.size();++i){
           if(document.images[i].line>=first && document.images[i].line<last)
             pageImages[i]=make_image(renderer,document.images[i].encoded);
         }
      }
-     for(int j=0;j<34;++j){
-      const size_t idx=(size_t)readerPage*34+(size_t)j;
+     const size_t firstLine=ebook_layout::first_text_line(readerPage,singlePage);
+     const int linesPerView=ebook_layout::text_lines_per_view(singlePage);
+     for(int j=0;j<linesPerView;++j){
+      const size_t idx=firstLine+(size_t)j;
       if(idx>=document.lines.size())break;
-      int col=j/17,row=j%17;
-      const float x=228.f+col*794.f,y=264.f+row*38.f;
+      const int col=singlePage?0:j/17,row=j%17;
+      const float x=(singlePage?550.f:228.f)+col*794.f,y=264.f+row*38.f;
       txt(d,font,atlas,cut(document.lines[idx],52),x,y,24,ink);
      }
      for(const auto& item:pageImages){
        const auto& img=document.images[item.first];
-       const size_t offset=img.line-(size_t)readerPage*34;
-       const float x=228.f+(offset/17)*794.f,y=264.f+(offset%17)*38.f;
-       if(item.second.id)draw_fit(d,item.second,x,y,685.f,240.f);
+       const size_t offset=img.line-firstLine;
+       const float x=(singlePage?550.f:228.f)+(singlePage?0.f:(offset/17)*794.f);
+       const float y=264.f+(offset%17)*38.f;
+       if(item.second.id)draw_fit(d,item.second,x,y,singlePage?790.f:685.f,240.f);
        else txt(d,font,atlas,"[Unsupported image]",x,y+30.f,17,ink);
      }
    }
    d.pop_transform();
    d.pop_clip();
    txt(d,font,atlas,inComic?"COMIC VIEWER - CBR/CBZ":document.isPdfTextPreview?
-      "PDF text preview - layout not preserved":"EPUB reader",228,231,17,
-      inComic?gold:Color::rgb(0x8c653a));
+      "PDF text preview - layout not preserved":"EPUB reader",
+      singlePage?515.f:228.f,231,17,inComic?gold:Color::rgb(0x8c653a));
+   if(!inComic)
+     txt(d,font,atlas,singlePage?"SINGLE PAGE":"DOUBLE PAGE",1510,231,16,
+         singlePage?gold:Color::rgb(0x8c653a),Align::right);
    txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(totalPages),885,916,19,
       inComic?cream:ink,Align::center);
    txt(d,font,atlas,std::to_string((int)(readerZoom*100))+"% ZOOM",1640,916,19,
       inComic?gold:ink,Align::right);
-   txt(d,font,atlas,"L1/R1 Page   L2/R2 Zoom -/+   D-PAD Pan / Page   L3 Reset   X Next   O Bookshelf",
-       960,1037,19,cream,Align::center);
+   txt(d,font,atlas,inComic?
+       "L1/R1 Page   L2/R2 Zoom   D-PAD Pan   L3 Reset   SQUARE Last   O Library":
+       "L1/R1 Page   L2/R2 Zoom   D-PAD Pan   SQUARE Single/Double   L3 Reset   O Library",
+       960,1037,18,cream,Align::center);
   }else if(importer){
    txt(d,font,atlas,"BROWSE STORAGE SOURCES",95,161,36);
    txt(d,font,atlas,"USB may be blocked by the PS5 sandbox. Local app Books can be opened directly.",95,211,19,muted);
