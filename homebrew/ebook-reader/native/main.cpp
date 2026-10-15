@@ -9,6 +9,7 @@
 #include "ebook_layout.hpp"
 #include "ebook_reflow.hpp"
 #include "ebook_log.hpp"
+#include "ebook_cover_store.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -91,6 +92,81 @@ TextureImage make_comic_texture(hui::gfx::Renderer& renderer,const std::string& 
  info.width=tw;info.height=th;
  stbi_image_free(raw);return info;
 }
+// Book opening and large USB transfers must NEVER run on the render thread.
+// The progress callback is called after actual bytes are written to disk.
+struct OpenBookTask {
+ ebook::BookEntry entry; bool remote=false;usbbooks::Entry remoteBook;
+};
+struct OpenBookResult {
+ std::string entryPath,localPath,error,cover;
+ ebook::Document document;
+ comic::Book comic;
+ bool ok=false,isComic=false;
+};
+std::mutex g_openLock;
+std::vector<OpenBookResult> g_openReady;
+std::atomic<bool> g_openBusy{false},g_openCancel{false};
+std::atomic<size_t> g_openDone{0},g_openTotal{0};
+std::atomic<int> g_openStage{0}; // 1 copying from USB, 2 parsing pages
+bool book_transfer_progress(size_t done,size_t total,void*){
+ g_openTotal.store(total);g_openDone.store(done);
+ return !g_openCancel.load();
+}
+void* book_open_worker(void* data){
+ auto* task=(OpenBookTask*)data;
+ OpenBookResult out;out.entryPath=task->entry.path;
+ out.localPath=out.entryPath;
+ if(task->remote){
+   g_openStage.store(1);
+   out.ok=usbbooks::fetch(task->remoteBook,out.localPath,out.error,
+                          book_transfer_progress,nullptr);
+ }else out.ok=true;
+ if(out.ok && !g_openCancel.load()){
+   ebook_log::write("OPEN_FILE",out.localPath);
+   g_openStage.store(2);
+   out.isComic=comic::is_comic(out.localPath);
+   if(out.isComic){
+     out.ok=comic::open(out.localPath,out.comic);
+     out.error=out.comic.error;
+     // Cover extraction on the worker; upload the texture on the render
+     // thread after successful opening.
+     if(out.ok && !out.comic.pages.empty()){
+       std::string coverError;
+       comic::extract(out.comic,0,out.cover,coverError);
+       if(!out.cover.empty())ebook_cover::save(out.entryPath,out.cover);
+     }
+   }else{
+     out.ok=ebook::read_document(out.localPath,out.document);
+     out.error=out.document.error;
+     out.cover=out.document.coverImage;
+   }
+ }
+ if(g_openCancel.load()){out.ok=false;out.error="Book loading cancelled";}
+ if(out.ok)ebook_log::write("OPEN_OK",out.localPath);
+ else ebook_log::write("OPEN_ERROR",out.entryPath+" "+out.error);
+ {std::lock_guard<std::mutex> lock(g_openLock);
+  g_openReady.push_back(std::move(out));}
+ delete task;g_openBusy.store(false);return nullptr;
+}
+bool start_book_open(const ebook::BookEntry& entry,std::string& error){
+ if(g_openBusy.exchange(true))return false;
+ auto* task=new OpenBookTask;task->entry=entry;
+ task->remote=usbbooks::is_remote(entry.path);
+ if(task->remote && !usbbooks::entry_from_remote(entry.path,task->remoteBook)){
+   delete task;g_openBusy.store(false);
+   error="USB catalogue expired. Press OPTIONS to rescan";return false;
+ }
+ g_openCancel.store(false);g_openDone.store(0);
+ g_openTotal.store(task->remote?task->remoteBook.bytes:0);
+ g_openStage.store(task->remote?1:2);
+ pthread_t t{};
+ if(pthread_create(&t,nullptr,book_open_worker,task)!=0){
+   delete task;g_openBusy.store(false);
+   error="Could not start background book loader";return false;
+ }
+ pthread_detach(t);return true;
+}
+
 struct ComicPageTask {comic::Book book;int page=0;};
 struct ComicPageResult {std::string path,bytes,error;int page=0;};
 std::atomic<bool> g_comicBusy{false};
