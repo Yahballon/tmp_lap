@@ -1,12 +1,11 @@
-# PSTUBE v0.6.0 — Seek, Fullscreen and Jailbreak News
+# PSTUBE v0.7.0 — Native HD Quality Settings
 
-- **Default discovery search:** PS5 JAILBREAK NEWS.
-- **Rewind / forward:** D-Pad Left / Right moves by 10 seconds, L1 / R1 by 30 seconds while playing.
-- **True full-screen video:** Press Options while playing to toggle edge-to-edge video with original aspect ratio. Transient controls automatically hide when playing.
-- **Playback seek implementation:** FFmpeg does the seek asynchronously; it flushes video/audio codec and SDL audio buffers before resuming timestamp-synchronized playback.
-- Show progress and duration plus controller hints in both normal and full-screen modes.
-- Preserve existing native player, online YouTube search, auto-pagination, thumbnails, downloads and saved settings.
+- Add persistent quality options: **Auto (up to 720p), 360p, 720p HD, 1080p Full HD**.
+- Select independently hosted AVC/H.264 MP4 video and AAC/MP4 audio streams at the requested resolution when offered by YouTube's Android player response.
+- Feed both sources to the native FFmpeg/SDL software decoder and synchronize audio with video.
+- Preserve fullscreen, pause, ±10s/±30s seeking, favorites, downloads, search pagination, and default PS5 JAILBREAK NEWS.
+- Display actual decoded video resolution in the playback overlay.
+- Retain a working lower-resolution combined MP4 fallback when no suitable HD + audio pair is available.
+- CI tests verify format selection, 720p playback with separate AAC audio and seeking, followed by PS5 package validation.
 
-Limitations: seeking is available only on seekable MP4 files or HTTP servers supporting byte-range requests. The PS5 hardware test is still necessary; successful CI does not prove all YouTube streams allow seeking.
-
-Install the new PPSA99762.zip in /data/homebrew/PPSA99762. No PC bridge or additional user installation required.
+**Known limitations:** Not every video offers playable unsigned H.264/AAC tracks. 1080p software decoding on PS5 homebrew may drop frames; use Auto/720p if necessary. Offline downloads still use combined MP4 (typically 360p). Hardware HD performance has not been validated.
