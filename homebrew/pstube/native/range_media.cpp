@@ -161,6 +161,16 @@ bool retrieve(const Url& url,unsigned long long offset,
  return ok;
 }
 }
+bool probe_bounded_media_range(const std::string& input,unsigned long long end,std::string& error){
+ Url url;error.clear();
+ if(!parse(input,url)||end>1048575ULL){error="Invalid probe request";return false;}
+ FILE* output=std::tmpfile();if(!output){error="Temporary diagnostic storage unavailable";return false;}
+ std::atomic<bool> cancel{false};
+ unsigned long long total=0;
+ const bool success=retrieve(url,0,end,output,total,cancel,error);
+ std::fclose(output);
+ return success;
+}
 bool fetch_bounded_range_media(const std::string& input,const std::string& target,
  std::atomic<int>& percent,std::atomic<bool>& cancel,std::string& error){
  Url url;error.clear();percent.store(0);
