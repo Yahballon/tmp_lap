@@ -217,8 +217,8 @@ int main(){
    if(pressed&hui::pad_bits::kCross){
     s.inspect=false;s.playing=true;s.fullscreen=false;s.playerHudFrames=180;s.playerStarted=false;s.streamOpenFailed=false;
     const std::string path=service.local_path(s.active.id);
-    if(!path.empty()){s.playerStarted=player.open(path);}
-    else service.start_stream(s.active);
+    if(!path.empty()&&service.quality()==360){s.playerStarted=player.open(path);}
+    else if(!service.start_stream(s.active))s.notice="Stream resolver busy; try again";
    }
   }else{
    if(pressed&hui::pad_bits::kL1){s.page=(s.page+6)%7;s.focus=0;s.selected=s.offset=0;if(s.page==2)service.trending();}
@@ -273,7 +273,7 @@ int main(){
       s.inspect=false;s.playing=true;s.playerStarted=false;s.streamOpenFailed=false;
       if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}last_frame=0;
       std::string file=service.local_path(s.active.id);
-      if(!file.empty())s.playerStarted=player.open(file);
+      if(!file.empty()&&service.quality()==360)s.playerStarted=player.open(file);
       else if(!service.start_stream(s.active))s.notice="Video resolver busy; try again";
      }
     }
@@ -283,7 +283,8 @@ int main(){
   // No complete MP4 download is needed; network buffering stays in libavformat.
   if(s.playing&&!s.playerStarted&&!s.streamOpenFailed){
    const std::string ready=service.local_path(s.active.id);
-   if(!ready.empty())s.playerStarted=player.open(ready);
+   // The offline MP4 is usually 360p. Never override explicit HD selection.
+   if(!ready.empty()&&service.quality()==360)s.playerStarted=player.open(ready);
    else if(snapshot.streamId==s.active.id&&!snapshot.streamUrl.empty()){
     if(snapshot.streamAdaptive&&!snapshot.streamAudioUrl.empty())
      s.playerStarted=player.openAdaptiveStream(snapshot.streamUrl,snapshot.streamAudioUrl);
@@ -317,7 +318,7 @@ int main(){
   text(d,font,atlas,"PSTUBE",158,79,51,white);
   text(d,font,atlas,"by YAHBALLON",162,112,23,dim);
   tile(d,466,37,892,76,false);text(d,font,atlas,"Search: "+cut(font,s.query,780,24),499,84,24,dim);
-  text(d,font,atlas,"v0.7.1",1850,84,25,white,Align::right);
+  text(d,font,atlas,"v0.7.2",1850,84,25,white,Align::right);
   d.rounded_rect({0,140,374,870},0,Color::rgb(0x041226));
   for(int i=0;i<7;i++){float y=180+i*112;
    if(s.page==i||s.focus==0&&s.nav==i)tile(d,31,y,326,88,s.focus==0&&s.nav==i);
@@ -442,8 +443,13 @@ int main(){
    if(s.playerStarted&&st.ended)text(d,font,atlas,cut(font,st.message,1200,27),960,900,27,dim,Align::center);
    const bool showHud=!s.fullscreen||s.playerHudFrames>0||st.paused||st.ended;
    if(showHud){
-    if(st.width>0&&st.height>0)
-     text(d,font,atlas,std::to_string(st.height)+"p",1800,142,25,green,Align::right);
+    if(st.width>0&&st.height>0){
+     const int wanted=service.quality();
+     const std::string actual=std::to_string(st.height)+"p";
+     const std::string qualityInfo=actual+"  |  Requested: "+(wanted?std::to_string(wanted)+"p":std::string("Auto"));
+     text(d,font,atlas,qualityInfo,1800,142,25,
+       wanted>=720&&st.height<720?Color::rgb(0xff9d78):green,Align::right);
+    }
     if(s.fullscreen)d.rounded_rect({0,924,1920,156},0,Color::rgb(0x051124,.87f));
     else d.rounded_rect({0,946,1920,134},0,Color::rgb(0x06152b));
     const float y=s.fullscreen?990.f:982.f;
