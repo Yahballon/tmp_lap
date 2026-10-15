@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Read-only USB M4B bridge, launched by an already-running ELF loader.
+// Read-only USB and local M4B bridge, launched by an already-running ELF loader.
 // Does not patch the kernel, elevate the UI process, or write to the USB.
 #define _DEFAULT_SOURCE 1
 #include <arpa/inet.h>
@@ -24,7 +24,7 @@
 #define MAX_PATH 512
 #define MAX_FILE (8ULL * 1024ULL * 1024ULL * 1024ULL)
 #ifndef PORT
-#define PORT 9178
+#define PORT 9179
 #endif
 struct Item {char relative[MAX_PATH];off_t size;};
 static struct Item items[MAX_BOOKS];
@@ -33,6 +33,7 @@ static const char *roots[] = {
  AUDIOBOOK_USB_ROOT, "/mnt/usb0/abooks", "/mnt/usb1/ABooks", "/mnt/usb1/abooks",
  "/usb0/ABooks", "/usb0/abooks", "/usb1/ABooks", "/usb1/abooks"
 };
+static const char *local_roots[] = {"/data/AudioBookReader/Books"};
 static char selected_root[MAX_PATH];
 static char last_error[148];
 
@@ -74,16 +75,26 @@ static void add_books(const char *dir,const char *rel,unsigned depth,unsigned *b
  }
  closedir(d);
 }
-static int scan(void){
+static int scan(int local){
  item_count=0;selected_root[0]='\0';last_error[0]='\0';
- for(unsigned r=0;r<sizeof(roots)/sizeof(roots[0]);r++){
-  DIR *d=opendir(roots[r]);
+ const char **choices=local?local_roots:roots;
+ const unsigned choiceCount=local?
+   (unsigned)(sizeof(local_roots)/sizeof(local_roots[0])):
+   (unsigned)(sizeof(roots)/sizeof(roots[0]));
+ for(unsigned r=0;r<choiceCount;r++){
+  DIR *d=opendir(choices[r]);
   if(!d)continue;
   closedir(d);
-  snprintf(selected_root,sizeof(selected_root),"%s",roots[r]);
+  snprintf(selected_root,sizeof(selected_root),"%s",choices[r]);
   unsigned budget=8192;
   add_books(selected_root,"",0,&budget);
   return 1;
+ }
+ if(local){
+  int e=errno;
+  snprintf(last_error,sizeof(last_error),
+   "LOCAL_BOOKS_OPEN_FAILED path=/data/AudioBookReader/Books errno=%d",e);
+  return 0;
  }
  // Report whether the USB mount exists separately from a missing ABooks folder.
  // Avoid enumerating or reading other folders; only inspect mount availability.
@@ -98,8 +109,8 @@ static int scan(void){
     "USB mounts not accessible to helper (/mnt/usb0, /mnt/usb1)");
  return 0;
 }
-static int emit_catalog(int fd){
- if(!scan()){
+static int emit_catalog(int fd,int local){
+ if(!scan(local)){
   char output[256];
   int n=snprintf(output,sizeof(output),"ABOOK1\nERROR %s\nDONE\n",last_error);
   return n>0 && n<(int)sizeof(output) && write_all(fd,output,(size_t)n);
@@ -117,8 +128,74 @@ static int emit_catalog(int fd){
  return write_all(fd,"DONE\n",5);
 }
 #ifndef AUDIOBOOK_USB_TEST
-static void fetch(int client,const char *name,uint64_t offset){
- if(!*selected_root)scan();
+// Fetch only a small image adjacent to a listed M4B or in the same folder.
+// Never expose an arbitrary file path to clients.
+static void send_cover(int client,const char *bookname,int local){
+ scan(local);
+ const struct Item *item=NULL;
+ for(unsigned i=0;i<item_count;i++)
+  if(!strcmp(bookname,items[i].relative)){item=&items[i];break;}
+ if(!item){write_all(client,"ERROR Unknown book\n",19);return;}
+ char parent[MAX_PATH],stem[196],candidate[MAX_PATH];
+ snprintf(parent,sizeof(parent),"%s",bookname);
+ char *slash=strrchr(parent,'/');
+ const char *filename=bookname;
+ if(slash){*slash='\0';filename=slash+1;}
+ else parent[0]='\0';
+ snprintf(stem,sizeof(stem),"%s",filename);
+ char *dot=strrchr(stem,'.');if(dot)*dot='\0';
+ const char *patterns[]={"cover.jpg","folder.jpg","front.jpg","cover.jpeg",
+                         "cover.png","folder.png","front.png"};
+ for(unsigned i=0;i<sizeof(patterns)/sizeof(patterns[0])+3;i++){
+  char generated[210];const char *name=NULL;
+  if(i<sizeof(patterns)/sizeof(patterns[0]))name=patterns[i];
+  else{
+   const char *extension=i==7?".jpg":i==8?".jpeg":".png";
+   if(snprintf(generated,sizeof(generated),"%s%s",stem,extension)>=(int)sizeof(generated))continue;
+   name=generated;
+  }
+  if(!filename_ok(name))continue;
+  int n=snprintf(candidate,sizeof(candidate),"%s/%s%s%s%s",selected_root,
+      *parent?parent:"",*parent?"/":"",name,"");
+  if(n<0||n>=(int)sizeof(candidate))continue;
+  // Verify every intermediate directory, not just final file.
+  char walk[MAX_PATH];snprintf(walk,sizeof(walk),"%s",selected_root);
+  char copy[MAX_PATH];snprintf(copy,sizeof(copy),"%s",parent);
+  char *save=NULL,*seg=strtok_r(copy,"/",&save);
+  int secure=1;
+  while(seg){
+   if(!filename_ok(seg)){secure=0;break;}
+   size_t len=strlen(walk);
+   if(len+strlen(seg)+2>=sizeof(walk)){secure=0;break;}
+   walk[len]='/';strcpy(walk+len+1,seg);
+   struct stat d;
+   if(lstat(walk,&d)!=0 || !S_ISDIR(d.st_mode)){secure=0;break;}
+   seg=strtok_r(NULL,"/",&save);
+  }
+  if(!secure)continue;
+  struct stat st;
+  if(lstat(candidate,&st)!=0 || !S_ISREG(st.st_mode)||
+     st.st_size<8||st.st_size>6*1024*1024)continue;
+  FILE* image=fopen(candidate,"rb");if(!image)continue;
+  unsigned char signature[8]={0};
+  if(fread(signature,1,8,image)!=8){fclose(image);continue;}
+  if(!((signature[0]==0xff&&signature[1]==0xd8) ||
+    (signature[0]==0x89&&memcmp(signature+1,"PNG",3)==0))){
+   fclose(image);continue;
+  }
+  rewind(image);
+  char header[80];n=snprintf(header,sizeof(header),"DATA %lld\n",(long long)st.st_size);
+  if(n>0&&write_all(client,header,(size_t)n)){
+   char bytes[16384];size_t size;
+   while((size=fread(bytes,1,sizeof(bytes),image))!=0)
+    if(!write_all(client,bytes,size))break;
+  }
+  fclose(image);return;
+ }
+ write_all(client,"ERROR No companion cover found\n",31);
+}
+static void fetch(int client,const char *name,uint64_t offset,int local){
+ scan(local);
  const struct Item *item=NULL;
  for(unsigned i=0;i<item_count;i++)if(strcmp(name,items[i].relative)==0){item=&items[i];break;}
  if(!item){write_all(client,"ERROR Unknown book\n",19);return;}
@@ -177,14 +254,27 @@ static void serve(void){
   char request[600];int n=recv(c,request,sizeof(request)-1,0);
   if(n>0){request[n]='\0';
    char *nl=strchr(request,'\n');if(nl)*nl='\0';
-   if(!strcmp(request,"LIST"))emit_catalog(c);
-   else if(!strncmp(request,"FETCH ",6)&&strlen(request+6)<MAX_PATH)fetch(c,request+6,0);
+   if(!strcmp(request,"LIST"))emit_catalog(c,0);
+   else if(!strcmp(request,"LISTLOCAL"))emit_catalog(c,1);
+   else if(!strncmp(request,"FETCH ",6)&&strlen(request+6)<MAX_PATH)fetch(c,request+6,0,0);
+   else if(!strncmp(request,"COVER ",6)&&strlen(request+6)<MAX_PATH)
+     send_cover(c,request+6,0);
+   else if(!strncmp(request,"COVERLOCAL ",11)&&strlen(request+11)<MAX_PATH)
+     send_cover(c,request+11,1);
+   else if(!strncmp(request,"FETCHLOCAL ",11) && strlen(request+11)<MAX_PATH)
+     fetch(c,request+11,0,1);
+   else if(!strncmp(request,"FETCHLOCALR ",12)){
+     char *end=NULL;errno=0;
+     const unsigned long long offset=strtoull(request+12,&end,10);
+     if(!errno&&end&&*end==' '&&strlen(end+1)<MAX_PATH)
+       fetch(c,end+1,(uint64_t)offset,1);
+   }
    else if(!strncmp(request,"FETCHR ",7)){
      char *end=NULL;
      errno=0;
      const unsigned long long offset=strtoull(request+7,&end,10);
      if(!errno && end && *end==' ' && strlen(end+1)<MAX_PATH)
-       fetch(c,end+1,(uint64_t)offset);
+       fetch(c,end+1,(uint64_t)offset,0);
    }
   }
   close(c);
@@ -194,7 +284,7 @@ static void serve(void){
 #endif
 int main(void){
  setvbuf(stdout,NULL,_IONBF,0);
- emit_catalog(STDOUT_FILENO);
+ emit_catalog(STDOUT_FILENO,0);
 #ifndef AUDIOBOOK_USB_TEST
  serve();
 #endif
