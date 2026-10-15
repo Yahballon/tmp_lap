@@ -36,6 +36,11 @@ void tile(DrawList& d,float x,float y,float w,float h,bool sel){
 const char* pages[]={"Home","Search","Trending","Favorites","Downloads","History","Settings"};
 const char* symbols[]={"H","?","^","*","v","O","#"};
 const std::string keys="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_."; // 40 keys
+constexpr int kGridVisible=6;
+int grid_offset(int selected,int count){
+ if(count<=kGridVisible)return 0;
+ return std::min((std::max(0,selected)/kGridVisible)*kGridVisible,count-kGridVisible);
+}
 struct State {
  int page=0,focus=0,nav=0,selected=0,offset=0,kbd=0;
  bool keyboard=false,inspect=false,playing=false,playerStarted=false,streamOpenFailed=false;
@@ -130,6 +135,7 @@ int main(){
   if(s.page==3)videos=service.favorite_videos();
   if(s.page==5)videos=service.history_videos();
   s.selected=std::clamp(s.selected,0,std::max(0,(int)videos.size()-1));
+  s.offset=grid_offset(s.selected,(int)videos.size());
   if(s.playing){
    if(pressed&hui::pad_bits::kCircle){
     player.close();service.cancel_stream();s.playing=false;s.playerStarted=false;s.streamOpenFailed=false;last_frame=0;
@@ -202,7 +208,7 @@ int main(){
     if(pressed&hui::pad_bits::kRight)s.selected=std::min(std::max(0,(int)videos.size()-1),s.selected+1);
     if(pressed&hui::pad_bits::kUp)s.selected=std::max(0,s.selected-(s.page==4?1:3));
     if(pressed&hui::pad_bits::kDown)s.selected=std::min(std::max(0,(int)(s.page==4?snapshot.jobs.size():videos.size())-1),s.selected+(s.page==4?1:3));
-    s.offset=(s.selected/6)*6;
+    s.offset=grid_offset(s.selected,(int)videos.size());
     if(pressed&hui::pad_bits::kSquare){if(!videos.empty()&&s.page!=4){service.toggle_favourite(videos[(size_t)s.selected]);s.notice="Favourites updated";}}
     if(pressed&hui::pad_bits::kCross){
      if(s.page==6){static const char* hosts[]={"inv.nadeko.net","invidious.nerdvpn.de","yt.chocolatemoo53.com","invidious.tiekoetter.com","yewtu.be"};
@@ -265,7 +271,7 @@ int main(){
   text(d,font,atlas,"PSTUBE",158,79,51,white);
   text(d,font,atlas,"by YAHBALLON",162,112,23,dim);
   tile(d,466,37,892,76,false);text(d,font,atlas,"Search: "+cut(font,s.query,780,24),499,84,24,dim);
-  text(d,font,atlas,"v0.5.0",1850,84,25,white,Align::right);
+  text(d,font,atlas,"v0.5.1",1850,84,25,white,Align::right);
   d.rounded_rect({0,140,374,870},0,Color::rgb(0x041226));
   for(int i=0;i<7;i++){float y=180+i*112;
    if(s.page==i||s.focus==0&&s.nav==i)tile(d,31,y,326,88,s.focus==0&&s.nav==i);
@@ -296,12 +302,25 @@ int main(){
   }else{
    if(s.page==0&&videos.empty())text(d,font,atlas,"Connecting to public video services...",420,258,22,dim);
    result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
+   if((s.page==0||s.page==1||s.page==2)&&!videos.empty()){
+    const int end=std::min((int)videos.size(),s.offset+kGridVisible);
+    std::string counter=std::to_string(s.offset+1)+"-"+std::to_string(end)+
+     " / "+std::to_string(videos.size())+(snapshot.hasMore?"+":"")+" videos";
+    if(snapshot.loadingMore)counter+="  |  Loading next page...";
+    else if(snapshot.hasMore)counter+="  |  Scroll down for more";
+    text(d,font,atlas,counter,425,918,20,dim);
+    const float track=1400.f;
+    d.rounded_rect({425,941,track,5},2,edge);
+    const float thumb=std::max(36.f,track*(float)kGridVisible/std::max(6,(int)videos.size()));
+    const float pos=425.f+(track-thumb)*(float)s.offset/(float)std::max(1,(int)videos.size()-kGridVisible);
+    d.rounded_rect({pos,941,thumb,5},2,blue);
+   }
    if(snapshot.searching)text(d,font,atlas,"Loading...",1850,207,22,blue,Align::right);
    if(snapshot.loadingMore)text(d,font,atlas,"Loading more videos...",1470,990,20,blue,Align::right);
    else if(!videos.empty())text(d,font,atlas,std::to_string(videos.size())+
      (snapshot.hasMore?"+ videos":" videos"),1850,206,21,dim,Align::right);
    if(s.page==0||s.page==1||s.page==2){
-    text(d,font,atlas,cut(font,snapshot.status,1420,21),430,945,21,snapshot.searching?blue:dim);
+    text(d,font,atlas,cut(font,snapshot.status,1420,18),430,967,18,snapshot.searching?blue:dim);
    }
   }
   text(d,font,atlas,cut(font,s.notice,1250,20),423,992,20,dim);
