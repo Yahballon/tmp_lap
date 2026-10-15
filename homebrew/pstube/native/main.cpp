@@ -169,7 +169,7 @@ int main(){
   std::vector<pstube::Video> videos=snapshot.videos;
   if(s.page==3)videos=service.favorite_videos();
   if(s.page==5)videos=service.history_videos();
-  s.selected=std::clamp(s.selected,0,s.page==6?1:std::max(0,(int)videos.size()-1));
+  s.selected=std::clamp(s.selected,0,s.page==6?2:std::max(0,(int)videos.size()-1));
   s.offset=grid_offset(s.selected,(int)videos.size());
   if(s.playing){
    // Options toggles true edge-to-edge video. Directional and shoulder inputs
