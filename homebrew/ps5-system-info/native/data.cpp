@@ -65,12 +65,9 @@ std::string activeIp(){
 }
 std::string formatTime(){
  std::time_t now=std::time(nullptr);if(now<=0)return {};
- std::tm tm{};
-#if defined(__linux__)
- if(!localtime_r(&now,&tm))return {};
-#else
- if(localtime_s(&tm,&now)!=0)return {};
-#endif
+ std::tm tm{}; const std::tm* nativeTm=std::localtime(&now);
+ if(!nativeTm)return {};
+ tm=*nativeTm;
  char b[80];if(!std::strftime(b,sizeof(b),"%Y-%m-%d %H:%M:%S",&tm))return {};
  return b;
 }
