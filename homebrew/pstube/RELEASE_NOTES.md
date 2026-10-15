@@ -1,12 +1,12 @@
-# PSTUBE v0.3.0 — Player and Thumbnail Reliability Update
+# PSTUBE v0.4.0 — Native Stream Resolver
 
-- Fix reported empty thumbnails: browser-compatible request headers, writable cache directory detection (/data with /download0 fallback), JPEG validation, three parallel image workers, and on-console thumbnail diagnostic counters.
-- Replace the extra info-page step: **Cross on a video now opens the full-screen video player immediately**.
-- Player automatically opens completed local videos or displays actual MP4-resolution and download progress, and starts after a completed verified download.
-- Resolve eligible progressive MP4 URLs directly from YouTube watch-page player metadata, with Invidious as fallback.
-- Display precise signed-stream, bot-check, HTTP and provider errors on the player; Cross retries failed downloads.
-- Larger 16:9 thumbnails, richer TV-sized cards and inline status.
+- New: Native HTTPS Innertube Android player support in the PS5 C++ application. No Windows PC, bridge server or companion application is required.
+- Verify available combined MP4 (H.264/AAC) URLs from YouTube's Android client, which can return direct URLs even when the web player returns HTTP 302 or signatureCipher.
+- Secure TLS verification, HTTP POST and safe YouTube redirects; preserve existing YouTube web and Invidious fallback.
+- Correctly decode JSON Unicode escape sequences in media URLs (including encoded query ampersands).
+- Keep automatic playback after a verified downloaded MP4 and existing TV UI, favourites, downloads, thumbnails and self-test.
+- Add real network tests against the public Android player API and verify actual MP4 magic bytes in CI.
 
-**Known limitations**: YouTube commonly exposes only signatureCipher or separate adaptive audio/video formats, and may reject unauthenticated playback. No YouTube signing/JavaScript runtime is implemented. For those videos, PSTUBE shows an error rather than pretending playback works. FFmpeg decoding and SDL audio still require a real PS5 hardware test. It is not an official YouTube client.
+**Limitations:** YouTube decides which videos are playable unauthenticated. Some videos require login, proof-of-origin tokens, a JavaScript signature solver or only offer adaptive streams. PSTUBE explicitly reports these failures; it does not defeat DRM, bypass authentication, or guarantee playback of every video. Full-download-before-play and physical PS5 audio/video testing remain necessary.
 
-Download PPSA99762.zip and replace /data/homebrew/PPSA99762. Keep /data/pstube and /download0/pstube to retain saved data.
+Install the verified PPSA99762.zip into /data/homebrew/PPSA99762 and refresh TESTBUILDS. Saved data under /data/pstube and /download0/pstube is preserved.
