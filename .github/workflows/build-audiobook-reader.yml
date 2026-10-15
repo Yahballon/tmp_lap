@@ -112,6 +112,11 @@ jobs:
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/audiobook-reader/native/*.cpp homebrew/audiobook-reader/native/*.hpp app/src/
+          # Pinned stb decoder: same source revision used by the PS5 Ebook Reader.
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h \
+            -o app/src/stb_image.h
+          test -s app/src/stb_image.h
           mkdir -p app/assets/ABooks
           cp homebrew/audiobook-reader/assets/ABooks/README.txt app/assets/ABooks/README.txt
           if test -s homebrew/audiobook-reader/sce_sys/icon0.png; then
