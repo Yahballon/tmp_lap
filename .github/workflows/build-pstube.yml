@@ -51,8 +51,8 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -pthread -DPSTUBE_HOST_TEST -Iapp/src \
             homebrew/pstube/tests/remote_hd_decode_test.cpp \
-            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp app/src/media.cpp \
-            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp app/src/media.cpp app/src/range_media.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) -lssl -lcrypto \
             -lssl -lcrypto -o /tmp/pstube-remote-hd-test
           SDL_AUDIODRIVER=dummy timeout 145s /tmp/pstube-remote-hd-test
       - name: Test live catalog JSON parsing (host)
@@ -204,8 +204,8 @@ jobs:
       - name: Test FFmpeg seek, rewind, pause and audio pipeline (host)
         run: |
           g++ -std=c++20 -O2 -pthread -Iapp/src -Ihomebrew/pstube/native \
-            homebrew/pstube/tests/media_seek_test.cpp app/src/media.cpp \
-            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) \
+            homebrew/pstube/tests/media_seek_test.cpp app/src/media.cpp app/src/range_media.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) -lssl -lcrypto \
             -o /tmp/pstube-media-seek-test
           SDL_AUDIODRIVER=dummy timeout 25s /tmp/pstube-media-seek-test app/assets/videos/pstube-selftest.mp4
       - name: Exercise native HD video and separate AAC audio
@@ -218,8 +218,8 @@ jobs:
             -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
             -t 8 -c:a aac -b:a 128k /tmp/pstube-hd-audio.m4a
           g++ -std=c++20 -O2 -pthread -Iapp/src -Ihomebrew/pstube/native \
-            homebrew/pstube/tests/adaptive_media_test.cpp app/src/media.cpp \
-            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) \
+            homebrew/pstube/tests/adaptive_media_test.cpp app/src/media.cpp app/src/range_media.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) -lssl -lcrypto \
             -o /tmp/pstube-adaptive-test
           SDL_AUDIODRIVER=dummy timeout 35s /tmp/pstube-adaptive-test \
             /tmp/pstube-hd-test.mp4 /tmp/pstube-hd-audio.m4a
