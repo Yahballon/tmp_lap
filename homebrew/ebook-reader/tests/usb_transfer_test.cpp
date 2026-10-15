@@ -25,9 +25,12 @@ int main(int argc,char** argv){
  assert(catalog.books.size()==1);
  const auto book=catalog.books.front();
  assert(book.relative=="LargeComic.CBR");
- assert(book.bytes>8*1024*1024);
+ assert(book.bytes>40*1024*1024);
  std::string cache,error;
  assert(usbbooks::fetch(book,cache,error));
+ // Reproduce the PS5 failure: this file is over 40 MiB, so it must be
+ // written beneath /data/EbookReader/Cache, NOT the 21-MiB /download0 quota.
+ assert(cache.rfind(std::string(argv[1])+"/EbookReader/Cache/usb-",0)==0);
  assert(identical(std::string(argv[1])+"/Books/LargeComic.CBR",cache));
  // Cached copy should work without another transfer.
  std::string again,more;
@@ -41,5 +44,5 @@ int main(int argc,char** argv){
  first.join();second.join();
  assert(a && b);
  assert(x==y && identical(std::string(argv[1])+"/Books/LargeComic.CBR",x));
- std::puts("USB 16-MiB comic transfer, interrupted transfer recovery, local caching and concurrent caller checks passed");
+ std::puts("USB >40-MiB comic transfer, interrupted transfer recovery, local caching and concurrent caller checks passed");
 }
