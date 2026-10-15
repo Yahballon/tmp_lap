@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: ps5-dreamcastx-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   native-ps5:
