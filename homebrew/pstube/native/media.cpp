@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "media.hpp"
+#include "pstube.hpp"
+#include "range_media.hpp"
 #include <SDL.h>
 #include "ca_bundle.inc"
 extern "C" {
@@ -49,13 +51,41 @@ std::string root_certificate_file(){
 }
 int interrupt_cb(void* ctx){return ((std::atomic<bool>*)ctx)->load() ? 1:0;}
 void sleep_us(int n){if(n>0)usleep((useconds_t)n);}
+bool writable_cache(const std::string& path){
+ struct stat st{};
+ if(stat(path.c_str(),&st)==0 && !S_ISDIR(st.st_mode))return false;
+ if(mkdir(path.c_str(),0700)!=0&&errno!=EEXIST)return false;
+ const std::string test=path+"/.write-check";
+ FILE* f=fopen(test.c_str(),"wb");
+ if(!f)return false;
+ bool ok=fputc('X',f)!=EOF;
+ if(fclose(f)!=0)ok=false;
+ unlink(test.c_str());
+ return ok;
+}
+std::string hd_cache_root(){
+#ifdef PSTUBE_HOST_TEST
+ if(writable_cache("/tmp/pstube-hdcache"))return "/tmp/pstube-hdcache";
+#else
+ mkdir("/data/pstube",0700);
+ if(writable_cache("/data/pstube/hdcache"))return "/data/pstube/hdcache";
+ mkdir("/download0/pstube",0700);
+ if(writable_cache("/download0/pstube/hdcache"))return "/download0/pstube/hdcache";
+#endif
+ return {};
+}
+bool cached_file_ready(const std::string& path){
+ struct stat st{};
+ return stat(path.c_str(),&st)==0&&S_ISREG(st.st_mode)&&st.st_size>4096;
+}
 }
 MediaPlayer::~MediaPlayer(){close();}
 void MediaPlayer::close(){
  quit_.store(true);
  if(!joined_){pthread_join(worker_,nullptr);joined_=true;}
  std::lock_guard<std::mutex> g(lock_);
- pixels_.clear();state_=PlaybackState{};path_.clear();audioPath_.clear();remote_=false;sequence_=0;seekDeltaUs_=0;
+ pixels_.clear();state_=PlaybackState{};path_.clear();audioPath_.clear();videoId_.clear();preferredHeight_=0;
+ hdPhase_=0;hdPercent_=0;remote_=false;sequence_=0;seekDeltaUs_=0;
 }
 bool MediaPlayer::open(const std::string& path){
  close();struct stat st{};
@@ -88,14 +118,16 @@ bool MediaPlayer::openStream(const std::string& url){
  }
  joined_=false;return true;
 }
-bool MediaPlayer::openAdaptiveStream(const std::string& videoUrl,const std::string& audioUrl){
+bool MediaPlayer::openAdaptiveStream(const std::string& videoUrl,const std::string& audioUrl,
+    const std::string& videoId,int videoHeight){
  close();
- if(!media_host(videoUrl)||!media_host(audioUrl))return false;
- if(root_certificate_file().empty())return false;
+ if(!media_host(videoUrl)||!media_host(audioUrl)||!valid_id(videoId)||
+     videoHeight<360||videoHeight>2160)return false;
  {
   std::lock_guard<std::mutex> g(lock_);
-  path_=videoUrl;audioPath_=audioUrl;remote_=true;
-  state_.opening=true;state_.message="Opening HD video and audio...";
+  path_=videoUrl;audioPath_=audioUrl;videoId_=videoId;
+  preferredHeight_=videoHeight;remote_=true;
+  state_.opening=true;state_.message="Preparing native HD media...";
  }
  quit_=false;paused_=false;
  pthread_attr_t attrs;pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,2*1024*1024);
@@ -134,7 +166,17 @@ bool MediaPlayer::seekRelative(int deltaSeconds){
  seekDeltaUs_.fetch_add((int64_t)deltaSeconds*AV_TIME_BASE,std::memory_order_release);
  return true;
 }
-PlaybackState MediaPlayer::snapshot()const{std::lock_guard<std::mutex> g(lock_);return state_;}
+PlaybackState MediaPlayer::snapshot()const{
+ std::lock_guard<std::mutex> g(lock_);
+ PlaybackState result=state_;
+ const int phase=hdPhase_.load();
+ if(phase>0){
+  result.opening=true;
+  result.message=std::string(phase==1?"Downloading native HD video ":"Downloading AAC audio ")+
+    std::to_string(hdPercent_.load())+"%";
+ }
+ return result;
+}
 bool MediaPlayer::pull(std::vector<unsigned char>& pixels,int& w,int& h,uint64_t& seq){
  std::lock_guard<std::mutex> g(lock_);
  if(pixels_.empty()||seq==sequence_)return false;
@@ -151,11 +193,35 @@ void MediaPlayer::decode(){
  AVFrame* frame=av_frame_alloc();AVPacket* pkt=av_packet_alloc();
  SwsContext* sws=nullptr;SwrContext* swr=nullptr;
  SDL_AudioDeviceID audio=0;
- std::string error;
+ std::string error,videoSource=path_,audioSource=audioPath_,cacheDir;
+ bool networkInput=remote_;
  int vi=-1,ai=-1;
+ // Current YouTube HD CDN endpoints return HTTP 403 for an open-ended GET,
+ // including libavformat's default requests. Verified, finite HTTP 206 byte
+ // ranges work: download the separate tracks off the render thread, then
+ // hand fully verified files to the normal native FFmpeg/SDL decoder.
+ if(remote_&&!audioPath_.empty()){
+  cacheDir=hd_cache_root();
+  if(cacheDir.empty()){error="No writable native HD cache";goto cleanup;}
+  videoSource=cacheDir+"/"+videoId_+"-"+std::to_string(preferredHeight_)+".mp4";
+  audioSource=cacheDir+"/"+videoId_+"-aac.m4a";
+  std::atomic<int> percent{0};
+  if(!cached_file_ready(videoSource)){
+   hdPhase_=1;hdPercent_=0;
+   if(!fetch_bounded_range_media(path_,videoSource,hdPercent_,quit_,error))goto cleanup;
+  }
+  if(quit_.load()){error="HD download cancelled";goto cleanup;}
+  if(!cached_file_ready(audioSource)){
+   hdPhase_=2;hdPercent_=0;
+   if(!fetch_bounded_range_media(audioPath_,audioSource,hdPercent_,quit_,error))goto cleanup;
+  }
+  hdPhase_=0;hdPercent_=100;
+  networkInput=false;
+ }
+
  {
   AVDictionary* opts=nullptr;
-  if(remote_){
+  if(networkInput){
    const std::string cert=root_certificate_file();
    av_dict_set(&opts,"tls_verify","1",0);
    av_dict_set(&opts,"ca_file",cert.c_str(),0);
@@ -169,22 +235,22 @@ void MediaPlayer::decode(){
      "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip",0);
    av_dict_set(&opts,"multiple_requests","1",0);
   }
-  if(remote_ && avformat_network_init()<0){
+  if(networkInput && avformat_network_init()<0){
    av_dict_free(&opts);error="FFmpeg network stack unavailable";goto cleanup;
   }
-  const int opened=avformat_open_input(&fmt,path_.c_str(),nullptr,&opts);
+  const int opened=avformat_open_input(&fmt,videoSource.c_str(),nullptr,&opts);
   av_dict_free(&opts);
   if(opened<0){
    char reason[128]{};
    av_strerror(opened,reason,sizeof(reason));
-   error=std::string(remote_?"Verified HTTPS stream failed: ":"Unable to open MP4: ")+reason;
+   error=std::string(networkInput?"Verified HTTPS stream failed: ":"Unable to open MP4: ")+reason;
    goto cleanup;
   }
  }
- if(avformat_find_stream_info(fmt,nullptr)<0){error=remote_?"Cannot probe HTTPS video/audio tracks":"Invalid media streams";goto cleanup;}
+ if(avformat_find_stream_info(fmt,nullptr)<0){error=networkInput?"Cannot probe HTTPS video/audio tracks":"Invalid media streams";goto cleanup;}
  if(!audioPath_.empty()){
   AVDictionary* opts=nullptr;
-  if(remote_){
+  if(networkInput){
    const std::string cert=root_certificate_file();
    av_dict_set(&opts,"tls_verify","1",0);av_dict_set(&opts,"ca_file",cert.c_str(),0);
    av_dict_set(&opts,"rw_timeout","12000000",0);av_dict_set(&opts,"timeout","12000000",0);
@@ -193,7 +259,7 @@ void MediaPlayer::decode(){
      "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip":
      "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip",0);
   }
-  const int openedAudio=avformat_open_input(&afmt,audioPath_.c_str(),nullptr,&opts);
+  const int openedAudio=avformat_open_input(&afmt,audioSource.c_str(),nullptr,&opts);
   av_dict_free(&opts);
   if(openedAudio<0){error="Unable to open adaptive audio stream";goto cleanup;}
   if(avformat_find_stream_info(afmt,nullptr)<0){error="Unable to probe adaptive audio";goto cleanup;}
@@ -235,7 +301,7 @@ void MediaPlayer::decode(){
   std::lock_guard<std::mutex> g(lock_);
   state_.opening=false;state_.playing=true;state_.width=vc->width;state_.height=vc->height;
   state_.duration=duration;
-  state_.message=afmt?"HD video + AAC audio":remote_?"Streaming over HTTPS":"Playing local MP4";
+  state_.message=afmt?"HD video + AAC audio":networkInput?"Streaming over HTTPS":"Playing local MP4";
  }
  {
   const AVRational tb=fmt->streams[vi]->time_base;
@@ -370,6 +436,7 @@ void MediaPlayer::decode(){
   if(audio&&!quit_)while(SDL_GetQueuedAudioSize(audio)>0&&!quit_)sleep_us(25000);
  }
 cleanup:
+ hdPhase_=0;
  if(audio){SDL_ClearQueuedAudio(audio);SDL_CloseAudioDevice(audio);SDL_QuitSubSystem(SDL_INIT_AUDIO);}
  if(swr)swr_free(&swr);if(sws)sws_freeContext(sws);
  av_packet_free(&pkt);av_frame_free(&frame);
