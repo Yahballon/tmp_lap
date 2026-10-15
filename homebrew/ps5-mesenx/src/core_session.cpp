@@ -5,6 +5,8 @@
 #include "Core/Shared/Emulator.h"
 #include "Core/Shared/EmuSettings.h"
 #include "Core/Shared/SaveStateManager.h"
+#include "Core/Shared/Video/VideoRenderer.h"
+#include "Core/Shared/Audio/SoundMixer.h"
 #include "Core/Shared/BaseControlDevice.h"
 #include "Core/Shared/Interfaces/IInputProvider.h"
 #include "Core/Shared/Interfaces/IAudioDevice.h"
@@ -51,7 +53,9 @@ struct Session::State final : IInputProvider {
 
     struct VideoDevice final : IRenderingDevice {
         State* owner;
-        explicit VideoDevice(State* s) : owner(s) {}
+        explicit VideoDevice(State* s) : owner(s) {
+            owner->emu.GetVideoRenderer()->RegisterRenderingDevice(this);
+        }
         void UpdateFrame(RenderedFrame& frame) override {
             // HD packs may produce frames beyond the old SNES 512x576 limit.
             constexpr size_t max_pixels = 4096u * 4096u;
@@ -78,7 +82,9 @@ struct Session::State final : IInputProvider {
 
     struct AudioDevice final : IAudioDevice {
         State* owner;
-        explicit AudioDevice(State* s) : owner(s) {}
+        explicit AudioDevice(State* s) : owner(s) {
+            owner->emu.GetSoundMixer()->RegisterAudioDevice(this);
+        }
         void PlayBuffer(int16_t* buffer, uint32_t frames,
                         uint32_t sample_rate, bool stereo) override {
             if (!buffer || frames > 16384) return;
