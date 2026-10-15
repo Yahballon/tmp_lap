@@ -30,12 +30,31 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.010')
+          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.011')
           d['localizedParameters']['en-US']['titleName']='PSTUBE'
           p.write_text(json.dumps(d,indent=2)+'\n')
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
           Path('app/src/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE(' + pem + ')PS5CABUNDLE";\n')
           PY
+      - name: Check real YouTube HD HTTPS Range and Client headers
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/pstube/tests/probe_native_hd_http.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-hd-http-probe
+          timeout 50s /tmp/pstube-hd-http-probe
+          python3 homebrew/pstube/tests/probe_hd_http.py
+      - name: Decode real HD AVC and AAC over HTTPS with native FFmpeg
+        timeout-minutes: 3
+        run: |
+          g++ -std=c++20 -O2 -pthread -DPSTUBE_HOST_TEST -Iapp/src \
+            homebrew/pstube/tests/remote_hd_decode_test.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp app/src/media.cpp app/src/range_media.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) -lssl -lcrypto \
+            -lssl -lcrypto -o /tmp/pstube-remote-hd-test
+          SDL_AUDIODRIVER=dummy timeout 145s /tmp/pstube-remote-hd-test
       - name: Test live catalog JSON parsing (host)
         run: |
           g++ -std=c++20 -O2 -pthread -Iapp/src homebrew/pstube/tests/catalog_parser_test.cpp \
@@ -139,7 +158,7 @@ jobs:
           def check(domain):
               try:
                   request=urllib.request.Request('https://'+domain+'/api/v1/search?q=ps5&type=video',
-                      headers={'User-Agent':'PSTUBE/0.7.1','Accept':'application/json'})
+                      headers={'User-Agent':'PSTUBE/0.7.2','Accept':'application/json'})
                   with urllib.request.urlopen(request,timeout=8) as response:
                       data=json.load(response)
                   valid=isinstance(data,list) and sum(bool(x.get('videoId')) for x in data if isinstance(x,dict))
@@ -185,8 +204,8 @@ jobs:
       - name: Test FFmpeg seek, rewind, pause and audio pipeline (host)
         run: |
           g++ -std=c++20 -O2 -pthread -Iapp/src -Ihomebrew/pstube/native \
-            homebrew/pstube/tests/media_seek_test.cpp app/src/media.cpp \
-            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) \
+            homebrew/pstube/tests/media_seek_test.cpp app/src/media.cpp app/src/range_media.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) -lssl -lcrypto \
             -o /tmp/pstube-media-seek-test
           SDL_AUDIODRIVER=dummy timeout 25s /tmp/pstube-media-seek-test app/assets/videos/pstube-selftest.mp4
       - name: Exercise native HD video and separate AAC audio
@@ -199,8 +218,8 @@ jobs:
             -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
             -t 8 -c:a aac -b:a 128k /tmp/pstube-hd-audio.m4a
           g++ -std=c++20 -O2 -pthread -Iapp/src -Ihomebrew/pstube/native \
-            homebrew/pstube/tests/adaptive_media_test.cpp app/src/media.cpp \
-            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) \
+            homebrew/pstube/tests/adaptive_media_test.cpp app/src/media.cpp app/src/range_media.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) -lssl -lcrypto \
             -o /tmp/pstube-adaptive-test
           SDL_AUDIODRIVER=dummy timeout 35s /tmp/pstube-adaptive-test \
             /tmp/pstube-hd-test.mp4 /tmp/pstube-hd-audio.m4a
@@ -230,9 +249,9 @@ jobs:
           root=pathlib.Path('app/dist/PPSA99762')
           executable=(root/'eboot.bin').read_bytes()
           assert len(executable)>1000 and struct.unpack('<I',executable[:4])[0]==0x1D3D154F
-          assert b'v0.7.1' in executable
+          assert b'v0.7.2' in executable
           d=json.loads((root/'sce_sys/param.json').read_text())
-          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.010'
+          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.011'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/videos/pstube-selftest.mp4']:
             assert (root/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99762.zip') as z:
@@ -241,7 +260,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PSTUBE-v0.7.1
+          name: PSTUBE-v0.7.2
           path: app/dist/PPSA99762.zip
           if-no-files-found: error
       - name: Publish alpha release
@@ -249,5 +268,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view pstube-v0.7.1 >/dev/null 2>&1; then exit 0; fi
-          gh release create pstube-v0.7.1 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.7.1 (Selectable HD Quality 720p/1080p)" --notes-file homebrew/pstube/RELEASE_NOTES.md
+          if gh release view pstube-v0.7.2 >/dev/null 2>&1; then exit 0; fi
+          gh release create pstube-v0.7.2 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.7.2 (Selectable HD Quality 720p/1080p)" --notes-file homebrew/pstube/RELEASE_NOTES.md

@@ -17,7 +17,8 @@ public:
  MediaPlayer()=default;~MediaPlayer();
  bool open(const std::string& path);
  bool openStream(const std::string& url);
- bool openAdaptiveStream(const std::string& videoUrl,const std::string& audioUrl);
+ bool openAdaptiveStream(const std::string& videoUrl,const std::string& audioUrl,
+   const std::string& videoId,int videoHeight);
  bool openAdaptiveFiles(const std::string& videoPath,const std::string& audioPath);
  void close();
  void pause();
@@ -34,7 +35,9 @@ private:
  std::atomic<bool> quit_{false},paused_{false};
  std::atomic<int64_t> seekDeltaUs_{0};
  PlaybackState state_;
- std::string path_,audioPath_;
+ std::string path_,audioPath_,videoId_;
+ int preferredHeight_=0;
+ std::atomic<int> hdPhase_{0},hdPercent_{0};
  bool remote_=false;
  std::vector<unsigned char> pixels_;
  uint64_t sequence_=0;
