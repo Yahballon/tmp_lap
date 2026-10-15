@@ -1,0 +1,66 @@
+name: Publish PS5MesenX TESTBUILD
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-ps5-mesenx.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-ps5-mesenx-v0.1.0
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch proven signed PS5MesenX build artifact (no rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          name: PS5MesenX-v0.1.0-PPSA99896
+          run-id: 38825183737
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+      - name: Verify signed native PS5 installation ZIP
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,hashlib,struct,json
+          f=Path('dist/PPSA99896.zip')
+          assert f.is_file() and f.stat().st_size>1_000_000, 'Native PS5 package missing'
+          with zipfile.ZipFile(f) as z:
+              assert z.testzip() is None, 'Corrupt ZIP'
+              assert 'PPSA99896/sce_sys/param.json' in z.namelist()
+              assert 'PPSA99896/sce_module/libc.prx' in z.namelist()
+              p=json.loads(z.read('PPSA99896/sce_sys/param.json'))
+              assert p['titleId']=='PPSA99896'
+              eboot=z.read('PPSA99896/eboot.bin')
+              assert len(eboot)>10_000_000
+              assert eboot[:4]==struct.pack('<I',0x1D3D154F)
+              assert hashlib.sha256(eboot).hexdigest()=='820f9a685b7979d7af84ec69c3320cbb292670eb31c00bb9e3336991e742ee59'
+          print('Verified signed PS5MesenX v0.1.0 package',f.stat().st_size,'bytes')
+          PY
+      - name: Publish official GitHub Release for TESTBUILD manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=ps5-mesenx-v0.1.0
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists; validating asset"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+              --jq '.assets[].name' | grep -Fxq PPSA99896.zip
+            exit 0
+          fi
+          # Important: target the current DEFAULT branch. GITHUB_TOKEN cannot
+          # create a release targeting an older commit that changes workflows.
+          gh release create "$TAG" dist/PPSA99896.zip \
+            --repo "$GITHUB_REPOSITORY" --target main \
+            --title 'PS5MesenX v0.1.0 - Experimental PS5 HD NES' \
+            --notes-file homebrew/ps5-mesenx/RELEASE_NOTES.md
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[].name' | grep -Fxq PPSA99896.zip

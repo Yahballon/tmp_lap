@@ -38,6 +38,7 @@ on:
       - Publish PS5DreamcastX Release
       - Publish PS5DreamcastX TESTBUILD
       - Build PS5MesenX (native MesenCE)
+      - Publish PS5MesenX TESTBUILD
     types: [completed]
   schedule:
     - cron: '17 * * * *'
