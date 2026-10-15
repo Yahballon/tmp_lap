@@ -310,9 +310,10 @@ std::vector<Video> parse_youtube_html(const std::string& html){
  // The public, logged-out YouTube search page contains the renderer JSON.
  // Never interpret unrelated script data as a video: validate 11-char IDs.
  constexpr std::string_view needle="\"videoRenderer\":{";
- size_t from=html.find("ytInitialData");
- if(from==std::string::npos)from=html.find("\"videoRenderer\":{");
- if(from==std::string::npos)return videos;
+ // Search replies are JSON with no ytInitialData marker. Start at zero so
+ // results preceding incidental "ytInitialData" text are not discarded.
+ size_t from=0;
+ if(html.find("\"videoRenderer\":{")==std::string::npos)return videos;
  while(videos.size()<60){
   const size_t hit=html.find(needle,from);
   if(hit==std::string::npos)break;
