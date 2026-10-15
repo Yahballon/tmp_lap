@@ -61,7 +61,12 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  std::string request=(postBody.empty()?"GET ":"POST ")+path+
  " HTTP/1.1\r\nHost: "+host+
  "\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: text/html,application/json;q=0.9,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
- if(!postBody.empty())request+="Content-Type: application/json\r\nOrigin: https://www.youtube.com\r\nContent-Length: "+std::to_string(postBody.size())+"\r\n";
+ if(!postBody.empty()){
+  request+="Content-Type: application/json\r\nOrigin: https://www.youtube.com\r\nContent-Length: "+std::to_string(postBody.size())+"\r\n";
+  if(postBody.find("\"clientName\":\"ANDROID\"")!=std::string::npos){
+   request+="X-YouTube-Client-Name: 3\r\nX-YouTube-Client-Version: 21.26.364\r\n";
+  }
+ }
  request+="\r\n"+postBody;
  bool ok=true;
  for(size_t off=0;off<request.size();){
@@ -535,6 +540,65 @@ std::string pick_youtube_video_mp4(const std::string& html,std::string& reason){
      "No compatible unprotected MP4 stream found";
  return {};
 }
+
+bool resolve_android_mp4(const std::string& id,std::string& mediaUrl,std::string& error){
+ mediaUrl.clear();error.clear();
+ if(!valid_id(id)){error="Invalid video identifier";return false;}
+ // Only public logged-out playback contexts are used, no cookies or account tokens.
+ // YouTube's Android client currently provides itag 18 combined H.264/AAC on
+ // some videos without JS deciphering. PO-token/login-locked videos remain unavailable.
+ const std::string agent=
+  "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip";
+ const std::string body=
+  "{\"videoId\":\""+id+"\",\"context\":{\"client\":{\"clientName\":\"ANDROID\","
+  "\"clientVersion\":\"21.26.364\",\"hl\":\"en\",\"gl\":\"US\","
+  "\"androidSdkVersion\":30,\"osName\":\"Android\",\"osVersion\":\"11\","
+  "\"userAgent\":\""+agent+"\"}},"
+  "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
+ std::string response;
+ if(!https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",response,error,body)){
+  error="Android player API: "+error;return false;
+ }
+ std::string status=decode(field(field(response,"playabilityStatus"),"status"));
+ if(status!="OK"){
+  const std::string why=decode(field(field(response,"playabilityStatus"),"reason"));
+  error="Android player: "+(status.empty()?"no playable response":status);
+  if(!why.empty())error+=" ("+why.substr(0,120)+")";
+  return false;
+ }
+ const auto stream=field(response,"streamingData");
+ const auto formats=field(stream,"formats");
+ size_t pos=0;skip(formats,pos);
+ if(pos>=formats.size()||formats[pos++]!='['){
+  error="Android player: no combined video/audio formats";return false;
+ }
+ std::string candidate;int best=-1;bool requiredCipher=false;
+ while(pos<formats.size()){
+  skip(formats,pos);if(pos>=formats.size()||formats[pos]==']')break;
+  const size_t end=value_end(formats,pos);if(end<=pos)break;
+  const auto item=formats.substr(pos,end-pos);pos=end;
+  const std::string mime=decode(field(item,"mimeType"));
+  const int itag=integer(field(item,"itag"));
+  const int height=integer(field(item,"height"));
+  const int quality=std::atoi(decode(field(item,"qualityLabel")).c_str());
+  const int resolution=height>0?height:quality;
+  const std::string url=decode(field(item,"url"),12000);
+  if(mime.find("video/mp4")!=std::string::npos && (itag==18||resolution<=1080)){
+   if(url.rfind("https://",0)==0&&resolution>=best){
+    // Do not pass redirect-to-HTML links to FFmpeg.
+    candidate=url;best=resolution;
+   }else if(!field(item,"signatureCipher").empty())requiredCipher=true;
+  }
+  skip(formats,pos);if(pos>=formats.size()||formats[pos++]!=',')break;
+ }
+ if(candidate.empty()){
+  error=requiredCipher?"Android player stream requires deciphering":
+   "Android player did not provide a direct MP4 URL";
+  return false;
+ }
+ mediaUrl=std::move(candidate);
+ return true;
+}
 bool Service::download(const Video& video){
  if(!valid_id(video.id)||downloading_.exchange(true))return false;
  const std::string path=local_path(video.id);
@@ -550,17 +614,21 @@ bool Service::download(const Video& video){
  int rc=pthread_create(&th,&attr,[](void* ptr)->void*{
   std::unique_ptr<Work> w((Work*)ptr);Service& svc=*w->svc;
   std::string body,error,host=svc.instance();
-  bool ok=https("www.youtube.com","/watch?v="+w->id,body,error);
-  std::string url=ok?pick_youtube_video_mp4(body,error):std::string{};
-  if(url.empty()){
-   // Fallback only: Invidious API is frequently access-restricted.
-   std::string response,apiError;
-   const bool apiOK=https(host,"/api/v1/videos/"+w->id,response,apiError);
-   if(apiOK)url=pick_mp4(response);
+  std::string url;
+  bool ok=resolve_android_mp4(w->id,url,error);
+  if(!ok){
+   const std::string androidError=error;
+   std::string watchError,watchHtml;
+   const bool watchOK=https("www.youtube.com","/watch?v="+w->id,watchHtml,watchError);
+   if(watchOK)url=pick_youtube_video_mp4(watchHtml,watchError);
    if(url.empty()){
-    const std::string fallback=apiOK?"no compatible MP4":apiError;
-    error=error.empty()?"Stream unavailable":error;
-    error+="; Invidious: "+fallback;
+    std::string response,apiError;
+    const bool apiOK=https(host,"/api/v1/videos/"+w->id,response,apiError);
+    if(apiOK)url=pick_mp4(response);
+    if(url.empty()){
+     error=androidError+"; Web: "+(watchError.empty()?"no MP4":watchError)+
+       "; Invidious: "+(apiOK?"no MP4":apiError);
+    }
    }
   }
   ok=!url.empty();
