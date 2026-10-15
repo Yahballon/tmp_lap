@@ -110,8 +110,8 @@ void book(DrawList& d,const Font& f,unsigned atlas,const ebook::BookEntry& b,flo
  d.shadow({x,y,216,282},8,13,Color::rgb(0x080301,0.65f));
  const unsigned colors[]={0x572b35,0x17454c,0x604c27,0x43355e,0x375032,0x614027};
  unsigned hash=0;for(char c:b.title)hash=hash*33+(unsigned char)c;
- Color cover=Color::rgb(colors[hash%6]);
- d.bordered_rect({x,y,208,268},4,cover,selected?5:1,selected?gold:Color::rgb(0xc49557));
+ Color coverColor=Color::rgb(colors[hash%6]);
+ d.bordered_rect({x,y,208,268},4,coverColor,selected?5:1,selected?gold:Color::rgb(0xc49557));
  if(cover.id)draw_fit(d,cover,x+18,y+6,188,230);
  else {
   d.line(x+34,y+23,x+187,y+23,2,gold);
