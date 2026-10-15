@@ -45,7 +45,9 @@ initial=parse_initial(source)
 tokens=collect(initial)
 print("PAGE 1 video_renderers",source.count('"videoRenderer":{'),"tokens",[(p,len(t)) for p,t in tokens[:12]],flush=True)
 if not tokens:raise RuntimeError("No continuation token in initial")
-token=tokens[-1][1]
+scroll_tokens=[t for path,t in tokens if "continuationItemRenderer" in path]
+if not scroll_tokens:raise RuntimeError("No scroll continuation in initial search")
+token=scroll_tokens[-1]
 seen=set()
 for page in range(2,9):
     if token in seen:
@@ -63,5 +65,8 @@ for page in range(2,9):
     print("PAGE",page,"bytes",len(raw),"videos",raw.count('"videoRenderer":{'),
           "tokens",[(p,len(t)) for p,t in toks[:5]],"continuation_types",dict(locations),
           "keys",list(data.keys()),flush=True)
-    if not toks:break
-    token=toks[-1][1]
+    scroll=[t for path,t in toks if "continuationItemRenderer" in path]
+    if not scroll:
+        print("NO SCROLL CONTINUATION",page,flush=True)
+        break
+    token=scroll[-1]
