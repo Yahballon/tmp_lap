@@ -287,7 +287,8 @@ int main(){
    if(!ready.empty()&&service.quality()==360)s.playerStarted=player.open(ready);
    else if(snapshot.streamId==s.active.id&&!snapshot.streamUrl.empty()){
     if(snapshot.streamAdaptive&&!snapshot.streamAudioUrl.empty())
-     s.playerStarted=player.openAdaptiveStream(snapshot.streamUrl,snapshot.streamAudioUrl);
+     s.playerStarted=player.openAdaptiveStream(snapshot.streamUrl,snapshot.streamAudioUrl,
+       s.active.id,snapshot.streamHeight);
     else s.playerStarted=player.openStream(snapshot.streamUrl);
     if(!s.playerStarted){s.streamOpenFailed=true;s.streamErrorText="FFmpeg network player unavailable or TLS roots could not be opened";s.notice=s.streamErrorText;}
    }
