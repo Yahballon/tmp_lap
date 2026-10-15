@@ -57,17 +57,16 @@ inline Layout full_width(const std::vector<std::string>& original,
    }
    std::istringstream words(original[i]);
    std::string word;
-   bool hasWord=false;
+   bool firstWord=true;
+   size_t firstTarget=out.lines.size();
    while(words>>word){
-     hasWord=true;
      if(!row.empty() && row.size()+word.size()+1>maxColumns)flush();
+     if(firstWord){firstTarget=out.lines.size();firstWord=false;}
      if(row.empty())rowOrigin=i;
      if(!row.empty())row.push_back(' ');
      row+=word;
-     // Page of the first word of this original row.
-     if(!hasWord){} // deliberately unreachable; retained for clarity
    }
-   out.singleLineForSource[i]=out.lines.size();
+   out.singleLineForSource[i]=firstTarget;
    ++i;
  }
  flush();
