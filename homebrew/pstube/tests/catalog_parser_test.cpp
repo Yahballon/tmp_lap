@@ -3,7 +3,9 @@
 #include <cassert>
 #include <string>
 #include <iostream>
-int main(){
+#include <fstream>
+#include <iterator>
+int main(int argc,char** argv){
  // Representative real Invidious /api/v1/search response structure.
  const std::string search=R"JSON([
  {"type":"video","title":"Exploring PS5 Worlds","videoId":"dQw4w9WgXcQ","author":"Creator","lengthSeconds":186,"viewCount":98765,
@@ -26,6 +28,24 @@ int main(){
  assert(trending[0].title=="Trending Gameplay");
  assert(pstube::parse_search("{}").empty());
  assert(pstube::parse_search("<html>Rate limited</html>").empty());
+ const std::string liveFixture=R"HTML(<html><script>var ytInitialData = {"contents":[
+ {"videoRenderer":{"videoId":"Xy_Cznzdfj0","thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/Xy_Cznzdfj0/hq720.jpg"}]},
+ "title":{"runs":[{"text":"A Real Gaming Video"}]},"longBylineText":{"runs":[{"text":"Creator Channel"}]},
+ "lengthText":{"simpleText":"5:06"},"viewCountText":{"simpleText":"56,396 views"}}}
+ ]};</script></html>)HTML";
+ const auto parsedPage=pstube::parse_youtube_html(liveFixture);
+ assert(parsedPage.size()==1);
+ assert(parsedPage[0].id=="Xy_Cznzdfj0");
+ assert(parsedPage[0].title=="A Real Gaming Video");
+ assert(parsedPage[0].author=="Creator Channel");
+ assert(parsedPage[0].length==306);
+ if(argc>1){
+  std::ifstream source(argv[1],std::ios::binary);
+  std::string actual((std::istreambuf_iterator<char>(source)),std::istreambuf_iterator<char>());
+  auto live=pstube::parse_youtube_html(actual);
+  std::cout<<"Live YouTube renderer parser: "<<live.size()<<" real videos"<<std::endl;
+  assert(!live.empty());
+ }
  assert(pstube::valid_id("J---aiyznGQ"));
  assert(!pstube::valid_id("../etc/passw"));
  std::cout<<"PSTUBE catalog parser: 2 search results, trending and malformed responses passed\n";
