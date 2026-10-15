@@ -1,9 +1,9 @@
 {
   "name": "PSTUBE",
   "slug": "pstube",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "titleId": "PPSA99762",
   "contentId": "UP9000-PPSA99762_00-PSTUBEYAHBALLON1",
-  "contentVersion": "01.000.007",
-  "releaseTag": "pstube-v0.5.2"
+  "contentVersion": "01.000.008",
+  "releaseTag": "pstube-v0.6.0"
 }
