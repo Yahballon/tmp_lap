@@ -1,0 +1,10 @@
+{
+  "name": "PS5 System Info",
+  "slug": "ps5-system-info",
+  "version": "0.1.0",
+  "titleId": "PPSA99786",
+  "contentId": "UP9000-PPSA99786_00-PS5SYSTEMINFO001",
+  "contentVersion": "01.000.001",
+  "releaseTag": "ps5-system-info-v0.1.0",
+  "developer": "YAHBALLON"
+}
