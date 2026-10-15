@@ -759,6 +759,39 @@ int main(){
     "X Read  L1/R1 Collection  SQUARE Favourite  TRIANGLE Storage  OPTIONS Rescan  R2 View  L3 Delete",88,1044,18,cream);
   }
   if(!message.empty()){d.rounded_rect({410,1010,1100,35},9,Color::rgb(0x49250f));txt(d,font,atlas,cut(message,118),960,1036,17,gold,Align::center);}
+  if(g_openBusy.load()){
+    const size_t total=g_openTotal.load(),done=g_openDone.load();
+    const int stage=g_openStage.load();
+    const float fraction=total?std::min(1.f,(float)((double)done/total)):0.f;
+    d.rounded_rect({0,100,1920,980},0,Color::rgb(0x080503,0.78f));
+    d.shadow({280,353,1360,328},18,24,Color::rgb(0x000000,0.66f));
+    d.bordered_rect({280,353,1360,328},18,Color::rgb(0x39200f),2,gold);
+    txt(d,font,atlas,stage==1?"DOWNLOADING BOOK FROM USB":"OPENING BOOK",
+        960,419,35,cream,Align::center);
+    txt(d,font,atlas,cut(loadingTitle,67),960,468,24,muted,Align::center);
+    d.rounded_rect({394,530,1132,31},12,Color::rgb(0x130c07));
+    d.rounded_rect({397,534,std::max(3.f,1126.f*(stage==1?fraction:1.f)),23},10,gold);
+    if(stage==1)
+      txt(d,font,atlas,std::to_string((int)(fraction*100))+"%  "+
+          std::to_string(done/1048576)+" / "+std::to_string((total+1048575)/1048576)+
+          " MiB",960,617,24,cream,Align::center);
+    else
+      txt(d,font,atlas,"Preparing document and comic pages...",960,617,22,cream,Align::center);
+    txt(d,font,atlas,g_openCancel.load()?"Cancelling...":"CIRCLE Cancel",
+        960,651,18,muted,Align::center);
+  }else if(!reader && g_coverBusy.load() && g_coverTotal.load()>0){
+    const size_t total=g_coverTotal.load(),done=g_coverDone.load();
+    const float fraction=std::min(1.f,(float)((double)done/total));
+    d.rounded_rect({530,909,860,69},9,Color::rgb(0x36200e));
+    txt(d,font,atlas,"Downloading comic cover  "+
+        std::to_string((int)(fraction*100))+"%  ("+
+        std::to_string(done/1048576)+"/"+
+        std::to_string((total+1048575)/1048576)+" MiB)",
+        960,935,18,cream,Align::center);
+    d.rounded_rect({588,948,746,9},4,Color::rgb(0x110905));
+    d.rounded_rect({588,948,746.f*fraction,9},4,gold);
+  }
+
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
