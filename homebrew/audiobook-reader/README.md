@@ -4,7 +4,7 @@ A native, controller-first M4B audiobook player by YAHBALLON, inspired by the bo
 
 ## Features
 
-- USB ABooks folder scanned via a dedicated read-only `abookscan.elf` helper launched through active `elfldr` on `127.0.0.1:9021` (USB helper port `9177`).
+- USB ABooks folder scanned via a dedicated read-only `abookscan.elf` helper launched through active `elfldr` on `127.0.0.1:9021` (USB helper port `9178`).
 - Async transfer to `/data/AudioBookReader/Cache/` with progress percentage, cancellation, interrupted-transfer retry, and safe file-size validation.
 - Application diagnostics at `/data/AudioBookReader/audiobook-reader.log`; persistent listening state at `/data/AudioBookReader/progress.tsv`.
 
