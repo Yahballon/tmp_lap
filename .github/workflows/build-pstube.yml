@@ -17,7 +17,7 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libssl-dev
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libssl-dev ffmpeg
       - name: Prepare PS5 source and assets
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -83,6 +83,14 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -pthread -Iapp/src homebrew/pstube/tests/thumbnail_http_test.cpp app/src/transfer.cpp -lssl -lcrypto -o /tmp/pstube-thumbnail-http-test
           /tmp/pstube-thumbnail-http-test
+      - name: Generate licensed in-app video and audio self-test
+        run: |
+          mkdir -p app/assets/videos
+          ffmpeg -hide_banner -loglevel error -nostdin -y -threads 2 \
+            -f lavfi -i 'testsrc2=size=640x360:rate=25' \
+            -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
+            -t 5 -c:v libx264 -pix_fmt yuv420p -preset veryfast -crf 30 \
+            -c:a aac -b:a 96k -movflags +faststart app/assets/videos/pstube-selftest.mp4
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
@@ -112,7 +120,7 @@ jobs:
           assert b'v0.3.0' in executable
           d=json.loads((root/'sce_sys/param.json').read_text())
           assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.003'
-          for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']:
+          for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/videos/pstube-selftest.mp4']:
             assert (root/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99762.zip') as z:
             assert z.testzip() is None
