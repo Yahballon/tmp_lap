@@ -1,12 +1,12 @@
-# PSTUBE v0.4.0 — Native Stream Resolver
+# PSTUBE v0.4.1 — Search Pagination Fix
 
-- New: Native HTTPS Innertube Android player support in the PS5 C++ application. No Windows PC, bridge server or companion application is required.
-- Verify available combined MP4 (H.264/AAC) URLs from YouTube's Android client, which can return direct URLs even when the web player returns HTTP 302 or signatureCipher.
-- Secure TLS verification, HTTP POST and safe YouTube redirects; preserve existing YouTube web and Invidious fallback.
-- Correctly decode JSON Unicode escape sequences in media URLs (including encoded query ampersands).
-- Keep automatic playback after a verified downloaded MP4 and existing TV UI, favourites, downloads, thumbnails and self-test.
-- Add real network tests against the public Android player API and verify actual MP4 magic bytes in CI.
+- Fix partial final grid page: selecting the 19th or 20th video no longer leaves only two cards visible; the last six results always fill the page wherever possible.
+- Native automatic YouTube continuation support. Scroll down to progressively load more results, 20 at a time; up to 400 real distinct videos per search.
+- Real C++ HTTPS POST to YouTube search continuation endpoint. Use the version, visitor context and public API key supplied by YouTube, and remove duplicate IDs.
+- Show results counter, page progress and loading status. Preserve DualSense navigation and playback.
+- Keep GPU thumbnails bounded to prevent exhausting texture memory on long searches.
+- Add regression tests for JSON continuation responses and live two-page retrieval in CI.
 
-**Limitations:** YouTube decides which videos are playable unauthenticated. Some videos require login, proof-of-origin tokens, a JavaScript signature solver or only offer adaptive streams. PSTUBE explicitly reports these failures; it does not defeat DRM, bypass authentication, or guarantee playback of every video. Full-download-before-play and physical PS5 audio/video testing remain necessary.
+**Limitations:** YouTube may change the public search response or temporarily block automated paging; failures are shown instead of fake videos. The 400-result safety cap keeps memory bounded. Video playback availability depends on stream formats and YouTube access restrictions.
 
-Install the verified PPSA99762.zip into /data/homebrew/PPSA99762 and refresh TESTBUILDS. Saved data under /data/pstube and /download0/pstube is preserved.
+Install `PPSA99762.zip` from this release to `/data/homebrew/PPSA99762/`. Your saved favourites and download library are preserved.
