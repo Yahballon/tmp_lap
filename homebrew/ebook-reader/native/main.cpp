@@ -223,15 +223,29 @@ struct CoverTask {
 struct CoverResult{std::string path,bytes;};
 std::mutex g_coverLock;
 std::atomic<bool> g_coverBusy{false};
+std::atomic<size_t> g_coverDone{0},g_coverTotal{0};
+bool cover_transfer_progress(size_t done,size_t total,void*){
+ g_coverDone.store(done);g_coverTotal.store(total);
+ return !g_openBusy.load(); // normally true while the cover worker is active
+}
 std::vector<CoverResult> g_coverReady;
 void* cover_worker(void* arg){
  CoverTask* task=(CoverTask*)arg;
  std::string local=task->bookPath,bytes,error;
- bool ok=true;
- if(task->remote)ok=usbbooks::fetch(task->remoteBook,local,error);
- if(!ok)ebook_log::write("COVER_USB_ERROR",error);
- if(ok){if(task->comic)comic::cover(local,bytes);
-        else ebook::read_epub_cover(local,bytes);}
+ bool ok=ebook_cover::load(task->bookPath,bytes);
+ if(!ok){
+   ok=true;
+   // A visible USB comic is fetched once on the worker; thereafter only
+   // the small cover is read from /data/EbookReader/Covers.
+   if(task->remote)ok=usbbooks::fetch(task->remoteBook,local,error,
+                                      cover_transfer_progress,nullptr);
+   if(!ok)ebook_log::write("COVER_USB_ERROR",error);
+   if(ok){
+     if(task->comic)comic::cover(local,bytes);
+     else ebook::read_epub_cover(local,bytes);
+   }
+   if(!bytes.empty())ebook_cover::save(task->bookPath,bytes);
+ }
  if(!bytes.empty())ebook_log::write("COVER_READY",task->bookPath);
  {std::lock_guard<std::mutex> lock(g_coverLock);
   g_coverReady.push_back({task->bookPath,std::move(bytes)});
@@ -241,11 +255,10 @@ void* cover_worker(void* arg){
  return nullptr;
 }
 bool start_cover(const ebook::BookEntry& b){
- // Important: skip remote comics BEFORE claiming the background worker.
- // The previous order left g_coverBusy permanently true when the first
- // visible book was a USB CBR, disabling covers for all later EPUBs.
- if(usbbooks::is_remote(b.path) && (b.format=="CBR"||b.format=="CBZ"))return false;
+ // Load all visible EPUB/CBR/CBZ covers asynchronously. USB comics can
+ // require a full first download; persistent thumbnails avoid repeat work.
  if(g_coverBusy.exchange(true))return false;
+ g_coverDone.store(0);g_coverTotal.store(0);
  CoverTask* task=new CoverTask;task->bookPath=b.path;
  task->comic=(b.format=="CBR"||b.format=="CBZ");
  if(usbbooks::is_remote(b.path)){
