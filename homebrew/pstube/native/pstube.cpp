@@ -517,7 +517,7 @@ bool Service::trending(){return search("@@TRENDING@@");}
 bool Service::search(const std::string& query){
  if(query.empty()||query.size()>100||busy_.exchange(true))return false;
  {std::lock_guard<std::mutex> g(mutex_);
-   currentQuery_=query;continuation_.clear();pagingProvider_.clear();clientVersion_.clear();apiKey_.clear();visitorData_.clear();providerPage_=1;
+   currentQuery_=query;continuation_.clear();pagingProvider_.clear();clientVersion_.clear();apiKey_.clear();visitorData_.clear();providerPage_=1;duplicatePageStreak_=0;
    ++feedGeneration_;
    state_.searching=true;state_.loadingMore=false;state_.hasMore=false;
    state_.status="Contacting video providers...";
@@ -651,12 +651,18 @@ bool Service::load_more(){
    }
    if(!w->token.empty())svc.continuation_=next;
    else if(ok)svc.providerPage_=w->page;
-   // Do not spin repeatedly on a failing or duplicate page.
-   svc.state_.hasMore=ok&&newCount>0&&svc.state_.videos.size()<1800&&
-     (!w->token.empty()?!next.empty():added.size()>=8);
-   svc.state_.status=!ok?"Couldn't load the next page: "+error:
-     newCount?std::to_string(svc.state_.videos.size())+" videos - scroll for more":
-              "End of available search results";
+   // Search pages sometimes contain only videos previously seen. If YouTube
+   // supplies a NEW continuation, advance a few more pages rather than
+   // prematurely claiming that every result has been exhausted.
+   svc.duplicatePageStreak_=newCount==0?svc.duplicatePageStreak_+1:0;
+   const bool tokenAdvanced=!w->token.empty()&&!next.empty()&&next!=w->token;
+   const bool morePages=tokenAdvanced?
+      svc.duplicatePageStreak_<=3:(w->token.empty()&&added.size()>=8&&newCount>0);
+   svc.state_.hasMore=ok&&svc.state_.videos.size()<1800&&morePages;
+   svc.state_.status=!ok?"Couldn't load more: "+error:
+      newCount?std::to_string(svc.state_.videos.size())+" videos - scroll for more":
+      svc.state_.hasMore?"Repeated videos; continuing search...":
+      "YouTube provided no further accessible results";
    svc.state_.loadingMore=false;
   }
   svc.busy_.store(false,std::memory_order_release);return nullptr;
