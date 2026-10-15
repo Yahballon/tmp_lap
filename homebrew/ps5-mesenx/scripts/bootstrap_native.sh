@@ -54,6 +54,14 @@ if [[ ! -s "$mesa_source" ]] || ! printf '%s  %s\n' "$mesa_sha" "$mesa_source" |
   [[ $success == 1 ]] || { echo "Pinned Mesa archive unavailable or hash mismatch" >&2; exit 1; }
 fi
 (cd "$sdk_checkout" && python3 tools/fetch-sources.py)
+# A clean SDK checkout lacks Mesa-generated headers and C sources (notably
+# util/format/u_format_gen.h). The upstream PS5_Vulkan assembler reproduces
+# all the generator commands in the correct order; its output is checked
+# against the exact SDK-pinned compiler tree before materializing the files.
+bash "$vulkan/tooling/sdk/assemble-psbc-fork.sh" \
+  "$sdk_checkout" "$sdk_checkout/third_party/opengnm-psbc"
+test -s "$sdk_checkout/third_party/opengnm-psbc/src/util/format/u_format_gen.h"
+test -s "$sdk_checkout/third_party/opengnm-psbc/src/util/format/u_format_pack.h"
 export PS5_OPENGL_SDK="$sdk_checkout"
 # The Vulkan helper needs an independent cache, but the archive has identical pin.
 mkdir -p "$vulkan/.deps/native/mesa"
