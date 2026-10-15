@@ -5,6 +5,7 @@
 #include "platform/ps5/system.hpp"
 #include "ebook_engine.hpp"
 #include "usb_bridge.hpp"
+#include "comic_archive.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -20,6 +21,8 @@
 #include <pthread.h>
 #include <cmath>
 #include <cstdint>
+#include <limits>
+#include <cstring>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -52,6 +55,66 @@ TextureImage make_image(hui::gfx::Renderer& renderer,const std::string& encoded)
  info.width=w;info.height=h;
  stbi_image_free(rgba);return info;
 }
+
+// Comic pages are typically larger than EPUB figures. Decode only one page,
+// then downscale RGBA to fit within a 2048px texture, retaining aspect ratio.
+TextureImage make_comic_texture(hui::gfx::Renderer& renderer,const std::string& encoded){
+ TextureImage info;info.checked=true;
+ if(encoded.empty()||encoded.size()>20*1024*1024)return info;
+ int w=0,h=0,n=0;
+ if(!stbi_info_from_memory((const stbi_uc*)encoded.data(),(int)encoded.size(),&w,&h,&n)||
+    w<1||h<1||w>7000||h>7000||(std::int64_t)w*h>14000000)return info;
+ stbi_uc* raw=stbi_load_from_memory((const stbi_uc*)encoded.data(),(int)encoded.size(),&w,&h,&n,4);
+ if(!raw)return info;
+ int tw=w,th=h;
+ if(w>2048 || h>2048){
+    const float scale=std::min(2048.f/w,2048.f/h);
+    tw=std::max(1,(int)std::round(w*scale));
+    th=std::max(1,(int)std::round(h*scale));
+ }
+ if(tw==w && th==h){info.id=renderer.batch().create_texture(w,h,raw);}
+ else {
+   std::vector<unsigned char> down((size_t)tw*(size_t)th*4u);
+   for(int y=0;y<th;y++){
+      const int sy=std::min(h-1,(int)((y+0.5f)*h/th));
+      for(int x=0;x<tw;x++){
+       const int sx=std::min(w-1,(int)((x+0.5f)*w/tw));
+       std::memcpy(&down[((size_t)y*tw+x)*4u],
+                   raw+((size_t)sy*w+sx)*4u,4u);
+      }
+   }
+   info.id=renderer.batch().create_texture(tw,th,down.data());
+ }
+ info.width=tw;info.height=th;
+ stbi_image_free(raw);return info;
+}
+struct ComicPageTask {comic::Book book;int page=0;};
+struct ComicPageResult {std::string path,bytes,error;int page=0;};
+std::atomic<bool> g_comicBusy{false};
+std::mutex g_comicLock;
+std::vector<ComicPageResult> g_comicReady;
+void* comic_page_worker(void* ptr){
+ ComicPageTask* task=static_cast<ComicPageTask*>(ptr);
+ ComicPageResult result;
+ result.page=task->page;
+ result.path=task->book.path;
+ comic::extract(task->book,(size_t)task->page,result.bytes,result.error);
+ {std::lock_guard<std::mutex> lock(g_comicLock);
+  g_comicReady.push_back(std::move(result));}
+ delete task;
+ g_comicBusy.store(false);
+ return nullptr;
+}
+bool start_comic_page(const comic::Book& book,int page){
+ if(g_comicBusy.exchange(true))return false;
+ auto* task=new ComicPageTask;task->book=book;task->page=page;
+ pthread_t thread{};
+ if(pthread_create(&thread,nullptr,comic_page_worker,task)!=0){
+  delete task;g_comicBusy.store(false);return false;
+ }
+ pthread_detach(thread);
+ return true;
+}
 void free_texture(TextureImage& t){
  if(t.id){GLuint id=t.id;glDeleteTextures(1,&id);t.id=0;}
  t.checked=false;
@@ -68,6 +131,7 @@ void draw_fit(DrawList& d,const TextureImage& t,float x,float y,float w,float h)
 struct CoverTask {
  std::string bookPath;
  bool remote=false;
+ bool comic=false;
  usbbooks::Entry remoteBook;
 };
 struct CoverResult{std::string path,bytes;};
@@ -79,7 +143,8 @@ void* cover_worker(void* arg){
  std::string local=task->bookPath,bytes,error;
  bool ok=true;
  if(task->remote)ok=usbbooks::fetch(task->remoteBook,local,error);
- if(ok)ebook::read_epub_cover(local,bytes);
+ if(ok){if(task->comic)comic::cover(local,bytes);
+        else ebook::read_epub_cover(local,bytes);}
  {std::lock_guard<std::mutex> lock(g_coverLock);
   g_coverReady.push_back({task->bookPath,std::move(bytes)});
  }
@@ -90,6 +155,7 @@ void* cover_worker(void* arg){
 bool start_cover(const ebook::BookEntry& b){
  if(g_coverBusy.exchange(true))return false;
  CoverTask* task=new CoverTask;task->bookPath=b.path;
+ task->comic=(b.format=="CBR"||b.format=="CBZ");
  if(usbbooks::is_remote(b.path)){
   task->remote=true;
   if(!usbbooks::entry_from_remote(b.path,task->remoteBook)){
@@ -146,8 +212,12 @@ int main(){
      ebook::BookEntry b;
      b.path=usbbooks::remote_path(item);
      b.title=ebook::clean_title(item.relative);
-     b.format=item.relative.size()>=4 && item.relative.substr(item.relative.size()-4)==".pdf"?"PDF":"EPUB";
-     b.collection="Fiction";b.author="USB Storage";
+     auto name=item.relative;
+     for(char& c:name)c=(char)std::tolower((unsigned char)c);
+     b.format=name.size()>=4 && name.substr(name.size()-4)==".pdf"?"PDF":
+              name.size()>=4 && name.substr(name.size()-4)==".cbr"?"CBR":
+              name.size()>=4 && name.substr(name.size()-4)==".cbz"?"CBZ":"EPUB";
+     b.collection=(b.format=="CBR"||b.format=="CBZ")?"Comics":"Fiction";b.author="USB Storage";
      books.push_back(std::move(b));
    }
    ebook::load_state(books);
@@ -156,6 +226,12 @@ int main(){
  };
  refresh();
  ebook::Document document;
+ comic::Book currentComic;
+ bool inComic=false;
+ TextureImage comicPageTexture;
+ int comicTexturePage=-1;
+ std::string comicImageError;
+ float readerZoom=1.f,readerPanX=0.f,readerPanY=0.f;
  std::map<std::string,TextureImage> covers;
  std::map<size_t,TextureImage> pageImages;
  int lastRenderedImagePage=-1;
@@ -185,7 +261,9 @@ int main(){
     for(auto& item:finished){
       auto found=covers.find(item.path);
       if(found!=covers.end())free_texture(found->second);
-      covers[item.path]=make_image(renderer,item.bytes);
+      bool comicCover=false;
+      for(const auto& b:books)if(b.path==item.path){comicCover=(b.format=="CBR"||b.format=="CBZ");break;}
+      covers[item.path]=comicCover?make_comic_texture(renderer,item.bytes):make_image(renderer,item.bytes);
    }
    // Limit accumulated artwork to avoid unbounded video-memory growth.
    if(covers.size()>54){
@@ -203,27 +281,51 @@ int main(){
   selected=std::clamp(selected,0,std::max(0,(int)visible.size()-1));
   if(pressed&hui::pad_bits::kCircle){
    if(confirmDelete)confirmDelete=false;
-   else if(reader){reader=false;ebook::save_state(books);}
+   else if(reader){
+    reader=false;inComic=false;document=ebook::Document{};
+    free_texture(comicPageTexture);
+    comicTexturePage=-1;
+    readerZoom=1.f;readerPanX=0.f;readerPanY=0.f;
+    ebook::save_state(books);
+   }
    else if(importer)importer=false;
    else {
     for(auto& item:covers)free_texture(item.second);
     for(auto& item:pageImages)free_texture(item.second);
+    free_texture(comicPageTexture);
     pad.close();renderer.release();display.close();hui::sys::quit();
    }
   }
   if(reader){
-   if((pressed&(hui::pad_bits::kRight|hui::pad_bits::kR1|hui::pad_bits::kCross))
-     &&readerPage+1<(int)document.pageCount())++readerPage;
-   if((pressed&(hui::pad_bits::kLeft|hui::pad_bits::kL1))&&readerPage>0)--readerPage;
-   if(pressed&hui::pad_bits::kR2)readerPage=std::min((int)document.pageCount()-1,readerPage+10);
-   if(pressed&hui::pad_bits::kL2)readerPage=std::max(0,readerPage-10);
+   const int pageCount=inComic?(int)currentComic.pageCount():std::max(1,(int)document.pageCount());
+   const int oldPage=readerPage;
+   if(pressed&hui::pad_bits::kR2)readerZoom=std::min(4.f,readerZoom+0.25f);
+   if(pressed&hui::pad_bits::kL2)readerZoom=std::max(1.f,readerZoom-0.25f);
+   if(pressed&hui::pad_bits::kL3 || pressed&hui::pad_bits::kOptions){
+     readerZoom=1.f;readerPanX=readerPanY=0.f;
+   }
+   if((pressed&hui::pad_bits::kR1 || pressed&hui::pad_bits::kCross)&&readerPage+1<pageCount)++readerPage;
+   if((pressed&hui::pad_bits::kL1)&&readerPage>0)--readerPage;
+   if(readerZoom>1.01f){
+      if(pressed&hui::pad_bits::kLeft) readerPanX+=100.f;
+      if(pressed&hui::pad_bits::kRight)readerPanX-=100.f;
+      if(pressed&hui::pad_bits::kUp)   readerPanY+=100.f;
+      if(pressed&hui::pad_bits::kDown) readerPanY-=100.f;
+      const float limitX=760.f*(readerZoom-1.f),limitY=340.f*(readerZoom-1.f);
+      readerPanX=std::clamp(readerPanX,-limitX,limitX);
+      readerPanY=std::clamp(readerPanY,-limitY,limitY);
+   }else {
+      readerPanX=readerPanY=0.f;
+      if((pressed&hui::pad_bits::kRight)&&readerPage+1<pageCount)++readerPage;
+      if((pressed&hui::pad_bits::kLeft)&&readerPage>0)--readerPage;
+   }
    if(pressed&hui::pad_bits::kTriangle)readerPage=0;
-   if(pressed&hui::pad_bits::kSquare)readerPage=std::max(0,(int)document.pageCount()-1);
+   if(pressed&hui::pad_bits::kSquare)readerPage=pageCount-1;
+   if(oldPage!=readerPage){readerPanX=readerPanY=0.f;}
    if(selected>=0&&selected<(int)visible.size()){
     auto& b=books[visible[selected]];
-    b.progress=(size_t)((readerPage*10000ULL)/std::max<size_t>(1,document.pageCount()));
-    if(pressed&(hui::pad_bits::kRight|hui::pad_bits::kLeft|hui::pad_bits::kR1|hui::pad_bits::kL1|hui::pad_bits::kCircle))
-       ebook::save_state(books);
+    b.progress=(size_t)((readerPage*10000ULL)/(size_t)std::max(1,pageCount));
+    if(oldPage!=readerPage)ebook::save_state(books);
    }
   }else if(importer){
    if(pressed&hui::pad_bits::kTriangle){refresh();importSelect=0;message=usbCatalog.message;}
@@ -265,14 +367,29 @@ int main(){
        }
      }
      if(available){
-       if(ebook::read_document(source,document)){
+       const bool selectedComic=comic::is_comic(source);
+       std::string error;
+       bool ok=false;
+       if(selectedComic) {
+         ok=comic::open(source,currentComic);
+         error=currentComic.error;
+       }else {
+         ok=ebook::read_document(source,document);
+         error=document.error;
+       }
+       if(ok){
         for(auto& pair:pageImages)free_texture(pair.second);
         pageImages.clear();lastRenderedImagePage=-1;
-        if(!document.coverImage.empty() && !covers[b.path].id)
+        free_texture(comicPageTexture);comicTexturePage=-1;
+        readerZoom=1.f;readerPanX=readerPanY=0.f;
+        if(!selectedComic && !document.coverImage.empty() && !covers[b.path].id)
            covers[b.path]=make_image(renderer,document.coverImage);
-        reader=true;readerPage=std::min<int>((int)document.pageCount()-1,(int)(b.progress*document.pageCount()/10000));
+        inComic=selectedComic;
+        reader=true;
+        const size_t pages=inComic?currentComic.pageCount():document.pageCount();
+        readerPage=std::min<int>((int)pages-1,(int)(b.progress*pages/10000));
         message="";
-       }else message="Cannot open "+b.title+": "+document.error;
+       }else message="Cannot open "+b.title+": "+error;
      }
     }
    }
@@ -287,45 +404,78 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.5",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.6",1873,57,22,gold,Align::right);
   if(reader){
-   txt(d,font,atlas,cut(document.title,62),960,141,28,cream,Align::center);
+   const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
+   const int totalPages=inComic?(int)currentComic.pageCount():std::max(1,(int)document.pageCount());
+   txt(d,font,atlas,cut(title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
    d.bordered_rect({161,180,1598,781},12,Color::rgb(0xb89d75),4,edge);
-   d.rounded_rect({177,196,1566,750},5,paper);
-   d.gradient_rect({952,203,16,728},0,Color::rgb(0xc9bca1),Color::rgb(0xe8dfc9));
-   if(lastRenderedImagePage!=readerPage){
-      for(auto& item:pageImages)free_texture(item.second);
-      pageImages.clear();
-      lastRenderedImagePage=readerPage;
-      const size_t first=(size_t)readerPage*34,last=first+34;
-      for(size_t i=0;i<document.images.size();++i){
-        if(document.images[i].line>=first && document.images[i].line<last)
-          pageImages[i]=make_image(renderer,document.images[i].encoded);
-      }
+   d.rounded_rect({177,196,1566,750},5,inComic?Color::rgb(0x101014):paper);
+   if(inComic){
+     std::vector<ComicPageResult> finished;
+     {std::lock_guard<std::mutex> lock(g_comicLock);finished.swap(g_comicReady);}
+     for(auto& item:finished){
+       if(item.path==currentComic.path && item.page==readerPage){
+         free_texture(comicPageTexture);
+         comicPageTexture=make_comic_texture(renderer,item.bytes);
+         comicTexturePage=item.page;
+         comicImageError=item.error;
+         if(!comicPageTexture.id&&comicImageError.empty())comicImageError="Image format or resolution unsupported";
+       }
+     }
+     if(comicTexturePage!=readerPage && !g_comicBusy.load()){
+       start_comic_page(currentComic,readerPage);
+     }
    }
-   for(int j=0;j<34;++j){
-    size_t idx=(size_t)readerPage*34+(size_t)j;
-    if(idx>=document.lines.size())break;
-    int col=j/17,row=j%17;
-    float x=228.f+col*794.f,y=264.f+row*38.f;
-    txt(d,font,atlas,cut(document.lines[idx],52),x,y,24,ink);
+   d.push_clip({179,199,1562,744});
+   d.push_transform(readerZoom,960,570,readerPanX,readerPanY);
+   if(inComic){
+     if(comicTexturePage==readerPage && comicPageTexture.id)
+       draw_fit(d,comicPageTexture,183,200,1554,741);
+     else txt(d,font,atlas,comicTexturePage==readerPage?comicImageError:"Loading comic page...",960,554,26,cream,Align::center);
+   }else {
+     d.gradient_rect({952,203,16,728},0,Color::rgb(0xc9bca1),Color::rgb(0xe8dfc9));
+     if(lastRenderedImagePage!=readerPage){
+        for(auto& item:pageImages)free_texture(item.second);
+        pageImages.clear();
+        lastRenderedImagePage=readerPage;
+        const size_t first=(size_t)readerPage*34,last=first+34;
+        for(size_t i=0;i<document.images.size();++i){
+          if(document.images[i].line>=first && document.images[i].line<last)
+            pageImages[i]=make_image(renderer,document.images[i].encoded);
+        }
+     }
+     for(int j=0;j<34;++j){
+      const size_t idx=(size_t)readerPage*34+(size_t)j;
+      if(idx>=document.lines.size())break;
+      int col=j/17,row=j%17;
+      const float x=228.f+col*794.f,y=264.f+row*38.f;
+      txt(d,font,atlas,cut(document.lines[idx],52),x,y,24,ink);
+     }
+     for(const auto& item:pageImages){
+       const auto& img=document.images[item.first];
+       const size_t offset=img.line-(size_t)readerPage*34;
+       const float x=228.f+(offset/17)*794.f,y=264.f+(offset%17)*38.f;
+       if(item.second.id)draw_fit(d,item.second,x,y,685.f,240.f);
+       else txt(d,font,atlas,"[Unsupported image]",x,y+30.f,17,ink);
+     }
    }
-   for(const auto& item:pageImages){
-      const auto& img=document.images[item.first];
-      const size_t offset=img.line-(size_t)readerPage*34;
-      const float x=228.f+(offset/17)*794.f;
-      const float y=264.f+(offset%17)*38.f;
-      if(item.second.id)draw_fit(d,item.second,x,y,685.f,240.f);
-      else txt(d,font,atlas,"[Unsupported image]",x,y+30.f,17,ink);
-   }
-   txt(d,font,atlas,document.isPdfTextPreview?"PDF text preview - layout not preserved":"EPUB reader",228,231,17,Color::rgb(0x8c653a));
-   txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(document.pageCount()),960,913,18,ink,Align::center);
-   txt(d,font,atlas,"L1/R1  Turn page    L2/R2  Jump 10    TRIANGLE First    SQUARE Last    CIRCLE Bookshelf",960,1037,20,cream,Align::center);
+   d.pop_transform();
+   d.pop_clip();
+   txt(d,font,atlas,inComic?"COMIC VIEWER - CBR/CBZ":document.isPdfTextPreview?
+      "PDF text preview - layout not preserved":"EPUB reader",228,231,17,
+      inComic?gold:Color::rgb(0x8c653a));
+   txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(totalPages),885,916,19,
+      inComic?cream:ink,Align::center);
+   txt(d,font,atlas,std::to_string((int)(readerZoom*100))+"% ZOOM",1640,916,19,
+      inComic?gold:ink,Align::right);
+   txt(d,font,atlas,"L1/R1 Page   L2/R2 Zoom -/+   D-PAD Pan / Page   L3 Reset   X Next   O Bookshelf",
+       960,1037,19,cream,Align::center);
   }else if(importer){
    txt(d,font,atlas,"BROWSE STORAGE SOURCES",95,161,36);
    txt(d,font,atlas,"USB may be blocked by the PS5 sandbox. Local app Books can be opened directly.",95,211,19,muted);
-   if(imports.empty())txt(d,font,atlas,"No accessible EPUB / PDF found. Check folder status and local Books.",96,312,23,gold);
+   if(imports.empty())txt(d,font,atlas,"No accessible EPUB / PDF / CBR / CBZ found. Check folder status and local Books.",96,312,23,gold);
    int begin=std::max(0,importSelect-9);
    for(int i=begin;i<(int)imports.size()&&i<begin+9;++i){
     float y=249+(i-begin)*74.f;panel(d,92,y,1168,65,i==importSelect);
@@ -367,7 +517,7 @@ int main(){
      const int start=(selected/(list?9:15))*(list?9:15),stop=std::min(count,start+(list?9:15));
      for(int i=start;i<stop;i++){
        const auto& b=books[visible[i]];
-       if(b.format!="EPUB" || covers.find(b.path)!=covers.end())continue;
+       if((b.format!="EPUB"&&b.format!="CBR"&&b.format!="CBZ") || covers.find(b.path)!=covers.end())continue;
        // Both local and USB books use the same bounded EPUB cover extractor.
        if(start_cover(b))break;
        covers[b.path]=TextureImage{0,0,0,true};

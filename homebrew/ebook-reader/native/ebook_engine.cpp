@@ -446,7 +446,8 @@ bool pdf(const std::string& path,Document& out){
  if(all.empty()){out.error="This PDF requires a full graphics/font PDF renderer (not available in v0.1.0)";return false;}
  append_lines(out,all);return !out.lines.empty();
 }
-bool isbook(const std::string& s){return ends(s,".epub")||ends(s,".pdf");}
+bool isbook(const std::string& s){return ends(s,".epub")||ends(s,".pdf")||ends(s,".cbr")||ends(s,".cbz");}
+constexpr size_t kMaxComic=512*1024*1024;
 std::vector<ScanSource> lastReport;
 // Scan ordinary folders, nested author folders, and USB mounts. Keep all work
 // bounded: max 4 directory levels, max 12000 examined entries per source.
@@ -476,13 +477,13 @@ void collect(const std::string& path,std::vector<BookEntry>& out,
     if(stat_ok && S_ISDIR(st.st_mode))continue;
     bool valid=false;
     if(stat_ok && S_ISREG(st.st_mode) && st.st_size>=0 &&
-       st.st_size<=static_cast<off_t>(kMaxInput))valid=true;
+       st.st_size<=static_cast<off_t>(ends(name,".cbr")||ends(name,".cbz")?kMaxComic:kMaxInput))valid=true;
     if(!valid && (!stat_ok || !S_ISREG(st.st_mode))){
       FILE* fp=fopen(full.c_str(),"rb");
       if(fp){
         if(fseek(fp,0,SEEK_END)==0){
           long sz=ftell(fp);
-          valid=sz>=0 && (size_t)sz<=kMaxInput;
+          valid=sz>=0 && (size_t)sz<=(ends(name,".cbr")||ends(name,".cbz")?kMaxComic:kMaxInput);
         }
         fclose(fp);
       }
@@ -490,7 +491,8 @@ void collect(const std::string& path,std::vector<BookEntry>& out,
     if(!valid)continue;
     if(!seen.insert(full).second)continue;
     BookEntry b;b.path=full;b.title=clean_title(name);
-    b.format=ends(name,".pdf")?"PDF":"EPUB";
+    b.format=ends(name,".pdf")?"PDF":ends(name,".cbr")?"CBR":ends(name,".cbz")?"CBZ":"EPUB";
+    if(b.format=="CBR"||b.format=="CBZ")b.collection="Comics";
     b.collection=(lower(name).find("comic")!=std::string::npos)?"Comics":"Fiction";
     b.author="Unknown Author";
     out.push_back(std::move(b));
@@ -530,6 +532,7 @@ std::string clean_title(std::string name){
  auto slash=name.find_last_of("/\\");if(slash!=std::string::npos)name=name.substr(slash+1);
  if(ends(name,".epub"))name.resize(name.size()-5);
  if(ends(name,".pdf"))name.resize(name.size()-4);
+ if(ends(name,".cbr")||ends(name,".cbz"))name.resize(name.size()-4);
  for(char& c:name)if(c=='_'||c=='-')c=' ';
  return name;
 }
@@ -614,7 +617,7 @@ bool save_state(const std::vector<BookEntry>& books){
 }
 bool import_to_library(const std::string& source,std::string& result){
  if(!isbook(source)||source.find("..")!=std::string::npos){result="Invalid filename";return false;}
- struct stat st{};if(stat(source.c_str(),&st)!=0||!S_ISREG(st.st_mode)||st.st_size>int64_t(kMaxInput)){
+ struct stat st{};if(stat(source.c_str(),&st)!=0||!S_ISREG(st.st_mode)||st.st_size>int64_t(kMaxComic)){
    result="Source file unavailable or too large (128 MiB limit)";return false;
  }
  // The ordinary app sandbox can write /download0 but may be denied
