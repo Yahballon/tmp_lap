@@ -13,6 +13,9 @@ for label,url in zip(("720p H264","AAC"),urls):
        (ua_vr,"bytes=0-65535"),(ua_vr,"bytes=0-262143"),
        (ua_vr,"bytes=0-1048575"),
        (ua_vr,"bytes=7340032-8388607"),
+       (ua_vr,"bytes=7340032-7602175"),
+       (ua_vr,"bytes=7340032-7405567"),
+       (ua_vr,"bytes=7340032-7356415"),
        (ua_vr,"bytes=7340032-7344127"),
        (ua_vr,"bytes=0-"),(ua_vr,"bytes=1048576-1052671"),
        (ua_web,None),(ua_web,"bytes=0-4095")]:
