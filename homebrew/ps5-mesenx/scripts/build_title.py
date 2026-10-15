@@ -65,7 +65,7 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     txt=txt.replace("netlibs=[]", "netlibs=[z/'lib/libz.a']")
     txt=replace_once(txt,
         "netlibs=[z/'lib/libz.a']",
-        "vklibs.append(Path(os.environ['MESEN_PSBC_GENERATED_ARCHIVE']))\\nnetlibs=[z/'lib/libz.a']".replace("\\\\n","\\n"))
+        "vklibs.append(Path(os.environ['MESEN_PSBC_GENERATED_ARCHIVE']))\nnetlibs=[z/'lib/libz.a']")
     a=txt.index("subprocess.run(['python3',str(deps/'filesystem-helper/tools/build-lapy-helper.py')")
     b=txt.index("licenses=app/'licenses'",a)
     txt=txt[:a]+txt[b:]
@@ -81,6 +81,7 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     txt=txt.replace("(core/'LICENSE','bsnes-mercury-GPL.txt')",
                     "(core/'LICENSE','MesenCE-Libretro-GPL.txt')")
     builder.write_text(txt)
+    subprocess.run(["python3","-m","py_compile",str(builder)],check=True)
     # Original independent asset; do not reuse the branded SNES icon.
     from PIL import Image,ImageDraw,ImageFont
     icon=SRC/"snes/sce_sys/icon0.png"
