@@ -63,6 +63,9 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     # The PS5_Vulkan setup produces a target-native zlib archive. Preserve
     # it in the final static link for NES compression and archive helpers.
     txt=txt.replace("netlibs=[]", "netlibs=[z/'lib/libz.a']")
+    txt=replace_once(txt,
+        "netlibs=[z/'lib/libz.a']",
+        "vklibs.append(Path(os.environ['MESEN_PSBC_GENERATED_ARCHIVE']))\\nnetlibs=[z/'lib/libz.a']".replace("\\\\n","\\n"))
     a=txt.index("subprocess.run(['python3',str(deps/'filesystem-helper/tools/build-lapy-helper.py')")
     b=txt.index("licenses=app/'licenses'",a)
     txt=txt[:a]+txt[b:]
@@ -104,6 +107,9 @@ def main():
     zlib = Path(env["LIBZ_PREFIX"])
     if not (zlib/"include/zlib.h").is_file() or not (zlib/"lib/libz.a").is_file():
         raise RuntimeError("PS5 native zlib headers/archive missing: "+str(zlib))
+    env["MESEN_PSBC_GENERATED_ARCHIVE"] = str(ROOT/"build/ps5-core/generated-psbc.ps5.a")
+    env["PS5_VULKAN_DIR"] = str(DEPS/"PS5_Vulkan")
+    run("python3", ROOT/"scripts/build_generated_psbc.py", env=env)
     run("python3",builder,env=env)
     built=SRC/"snes/build-shelf"/(TITLE+".zip")
     assert built.is_file(), "Signed PS5 ZIP not built"
