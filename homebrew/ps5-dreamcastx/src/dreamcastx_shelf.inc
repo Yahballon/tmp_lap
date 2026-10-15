@@ -1,78 +1,95 @@
 /*
- * PS5DreamcastX - PS5GBAX-inspired cover-flow renderer.
+ * PS5DreamcastX - original DVD-style game shelf.
  * Copyright (C) 2026 YAHBALLON contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Included within the existing PSFlycast ImGui/Vulkan presentation layer.
- * Flycast's real 3D game renderer remains unchanged.
+ * All effects are bounded to the case. No projected quads / fake floor
+ * reflections; covers retain the original aspect ratio without cropping.
  */
-void drawDreamcastXShelf(ImDrawList *dl, Game *focused, bool selectDisk)
+struct DreamcastXArtFit { float x,y,w,h; };
+static DreamcastXArtFit dreamcastXFit(float x,float y,float w,float h,float aspect)
+{
+    if (!std::isfinite(aspect) || aspect<=0.f) aspect=1.f;
+    aspect=std::clamp(aspect,0.35f,2.8f);
+    if (w<=0.f || h<=0.f) return {x,y,0.f,0.f};
+    const float fw=std::min(w,h*aspect);
+    const float fh=fw/aspect;
+    return {x+(w-fw)*0.5f,y+(h-fh)*0.5f,fw,fh};
+}
+static void drawDreamcastXCase(ImDrawList *dl,Game& g,
+                               float x,float y,float w,float h,bool selected)
+{
+    const float edge=std::max(5.f,w*0.025f);
+    const float spine=std::max(9.f,w*0.060f);
+    const float header=std::max(20.f,h*0.068f);
+    const float radius=std::max(5.f,w*0.030f);
+    // Small contact shadow, not a projected polygon.
+    rect(dl,x+4.f,y+7.f,w,h,col::rgba(0,0,0,80),radius);
+    if (selected) rect(dl,x-4.f,y-4.f,w+8.f,h+8.f,alpha(col::accent,0.12f),radius+3.f);
+    rect(dl,x,y,w,h,col::rgba(34,54,78,244),radius);
+    rect(dl,x+spine,y+3.f,w-spine-3.f,h-6.f,col::rgba(11,23,39,255),radius-2.f);
+    rect(dl,x+2.f,y+4.f,spine-2.f,h-8.f,col::rgba(91,126,160,150),2.f);
+    dl->AddLine(V(x+spine,y+5.f),V(x+spine,y+h-5.f),
+                col::rgba(206,229,255,115),1.f*S);
+    const float topSize=std::max(12.f,header*0.58f);
+    text(dl,bold(),topSize,x+spine+edge*1.6f,y+header*0.20f,
+         selected?col::text:col::dim,"DREAMCAST");
+    const float ax=x+spine+edge;
+    const float ay=y+header+edge*0.40f;
+    const float aw=w-spine-edge*2.f;
+    const float ah=h-header-edge*1.85f;
+    rect(dl,ax,ay,aw,ah,col::rgba(9,17,30,255),2.f);
+    const ImTextureID art=coverTexture(g);
+    if (art!=ImTextureID())
+    {
+        const float ratio=imguiDriver!=nullptr?imguiDriver->getAspectRatio(art):1.f;
+        const DreamcastXArtFit fitted=dreamcastXFit(ax,ay,aw,ah,ratio);
+        // imageFill crops nothing when its destination matches image ratio.
+        imageFill(dl,art,fitted.x,fitted.y,fitted.w,fitted.h,2.f);
+    }
+    else
+        placeholder(dl,g,ax,ay,aw,ah,2.f);
+    dl->AddLine(V(x+spine+2.f,y+header),V(x+w-5.f,y+header),
+                col::rgba(205,228,249,50),1.f*S);
+    outline(dl,x,y,w,h,selected?alpha(col::accent,0.95f):
+            col::rgba(151,184,214,155),radius,selected?3.2f:1.2f);
+}
+void drawDreamcastXShelf(ImDrawList *dl,Game *focused,bool selectDisk)
 {
     if (lib.shelves.empty()) return;
-    Shelf& sh = lib.shelves[std::clamp(lib.shelf,0,(int)lib.shelves.size()-1)];
-    const bool moving = motion()!=MotionOff;
-    sh.focusAnim = !moving || sh.focusAnim<0
-        ? (float)sh.focus : approach(sh.focusAnim,(float)sh.focus,13.f);
-    const float cx=W*0.5f, cy=486.f, floor=781.f;
-    softDisc(dl,cx,floor-24,570.f,alpha(col::accent,0.12f),48);
-    gradientV(dl,0,floor-86.f,W,166.f,
-        col::rgba(12,23,45,0),col::rgba(6,12,27,167));
-    dl->AddLine(V(48.f,floor),V(W-48.f,floor),alpha(col::accent,0.32f),2.f*S);
-
-    // Render a 15-case window back-to-front, without scanning every ROM.
+    Shelf& sh=lib.shelves[std::clamp(lib.shelf,0,(int)lib.shelves.size()-1)];
+    sh.focusAnim=motion()==MotionOff||sh.focusAnim<0?
+                 (float)sh.focus:approach(sh.focusAnim,(float)sh.focus,13.f);
+    const float cx=W*0.5f, cy=479.f;
     const int n=(int)sh.items.size();
-    const int start=std::max(0,(int)std::floor(sh.focusAnim)-7);
-    const int end=std::min(n-1,(int)std::ceil(sh.focusAnim)+7);
+    const int start=std::max(0,(int)std::floor(sh.focusAnim)-6);
+    const int end=std::min(n-1,(int)std::ceil(sh.focusAnim)+6);
     std::vector<int> order;
-    for(int i=start;i<=end;i++)order.push_back(i);
+    for (int i=start;i<=end;i++) order.push_back(i);
     std::sort(order.begin(),order.end(),[&](int a,int b){
         return std::fabs(a-sh.focusAnim)>std::fabs(b-sh.focusAnim);
     });
-    dl->PushClipRect(V(22,158),V(W-22,H-126),true);
-    for(int i:order)
+    dl->PushClipRect(V(38.f,173.f),V(W-38.f,H-175.f),true);
+    for (int i:order)
     {
         Game& g=games[sh.items[(size_t)i]];
         const float delta=(float)i-sh.focusAnim;
-        const float dist=std::fabs(delta);
-        const float spread=std::clamp(dist/0.86f,0.f,1.f);
-        const float sign=delta<0?-1.f:1.f;
-        const float x=cx+sign*(300.f+std::max(0.f,dist-1.f)*87.f)*spread;
-        const float scale=std::max(0.49f,1.f-0.26f*spread-0.05f*std::max(0.f,dist-1.f));
-        const float w=300.f*scale,h=430.f*scale;
-        const float y=cy+27.f*spread;
-        const float skew=sign*34.f*spread;
-        const float x0=x-w*0.5f,x1=x+w*0.5f,y0=y-h*0.5f,y1=y+h*0.5f;
-        const ImVec2 a=V(x0,y0-skew*0.45f),b=V(x1,y0+skew*0.45f);
-        const ImVec2 c=V(x1,y1-skew*0.45f),d=V(x0,y1+skew*0.45f);
-        const bool selected=i==sh.focus && dist<0.52f && !lib.details;
-        // Use Flycast's normal imageFill() via drawCover(): its texture
-        // coordinates/aspect crop are handled correctly by the PS5 renderer.
-        // The previous AddImageQuad drew art at 1/2 size in the top-left.
-        softDisc(dl,x,floor+22.f,150.f*scale,col::rgba(12,29,48,60),18);
-        if(spread>0.04f)
-        {
-            const float side=delta<0?-9.f:9.f;
-            quad(dl,V(a.x+side,a.y+3),a,d,V(d.x+side,d.y-3),
-                col::rgba(61,79,111,242),col::rgba(61,79,111,242),
-                col::rgba(25,40,59,245),col::rgba(44,64,91,245));
-        }
-        if(selected)
-            glow(dl,x0-8,y0-11,w+16,h+22,14,
-                alpha(col::accent,0.73f),24);
-        drawCover(dl,g,x0,y0,w,h,7.f,std::clamp(1.f-dist,0.f,1.f));
-        dl->AddLine(a,b,col::rgba(221,233,255,175),2.f*S);
-        dl->AddLine(b,c,col::rgba(103,130,166,205),2.f*S);
-        dl->AddLine(c,d,col::rgba(87,114,152,194),2.f*S);
-        dl->AddLine(d,a,col::rgba(192,217,255,180),2.f*S);
+        const float distance=std::fabs(delta);
+        const float scale=std::max(0.55f,1.f-0.20f*distance);
+        const float w=262.f*scale,h=375.f*scale;
+        const float x=cx+delta*260.f-w*0.5f;
+        const float y=cy+std::min(distance,3.f)*16.f-h*0.5f;
+        const bool selected=i==sh.focus&&distance<0.52f&&!lib.details;
+        drawDreamcastXCase(dl,g,x,y,w,h,selected);
     }
     dl->PopClipRect();
     const std::string label=(selectDisk?"CHOOSE DISC":"DREAMCAST LIBRARY")
         +std::string("   /   ")+sh.name;
     text(dl,bold(),26,96.f,148.f,col::dim,label.c_str());
     const std::string count=std::to_string(n?sh.focus+1:0)+" / "+std::to_string(n);
-    const ImVec2 ps=textSize(regular(),23,count.c_str());
-    text(dl,regular(),23,W-96-ps.x,148.f,col::dim,count.c_str());
-    if(focused)
+    const ImVec2 ct=textSize(regular(),23,count.c_str());
+    text(dl,regular(),23,W-96-ct.x,148.f,col::dim,count.c_str());
+    if (focused)
     {
         const std::string title=fit(bold(),45,focused->title,W-240.f);
         const ImVec2 ts=textSize(bold(),45,title.c_str());
