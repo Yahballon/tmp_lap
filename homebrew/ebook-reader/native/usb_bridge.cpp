@@ -20,7 +20,13 @@
 
 namespace usbbooks {
 namespace {
-constexpr int kPort=9175,kElfLoader=9021;
+#ifndef EBOOK_USB_BRIDGE_PORT
+#define EBOOK_USB_BRIDGE_PORT 9175
+#endif
+#ifndef EBOOK_USB_CACHE_ROOT
+#define EBOOK_USB_CACHE_ROOT "/download0/ebook-reader-cache"
+#endif
+constexpr int kPort=EBOOK_USB_BRIDGE_PORT,kElfLoader=9021;
 constexpr size_t kMaxCatalog=196608,kMaxFile=2ULL*1024*1024*1024;
 std::vector<Entry> known;
 std::mutex transferMutex;
@@ -121,7 +127,7 @@ bool cachedir(size_t needed,std::string& dir,std::string& why){
  size_t biggest=0;
  bool writeable=false;
 
- for(const char* path:{"/download0/ebook-reader-cache","/data/ebooks/.reader-cache"}){
+ for(const char* path:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache"}){
   const std::string base=path;
   const auto slash=base.find_last_of('/');
   if(slash!=std::string::npos)mkdir(base.substr(0,slash).c_str(),0755);
