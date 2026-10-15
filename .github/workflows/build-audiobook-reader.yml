@@ -45,10 +45,30 @@ jobs:
             -D'AUDIOBOOK_DATA_ROOT="/tmp/ps5-audiobook-ci"' \
             -Ihomebrew/audiobook-reader/native \
             homebrew/audiobook-reader/native/cover_extract.cpp \
+            homebrew/audiobook-reader/native/mp4_cover.cpp \
             homebrew/audiobook-reader/tests/cover_test.cpp \
             $(pkg-config --cflags --libs libavformat libavcodec libavutil) \
             -o /tmp/audiobook-cover-test
           /tmp/audiobook-cover-test /tmp/audiobook-with-cover.m4b /tmp/audiobook-test.m4b
+      - name: Validate iTunes MP4 covr box parsing
+        run: |
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          def box(name,data):
+              return struct.pack('>I4s',len(data)+8,name.encode())+data
+          image=Path('/tmp/audio-cover-fixture.jpg').read_bytes()
+          data=box('data',struct.pack('>II',13,0)+image)
+          fixture=box('moov',box('udta',box('meta',bytes(4)+
+              box('ilst',box('covr',data)))))
+          Path('/tmp/itunes-covr-box.m4b').write_bytes(fixture)
+          PY
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
+            -D'AUDIOBOOK_DATA_ROOT="/tmp/ps5-audiobook-ci"' \
+            homebrew/audiobook-reader/native/mp4_cover.cpp \
+            homebrew/audiobook-reader/tests/mp4_covr_test.cpp \
+            -o /tmp/itunes-covr-test
+          /tmp/itunes-covr-test /tmp/itunes-covr-box.m4b /tmp/audiobook-test.m4b
       - name: Verify USB ABooks mount diagnostics
         run: |
           mkdir -p /tmp/audiobook-diagnostics/ABooks
@@ -82,7 +102,17 @@ jobs:
       - name: Test USB ABooks discovery and interrupted transfers
         run: |
           python3 homebrew/audiobook-reader/tests/generate_usb_transfer_fixture.py /tmp/audiobook-usb-ci
+          mkdir -p /tmp/audiobook-usb-ci/AudioBookReader/Books
+          cp /tmp/audiobook-test.m4b /tmp/audiobook-usb-ci/AudioBookReader/Books/LocalVoice.m4b
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          root=Path('/tmp/audiobook-usb-ci')
+          Image.new('RGB',(64,80),(75,112,154)).save(root/'ABooks/cover.jpg')
+          Image.new('RGB',(64,80),(80,159,93)).save(root/'AudioBookReader/Books/cover.png')
+          PY
           gcc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -DAUDIOBOOK_LOCAL_ROOT='"/tmp/audiobook-usb-ci/AudioBookReader/Books"' \
             -DAUDIOBOOK_USB_ROOT='"/tmp/audiobook-usb-ci/ABooks"' \
             -DPORT=19177 -DAUDIOBOOK_USB_TEST_DROP_ONCE \
             homebrew/audiobook-reader/helper/abookscan.c -o /tmp/audiobook-usb-server
@@ -173,7 +203,7 @@ jobs:
           title=metadata['titleId'];root=pathlib.Path('app/dist')/title
           exe=(root/'eboot.bin').read_bytes()
           assert len(exe)>1000 and struct.unpack('<I',exe[:4])[0]==0x1D3D154F
-          assert b'v0.2.2' in exe
+          assert b'v0.2.3' in exe
           param=json.loads((root/'sce_sys/param.json').read_text())
           assert param['titleId']==title and param['contentVersion']==metadata['contentVersion']
           for file in ['sce_sys/icon0.png','sce_module/libc.prx','assets/icon0.png','assets/fonts/inter-semibold.huifont','assets/ABooks/README.txt','abookscan.elf']:
@@ -187,7 +217,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Audiobook-Reader-v0.2.2
+          name: Audiobook-Reader-v0.2.3
           path: app/dist/PPSA99784.zip
           if-no-files-found: error
       - name: Publish release after main branch build
@@ -195,5 +225,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view audiobook-reader-v0.2.2 >/dev/null 2>&1; then exit 0; fi
-          gh release create audiobook-reader-v0.2.2 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.2" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
+          if gh release view audiobook-reader-v0.2.3 >/dev/null 2>&1; then exit 0; fi
+          gh release create audiobook-reader-v0.2.3 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.2.3" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md

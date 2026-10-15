@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // LauncherX-style USB bridge: dedicated read-only ELF helper via elfldr :9021.
-// Local library files are never sent to the USB helper.
+// The ELF helper lists local Books that cannot be enumerated by the sandbox.
 #include "usb_bridge.hpp"
 #include "audio_log.hpp"
 #include "audio_cache.hpp"
@@ -22,7 +22,7 @@
 namespace usbaudio {
 namespace {
 #ifndef AUDIOBOOK_USB_BRIDGE_PORT
-#define AUDIOBOOK_USB_BRIDGE_PORT 9178
+#define AUDIOBOOK_USB_BRIDGE_PORT 9179
 #endif
 #ifndef AUDIOBOOK_USB_CACHE_ROOT
 #define AUDIOBOOK_USB_CACHE_ROOT AUDIOBOOK_DATA_ROOT "/Cache"
@@ -30,6 +30,7 @@ namespace {
 constexpr int kPort=AUDIOBOOK_USB_BRIDGE_PORT,kElfLoader=9021;
 constexpr size_t kMaxCatalog=196608,kMaxFile=8ULL*1024*1024*1024;
 std::vector<Entry> known;
+std::vector<Entry> localKnown;
 std::mutex transferMutex;
 bool safe(const std::string& s){
  if(s.empty()||s.size()>510||s[0]=='/'||s.back()=='/')return false;
@@ -88,9 +89,10 @@ bool read_data_header(int fd,size_t expected){
  return std::sscanf(line.c_str(),"DATA %llu",&length)==1 &&
         length==(unsigned long long)expected;
 }
-bool local_catalog(std::string& bytes){
+bool local_catalog(std::string& bytes,bool local=false){
  int fd=connect_to(kPort);if(fd<0)return false;
- bool ok=send_all(fd,"LIST\n",5);
+ const char* command=local?"LISTLOCAL\n":"LIST\n";
+ bool ok=send_all(fd,command,std::strlen(command));
  if(ok)ok=receive_catalog(fd,bytes);
  close(fd);return ok;
 }
@@ -145,7 +147,7 @@ bool parse(const std::string& bytes,Catalog& out){
      pathLen==0||pathLen>510||fileSize==0||fileSize>kMaxFile||
      pathLen>bytes.size()-p)return false;
   const std::string name=bytes.substr(p,pathLen);p+=pathLen;
-  if(safe(name))out.books.push_back({name,(size_t)fileSize});
+  if(safe(name))out.books.push_back({name,(size_t)fileSize,out.usbRoot=="/data/AudioBookReader/Books"});
  }
  return false;
 }
@@ -189,21 +191,27 @@ bool cachedir(std::string& dir,std::string& why){
  return false;
 }
 } // namespace
-bool is_remote(const std::string& path){return path.rfind("usbaudio:",0)==0;}
-std::string remote_path(const Entry& b){return "usbaudio:"+b.relative;}
+bool is_remote(const std::string& path){
+ return path.rfind("usbaudio:",0)==0||path.rfind("localaudio:",0)==0;
+}
+std::string remote_path(const Entry& b){
+ return std::string(b.local?"localaudio:":"usbaudio:")+b.relative;
+}
 bool entry_from_remote(const std::string& path,Entry& out){
  if(!is_remote(path))return false;
- const std::string rel=path.substr(9);
- for(const auto& b:known)if(b.relative==rel){out=b;return true;}
+ const bool local=path.rfind("localaudio:",0)==0;
+ const std::string rel=path.substr(local?11:9);
+ const auto& entries=local?localKnown:known;
+ for(const auto& b:entries)if(b.relative==rel){out=b;return true;}
  return false;
 }
 Catalog scan(){
  Catalog out;
  std::string bytes;
- audio_log::write("USB_SCAN_BEGIN","Trying helper :9178 then launching through elfldr :9021");
+ audio_log::write("USB_SCAN_BEGIN","Trying helper :9179 then launching through elfldr :9021");
  if(local_catalog(bytes)){
   out.viaHelper=true;
-  audio_log::write("USB_HELPER_REUSE","Connected to ABooks helper on 9178");
+  audio_log::write("USB_HELPER_REUSE","Connected to ABooks helper on 9179");
  }else if(start_helper(bytes,out.message)){
   out.viaHelper=true;
   audio_log::write("USB_HELPER_READY","ABooks helper returned catalog");
@@ -225,6 +233,75 @@ Catalog scan(){
  return out;
 }
 
+Catalog scan_local(){
+ Catalog out;
+ std::string bytes;
+ audio_log::write("LOCAL_HELPER_BEGIN","Listing /data/AudioBookReader/Books using ELF helper :9179");
+ if(!local_catalog(bytes,true)){
+  std::string initial,unused;
+  if(!start_helper(unused,initial)||!local_catalog(bytes,true)){
+   out.message=initial.empty()?"Local ELF catalog is unavailable":initial;
+   audio_log::write("LOCAL_HELPER_ERROR",out.message);
+   localKnown.clear();
+   return out;
+  }
+ }
+ out.viaHelper=true;
+ if(!parse(bytes,out)){
+  out.message="Invalid local Books helper catalog";
+  out.viaHelper=false;out.books.clear();
+ }else if(out.message.empty()){
+  for(auto& book:out.books)book.local=true;
+  out.message=std::to_string(out.books.size())+" M4B via ELF local Books helper";
+ }
+ localKnown=out.books;
+ audio_log::write("LOCAL_HELPER_DONE","books="+std::to_string(out.books.size())+
+   " root="+out.usbRoot+" "+out.message);
+ return out;
+}
+bool fetch_cover(const std::string& remotePath,std::string& encoded,std::string& error){
+ encoded.clear();error.clear();
+ Entry entry{};
+ if(!entry_from_remote(remotePath,entry)){
+  error="Book no longer in helper catalog";return false;
+ }
+ int fd=connect_to(kPort);
+ if(fd<0){error="Helper port 9179 unavailable";return false;}
+ std::string command=entry.local?"COVERLOCAL ":"COVER ";
+ command+=entry.relative+"\n";
+ if(command.size()>=600||!send_all(fd,command.data(),command.size())){
+  close(fd);error="Could not request companion artwork";return false;
+ }
+ char ch=0;std::string header;
+ while(header.size()<100){
+  if(recv(fd,&ch,1,0)!=1)break;
+  if(ch=='\n')break;
+  header+=ch;
+ }
+ unsigned long long total=0;
+ if(ch!='\n'||std::sscanf(header.c_str(),"DATA %llu",&total)!=1 ||
+    total<8||total>6ULL*1024*1024){
+  close(fd);error=header.empty()?"No companion cover":header;return false;
+ }
+ encoded.resize((size_t)total);
+ size_t done=0;
+ while(done<encoded.size()){
+  ssize_t n=recv(fd,&encoded[done],encoded.size()-done,0);
+  if(n<=0)break;
+  done+=(size_t)n;
+ }
+ close(fd);
+ if(done!=encoded.size()){
+  encoded.clear();error="Companion cover transfer interrupted";return false;
+ }
+ const unsigned char* p=(const unsigned char*)encoded.data();
+ if(!((p[0]==0xff&&p[1]==0xd8)||
+       (p[0]==0x89&&std::memcmp(p+1,"PNG",3)==0))){
+  encoded.clear();error="Unsupported companion image";return false;
+ }
+ audio_log::write("COVER_COMPANION",remotePath+" image="+std::to_string(done));
+ return true;
+}
 bool cached_copy(const Entry& book,std::string& localPath){
  if(!safe(book.relative)||!book.bytes)return false;
  std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
@@ -232,7 +309,7 @@ bool cached_copy(const Entry& book,std::string& localPath){
  char hash[24];std::snprintf(hash,sizeof(hash),"%016llx",
                             (unsigned long long)fnv64(book.relative));
  for(const char* root:{AUDIOBOOK_USB_CACHE_ROOT}){
-   std::string path=std::string(root)+"/usb-"+hash+suffix;
+   std::string path=std::string(root)+(book.local?"/local-":"/usb-")+hash+suffix;
    if(valid_cached_file(path,suffix,book.bytes)){localPath=path;return true;}
  }
  return false;
@@ -243,12 +320,15 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error,
  error.clear();
  audio_log::write("USB_FETCH_START",book.relative+" bytes="+std::to_string(book.bytes));
  if(!safe(book.relative)||book.bytes==0||book.bytes>kMaxFile){error="Invalid USB audiobook";return false;}
- bool found=false;for(const auto& b:known)if(b.relative==book.relative && b.bytes==book.bytes)found=true;
+ bool found=false;
+ const auto& candidates=book.local?localKnown:known;
+ for(const auto& b:candidates)
+  if(b.relative==book.relative && b.bytes==book.bytes)found=true;
  if(!found){error="USB catalogue expired; press OPTIONS to refresh";return false;}
  std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
  for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
  char hex[24];std::snprintf(hex,sizeof(hex),"%016llx",(unsigned long long)fnv64(book.relative));
- const std::string filename="usb-"+std::string(hex)+suffix;
+ const std::string filename=std::string(book.local?"local-":"usb-")+std::string(hex)+suffix;
  // All known cache mounts may contain previously fetched good files.
  // Respect those hits without duplicating them on /data.
  for(const char* base:{AUDIOBOOK_USB_CACHE_ROOT}){
@@ -277,12 +357,12 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error,
  }
  int fd=connect_to(kPort);
  if(fd<0){
-   auto refreshed=scan();
+   auto refreshed=book.local?scan_local():scan();
    if(!refreshed.viaHelper){error=refreshed.message;return false;}
    fd=connect_to(kPort);
    if(fd<0){error="USB audiobook helper no longer responding";return false;}
  }
- const std::string request="FETCH "+book.relative+"\n";
+ const std::string request=std::string(book.local?"FETCHLOCAL ":"FETCH ")+book.relative+"\n";
  if(request.size()>600 || !send_all(fd,request.data(),request.size())){
   close(fd);error="USB fetch request failed";return false;
  }
@@ -317,11 +397,12 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error,
      if(reconnects++<3){
        fd=connect_to(kPort);
        if(fd<0){
-         auto status=scan();
+         auto status=book.local?scan_local():scan();
          if(status.viaHelper)fd=connect_to(kPort);
        }
        if(fd>=0){
-         const std::string retry="FETCHR "+std::to_string(written)+" "+
+         const std::string retry=std::string(book.local?"FETCHLOCALR ":"FETCHR ")+
+                                 std::to_string(written)+" "+
                                  book.relative+"\n";
          if(retry.size()<=600 && send_all(fd,retry.data(),retry.size()) &&
             read_data_header(fd,total-written)){

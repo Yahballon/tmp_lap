@@ -1,14 +1,16 @@
-# Audiobook Reader v0.2.2
+# Audiobook Reader v0.2.3
 
 ## Fixed
-- Extract embedded JPEG/PNG album artwork from DRM-free M4B (iTunes / MP4 cover streams) on a native background worker. Upload to OpenGL only on the UI thread.
-- Show real artwork on the aluminum bookshelf and Now Playing screen, with proportional center-crop instead of title-only placeholder.
-- Persist artwork under `/data/AudioBookReader/Covers/`; USB artwork is available after first playback/caching of the M4B file, including future launches.
-- Improve local M4B discovery: scan nested subfolders under `/data/AudioBookReader/Books/` (up to six levels) and also accept loose .m4b files directly in `/data/AudioBookReader/` without scanning Cache or Covers.
-- Add `SCAN_LOCAL_DETAIL` log entries with directory access errors, file counters, ignored tiny files, symlinks, and a sample filename.
+- Local Books at `/data/AudioBookReader/Books` can be catalogued through the included read-only ELF helper when the PS5 app process reports `errno=1 (EPERM)` on `opendir`. Selected books are copied to the existing writable audiobook cache, preserving originals.
+- Separate `LISTLOCAL`, `FETCHLOCAL` and resume commands; helper port 9179 avoids stale resident processes.
+- Album art fallback chain: native FFmpeg embedded image, direct iTunes MP4 `covr` parser and small adjacent JPEG/PNG covers via the helper. No full USB audiobook transfer is required just to read a companion cover.
+- Per-title cover cache and existing aluminum-shelf UI retained.
+- Additional diagnostics for local helper catalog failures and companion cover transfers.
 
-## Install and diagnostics
-Extract `PPSA99784.zip` to `/data/homebrew/`, overwriting the old install folder. Keep `/data/AudioBookReader` to preserve listening progress, USB cache and favorites. USB files belong in `/mnt/usb0/ABooks/` with a compatible running elfldr at TCP 9021. Local M4B files belong in `/data/AudioBookReader/Books/`. Press OPTIONS to rescan. If local books still do not appear, check `/data/AudioBookReader/audiobook-reader.log` for `SCAN_LOCAL_DETAIL`.
+## File layout
+USB: `/mnt/usb0/ABooks`; local: `/data/AudioBookReader/Books`.
+Optional companion images next to the audiobook: `cover.jpg`, `folder.jpg`, `front.jpg`, `cover.png`, `folder.png` or `NameOfBook.jpg/png`.
+Cover cache: `/data/AudioBookReader/Covers`; playable cache: `/data/AudioBookReader/Cache`; logs: `/data/AudioBookReader/audiobook-reader.log`.
 
-## Known limitations
-Album artwork must be embedded in a supported JPEG/PNG/GIF attached picture stream. USB covers are cached after the audio file has first been copied/opened, not downloaded separately during the initial catalog scan. Console hardware playback still requires user verification.
+## Installation and limitations
+Unzip `PPSA99784.zip` under `/data/homebrew/` and register with a compatible loader. Existing app data is retained. An active elfldr on port 9021 is required for local-helper fallback and USB content. When no embedded or companion artwork exists, a generated title placeholder remains; the app does not invent a published book cover. Hardware verification is still needed.
