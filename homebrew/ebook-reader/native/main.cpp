@@ -162,8 +162,11 @@ void* cover_worker(void* arg){
  return nullptr;
 }
 bool start_cover(const ebook::BookEntry& b){
- if(g_coverBusy.exchange(true))return false;
+ // Important: skip remote comics BEFORE claiming the background worker.
+ // The previous order left g_coverBusy permanently true when the first
+ // visible book was a USB CBR, disabling covers for all later EPUBs.
  if(usbbooks::is_remote(b.path) && (b.format=="CBR"||b.format=="CBZ"))return false;
+ if(g_coverBusy.exchange(true))return false;
  CoverTask* task=new CoverTask;task->bookPath=b.path;
  task->comic=(b.format=="CBR"||b.format=="CBZ");
  if(usbbooks::is_remote(b.path)){
@@ -476,7 +479,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.2.2",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.2.3",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():
@@ -619,6 +622,8 @@ int main(){
        if((b.format!="EPUB"&&b.format!="CBR"&&b.format!="CBZ") || covers.find(b.path)!=covers.end())continue;
        // Both local and USB books use the same bounded EPUB cover extractor.
        if(start_cover(b))break;
+       // Skip only this one unsupported/remote cover, never hold the worker
+       // busy flag. Other EPUB covers can still load on subsequent frames.
        covers[b.path]=TextureImage{0,0,0,true};
      }
    }
