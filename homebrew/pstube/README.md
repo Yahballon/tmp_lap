@@ -1,4 +1,4 @@
-# PSTUBE v0.7.0 — Native PS5 Playback Beta
+# PSTUBE v0.7.1 — Native PS5 Playback Beta
 
 **PSTUBE by YAHBALLON** is an independent native C++ PS5 homebrew video search, download and playback client with a 1920×1080 OpenGL user interface.
 
@@ -27,7 +27,7 @@ D-pad: navigate (keyboard/results/downloads). Cross: select, download/play video
 - Video is software-decoded; demanding 1080p formats may underperform.
 
 ## Version and build
-Version 0.7.0. Title ID `PPSA99762`. Release tag `pstube-v0.7.0`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
+Version 0.7.1. Title ID `PPSA99762`. Release tag `pstube-v0.7.1`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
 The workflow fetches PS5-DevBridge's native scaffold, stages PSTUBE C++ files and builds with pinned PacBrew ffmpeg, SDL2 and OpenSSL packages. GitHub Actions validates eboot and ZIP but is not hardware verification.
 
 ## Installation
@@ -38,7 +38,7 @@ GPL-3.0-or-later. Native renderer: https://github.com/blackbearreloaded/ps5-home
 ## Catalog troubleshooting
 The Home page displays the last successful real catalog during temporary API failures and the exact provider/HTTP error. Search and Trending automatically try several community public servers. After updating, launch PSTUBE and wait for the first live fetch; press Triangle to search. Thumbnails download in three parallel workers and may arrive after titles. Network connectivity and correct PS5 date/time are essential for verified HTTPS. No fake videos are generated.
 
-## Infinite scrolling and streaming (v0.7.0)
+## Infinite scrolling and streaming (v0.7.1)
 - Scrolling to the last few cards requests the next result page using YouTube's real search continuation token. Responses append to the existing grid, remove duplicates and display the number of loaded videos. The Invidious fallback also supports numbered pages. API pagination can stop when YouTube withholds or rejects continuation tokens.
 - **Cross** begins buffered native HTTPS playback immediately on a compatible progressive MP4, without storing it first. **Square** while inside the player separately saves the video for offline use. Playback still uses FFmpeg/OpenGL and SDL. **Circle** aborts playback.
 - YouTube signing restrictions and the PS5's availability of network-enabled FFmpeg still affect which streams can play; console testing remains necessary.
@@ -51,12 +51,17 @@ The Home page displays the last successful real catalog during temporary API fai
 ## Deep search pagination
 As you scroll, PSTUBE follows YouTube's live continuation tokens across page 3 and beyond, supports multiple continuation response shapes, and de-duplicates videos. The available total depends on YouTube and is not necessarily every indexed result.
 
-## Player controls (v0.7.0)
+## Player controls (v0.7.1)
 PSTUBE automatically searches **PS5 JAILBREAK NEWS** at launch. Search can be edited using the keyboard. During actual local or compatible HTTPS playback, use **D-Pad Left/Right** to rewind/fast-forward 10 seconds, **L1/R1** to rewind/fast-forward 30 seconds, **Options** to toggle true edge-to-edge full-screen video (aspect ratio preserved). **Cross** pauses/resumes, **Circle** returns to browsing, **Square** saves for offline use, and **Triangle** toggles Favourite. The seek operation happens on the FFmpeg worker thread; audio/codec queues are flushed on a successful seek. Remote servers must support seeking; for unsupported streams a diagnostic is displayed. A playback time/duration bar shows the current position and is briefly shown after button input during full-screen.
 
-## Real HD playback settings (v0.7.0)
+## Real HD playback settings (v0.7.1)
 Open **Settings**, highlight **Video quality** and press Cross to cycle **Auto (up to 720p), 360p, 720p HD and 1080p Full HD**. D-Pad Up/Down changes the selected settings row; Cross on **Fallback search provider** still cycles providers. The quality choice is saved in the existing PSTUBE state file and preserved during app updates.
 
 For HD, PSTUBE selects independent AVC/H.264 MP4 video and AAC/MP4 audio directly from the native YouTube Android player response. It opens both as separate verified HTTPS sources and synchronizes decoding through FFmpeg and SDL audio. The overlay reports **the decoded resolution**, not an assumed resolution. The app falls back to a lower available format if the selected one is unavailable; it never intentionally opens a video-only stream without its audio. The **Square offline download** currently saves the legacy combined MP4 format, which may be 360p even if HD streaming is selected.
 
 Auto targets 720p to favor PS5 homebrew software decoding performance; selecting 1080p may have higher CPU, memory and network requirements. Actual available formats vary per video, and YouTube can restrict any track. The native in-app dual-track pipeline must still be verified on physical PS5 hardware.
+
+## HD resolution source fix (v0.7.1)
+The regular YouTube Android client can advertise 720p/1080p in `adaptiveFormats` without exposing any usable `url` for those tracks (SABR). PSTUBE now selects the ANDROID_VR client for **Auto / 720p / 1080p**, which was verified to serve direct HTTPS H.264 video (itag 136/137) and AAC audio (itag 140). The native FFmpeg player uses the matching user-agent for both tracks. 360p deliberately uses the original Android progressive path; if HD availability fails on a video, playback falls back to a compatible lower stream.
+
+Real-network CI now requires the native Service to resolve *both* a 720p and 1080p H.264 stream plus separate AAC, not merely parse fixture data. Some YouTube videos may be restricted by login, proof tokens, DRM, or the provider's changed protocols. No resolution is fabricated; the overlay shows the decoder-reported pixel height.

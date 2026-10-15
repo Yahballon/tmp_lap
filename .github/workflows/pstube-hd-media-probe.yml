@@ -1,0 +1,17 @@
+name: Diagnose PSTUBE HD media URLs
+on:
+  pull_request:
+    paths:
+      - 'homebrew/pstube/tests/probe_hd_formats.py'
+      - '.github/workflows/pstube-hd-media-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  media:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public AVC/AAC media bytes
+        run: python3 homebrew/pstube/tests/probe_hd_formats.py
