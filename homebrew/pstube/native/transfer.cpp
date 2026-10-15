@@ -101,12 +101,35 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
   };
   if(!append(response.data()+start,response.size()-start))break;
   bool read_failed=false;
+  int tls_error=0;
   for(;;){
    n=SSL_read(ssl,buf,sizeof(buf));
-   if(n<=0){int e=SSL_get_error(ssl,n);if(e!=SSL_ERROR_ZERO_RETURN&&e!=SSL_ERROR_SYSCALL){read_failed=true;}break;}
+   if(n<=0){
+    const int e=SSL_get_error(ssl,n);
+    // OpenSSL 3 reports an unexpected EOF when a server omits close_notify.
+    // A verified Content-Length plus exact byte count proves completeness.
+    if(e!=SSL_ERROR_ZERO_RETURN && !(expected>0&&size==expected)){
+     bool complete_jpeg=false;
+     if(!expected && target.size()>=4 &&
+        target.substr(target.size()-4)==".jpg" && size>1024 && file){
+      if(std::fflush(file)==0 && std::fseek(file,-2,SEEK_END)==0){
+       const int penultimate=std::fgetc(file),last=std::fgetc(file);
+       complete_jpeg=(penultimate==0xff&&last==0xd9);
+      }
+      std::fseek(file,0,SEEK_END);
+     }
+     if(!complete_jpeg){tls_error=e;read_failed=true;}
+    }
+    break;
+   }
    if(!append(buf,(size_t)n)){read_failed=true;break;}
   }
-  if(read_failed){if(err.empty())err="Media transfer interrupted";break;}
+  if(read_failed){
+   if(err.empty())err="TLS read ended before complete content ("+
+      std::to_string(size)+"/"+std::to_string(expected)+
+      " bytes, TLS "+std::to_string(tls_error)+")";
+   break;
+  }
   if(expected&&size!=expected){err="Truncated media transfer";break;}
   if(size<1024){err="Downloaded media is empty";break;}
   if(std::fflush(file)!=0||::fsync(fileno(file))!=0){err="Failed to flush media";break;}
