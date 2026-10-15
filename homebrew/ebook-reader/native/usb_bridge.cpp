@@ -21,7 +21,7 @@
 namespace usbbooks {
 namespace {
 #ifndef EBOOK_USB_BRIDGE_PORT
-#define EBOOK_USB_BRIDGE_PORT 9175
+#define EBOOK_USB_BRIDGE_PORT 9176
 #endif
 #ifndef EBOOK_USB_CACHE_ROOT
 #define EBOOK_USB_CACHE_ROOT "/download0/ebook-reader-cache"
@@ -74,6 +74,18 @@ bool receive_catalog(int fd,std::string& bytes){
   if(bytes.size()>=5 && bytes.compare(bytes.size()-5,5,"DONE\n")==0)break;
  }
  return bytes.find("EBOOK1\n")!=std::string::npos;
+}
+bool read_data_header(int fd,size_t expected){
+ std::string line;char ch=0;
+ for(int i=0;i<90;i++){
+   if(recv(fd,&ch,1,0)!=1)return false;
+   if(ch=='\n')break;
+   line+=ch;
+ }
+ if(ch!='\n')return false;
+ unsigned long long length=0;
+ return std::sscanf(line.c_str(),"DATA %llu",&length)==1 &&
+        length==(unsigned long long)expected;
 }
 bool local_catalog(std::string& bytes){
  int fd=connect_to(kPort);if(fd<0)return false;
@@ -212,14 +224,8 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  if(request.size()>600 || !send_all(fd,request.data(),request.size())){
   close(fd);error="USB fetch request failed";return false;
  }
- std::string header;char c=0;
- for(int i=0;i<90;i++){
-  if(recv(fd,&c,1,0)!=1)break;
-  if(c=='\n')break;
-  header+=c;
- }
- unsigned long long total=0;
- if(c!='\n'||std::sscanf(header.c_str(),"DATA %llu",&total)!=1||total!=book.bytes){
+ const size_t total=book.bytes;
+ if(!read_data_header(fd,total)){
   close(fd);error="USB helper rejected book or size changed";return false;
  }
  const std::string tmp=localPath+".part";
