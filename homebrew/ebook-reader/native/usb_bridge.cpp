@@ -3,6 +3,7 @@
 // Local library files are never sent to the USB helper.
 #include "usb_bridge.hpp"
 #include "ebook_log.hpp"
+#include "ebook_cache.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -24,7 +25,7 @@ namespace {
 #define EBOOK_USB_BRIDGE_PORT 9176
 #endif
 #ifndef EBOOK_USB_CACHE_ROOT
-#define EBOOK_USB_CACHE_ROOT "/download0/ebook-reader-cache"
+#define EBOOK_USB_CACHE_ROOT EBOOK_DATA_ROOT "/Cache"
 #endif
 constexpr int kPort=EBOOK_USB_BRIDGE_PORT,kElfLoader=9021;
 constexpr size_t kMaxCatalog=196608,kMaxFile=2ULL*1024*1024*1024;
@@ -134,13 +135,25 @@ uint64_t fnv64(const std::string& name){
  for(unsigned char c:name){h^=c;h*=1099511628211ULL;}
  return h;
 }
+bool valid_cached_file(const std::string& path,const std::string& suffix,size_t bytes){
+ struct stat st{};
+ if(stat(path.c_str(),&st)!=0 || st.st_size<0 ||
+    (uint64_t)st.st_size!=bytes || !S_ISREG(st.st_mode))return false;
+ FILE* f=fopen(path.c_str(),"rb");if(!f)return false;
+ unsigned char sig[8]={};
+ const size_t n=fread(sig,1,sizeof(sig),f);fclose(f);
+ if(suffix==".epub"||suffix==".cbz")return n>=2&&sig[0]=='P'&&sig[1]=='K';
+ if(suffix==".pdf")return n>=4&&sig[0]=='%'&&sig[1]=='P'&&sig[2]=='D'&&sig[3]=='F';
+ if(suffix==".cbr")return n>=7&&sig[0]=='R'&&sig[1]=='a'&&sig[2]=='r'&&sig[3]=='!'&&sig[4]==0x1a&&sig[5]==0x07;
+ return false;
+}
 bool cachedir(std::string& dir,std::string& why){
  // The PS5 POSIX compatibility layer does not guarantee statvfs support.
  // Calling an unresolved runtime function when opening ANY USB book can
  // crash the console. Only use known-good mkdir/fopen/write primitives.
  // A full disk is reported by fwrite/fflush with errno (ENOSPC), not by a
  // speculative filesystem-capacity query.
- for(const char* path:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache"}){
+ for(const char* path:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache","/download0/ebook-reader-cache"}){
   const std::string base=path;
   const auto slash=base.find_last_of('/');
   if(slash!=std::string::npos)mkdir(base.substr(0,slash).c_str(),0755);
@@ -185,36 +198,33 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  if(!safe(book.relative)||book.bytes==0||book.bytes>kMaxFile){error="Invalid USB book";return false;}
  bool found=false;for(const auto& b:known)if(b.relative==book.relative && b.bytes==book.bytes)found=true;
  if(!found){error="USB catalogue expired; press OPTIONS to refresh";return false;}
- std::string folder;if(!cachedir(folder,error)){
-  ebook_log::write("USB_CACHE_ERROR",error);
-  return false;
- }
  std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
  for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
  char hex[24];std::snprintf(hex,sizeof(hex),"%016llx",(unsigned long long)fnv64(book.relative));
- localPath=folder+"/usb-"+hex+suffix;
- // Reuse previously transferred books. Checking the file magic avoids
- // accepting unrelated or partially copied cache files.
- struct stat cached{};
- if(stat(localPath.c_str(),&cached)==0 &&
-    cached.st_size>=0 && (size_t)cached.st_size==book.bytes){
-   FILE* check=fopen(localPath.c_str(),"rb");
-   if(check){
-     unsigned char signature[4]={0};
-     bool valid=fread(signature,1,4,check)==4;
-     fclose(check);
-     if(valid && ((suffix==".epub" && signature[0]=='P' && signature[1]=='K') ||
-                  (suffix==".pdf" && signature[0]=='%' && signature[1]=='P' &&
-                   signature[2]=='D' && signature[3]=='F') ||
-                  (suffix==".cbr" && signature[0]=='R' && signature[1]=='a' &&
-                   signature[2]=='r' && signature[3]=='!') ||
-                  (suffix==".cbz" && signature[0]=='P' && signature[1]=='K'))){
-     ebook_log::write("USB_CACHE_HIT",localPath);
+ const std::string filename="usb-"+std::string(hex)+suffix;
+ // All known cache mounts may contain previously fetched good files.
+ // Respect those hits without duplicating them on /data.
+ for(const char* base:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache",
+                       "/download0/ebook-reader-cache"}){
+   const std::string prior=std::string(base)+"/"+filename;
+   if(valid_cached_file(prior,suffix,book.bytes)){
+     localPath=prior;
+     ebook_log::write("USB_CACHE_HIT",prior);
      return true;
    }
-   }
  }
- // Local cache is title-specific and never touches original USB content.
+ std::string folder;
+ if(!cachedir(folder,error)){
+   ebook_log::write("USB_CACHE_ERROR",error);return false;
+ }
+ localPath=folder+"/"+filename;
+ const auto cleanup=ebook_cache::prune(folder,(uint64_t)book.bytes,localPath);
+ if(cleanup.removed)ebook_log::write("CACHE_CLEAN",
+   "Removed "+std::to_string(cleanup.removed)+" old USB files ("+
+   std::to_string(cleanup.bytes/1048576)+" MiB)");
+ if(!cleanup.complete)
+   ebook_log::write("CACHE_SOFT_LIMIT","Not enough evictable entries to meet cache limit");
+ // Every file in Cache is a disposable copy. USB originals and Books stay intact.
  int fd=connect_to(kPort);
  if(fd<0){
    auto refreshed=scan();
