@@ -1,20 +1,16 @@
-# Ebook Reader v0.1.4 — EPUB package parsing fix
+# Ebook Reader v0.1.5 — EPUB Images & Cover Art
 
-### Fixed
+## Added
+- Real EPUB2/EPUB3 covers embedded in the ZIP, displayed as proportional images on the native PS5 bookshelf.
+- Inline JPEG/PNG/static GIF illustrations from EPUB chapters, in reading order, alongside existing page text.
+- Bounded, lazy cover loading on a background worker; GPU textures are decoded and uploaded on the render thread.
+- Reuse of previously downloaded USB book caches for faster cover loading.
+- New EPUB regression fixtures with original JPEG front covers and PNG illustrations.
 
-- Standard EPUB archives with `META-INF/container.xml` were incorrectly rejected with **Cannot resolve EPUB package**. The parser matched the plural `<rootfiles>` wrapper instead of the actual `<rootfile full-path="...">` element.
-- Match complete XML element names instead of string prefixes, including namespaced `<ocf:rootfile>` and `<item>`/`<itemref>` package elements.
-- Handle single/double quoted and whitespace-separated XML attributes, comments containing decoy tags, and multiple rootfile declarations.
-- Preserve bounded archive decoding, path traversal protections, and existing local/USB book handling.
+## Installation
+Download `PPSA99741.zip` and replace the app folder inside `/data/homebrew/`, preserving your books and existing saved state. Title ID remains `PPSA99741`. Your existing USB helper (`bookscan.elf`, elfldr 9021 and bridge 9175) remains included and unchanged in behavior.
 
-### Testing
-
-Added generated EPUB fixtures for standard and namespaced package containers, comments, multiple rootfiles, and invalid paths. CI must pass EPUB extraction tests and full native PS5 ZIP validation before release.
-
-### Install
-
-Update to `PPSA99741.zip` from this release through TESTBUILD APP. Same Title ID `PPSA99741`, and same `bookscan.elf` USB bridge and ports `9021/9175`.
-
-### Known limitations
-
-EPUB text reflow only; image-heavy layouts, DRM and advanced CSS are unsupported. PDF remains a text preview. Actual PS5 reading of your books still requires a console test.
+## Known limitations
+- EPUB images are proportional, inline renderings in a simple reflow layout, not full XHTML/CSS layout. Unsupported image formats and external images are skipped.
+- The PDF feature is still a text-only preview; a full native PDF page renderer will require a separate implementation.
+- Real PS5 compatibility and performance must be verified on hardware.
