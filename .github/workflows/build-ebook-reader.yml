@@ -37,7 +37,8 @@ jobs:
           bridge=Path('homebrew/ebook-reader/native/usb_bridge.cpp').read_text()
           assert 'statvfs(' not in bridge, 'do not call unverified PS5 statvfs API'
           start=code.split('bool start_cover(',1)[1].split('void panel(',1)[0]
-          assert start.index('usbbooks::is_remote(b.path)') < start.index('g_coverBusy.exchange(true)')
+          assert 'g_coverBusy.exchange(true)' in start
+          assert 'usbbooks::is_remote(b.path) && (b.format=="CBR"' not in start
           assert 'ebook_log::books_directory()' in code
           print('PS5 crash regression guards passed')
           PY
@@ -47,6 +48,30 @@ jobs:
           g++ -std=c++20 -O2 -Wall -Wextra -Ihomebrew/ebook-reader/native homebrew/ebook-reader/native/ebook_engine.cpp homebrew/ebook-reader/tests/epub_package_test.cpp -lz -o /tmp/ebook-package-test
           /tmp/ebook-package-test /tmp/ebook-epub-fixtures
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -Ihomebrew/ebook-reader/native -c homebrew/ebook-reader/native/usb_bridge.cpp -o /tmp/ebook-usb-bridge.o
+      - name: Test persistent comic thumbnails and background loading guards
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
+            -D'EBOOK_DATA_ROOT="/tmp/ebook-covers-ci"' \
+            -Ihomebrew/ebook-reader/native \
+            homebrew/ebook-reader/tests/cover_store_test.cpp \
+            -o /tmp/ebook-cover-store-test
+          /tmp/ebook-cover-store-test
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('homebrew/ebook-reader/native/main.cpp').read_text()
+          assert 'g_openDone.store(done)' in src
+          assert 'g_openTotal.store(total)' in src
+          assert 'bool start_book_open(' in src
+          assert 'book_open_worker' in src
+          assert 'ebook_cover::save(task->bookPath,bytes)' in src
+          assert 'usbbooks::is_remote(b.path) && (b.format=="CBR"' not in src
+          # Book opening from Cross must be asynchronous, not a blocking USB
+          # fetch or archive decode inside the frame loop.
+          block=src.split('if((pressed&hui::pad_bits::kCross)&&!visible.empty())',1)[1].split('if(pressed&hui::pad_bits::kL3)',1)[0]
+          assert 'start_book_open(b,message)' in block
+          assert 'usbbooks::fetch(' not in block and 'comic::open(' not in block
+          print('Nonblocking book loading and comic cover flow checks passed')
+          PY
       - name: Test bookshelf grid, cover crop and top-aligned zoom
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -Ihomebrew/ebook-reader/native \
@@ -150,7 +175,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.014')
+          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.015')
           d['localizedParameters']['en-US']['titleName']='Ebook Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -196,9 +221,9 @@ jobs:
           p=pathlib.Path('app/dist/PPSA99741')
           e=(p/'eboot.bin').read_bytes()
           assert len(e)>1000 and struct.unpack('<I',e[:4])[0]==0x1d3d154f
-          assert b'v0.2.4' in e
+          assert b'v0.2.5' in e
           j=json.loads((p/'sce_sys/param.json').read_text())
-          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.014'
+          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.015'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/Books/README.txt','bookscan.elf']:
             assert (p/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99741.zip') as z:
@@ -208,7 +233,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Ebook-Reader-v0.2.4
+          name: Ebook-Reader-v0.2.5
           path: app/dist/PPSA99741.zip
           if-no-files-found: error
       - name: Publish release
@@ -216,5 +241,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ebook-reader-v0.2.4 >/dev/null 2>&1; then exit 0; fi
-          gh release create ebook-reader-v0.2.4 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.2.4" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md
+          if gh release view ebook-reader-v0.2.5 >/dev/null 2>&1; then exit 0; fi
+          gh release create ebook-reader-v0.2.5 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.2.5" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md

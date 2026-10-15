@@ -148,3 +148,9 @@ PS5 runtime logs revealed USB transfer was working, but `/download0/ebook-reader
 **Install:** Update `PPSA99741.zip` via TESTBUILDS, keeping saved data. USB books remain under `/mnt/usb0/Books`. Diagnostic log: `/data/EbookReader/ebook-reader.log`.
 
 Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.4
+
+## v0.2.5 — Background loading and comic cover images
+
+The book-open action now runs off the render thread and displays the actual USB transfer progress as percent and MiB, followed by document parsing. Press Circle while loading to cancel an active transfer. Comic CBR/CBZ cover images are extracted from the first comic page in a background job; EPUB covers are prioritized. Small validated thumbnails are saved in `/data/EbookReader/Covers/` and reused across sessions. A small progress bar displays background cover downloads. Large archive transfers continue to use `/data/EbookReader/Cache/` and never modify files in `/data/EbookReader/Books/`.
+
+Release: https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.2.5

@@ -9,6 +9,7 @@
 #include "ebook_layout.hpp"
 #include "ebook_reflow.hpp"
 #include "ebook_log.hpp"
+#include "ebook_cover_store.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -91,6 +92,81 @@ TextureImage make_comic_texture(hui::gfx::Renderer& renderer,const std::string& 
  info.width=tw;info.height=th;
  stbi_image_free(raw);return info;
 }
+// Book opening and large USB transfers must NEVER run on the render thread.
+// The progress callback is called after actual bytes are written to disk.
+struct OpenBookTask {
+ ebook::BookEntry entry; bool remote=false;usbbooks::Entry remoteBook;
+};
+struct OpenBookResult {
+ std::string entryPath,localPath,error,cover;
+ ebook::Document document;
+ comic::Book comic;
+ bool ok=false,isComic=false;
+};
+std::mutex g_openLock;
+std::vector<OpenBookResult> g_openReady;
+std::atomic<bool> g_openBusy{false},g_openCancel{false};
+std::atomic<size_t> g_openDone{0},g_openTotal{0};
+std::atomic<int> g_openStage{0}; // 1 copying from USB, 2 parsing pages
+bool book_transfer_progress(size_t done,size_t total,void*){
+ g_openTotal.store(total);g_openDone.store(done);
+ return !g_openCancel.load();
+}
+void* book_open_worker(void* data){
+ auto* task=(OpenBookTask*)data;
+ OpenBookResult out;out.entryPath=task->entry.path;
+ out.localPath=out.entryPath;
+ if(task->remote){
+   g_openStage.store(1);
+   out.ok=usbbooks::fetch(task->remoteBook,out.localPath,out.error,
+                          book_transfer_progress,nullptr);
+ }else out.ok=true;
+ if(out.ok && !g_openCancel.load()){
+   ebook_log::write("OPEN_FILE",out.localPath);
+   g_openStage.store(2);
+   out.isComic=comic::is_comic(out.localPath);
+   if(out.isComic){
+     out.ok=comic::open(out.localPath,out.comic);
+     out.error=out.comic.error;
+     // Cover extraction on the worker; upload the texture on the render
+     // thread after successful opening.
+     if(out.ok && !out.comic.pages.empty()){
+       std::string coverError;
+       comic::extract(out.comic,0,out.cover,coverError);
+       if(!out.cover.empty())ebook_cover::save(out.entryPath,out.cover);
+     }
+   }else{
+     out.ok=ebook::read_document(out.localPath,out.document);
+     out.error=out.document.error;
+     out.cover=out.document.coverImage;
+   }
+ }
+ if(g_openCancel.load()){out.ok=false;out.error="Book loading cancelled";}
+ if(out.ok)ebook_log::write("OPEN_OK",out.localPath);
+ else ebook_log::write("OPEN_ERROR",out.entryPath+" "+out.error);
+ {std::lock_guard<std::mutex> lock(g_openLock);
+  g_openReady.push_back(std::move(out));}
+ delete task;g_openBusy.store(false);return nullptr;
+}
+bool start_book_open(const ebook::BookEntry& entry,std::string& error){
+ if(g_openBusy.exchange(true))return false;
+ auto* task=new OpenBookTask;task->entry=entry;
+ task->remote=usbbooks::is_remote(entry.path);
+ if(task->remote && !usbbooks::entry_from_remote(entry.path,task->remoteBook)){
+   delete task;g_openBusy.store(false);
+   error="USB catalogue expired. Press OPTIONS to rescan";return false;
+ }
+ g_openCancel.store(false);g_openDone.store(0);
+ g_openTotal.store(task->remote?task->remoteBook.bytes:0);
+ g_openStage.store(task->remote?1:2);
+ pthread_t t{};
+ if(pthread_create(&t,nullptr,book_open_worker,task)!=0){
+   delete task;g_openBusy.store(false);
+   error="Could not start background book loader";return false;
+ }
+ pthread_detach(t);return true;
+}
+
 struct ComicPageTask {comic::Book book;int page=0;};
 struct ComicPageResult {std::string path,bytes,error;int page=0;};
 std::atomic<bool> g_comicBusy{false};
@@ -144,32 +220,46 @@ struct CoverTask {
  bool comic=false;
  usbbooks::Entry remoteBook;
 };
-struct CoverResult{std::string path,bytes;};
+struct CoverResult{std::string path,bytes;bool retry=false;};
 std::mutex g_coverLock;
 std::atomic<bool> g_coverBusy{false};
+std::atomic<size_t> g_coverDone{0},g_coverTotal{0};
+bool cover_transfer_progress(size_t done,size_t total,void*){
+ g_coverDone.store(done);g_coverTotal.store(total);
+ return !g_openBusy.load(); // normally true while the cover worker is active
+}
 std::vector<CoverResult> g_coverReady;
 void* cover_worker(void* arg){
  CoverTask* task=(CoverTask*)arg;
  std::string local=task->bookPath,bytes,error;
- bool ok=true;
- if(task->remote)ok=usbbooks::fetch(task->remoteBook,local,error);
- if(!ok)ebook_log::write("COVER_USB_ERROR",error);
- if(ok){if(task->comic)comic::cover(local,bytes);
-        else ebook::read_epub_cover(local,bytes);}
+ bool ok=ebook_cover::load(task->bookPath,bytes);
+ if(!ok){
+   ok=true;
+   // A visible USB comic is fetched once on the worker; thereafter only
+   // the small cover is read from /data/EbookReader/Covers.
+   if(task->remote)ok=usbbooks::fetch(task->remoteBook,local,error,
+                                      cover_transfer_progress,nullptr);
+   if(!ok)ebook_log::write("COVER_USB_ERROR",error);
+   if(ok){
+     if(task->comic)comic::cover(local,bytes);
+     else ebook::read_epub_cover(local,bytes);
+   }
+   if(!bytes.empty())ebook_cover::save(task->bookPath,bytes);
+ }
  if(!bytes.empty())ebook_log::write("COVER_READY",task->bookPath);
  {std::lock_guard<std::mutex> lock(g_coverLock);
-  g_coverReady.push_back({task->bookPath,std::move(bytes)});
+  g_coverReady.push_back({task->bookPath,std::move(bytes),
+                             error.find("Book loading cancelled")!=std::string::npos});
  }
  delete task;
  g_coverBusy.store(false);
  return nullptr;
 }
 bool start_cover(const ebook::BookEntry& b){
- // Important: skip remote comics BEFORE claiming the background worker.
- // The previous order left g_coverBusy permanently true when the first
- // visible book was a USB CBR, disabling covers for all later EPUBs.
- if(usbbooks::is_remote(b.path) && (b.format=="CBR"||b.format=="CBZ"))return false;
+ // Load all visible EPUB/CBR/CBZ covers asynchronously. USB comics can
+ // require a full first download; persistent thumbnails avoid repeat work.
  if(g_coverBusy.exchange(true))return false;
+ g_coverDone.store(0);g_coverTotal.store(0);
  CoverTask* task=new CoverTask;task->bookPath=b.path;
  task->comic=(b.format=="CBR"||b.format=="CBZ");
  if(usbbooks::is_remote(b.path)){
@@ -222,7 +312,7 @@ std::vector<std::string> dirs(){return {ebook_log::books_directory(),"/app0/asse
 }
 int main(){
  const bool logAvailable=ebook_log::prepare();
- ebook_log::write("BOOT","Ebook Reader v0.2.3 started; Title ID PPSA99741");
+ ebook_log::write("BOOT","Ebook Reader v0.2.5 started; Title ID PPSA99741");
  ebook_log::write("DATA","Local Books: "+ebook_log::books_directory()+
                                 " Log: "+ebook_log::filename());
  hui::ps5::Display display;if(!display.open())hui::sys::park();
@@ -237,7 +327,7 @@ int main(){
  auto refresh=[&](){
    ebook_log::write("SCAN_BEGIN","Refreshing local books and USB catalogue");
    // USB bridge's known catalogue is shared with the cover worker.
-   if(g_coverBusy.load()){
+   if(g_coverBusy.load()||g_openBusy.load()){
     ebook_log::write("SCAN_WAIT","Cover worker still active");
     return;
    }
@@ -279,6 +369,7 @@ int main(){
  bool reader=false,list=false,confirmDelete=false;
  int selected=0,filter=0,readerPage=0,libraryScroll=0,importSelect=0;
  bool importer=false;std::string message="USB EPUB reader via elfldr 9021 (same bridge as Payload LauncherX).";
+ std::string loadingTitle;
  if(!logAvailable)message="Warning: /data/EbookReader not writable";
  const char* names[]={"All","Comics","Fiction","Novels","Favorites"};
  unsigned held=0;int repeatDelay=0;
@@ -287,6 +378,10 @@ int main(){
   unsigned pressed=0,now=held;
   for(size_t i=0;i<n;++i){pressed|=samples[i].buttons&~now;now=samples[i].buttons;}
   held=now;
+  if(g_openBusy.load()){
+    if(pressed&hui::pad_bits::kCircle)g_openCancel.store(true);
+    pressed=0;now=0;
+  }
   if(--repeatDelay<=0){
    if(now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;
    if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;
@@ -304,7 +399,8 @@ int main(){
       if(found!=covers.end())free_texture(found->second);
       bool comicCover=false;
       for(const auto& b:books)if(b.path==item.path){comicCover=(b.format=="CBR"||b.format=="CBZ");break;}
-      covers[item.path]=comicCover?make_comic_texture(renderer,item.bytes):make_image(renderer,item.bytes);
+      if(!item.retry)covers[item.path]=comicCover?
+              make_comic_texture(renderer,item.bytes):make_image(renderer,item.bytes);
    }
    // Limit accumulated artwork to avoid unbounded video-memory growth.
    if(covers.size()>54){
@@ -313,6 +409,42 @@ int main(){
          free_texture(it->second);it=covers.erase(it);
       }
    }
+  }
+  // Consume background-completed document on OpenGL rendering thread.
+  std::vector<OpenBookResult> opened;
+  {std::lock_guard<std::mutex> lock(g_openLock);opened.swap(g_openReady);}
+  for(auto& item:opened){
+    if(!item.ok){
+      message="Cannot open book: "+item.error;
+      continue;
+    }
+    for(auto& pair:pageImages)free_texture(pair.second);
+    pageImages.clear();lastRenderedImagePage=-1;
+    free_texture(comicPageTexture);comicTexturePage=-1;
+    readerZoom=1.f;readerPanX=readerPanY=0.f;
+    inComic=item.isComic;
+    if(inComic)currentComic=std::move(item.comic);
+    else {
+      document=std::move(item.document);
+      std::vector<size_t> imagePositions;
+      for(const auto& im:document.images)imagePositions.push_back(im.line);
+      singleText=ebook_reflow::full_width(document.lines,imagePositions);
+    }
+    if(!item.cover.empty()){
+      const auto it=covers.find(item.entryPath);
+      if(it==covers.end()||!it->second.id)
+        covers[item.entryPath]=inComic?
+           make_comic_texture(renderer,item.cover):make_image(renderer,item.cover);
+    }
+    reader=true;
+    const size_t pages=inComic?currentComic.pageCount():document.pageCount();
+    const size_t views=inComic?pages:(size_t)ebook_layout::text_page_count(
+                  singlePage?singleText.lines.size():document.lines.size(),singlePage);
+    size_t previous=0;
+    for(const auto& b:books)if(b.path==item.entryPath){previous=b.progress;break;}
+    readerPage=std::min<int>(std::max(0,(int)views-1),
+               (int)(previous*views/10000));
+    message="";
   }
   std::vector<size_t> visible;
   for(size_t i=0;i<books.size();++i){
@@ -439,56 +571,11 @@ int main(){
      confirmDelete=false;refresh();
     }else{
      const auto& b=books[visible[selected]];
-     std::string source=b.path;
-     ebook_log::write("OPEN_REQUEST",b.format+" "+source);
-     bool available=true;
-     if(usbbooks::is_remote(source)){
-       usbbooks::Entry remote;
-       if(!usbbooks::entry_from_remote(source,remote)){
-         available=false;message="USB book not in latest catalogue. Press OPTIONS to rescan.";
-         ebook_log::write("OPEN_USB_ERROR",message);
-       }else if(!usbbooks::fetch(remote,source,message)){
-         available=false;
-         ebook_log::write("OPEN_USB_ERROR",message);
-       }
-     }
-     if(available){
-       ebook_log::write("OPEN_FILE",source);
-       const bool selectedComic=comic::is_comic(source);
-       std::string error;
-       bool ok=false;
-       if(selectedComic) {
-         ok=comic::open(source,currentComic);
-         error=currentComic.error;
-       }else {
-         ok=ebook::read_document(source,document);
-         error=document.error;
-       }
-       if(ok){
-        ebook_log::write("OPEN_OK",source);
-        for(auto& pair:pageImages)free_texture(pair.second);
-        pageImages.clear();lastRenderedImagePage=-1;
-        free_texture(comicPageTexture);comicTexturePage=-1;
-        readerZoom=1.f;readerPanX=readerPanY=0.f;
-        if(!selectedComic && !document.coverImage.empty() && !covers[b.path].id)
-           covers[b.path]=make_image(renderer,document.coverImage);
-        inComic=selectedComic;
-        if(!selectedComic){
-          std::vector<size_t> positions;
-          for(const auto& im:document.images)positions.push_back(im.line);
-          singleText=ebook_reflow::full_width(document.lines,positions);
-        }
-        reader=true;
-        const size_t pages=inComic?currentComic.pageCount():document.pageCount();
-        const size_t viewPages=inComic?pages:(size_t)ebook_layout::text_page_count(
-                singlePage?singleText.lines.size():document.lines.size(),singlePage);
-        readerPage=std::min<int>((int)viewPages-1,(int)(b.progress*viewPages/10000));
-        message="";
-       }else{
-          message="Cannot open "+b.title+": "+error;
-          ebook_log::write("OPEN_ERROR",message);
-       }
-     }
+     ebook_log::write("OPEN_REQUEST",b.format+" "+b.path);
+     if(start_book_open(b,message)){
+       loadingTitle=b.title;
+       message="";
+     }else if(message.empty())message="Book loader already running";
     }
    }
    if(pressed&hui::pad_bits::kL3)confirmDelete=!confirmDelete;
@@ -502,7 +589,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.2.4",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.2.5",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():
@@ -637,17 +724,20 @@ int main(){
       txt(d,font,atlas,"No accessible books in this collection.",960,481,29,muted,Align::center);
       txt(d,font,atlas,"USB bridge: "+cut(usbCatalog.message,70),960,530,22,gold,Align::center);
    }
-   if(count>0 && !g_coverBusy.load() && ++coverTick%22==0){
+   if(count>0 && !g_openBusy.load() && !g_coverBusy.load() && ++coverTick%22==0){
      const int perPage=list?9:ebook_layout::per_page;
      const int start=(selected/perPage)*perPage,stop=std::min(count,start+perPage);
-     for(int i=start;i<stop;i++){
-       const auto& b=books[visible[i]];
-       if((b.format!="EPUB"&&b.format!="CBR"&&b.format!="CBZ") || covers.find(b.path)!=covers.end())continue;
-       // Both local and USB books use the same bounded EPUB cover extractor.
-       if(start_cover(b))break;
-       // Skip only this one unsupported/remote cover, never hold the worker
-       // busy flag. Other EPUB covers can still load on subsequent frames.
-       covers[b.path]=TextureImage{0,0,0,true};
+     bool started=false;
+     // Always show inexpensive EPUB covers before downloading large USB CBRs.
+     for(int phase=0;phase<2 && !started;phase++){
+       for(int i=start;i<stop;i++){
+         const auto& b=books[visible[i]];
+         if((phase==0 && b.format!="EPUB") ||
+            (phase==1 && b.format!="CBR" && b.format!="CBZ") ||
+            covers.find(b.path)!=covers.end())continue;
+         if(start_cover(b)){started=true;break;}
+         covers[b.path]=TextureImage{0,0,0,true};
+       }
      }
    }
    if(count>0){
@@ -672,6 +762,39 @@ int main(){
     "X Read  L1/R1 Collection  SQUARE Favourite  TRIANGLE Storage  OPTIONS Rescan  R2 View  L3 Delete",88,1044,18,cream);
   }
   if(!message.empty()){d.rounded_rect({410,1010,1100,35},9,Color::rgb(0x49250f));txt(d,font,atlas,cut(message,118),960,1036,17,gold,Align::center);}
+  if(g_openBusy.load()){
+    const size_t total=g_openTotal.load(),done=g_openDone.load();
+    const int stage=g_openStage.load();
+    const float fraction=total?std::min(1.f,(float)((double)done/total)):0.f;
+    d.rounded_rect({0,100,1920,980},0,Color::rgb(0x080503,0.78f));
+    d.shadow({280,353,1360,328},18,24,Color::rgb(0x000000,0.66f));
+    d.bordered_rect({280,353,1360,328},18,Color::rgb(0x39200f),2,gold);
+    txt(d,font,atlas,stage==1?"DOWNLOADING BOOK FROM USB":"OPENING BOOK",
+        960,419,35,cream,Align::center);
+    txt(d,font,atlas,cut(loadingTitle,67),960,468,24,muted,Align::center);
+    d.rounded_rect({394,530,1132,31},12,Color::rgb(0x130c07));
+    d.rounded_rect({397,534,std::max(3.f,1126.f*(stage==1?fraction:1.f)),23},10,gold);
+    if(stage==1)
+      txt(d,font,atlas,std::to_string((int)(fraction*100))+"%  "+
+          std::to_string(done/1048576)+" / "+std::to_string((total+1048575)/1048576)+
+          " MiB",960,617,24,cream,Align::center);
+    else
+      txt(d,font,atlas,"Preparing document and comic pages...",960,617,22,cream,Align::center);
+    txt(d,font,atlas,g_openCancel.load()?"Cancelling...":"CIRCLE Cancel",
+        960,651,18,muted,Align::center);
+  }else if(!reader && g_coverBusy.load() && g_coverTotal.load()>0){
+    const size_t total=g_coverTotal.load(),done=g_coverDone.load();
+    const float fraction=std::min(1.f,(float)((double)done/total));
+    d.rounded_rect({530,909,860,69},9,Color::rgb(0x36200e));
+    txt(d,font,atlas,"Downloading comic cover  "+
+        std::to_string((int)(fraction*100))+"%  ("+
+        std::to_string(done/1048576)+"/"+
+        std::to_string((total+1048575)/1048576)+" MiB)",
+        960,935,18,cream,Align::center);
+    d.rounded_rect({588,948,746,9},4,Color::rgb(0x110905));
+    d.rounded_rect({588,948,746.f*fraction,9},4,gold);
+  }
+
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }

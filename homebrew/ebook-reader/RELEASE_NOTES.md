@@ -1,18 +1,17 @@
-# Ebook Reader v0.2.4 — Fix CBR / CBZ USB cache full
+# Ebook Reader v0.2.5 — Progress Bar and Comic Covers
 
-## Root cause
-PS5 diagnostics from v0.2.3 prove that the USB helper and RAR readers work, but writing a new comic to `/download0/ebook-reader-cache` stopped around 21 MiB with `ENOSPC`. This was a filesystem cache problem, not an unsupported comic format.
+## New features
+- Asynchronous book opening: the rendering loop stays active during USB transfers and archive parsing.
+- Large modal shows exact USB download progress in MiB and percentage, followed by the document preparation stage. Circle requests download cancellation.
+- CBR/CBZ comic covers load from the first image, in background. EPUB thumbnails are prioritized.
+- Persistent thumbnails stored in /data/EbookReader/Covers, separately from large disposable comic archives.
+- A small progress bar on the bookshelf shows comic-cover download progress.
 
-## Fixed
-- Save new downloaded USB books into writable `/data/EbookReader/Cache/` first instead of the smaller `/download0` app cache.
-- Reuse valid cached files already present under the old paths without fetching them again.
-- Automatically evict the oldest disposable USB-cache files when the 768-MiB soft budget would be exceeded, including abandoned incomplete `.part` copies.
-- Preserve user-owned files and folders: `/data/EbookReader/Books/`, saved settings/progress and `ebook-reader.log` are never removed by cache cleanup.
-- Keep resumable transfers, native RAR4/RAR5 decoder, EPUB/PDF and single/double-page zoom.
-- CI adds a 48-MiB CBR transfer test verifying the data-root cache path, plus cache-cleanup and user-book-protection assertions.
+## Compatibility
+The working /data/EbookReader/Cache from v0.2.4 is unchanged. Local books in /data/EbookReader/Books, favourites, reading progress, existing EPUB/PDF/CBR/CBZ support, title ID PPSA99741 and USB bridge port 9176 are preserved.
 
-## Install and verify
-Install `PPSA99741.zip` through TESTBUILDS. Do not delete books or saved data. With `elfldr` on port 9021 and the book helper on 9176, choose a CBR on USB. Check `/data/EbookReader/ebook-reader.log` for `USB_FETCH_OK /data/EbookReader/Cache/...`, then `OPEN_OK`.
+## Validation
+CI includes a real 48 MiB interrupted comic transfer and checks monotonic byte progress, cover file persistence, nonblocking book-opening code, native PS5 compilation and the complete ZIP.
 
-## Limits
-Copying a full comic into the cache still requires actual free space and write access under `/data/EbookReader`; this is not an on-demand RAR streaming reader. Current tests cover native compilation, transfer and safe eviction, while console hardware confirmation remains pending.
+## Installation
+Install PPSA99741.zip via TESTBUILDS. Existing books and save data need not be removed. An uncached USB comic may take time to acquire its cover initially; subsequent sessions reuse the small saved thumbnail. Hardware testing on PS5 remains necessary.
