@@ -1,17 +1,19 @@
-# Ebook Reader v0.2.5 — Progress Bar and Comic Covers
+# Ebook Reader v0.2.6 — Exit Confirmation
 
-## New features
-- Asynchronous book opening: the rendering loop stays active during USB transfers and archive parsing.
-- Large modal shows exact USB download progress in MiB and percentage, followed by the document preparation stage. Circle requests download cancellation.
-- CBR/CBZ comic covers load from the first image, in background. EPUB thumbnails are prioritized.
-- Persistent thumbnails stored in /data/EbookReader/Covers, separately from large disposable comic archives.
-- A small progress bar on the bookshelf shows comic-cover download progress.
+## New
+- Circle on the My Library home screen opens a Yes/No confirmation dialog instead of closing the app immediately.
+- Cross selects **Yes** and exits; Circle selects **No** and returns to My Library.
+- Modal consumes input so it cannot accidentally open another book or navigate under the confirmation.
+- Existing Circle / Back controls in the book reader and USB Storage screen are unchanged.
 
-## Compatibility
-The working /data/EbookReader/Cache from v0.2.4 is unchanged. Local books in /data/EbookReader/Books, favourites, reading progress, existing EPUB/PDF/CBR/CBZ support, title ID PPSA99741 and USB bridge port 9176 are preserved.
+## Safe shutdown
+- Save existing book reading state before quitting.
+- Wait for any detached thumbnail, image or book-load workers to finish before releasing PS5 rendering resources.
+- Leave all local books, existing covers, settings and USB cache untouched.
 
-## Validation
-CI includes a real 48 MiB interrupted comic transfer and checks monotonic byte progress, cover file persistence, nonblocking book-opening code, native PS5 compilation and the complete ZIP.
+## Verification
+- Host controller-state tests cover confirmation, cancellation, accidental simultaneous presses and repeated opens.
+- GitHub Actions compiles the native PS5 application and validates a complete PPSA99741.zip. Real PS5 hardware testing still needed.
 
 ## Installation
-Install PPSA99741.zip via TESTBUILDS. Existing books and save data need not be removed. An uncached USB comic may take time to acquire its cover initially; subsequent sessions reuse the small saved thumbnail. Hardware testing on PS5 remains necessary.
+Install PPSA99741.zip through TESTBUILDS and keep your existing /data/EbookReader/Books and settings intact. Title ID PPSA99741.
