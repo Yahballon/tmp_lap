@@ -114,6 +114,11 @@ std::string attr(const std::string& tag,const char* name){
 // wrapper, causing a missing full-path error in otherwise valid EPUBs.
 size_t xml_start(const std::string& xml,const char* local,size_t from=0){
  while((from=xml.find('<',from))!=std::string::npos){
+  if(xml.compare(from,4,"<!--")==0){
+   const size_t end=xml.find("-->",from+4);
+   if(end==std::string::npos)return std::string::npos;
+   from=end+3;continue;
+  }
   size_t p=from+1;
   if(p>=xml.size())return std::string::npos;
   const auto first=(unsigned char)xml[p];
