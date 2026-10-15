@@ -65,7 +65,7 @@ std::string activeIp(){
 }
 std::string formatTime(){
  std::time_t now=std::time(nullptr);if(now<=0)return {};
- std::tm tm{};if(!localtime_r(&now,&tm))return {};
+ std::tm tm{};if(localtime_s(&tm,&now)!=0)return {};
  char b[80];if(!std::strftime(b,sizeof(b),"%Y-%m-%d %H:%M:%S",&tm))return {};
  return b;
 }

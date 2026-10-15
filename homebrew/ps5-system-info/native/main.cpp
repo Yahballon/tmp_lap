@@ -52,10 +52,7 @@ void rows(DrawList& d,const Font& f,unsigned a,const std::vector<info::Row>& row
 const char* pages[]={"Overview","System","Hardware","Storage","Network","Display / Video",
  "Audio","Power & Thermals","Peripherals","Installed Apps","Processes","Kernel / Debug","Logs","Settings"};
 constexpr int count=14;
-const char* sections[]={"Console Information","Hardware","Storage","Network","Video / Display","Audio","Installed Apps","Peripherals","Processes","Power & Fan"};
-std::string formatAge(long long s){
- char b[80];snprintf(b,sizeof(b),"%lldh %02lldm %02llds",s/3600,(s/60)%60,s%60);return b;
-}
+
 void overview(DrawList& d,const Font& f,unsigned a,const info::Snapshot& s,bool show){
  // Overview follows screenshot columns; cards are read-only and navigable by their sidebar category.
  box(d,286,91,555,380);hdr(d,f,a,"Console Information",286,91,555);
@@ -118,7 +115,7 @@ int main(){
  if(!font.load(fontData))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
- hui::InputTracker tracker;
+ unsigned priorButtons=0; unsigned long long navNext=0;
  info::Settings settings=info::loadSettings();
  info::Snapshot snap=info::collect(display.width(),display.height(),false);
  info::appendLog("BOOT PS5 System Info v0.1.0");
@@ -127,31 +124,49 @@ int main(){
  long long lastSample=(long long)hui::sys::monotonic_us();
  for(;;){
   std::array<hui::PadSample,64> samples{};size_t n=pad.read(samples);
-  auto input=tracker.update(std::span<const hui::PadSample>(samples.data(),n),(std::uint64_t)hui::sys::monotonic_us());
+  unsigned buttons=priorButtons;bool connected=false;unsigned pressed=0;
+  for(size_t i=0;i<n;i++){
+   if(!samples[i].connected)continue;
+   connected=true;buttons=samples[i].buttons;
+   if(samples[i].left_y<68)buttons|=hui::pad_bits::kUp;
+   else if(samples[i].left_y>188)buttons|=hui::pad_bits::kDown;
+   if(samples[i].left_x<68)buttons|=hui::pad_bits::kLeft;
+   else if(samples[i].left_x>188)buttons|=hui::pad_bits::kRight;
+   pressed|=buttons&~priorButtons;priorButtons=buttons;
+  }
+  if(!connected)priorButtons=buttons=0;
+  const auto nowInput=(unsigned long long)hui::sys::monotonic_us();
+  const unsigned dir=buttons&(hui::pad_bits::kUp|hui::pad_bits::kDown|hui::pad_bits::kLeft|hui::pad_bits::kRight);
+  const unsigned immediate=pressed&dir;
+  unsigned nav=immediate;
+  if(immediate)navNext=nowInput+350000;
+  else if(dir&&nowInput>=navNext){nav=dir;navNext=nowInput+120000;}
+  else if(!dir)navNext=0;
+  auto was=[&](unsigned flag){return (pressed&flag)!=0;};
   bool update=false;
-  if(input.nav==hui::Direction::up){
+  if((nav&hui::pad_bits::kUp)){
    if(page==9&&appSelected>0)appSelected--;
    else if(page==13&&settingsSelected>0)settingsSelected--;
    else if(page!=0)scroll=std::max(0,scroll-46);
    else page=(page+count-1)%count;
   }
-  if(input.nav==hui::Direction::down){
+  if((nav&hui::pad_bits::kDown)){
    if(page==9)appSelected=std::min((int)snap.apps.size()-1,appSelected+1);
    else if(page==13)settingsSelected=std::min(2,settingsSelected+1);
    else if(page!=0)scroll+=46;
    else page=(page+1)%count;
   }
-  if(input.nav==hui::Direction::left){page=(page+count-1)%count;scroll=0;}
-  if(input.nav==hui::Direction::right){page=(page+1)%count;scroll=0;}
-  if(input.is_pressed(hui::Action::page_prev)){page=(page+count-1)%count;scroll=0;}
-  if(input.is_pressed(hui::Action::page_next)){page=(page+1)%count;scroll=0;}
-  if(input.is_pressed(hui::Action::menu)){page=13;scroll=0;}
-  if(input.is_pressed(hui::Action::north)){update=true;notice="Manual diagnostics refresh requested";}
-  if(input.is_pressed(hui::Action::back)){
+  if((nav&hui::pad_bits::kLeft)){page=(page+count-1)%count;scroll=0;}
+  if((nav&hui::pad_bits::kRight)){page=(page+1)%count;scroll=0;}
+  if(was(hui::pad_bits::kL1)){page=(page+count-1)%count;scroll=0;}
+  if(was(hui::pad_bits::kR1)){page=(page+1)%count;scroll=0;}
+  if(was(hui::pad_bits::kOptions)){page=13;scroll=0;}
+  if(was(hui::pad_bits::kTriangle)){update=true;notice="Manual diagnostics refresh requested";}
+  if(was(hui::pad_bits::kCircle)){
    if(page!=0){page=0;scroll=0;}
    else{pad.close();renderer.release();display.close();hui::sys::quit();}
   }
-  if(input.is_pressed(hui::Action::confirm)){
+  if(was(hui::pad_bits::kCross)){
    if(page==0){page=1;scroll=0;}
    else if(page==13){
     if(settingsSelected==0){const int opts[]={0,5,10,30,60};int index=0;for(int i=0;i<5;i++)if(opts[i]==settings.refreshSeconds)index=i;settings.refreshSeconds=opts[(index+1)%5];}
@@ -161,13 +176,13 @@ int main(){
    }else if(page==12){info::appendLog("User-requested diagnostic log marker");update=true;notice="Log marker saved";}
    else update=true;
   }
-  if(input.is_pressed(hui::Action::west)){
+  if(was(hui::pad_bits::kSquare)){
    std::string path;
    notice=info::exportReport(snap,settings,path)?"Report exported: "+path:"Cannot write report to /data/ps5-system-info";
   }
   const auto now=(long long)hui::sys::monotonic_us();
   if(update||(settings.refreshSeconds>0 && now-lastSample>=settings.refreshSeconds*1000000ll)){
-   snap=info::collect(display.width(),display.height(),input.connected);
+   snap=info::collect(display.width(),display.height(),connected);
    lastSample=now;
   }
   const auto* rr=pageRows(snap,page);
