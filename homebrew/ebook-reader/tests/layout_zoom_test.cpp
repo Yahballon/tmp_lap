@@ -116,8 +116,10 @@ int main(){
  // Screenshot regression: zooming a single parchment sheet used to draw
  // letters on top of the brown gutters. Paper, text scissor and scroll
  // coordinates must all agree.
- assert(single_sheet_clip.x>465.f);
- assert(single_sheet_clip.x+single_sheet_clip.w<1455.f);
+ assert(close(single_sheet_clip.x,page_clip.x));
+ assert(close(single_sheet_clip.w,page_clip.w));
+ assert(close(single_text_page_bounds.x,228.f));
+ assert(single_text_page_bounds.w>1400.f);
  assert(single_sheet_clip.y>=196.f);
  assert(single_sheet_clip.y+single_sheet_clip.h<=946.f);
  assert(single_text_page_bounds.x>=single_sheet_clip.x);

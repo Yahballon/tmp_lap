@@ -1,15 +1,17 @@
-# Ebook Reader v0.1.9 — Single-page zoom clipping and readable footer
+# Ebook Reader v0.2.0 — Full-width Single Page Reading
 
-## Fixed
-- Magnified EPUB/PDF text no longer bleeds beyond the cream parchment sheet into the brown side gutters.
-- A physical paper scissor is applied before the CPU zoom transformation.
-- At 125–400% zoom the first character stays aligned with the page's natural left margin, while the full document remains pannable.
-- New pages retain magnification but reset scrolling to their top-left reading origin.
-- Page number, Single/Double Page indicator and zoom percent are displayed in a dark footer outside the text.
-- Preserves existing USB helper, comic zoom, EPUB images, favourites and reading progress.
-
-## Validation
-Regression tests now cover clipping boundaries, reachability and text alignment at 100%, 125%, 150%, 175%, 200%, 250%, 300%, 350% and 400%.
+## Improved
+- **Full-width single-page canvas**: the Single Page mode selected with Square now fills the entire parchment within the native PS5 book frame, with no narrow centred sheet or dark blank side gutters.
+- **Real text reflow**: EPUB and PDF text is rewrapped from the conservative double-column source lines to ~89-column lines suitable for the full-width 1484px reading surface. Text no longer occupies only the left half after making the paper wider.
+- **Images in Single Page**: embedded EPUB JPEG/PNG illustrations retain their positions in the new layout and have the full available drawing width.
+- **Smart view-mode transition**: switching Single/Double keeps the nearest original text position. Existing dual-page pagination, page navigation, zoom and reading progress remain available.
+- **Zoom and pan**: 100–400% zoom clips to the complete book canvas and can pan across text to the right edge and the bottom; a new page still starts at its reading origin.
 
 ## Installation
-Install PPSA99741.zip via TESTBUILDS with Title ID PPSA99741. The usual PDF text-preview limitation remains. Physical PS5 confirmation is pending.
+Update `PPSA99741.zip` through your TESTBUILDS app. Title ID remains `PPSA99741`; your saved data, USB helper, EPUB cover art, PDF text preview and CBR/CBZ support remain intact.
+
+## Validation
+The independent PS5 CI runs new full-width text/image layout tests, existing geometric zoom tests, EPUB/RAR/USB regression tests, then native compilation and ZIP verification before release.
+
+## Known limitations
+PDF rendering is still a text-only preview (not full graphical PDF layout). Very complex EPUB CSS is not reproduced. Physical PS5 validation is required.
