@@ -75,3 +75,22 @@ for vid in ("dQw4w9WgXcQ","jNQXAC9IVRw"):
     print("GUEST_ID_RESULT:",client,vid,host,status,"hd",hd[:4],flush=True)
   except Exception as exc:
    print("GUEST_ID_ERROR:",client,vid,type(exc).__name__,str(exc)[:100],flush=True)
+
+# Representative PS5 jailbreak news search clips: measure whether guest
+# context improves HD availability on real, non-test public videos.
+try:
+ page=req("https://www.youtube.com/results?search_query=PS5+JAILBREAK+NEWS",
+       {"User-Agent":UA,"Accept":"text/html,*/*","Accept-Encoding":"identity"}).decode("utf8","replace")
+ found=list(dict.fromkeys(re.findall(r'"videoRenderer":\\{"videoId":"([A-Za-z0-9_-]{11})"',page)))
+ if not found:found=list(dict.fromkeys(re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"',page)))
+ found=found[:8]
+ print("NEWS_SAMPLE_SIZE:",len(found),flush=True)
+ conf=("VISIONOS","VISIONOS","1.02",
+   "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",None)
+ guest=json.loads(req("https://youtubei.googleapis.com/youtubei/v1/visitor_id",
+   {"Content-Type":"application/json","User-Agent":conf[3]},
+   json.dumps({"context":{"client":{"clientName":"VISIONOS","clientVersion":"1.02"}}}).encode()))
+ visitor=(guest.get("responseContext") or {}).get("visitorData","")
+ results=[analyze((*conf,vid,visitor)) for vid in found]
+ print("NEWS_RESULTS:",*results,sep="\n",flush=True)
+except Exception as exc:print("NEWS_SAMPLE_ERROR",type(exc).__name__,str(exc)[:80],flush=True)
