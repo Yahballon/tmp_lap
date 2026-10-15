@@ -239,13 +239,34 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  size_t written=0;bool ok=true;char buf[32768];
  int ioCode=0;
  const char* reason=nullptr;
- while(written<(size_t)total){
-   const size_t needed=std::min(sizeof(buf),(size_t)total-written);
+ int reconnects=0;
+ while(written<total){
+   const size_t needed=std::min(sizeof(buf),total-written);
    ssize_t got=recv(fd,buf,needed,0);
    if(got<0 && errno==EINTR)continue;
    if(got<=0){
      ioCode=got<0?errno:0;
-     reason=got==0?"USB connection closed early":"USB socket read timed out or failed";
+     // File transfers may drop during a long USB read. Ask the helper
+     // for the remaining bytes instead of discarding successful data.
+     close(fd);fd=-1;
+     if(reconnects++<3){
+       fd=connect_to(kPort);
+       if(fd<0){
+         auto status=scan();
+         if(status.viaHelper)fd=connect_to(kPort);
+       }
+       if(fd>=0){
+         const std::string retry="FETCHR "+std::to_string(written)+" "+
+                                 book.relative+"\n";
+         if(retry.size()<=600 && send_all(fd,retry.data(),retry.size()) &&
+            read_data_header(fd,total-written)){
+           ioCode=0;continue;
+         }
+         close(fd);fd=-1;
+       }
+     }
+     reason=got==0?"USB connection ended before file completed":
+                     "USB read interrupted or timed out";
      ok=false;break;
    }
    if(fwrite(buf,1,(size_t)got,f)!=(size_t)got){
@@ -261,8 +282,8 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  if(fclose(f)!=0 && ok){
    ioCode=errno;reason="Cache close failed";ok=false;
  }
- close(fd);
- if(ok && written==(size_t)total){
+ if(fd>=0)close(fd);
+ if(ok && written==total){
    if(rename(tmp.c_str(),localPath.c_str())==0)return true;
    ioCode=errno;reason="Cannot finalize cache file";ok=false;
  }
