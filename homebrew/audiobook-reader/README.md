@@ -2,6 +2,12 @@
 
 A native, controller-first M4B audiobook player by YAHBALLON, inspired by the bookshelf experience of the [PS5 Ebook Reader](https://github.com/Yahballon/PS5_Ebook_Reader). This application is separate from the Ebook Reader.
 
+## HD PS5 Icon
+
+![Audiobook Reader HD neon icon](sce_sys/icon0.png)
+
+The new 512x512 neon bookshelf/headphones artwork replaces the former upscaled 48px app icon. It is embedded in the PS5 home-screen icon and the packaged app asset.
+
 ## Features
 
 - **Live chapter tracking:** The Now Playing chapter number and title follow the decoded playback position automatically, including natural chapter changes, forward/backward seeks, and resume. The chapter list marks the currently playing chapter without overriding manual selection while browsing.
@@ -49,7 +55,7 @@ A native, controller-first M4B audiobook player by YAHBALLON, inspired by the bo
 
 ## Install
 
-Download `PPSA99784.zip` from [Releases](https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.2.4) after a successful CI release. Extract the `PPSA99784` folder to `/data/homebrew/`, register it with your supported loader, and copy DRM-free `.m4b` files into `/mnt/usb0/ABooks/` on USB or `/data/AudioBookReader/Books/` locally (optional: `/download0/ABooks/`).
+Download `PPSA99784.zip` from [Releases](https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.2.5) after a successful CI release. Extract the `PPSA99784` folder to `/data/homebrew/`, register it with your supported loader, and copy DRM-free `.m4b` files into `/mnt/usb0/ABooks/` on USB or `/data/AudioBookReader/Books/` locally (optional: `/download0/ABooks/`).
 
 USB books are enumerated by the included `abookscan.elf` helper and need an already-running elfldr on TCP port 9021. The app transfers selected USB M4B files to `/data/AudioBookReader/Cache` before decoding; originals on USB remain untouched. If the helper cannot start, local books remain usable and the app shows its USB status. Encrypted FairPlay M4B audiobooks cannot be decoded. Embedded chapters require compatible MP4 chapter metadata. Audio output requires the FFmpeg/SDL2 libraries available in the PS5-DevBridge toolchain.
 
@@ -57,7 +63,7 @@ USB books are enumerated by the included `abookscan.elf` helper and need an alre
 
 Run `.github/workflows/build-audiobook-reader.yml` via GitHub Actions; uses `PS5-DevBridge/templates/simple-calc`, native `ps5-homebrew-ui` OpenGL renderer, FFmpeg and SDL2 PacBrew dependencies. The workflow packages and validates executable, assets, metadata and release archive. Host smoke tests cover library scanning and progress persistence.
 
-**Version:** v0.2.4  
+**Version:** v0.2.5  
 **Title ID:** PPSA99784  
 **Content ID:** UP9000-PPSA99784_00-AUDIOBOOKREADER1
 
