@@ -4,8 +4,7 @@ on:
     inputs:
       run_id:
         description: Verified native PS5 build run containing the ZIP artifact
-        required: false
-        default: '38817755584'
+        required: true
   push:
     branches: [main]
     paths:
@@ -25,7 +24,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main'
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout release metadata
@@ -47,7 +46,8 @@ jobs:
           assert app['installFolder']=='PS5DreamcastX'
           version=app['version']
           assert app['releaseTag']==f'ps5-dreamcastx-v{version}'
-          run_id=os.getenv('FROM_WORKFLOW_RUN') or os.getenv('MANUAL_RUN_ID') or '38817755584'
+          run_id=os.getenv('FROM_WORKFLOW_RUN') or os.getenv('MANUAL_RUN_ID') or ''
+          assert run_id.isdigit(), 'A successful build workflow run ID must be supplied'
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:
               f.write(f'version={version}\ntag={app["releaseTag"]}\nrun_id={run_id}\n')
           print('Publishing only verified native app',app['releaseTag'],'from run',run_id)
