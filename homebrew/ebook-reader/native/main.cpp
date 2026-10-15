@@ -319,6 +319,7 @@ int main(){
   if(reader){
    const int oldPage=readerPage;
    const bool oldSinglePage=singlePage;
+   const float oldZoom=readerZoom;
    if(!inComic && (pressed&hui::pad_bits::kSquare)){
       singlePage=!singlePage;
       readerPage=ebook_layout::remap_text_page(readerPage,oldSinglePage,singlePage);
@@ -353,9 +354,19 @@ int main(){
    // comics retain the existing 'last page' shortcut.
    if(inComic && (pressed&hui::pad_bits::kSquare))readerPage=pageCount-1;
    if(oldPage!=readerPage){
-      // Retain magnification, but restart panning at the page's top edge.
+      // Retain the zoom while returning to the first line of the new page.
       readerPanX=0.f;
       readerPanY=0.f;
+   }
+   if(!inComic && singlePage && readerZoom>1.01f){
+      if(oldPage!=readerPage || oldSinglePage!=singlePage){
+         readerPanX=ebook_layout::single_page_start_x(readerZoom);
+      }else if(oldZoom!=readerZoom){
+         // Zoom around the text's starting margin rather than the centre
+         // of the entire screen.
+         readerPanX+=ebook_layout::single_page_start_x(readerZoom)-
+                      ebook_layout::single_page_start_x(oldZoom);
+      }
    }
    if(readerZoom>1.01f){
       const auto bounds=inComic
@@ -451,7 +462,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.8",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.9",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():
@@ -482,7 +493,11 @@ int main(){
        start_comic_page(currentComic,readerPage);
      }
    }
-   d.push_clip({179,199,1562,744});
+   // A physical-page scissor must be pushed before the zoom transform.
+   // Otherwise text overflows onto the dark left/right margins.
+   const auto sheetClip=(!inComic && singlePage)
+        ? ebook_layout::single_sheet_clip : ebook_layout::page_clip;
+   d.push_clip({sheetClip.x,sheetClip.y,sheetClip.w,sheetClip.h});
    // A centre-pivot scales the next page away from the top and forces the
    // user to scroll back up. Anchor EPUB text to row one, and image-based
    // comics to the top of their fitted page inside the reading viewport.
@@ -529,16 +544,15 @@ int main(){
    }
    d.pop_transform();
    d.pop_clip();
-   txt(d,font,atlas,inComic?"COMIC VIEWER - CBR/CBZ":document.isPdfTextPreview?
-      "PDF text preview - layout not preserved":"EPUB reader",
-      singlePage?515.f:228.f,231,17,inComic?gold:Color::rgb(0x8c653a));
-   if(!inComic)
-     txt(d,font,atlas,singlePage?"SINGLE PAGE":"DOUBLE PAGE",1510,231,16,
-         singlePage?gold:Color::rgb(0x8c653a),Align::right);
-   txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(totalPages),885,916,19,
-      inComic?cream:ink,Align::center);
-   txt(d,font,atlas,std::to_string((int)(readerZoom*100))+"% ZOOM",1640,916,19,
-      inComic?gold:ink,Align::right);
+   // Reading status belongs below the book, never over enlarged text.
+   const std::string pageMode=inComic?"COMIC VIEWER - CBR/CBZ":
+      (document.isPdfTextPreview?std::string("PDF TEXT PREVIEW"):std::string("EPUB READER"))+
+      std::string(singlePage?"  /  SINGLE PAGE":"  /  DOUBLE PAGE");
+   txt(d,font,atlas,pageMode,230,997,20,cream);
+   txt(d,font,atlas,std::to_string(readerPage+1)+" / "+std::to_string(totalPages),
+       960,997,20,gold,Align::center);
+   txt(d,font,atlas,std::to_string((int)(readerZoom*100))+"% ZOOM",
+       1660,997,20,gold,Align::right);
    txt(d,font,atlas,inComic?
        "L1/R1 Page   L2/R2 Zoom   D-PAD Pan   L3 Reset   SQUARE Last   O Library":
        "L1/R1 Page   L2/R2 Zoom   D-PAD Pan   SQUARE Single/Double   L3 Reset   O Library",
