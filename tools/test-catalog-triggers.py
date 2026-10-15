@@ -46,7 +46,7 @@ for app_dir in sorted(app_dirs):
         f"trigger is listed in update-version-catalog.yml"
     )
 
-for slug in ("audiobook-reader", "ps5-system-info", "crypto-tracker", "payload-launcher"):
+for slug in ("audiobook-reader", "ps5-system-info", "crypto-tracker", "payload-launcher", "ps5-dreamcastx"):
     assert slug in release_workflows, f"Expected release workflow missing: {slug}"
 
 print("PASS: TESTBUILDS catalog tracks all", len(release_workflows),
