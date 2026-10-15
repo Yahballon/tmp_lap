@@ -163,8 +163,8 @@ bool extract(const Book& book,size_t index,std::string& encoded,std::string& err
    const auto starts=[&](const char* signature,size_t n){
      return encoded.size()>=n && std::memcmp(encoded.data(),signature,n)==0;
    };
-   const bool valid=starts("\\xFF\\xD8",2) ||
-      starts("\\x89PNG\\r\\n\\x1a\\n",8) ||
+   const bool valid=starts("\xFF\xD8",2) ||
+      starts("\x89PNG\r\n\x1a\n",8) ||
       starts("GIF87a",6) || starts("GIF89a",6);
    if(!valid){
      error="CBR page is not a decoded JPG, PNG or GIF image";
