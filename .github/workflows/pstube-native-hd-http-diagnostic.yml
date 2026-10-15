@@ -5,6 +5,7 @@ on:
       - 'homebrew/pstube/native/range_media.cpp'
       - 'homebrew/pstube/native/range_media.hpp'
       - 'homebrew/pstube/tests/native_hd_range_probe_test.cpp'
+      - 'homebrew/pstube/tests/probe_hd_http.py'
       - '.github/workflows/pstube-native-hd-http-diagnostic.yml'
 permissions:
   contents: read
