@@ -47,6 +47,23 @@ inline float top_alignment(int tex_w,int tex_h,float zoom){
 struct PanBounds {float min_x=0.f,max_x=0.f,min_y=0.f,max_y=0.f;};
 constexpr Rectangle page_clip{179.f,199.f,1562.f,744.f};
 constexpr Rectangle text_page_bounds{218.f,264.f,1484.f,650.f};
+constexpr Rectangle single_text_page_bounds{525.f,264.f,870.f,650.f};
+// Legacy files store lines independent of the reader's display mode:
+// a spread shows 34 text lines (2 x 17), a single page shows 17.
+constexpr int text_rows=17;
+inline int text_lines_per_view(bool single){return single?text_rows:text_rows*2;}
+inline int text_page_count(size_t lines,bool single){
+ const size_t per=(size_t)text_lines_per_view(single);
+ return (int)std::max<size_t>(1,lines/per+(lines%per!=0));
+}
+inline size_t first_text_line(int page,bool single){
+ return (size_t)std::max(0,page)*(size_t)text_lines_per_view(single);
+}
+inline int remap_text_page(int page,bool was_single,bool to_single){
+ const size_t line=first_text_line(page,was_single);
+ return (int)(line/(size_t)text_lines_per_view(to_single));
+}
+
 inline Rectangle comic_image_bounds(int tex_w,int tex_h){
  if(tex_w<=0||tex_h<=0)return {comic_x,comic_y,comic_w,comic_h};
  const float scale=std::min(comic_w/tex_w,comic_h/tex_h);
@@ -82,8 +99,9 @@ inline PanBounds comic_pan_bounds(int w,int h,float zoom){
  const float shift=top_alignment(w,h,zoom);
  return calculate_pan(content,zoom,960.f,comic_y,shift);
 }
-inline PanBounds text_pan_bounds(float zoom){
- return calculate_pan(text_page_bounds,zoom,960.f,264.f,0.f);
+inline PanBounds text_pan_bounds(float zoom,bool single=false){
+ return calculate_pan(single?single_text_page_bounds:text_page_bounds,
+                      zoom,960.f,264.f,0.f);
 }
 inline float clamp_x(float pan,const PanBounds& bounds){
  return std::clamp(pan,bounds.min_x,bounds.max_x);
