@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "c15206410725d27d5c5cf7e930b3341bf87f5ef5661063746c0ace0bb7b352bf",
+  "version": "fb8572212734e78618be8338d5db39fe4c818af26a18d9772775790bc3d3e8be",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 8,
+  "app_count": 9,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -86,14 +86,27 @@
       "name": "PSTUBE",
       "slug": "pstube",
       "title_id": "PPSA99762",
-      "version": "0.7.0",
-      "tag": "pstube-v0.7.0",
+      "version": "0.7.1",
+      "tag": "pstube-v0.7.1",
       "zip_name": "PPSA99762.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.7.0/PPSA99762.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/pstube-v0.7.1/PPSA99762.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.1",
       "source": "homebrew/pstube",
-      "size_bytes": 20458691,
-      "published_at": "2026-10-15T09:39:46Z"
+      "size_bytes": 20459779,
+      "published_at": "2026-10-15T10:06:38Z"
+    },
+    {
+      "name": "PS5 System Info",
+      "slug": "ps5-system-info",
+      "title_id": "PPSA99786",
+      "version": "0.1.0",
+      "tag": "ps5-system-info-v0.1.0",
+      "zip_name": "PPSA99786.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-system-info-v0.1.0/PPSA99786.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-system-info-v0.1.0",
+      "source": "homebrew/ps5-system-info",
+      "size_bytes": 6064978,
+      "published_at": "2026-10-15T09:58:11Z"
     },
     {
       "name": "Payload LauncherX",
