@@ -657,11 +657,12 @@ bool Service::load_more(){
    if(!w->token.empty())svc.continuation_=next;
    else if(ok)svc.providerPage_=w->page;
    // Do not spin repeatedly on a failing or duplicate page.
-   svc.state_.hasMore=ok&&newCount>0&&svc.state_.videos.size()<1800&&
+   svc.state_.hasMore=ok&&svc.state_.videos.size()<1800&&
      (!w->token.empty()?!next.empty()&&next!=w->token:added.size()>=8);
    svc.state_.status=!ok?"Couldn't load the next page: "+error:
      newCount?std::to_string(svc.state_.videos.size())+" videos - scroll for more":
-              "End of available search results";
+      (svc.state_.hasMore?"Page contained duplicates - loading more available":
+         "End of available search results");
    svc.state_.loadingMore=false;
   }
   svc.busy_.store(false,std::memory_order_release);return nullptr;
