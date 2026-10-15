@@ -2,7 +2,7 @@
 
 **Dreamcast emulation on PS5 with a PS5GBAX-inspired animated cover-flow shelf.**
 
-Version **0.1.2** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.1.3** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -23,7 +23,7 @@ frontend and title metadata, bootstraps PS5_Vulkan/RADV and SDK dependencies,
 then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the workflow uploads `PPSA99765.zip`
-to the independent tag `ps5-dreamcastx-v0.1.2`. PR builds create only
+to the independent tag `ps5-dreamcastx-v0.1.3`. PR builds create only
 test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
@@ -133,3 +133,7 @@ original PS5GBAX/frontend reference is GPL-3.0-or-later. The new shelf overlay
 is GPL-3.0-or-later; resulting combined distributions must respect all original
 copyright and license notices. No commercial game assets or proprietary BIOS
 files are included.
+
+### DVD-style cases (v0.1.3)
+
+The game shelf now uses bounded flat DVD-style cases with narrow spines instead of perspective quads/floor shadows. Cover images preserve their original aspect ratio without cropping (square Dreamcast artwork is centered with a matching case matte). Existing USB and /data save paths are unchanged.
