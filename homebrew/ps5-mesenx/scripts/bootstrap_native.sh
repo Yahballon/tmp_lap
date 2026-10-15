@@ -22,7 +22,7 @@ if [[ ! -d "$sdk_checkout/.git" ]]; then
   git clone -q --depth=1 --branch sdk-0.2.0 \
     https://github.com/blackbearreloaded/ps5-opengl.git "$sdk_checkout"
 fi
-test "$(git -C "$sdk_checkout" rev-parse HEAD)" = bba419f0366528df9f16c73f44c661f7e1985cb7
+test "$(git -C "$sdk_checkout" rev-parse HEAD)" = 81772162408ff21a6876d4d9dde396bf6275f778
 (cd "$sdk_checkout" && python3 tools/fetch-sources.py)
 export PS5_OPENGL_SDK="$sdk_checkout"
 test -d "$PS5_OPENGL_SDK/third_party/opengnm-psbc"
