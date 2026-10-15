@@ -30,7 +30,7 @@ bool parse_url(const std::string& url,Url& out){
  return out.path.find('\r')==std::string::npos&&out.path.find('\n')==std::string::npos&&out.path.find('#')==std::string::npos;
 }
 bool allowed_host(const std::string& host){
- static const char* providers[]={"googlevideo.com","ytimg.com","yewtu.be","inv.nadeko.net","invidious.nerdvpn.de",
+ static const char* providers[]={"googlevideo.com","ytimg.com","img.youtube.com","yewtu.be","inv.nadeko.net","invidious.nerdvpn.de",
    "yt.chocolatemoo53.com","invidious.tiekoetter.com","inv.tux.pizza","invidious.private.coffee"};
  for(const char* p:providers){std::string d(p);if(host==d||(host.size()>d.size()&&host.compare(host.size()-d.size(),d.size(),d)==0&&host[host.size()-d.size()-1]=='.'))return true;}
  return false;
@@ -63,7 +63,7 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
  bool success=false;FILE* file=nullptr;
  do {
   if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){err="Media TLS certificate rejected";break;}
-  std::string req="GET "+url.path+" HTTP/1.1\r\nHost: "+url.host+"\r\nUser-Agent: PSTUBE/0.2\r\nAccept: */*\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+  std::string req="GET "+url.path+" HTTP/1.1\r\nHost: "+url.host+"\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: image/jpeg,video/mp4,application/octet-stream,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
   bool send_ok=true;
   for(size_t off=0;off<req.size();){int n=SSL_write(ssl,req.data()+off,(int)(req.size()-off));if(n<=0){send_ok=false;break;}off+=(size_t)n;}
   if(!send_ok){err="Media request failed";break;}
