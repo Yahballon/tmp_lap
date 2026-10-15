@@ -36,6 +36,14 @@ void tile(DrawList& d,float x,float y,float w,float h,bool sel){
 const char* pages[]={"Home","Search","Trending","Favorites","Downloads","History","Settings"};
 const char* symbols[]={"H","?","^","*","v","O","#"};
 const std::string keys="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_."; // 40 keys
+std::string clock_time(double seconds){
+ const int total=std::max(0,(int)seconds);
+ const int hour=total/3600,min=(total/60)%60,sec=total%60;
+ char buf[32];
+ if(hour)std::snprintf(buf,sizeof(buf),"%d:%02d:%02d",hour,min,sec);
+ else std::snprintf(buf,sizeof(buf),"%02d:%02d",min,sec);
+ return buf;
+}
 constexpr int kGridVisible=6;
 int grid_offset(int selected,int count){
  if(count<=kGridVisible)return 0;
@@ -44,8 +52,9 @@ int grid_offset(int selected,int count){
 struct State {
  int page=0,focus=0,nav=0,selected=0,offset=0,kbd=0;
  bool keyboard=false,inspect=false,playing=false,playerStarted=false,streamOpenFailed=false;
+ bool fullscreen=false;int playerHudFrames=0;
  std::string streamErrorText;
- std::string query="PS5 gaming",notice="Search videos using Triangle or open Search.";
+ std::string query="PS5 JAILBREAK NEWS",notice="Search videos using Triangle or open Search.";
  pstube::Video active;
  std::vector<std::string> history;
 };
@@ -115,7 +124,7 @@ int main(){
  pstube::Service service;pstube::MediaPlayer player;State s;unsigned prev=0,stick_prev=0;int repeat=0;
  unsigned video_texture=0;int texture_w=0,texture_h=0;uint64_t last_frame=0;
  std::map<std::string,unsigned> thumb_textures;
- service.trending();
+ service.search(s.query);
  for(;;){
   std::array<hui::PadSample,64> samples{};size_t n=pad.read(samples);
   unsigned pressed=0,now=prev;
@@ -137,8 +146,28 @@ int main(){
   s.selected=std::clamp(s.selected,0,std::max(0,(int)videos.size()-1));
   s.offset=grid_offset(s.selected,(int)videos.size());
   if(s.playing){
+   // Options toggles true edge-to-edge video. Directional and shoulder inputs
+   // queue relative seeks; decoding is performed off the rendering thread.
+   if(pressed&hui::pad_bits::kOptions){
+    s.fullscreen=!s.fullscreen;s.playerHudFrames=180;
+   }
+   int seekSeconds=0;
+   if(pressed&hui::pad_bits::kLeft)seekSeconds-=10;
+   if(pressed&hui::pad_bits::kRight)seekSeconds+=10;
+   if(pressed&hui::pad_bits::kL1)seekSeconds-=30;
+   if(pressed&hui::pad_bits::kR1)seekSeconds+=30;
+   if(seekSeconds){
+    if(player.seekRelative(seekSeconds)){
+     s.playerHudFrames=180;
+     s.notice=seekSeconds>0?"Fast forward "+std::to_string(seekSeconds)+"s":
+                       "Rewind "+std::to_string(-seekSeconds)+"s";
+    }else s.notice="Wait for video playback before seeking";
+   }
+   if(pressed&hui::pad_bits::kCross || pressed&hui::pad_bits::kTriangle||
+      pressed&hui::pad_bits::kSquare)s.playerHudFrames=180;
+   if(s.playerHudFrames>0)--s.playerHudFrames;
    if(pressed&hui::pad_bits::kCircle){
-    player.close();service.cancel_stream();s.playing=false;s.playerStarted=false;s.streamOpenFailed=false;last_frame=0;
+    player.close();service.cancel_stream();s.playing=false;s.fullscreen=false;s.playerStarted=false;s.streamOpenFailed=false;last_frame=0;
     if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}
    }
    if((pressed&hui::pad_bits::kCross)&&s.playerStarted){
@@ -179,7 +208,7 @@ int main(){
     else s.notice="Download is already active or the video ID is invalid";
    }
    if(pressed&hui::pad_bits::kCross){
-    s.inspect=false;s.playing=true;s.playerStarted=false;s.streamOpenFailed=false;
+    s.inspect=false;s.playing=true;s.fullscreen=false;s.playerHudFrames=180;s.playerStarted=false;s.streamOpenFailed=false;
     const std::string path=service.local_path(s.active.id);
     if(!path.empty()){s.playerStarted=player.open(path);}
     else service.start_stream(s.active);
@@ -194,7 +223,7 @@ int main(){
     if(access(file.c_str(),R_OK)!=0)file="/data/homebrew/PPSA99762/assets/videos/pstube-selftest.mp4";
     s.active=pstube::Video{"SELFTEST001","Playback and Audio Self-Test","PSTUBE"};
     s.playerStarted=player.open(file);
-    s.playing=s.playerStarted;
+    s.playing=s.playerStarted;s.fullscreen=false;s.playerHudFrames=180;
     if(video_texture){glDeleteTextures(1,&video_texture);video_texture=0;}last_frame=0;
     if(!s.playerStarted)s.notice="Self-test clip missing; check installed assets";
    }
@@ -220,7 +249,7 @@ int main(){
       if(!file.empty()){
        s.active=pstube::Video{snapshot.jobs[(size_t)std::clamp(s.selected,0,(int)snapshot.jobs.size()-1)].id,
          snapshot.jobs[(size_t)std::clamp(s.selected,0,(int)snapshot.jobs.size()-1)].title,"Downloaded"};
-       s.playerStarted=player.open(file);s.playing=s.playerStarted;
+       s.playerStarted=player.open(file);s.playing=s.playerStarted;s.fullscreen=false;s.playerHudFrames=180;
        if(!s.playerStarted)s.notice="Media decoder could not open the file";
       }else s.notice="Download has not completed";
      }else if(s.page==1&&videos.empty())s.keyboard=true;
@@ -344,12 +373,14 @@ int main(){
   if(s.keyboard)keyboard(d,font,atlas,s);
   if(s.playing){
    const auto st=player.snapshot();
-   d.rounded_rect({0,0,1920,1080},0,Color::rgb(0x020712));
-   d.gradient_rect({0,0,1920,110},0,Color::rgb(0x07172e),Color::rgb(0x020712));
-   text(d,font,atlas,"PSTUBE",52,75,38,white);
-   text(d,font,atlas,"NOW PLAYING",300,73,24,blue);
-   text(d,font,atlas,cut(font,s.active.title,1120,26),1860,72,26,white,Align::right);
-   d.bordered_rect({95,135,1730,810},22,Color::rgb(0x040e1f),2,edge);
+   d.rounded_rect({0,0,1920,1080},0,Color::rgb(0x000000));
+   if(!s.fullscreen){
+    d.gradient_rect({0,0,1920,110},0,Color::rgb(0x07172e),Color::rgb(0x020712));
+    text(d,font,atlas,"PSTUBE",52,75,38,white);
+    text(d,font,atlas,"NOW PLAYING",300,73,24,blue);
+    text(d,font,atlas,cut(font,s.active.title,1120,26),1860,72,26,white,Align::right);
+    d.bordered_rect({95,135,1730,810},22,Color::rgb(0x040e1f),2,edge);
+   }
    std::vector<unsigned char> rgba;int w=0,h=0;
    if(s.playerStarted&&player.pull(rgba,w,h,last_frame)){
     if(w>0&&h>0&&(w!=texture_w||h!=texture_h||video_texture==0)){
@@ -362,7 +393,9 @@ int main(){
     }
    }
    if(s.playerStarted&&video_texture){
-    const float scale=std::min(1700.f/(float)texture_w,780.f/(float)texture_h);
+    const float scale=s.fullscreen?
+      std::min(1920.f/(float)texture_w,1080.f/(float)texture_h):
+      std::min(1700.f/(float)texture_w,780.f/(float)texture_h);
     const float fw=texture_w*scale,fh=texture_h*scale;
     d.image(video_texture,{(1920-fw)*.5f,540-fh*.5f,fw,fh},kFullUv,white);
    }else{
@@ -385,10 +418,25 @@ int main(){
       "Buffering...  SQUARE Save offline  CIRCLE Back",960,902,23,dim,Align::center);
    }
    if(s.playerStarted&&st.ended)text(d,font,atlas,cut(font,st.message,1200,27),960,900,27,dim,Align::center);
-   d.rounded_rect({0,980,1920,100},0,Color::rgb(0x06152b));
-   text(d,font,atlas,cut(font,s.active.title,1200,25),50,1035,24,white);
-   text(d,font,atlas,s.playerStarted?(st.paused?"X Resume   TRIANGLE Favourite   CIRCLE Back":
-    "X Pause   TRIANGLE Favourite   CIRCLE Back"):"Connecting stream   CIRCLE Back",1870,1035,21,dim,Align::right);
+   const bool showHud=!s.fullscreen||s.playerHudFrames>0||st.paused||st.ended;
+   if(showHud){
+    if(s.fullscreen)d.rounded_rect({0,924,1920,156},0,Color::rgb(0x051124,.87f));
+    else d.rounded_rect({0,946,1920,134},0,Color::rgb(0x06152b));
+    const float y=s.fullscreen?990.f:982.f;
+    const double duration=st.duration;
+    if(duration>0){
+     const float progress=(float)std::clamp(st.seconds/duration,0.0,1.0);
+     d.rounded_rect({58,y,1804,8},4,edge);
+     if(progress>0)d.rounded_rect({58,y,1804.f*progress,8},4,blue);
+     text(d,font,atlas,clock_time(st.seconds)+" / "+clock_time(duration),60,y+37,21,white);
+    }else text(d,font,atlas,clock_time(st.seconds)+" / --:--",60,y+37,21,white);
+    text(d,font,atlas,cut(font,s.active.title,1100,23),310,y+37,23,white);
+    const char* instructions="LEFT/RIGHT +/-10s    L1/R1 +/-30s    OPTIONS Fullscreen    X Pause    CIRCLE Back";
+    text(d,font,atlas,instructions,1860,s.fullscreen?1060.f:1060.f,20,dim,Align::right);
+    if(st.seeking)text(d,font,atlas,"Seeking...",960,915,25,blue,Align::center);
+    else if(st.message.find("Seeking unavailable")!=std::string::npos)
+     text(d,font,atlas,cut(font,st.message,1450,25),960,915,25,white,Align::center);
+   }
   }
   if(!s.playing)write_help(d,font,atlas,s);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
