@@ -312,7 +312,7 @@ std::vector<std::string> dirs(){return {ebook_log::books_directory(),"/app0/asse
 }
 int main(){
  const bool logAvailable=ebook_log::prepare();
- ebook_log::write("BOOT","Ebook Reader v0.2.3 started; Title ID PPSA99741");
+ ebook_log::write("BOOT","Ebook Reader v0.2.5 started; Title ID PPSA99741");
  ebook_log::write("DATA","Local Books: "+ebook_log::books_directory()+
                                 " Log: "+ebook_log::filename());
  hui::ps5::Display display;if(!display.open())hui::sys::park();
@@ -589,7 +589,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.2.4",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.2.5",1873,57,22,gold,Align::right);
   if(reader){
    const std::string title=inComic?ebook::clean_title(currentComic.path):document.title;
    const int totalPages=inComic?(int)currentComic.pageCount():
@@ -724,17 +724,20 @@ int main(){
       txt(d,font,atlas,"No accessible books in this collection.",960,481,29,muted,Align::center);
       txt(d,font,atlas,"USB bridge: "+cut(usbCatalog.message,70),960,530,22,gold,Align::center);
    }
-   if(count>0 && !g_coverBusy.load() && ++coverTick%22==0){
+   if(count>0 && !g_openBusy.load() && !g_coverBusy.load() && ++coverTick%22==0){
      const int perPage=list?9:ebook_layout::per_page;
      const int start=(selected/perPage)*perPage,stop=std::min(count,start+perPage);
-     for(int i=start;i<stop;i++){
-       const auto& b=books[visible[i]];
-       if((b.format!="EPUB"&&b.format!="CBR"&&b.format!="CBZ") || covers.find(b.path)!=covers.end())continue;
-       // Both local and USB books use the same bounded EPUB cover extractor.
-       if(start_cover(b))break;
-       // Skip only this one unsupported/remote cover, never hold the worker
-       // busy flag. Other EPUB covers can still load on subsequent frames.
-       covers[b.path]=TextureImage{0,0,0,true};
+     bool started=false;
+     // Always show inexpensive EPUB covers before downloading large USB CBRs.
+     for(int phase=0;phase<2 && !started;phase++){
+       for(int i=start;i<stop;i++){
+         const auto& b=books[visible[i]];
+         if((phase==0 && b.format!="EPUB") ||
+            (phase==1 && b.format!="CBR" && b.format!="CBZ") ||
+            covers.find(b.path)!=covers.end())continue;
+         if(start_cover(b)){started=true;break;}
+         covers[b.path]=TextureImage{0,0,0,true};
+       }
      }
    }
    if(count>0){
