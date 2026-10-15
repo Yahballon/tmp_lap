@@ -18,6 +18,7 @@ public:
  bool open(const std::string& path);
  bool openStream(const std::string& url);
  bool openAdaptiveStream(const std::string& videoUrl,const std::string& audioUrl);
+ bool openAdaptiveFiles(const std::string& videoPath,const std::string& audioPath);
  void close();
  void pause();
  // Request a relative seek; the FFmpeg worker performs all decoder operations.
