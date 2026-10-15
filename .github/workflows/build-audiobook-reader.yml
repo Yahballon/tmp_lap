@@ -148,6 +148,16 @@ jobs:
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/audiobook-reader/native/*.cpp homebrew/audiobook-reader/native/*.hpp app/src/
+          # Build the package version into the copied source, leaving runtime logic untouched.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          version=json.loads(Path('homebrew/audiobook-reader/app.json').read_text())['version']
+          path=Path('app/src/main.cpp')
+          source=path.read_text()
+          source=source.replace('v0.2.4',f'v{version}')
+          path.write_text(source)
+          PY
           # Pinned stb decoder: same source revision used by the PS5 Ebook Reader.
           curl --fail --location --silent --show-error \
             https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h \
