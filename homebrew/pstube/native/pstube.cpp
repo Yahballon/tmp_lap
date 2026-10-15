@@ -58,12 +58,18 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  if(!ssl){close(fd);SSL_CTX_free(ctx);error="TLS allocation failed";return false;}
  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host.c_str());SSL_set1_host(ssl,host.c_str());
  if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){error="TLS verification failed";SSL_free(ssl);close(fd);SSL_CTX_free(ctx);return false;}
+ const bool vrRequest=postBody.find("\"clientName\":\"ANDROID_VR\"")!=std::string::npos;
+ const char* ua=vrRequest?
+   "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip":
+   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
  std::string request=(postBody.empty()?"GET ":"POST ")+path+
  " HTTP/1.1\r\nHost: "+host+
- "\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: text/html,application/json;q=0.9,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
+ "\r\nUser-Agent: "+ua+"\r\nAccept: text/html,application/json;q=0.9,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
  if(!postBody.empty()){
   request+="Content-Type: application/json\r\nOrigin: https://www.youtube.com\r\nContent-Length: "+std::to_string(postBody.size())+"\r\n";
-  if(postBody.find("\"clientName\":\"ANDROID\"")!=std::string::npos){
+  if(vrRequest){
+   request+="X-YouTube-Client-Name: 28\r\nX-YouTube-Client-Version: 1.65.10\r\n";
+  }else if(postBody.find("\"clientName\":\"ANDROID\"")!=std::string::npos){
    request+="X-YouTube-Client-Name: 3\r\nX-YouTube-Client-Version: 21.26.364\r\n";
   }else if(postBody.find("\"clientName\":\"WEB\"")!=std::string::npos){
    // Search continuation requires the real WEB client version from page config.
@@ -854,19 +860,45 @@ bool Service::start_stream(const Video& video){
   const int preferred=svc.quality();
   // Quality selection is performed from one API response so that separate
   // adaptive audio/video tracks share the same media timeline.
+  // The legacy ANDROID response lists HD formats but supplies no URLs for
+  // them (SABR-only). ANDROID_VR 1.65.10 currently offers HTTPS AVC/AAC
+  // adaptive tracks on eligible public videos. Try it before SD fallback.
   std::string payload;
-  const std::string agent="com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip";
-  const std::string body=
-   "{\"videoId\":\""+w->id+"\",\"context\":{\"client\":{\"clientName\":\"ANDROID\","
-   "\"clientVersion\":\"21.26.364\",\"hl\":\"en\",\"gl\":\"US\","
-   "\"androidSdkVersion\":30,\"osName\":\"Android\",\"osVersion\":\"11\","
-   "\"userAgent\":\""+agent+"\"}},"
-   "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
-  if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",payload,error,body)){
-   const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
-   if(status=="OK"){
-    if(select_stream_formats(payload,preferred,chosen,error))url=chosen.videoUrl;
-   }else error="Android player: "+(status.empty()?"invalid response":status);
+  if(preferred!=360){
+   const std::string agent=
+    "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip";
+   const std::string vr=
+    "{\"videoId\":\""+w->id+"\",\"context\":{\"client\":{\"clientName\":\"ANDROID_VR\","
+    "\"clientVersion\":\"1.65.10\",\"hl\":\"en\",\"gl\":\"US\","
+    "\"androidSdkVersion\":32,\"osName\":\"Android\",\"osVersion\":\"12L\","
+    "\"deviceMake\":\"Oculus\",\"deviceModel\":\"Quest 3\","
+    "\"userAgent\":\""+agent+"\"}},"
+    "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
+   if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",payload,error,vr)){
+    const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
+    if(status=="OK"&&select_stream_formats(payload,preferred,chosen,error)&&chosen.adaptive)
+     url=chosen.videoUrl;
+    else if(status!="OK")error="HD player: "+(status.empty()?"invalid response":status);
+    else if(!chosen.adaptive){chosen={};error="HD client returned no separate video/audio pair";}
+   }
+  }
+  if(url.empty()){
+   const std::string vrError=error;
+   payload.clear();chosen={};
+   const std::string agent="com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip";
+   const std::string android=
+    "{\"videoId\":\""+w->id+"\",\"context\":{\"client\":{\"clientName\":\"ANDROID\","
+    "\"clientVersion\":\"21.26.364\",\"hl\":\"en\",\"gl\":\"US\","
+    "\"androidSdkVersion\":30,\"osName\":\"Android\",\"osVersion\":\"11\","
+    "\"userAgent\":\""+agent+"\"}},"
+    "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
+   if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",payload,error,android)){
+    const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
+    if(status=="OK"){
+     if(select_stream_formats(payload,preferred,chosen,error))url=chosen.videoUrl;
+    }else error="Android player: "+(status.empty()?"invalid response":status);
+   }
+   if(url.empty()&&!vrError.empty())error=vrError+"; Android: "+error;
   }
   if(url.empty()){
    const std::string androidError=error;
