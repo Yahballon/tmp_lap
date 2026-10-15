@@ -59,7 +59,7 @@ jobs:
               return struct.pack('>I4s',len(data)+8,name.encode())+data
           image=Path('/tmp/audio-cover-fixture.jpg').read_bytes()
           data=box('data',struct.pack('>II',13,0)+image)
-          fixture=box('moov',box('udta',box('meta',b'\\0'*4+
+          fixture=box('moov',box('udta',box('meta',bytes(4)+
               box('ilst',box('covr',data)))))
           Path('/tmp/itunes-covr-box.m4b').write_bytes(fixture)
           PY
