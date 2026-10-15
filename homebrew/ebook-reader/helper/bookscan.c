@@ -63,7 +63,7 @@ static void add_books(const char *dir,const char *rel,unsigned depth,unsigned *b
   struct stat st;
   if(lstat(sub,&st)!=0)continue; // never follow a symlink outside Books
   if(S_ISDIR(st.st_mode)&&depth<3){add_books(sub,relative,depth+1,budget);continue;}
-  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||(uint64_t)st.st_size>MAX_FILE)continue;
+  if(!S_ISREG(st.st_mode)||!is_book(e->d_name)||st.st_size<1||(uint64_t)(uint64_t)st.st_size>MAX_FILE)continue;
   strncpy(items[item_count].relative,relative,MAX_PATH-1);
   items[item_count].relative[MAX_PATH-1]='\0';
   items[item_count].size=st.st_size;
@@ -132,7 +132,7 @@ static void fetch(int client,const char *name,uint64_t offset){
 #ifdef EBOOK_USB_TEST_DROP_ONCE
    // Simulate a dropped connection in host integration tests. Retries
    // using a positive offset must still deliver the rest of the file.
-   if(start==0 && total>=4U*1024U*1024U)break;
+   if(offset==0 && total>=4U*1024U*1024U)break;
 #endif
   }
  }
