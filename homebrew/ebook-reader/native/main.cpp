@@ -175,7 +175,7 @@ int main(){
   d.line(39,34,55,44,4,gold);d.line(55,44,72,34,4,gold);
   d.line(39,34,39,59,3,gold);d.line(72,34,72,59,3,gold);
   txt(d,font,atlas,"EBOOK READER by YAHBALLON",110,57,30,cream);
-  txt(d,font,atlas,"v0.1.3",1873,57,22,gold,Align::right);
+  txt(d,font,atlas,"v0.1.4",1873,57,22,gold,Align::right);
   if(reader){
    txt(d,font,atlas,cut(document.title,62),960,141,28,cream,Align::center);
    d.shadow({167,184,1586,758},19,20,Color::rgb(0x050201,.6f));
