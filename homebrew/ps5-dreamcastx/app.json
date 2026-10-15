@@ -1,0 +1,12 @@
+{
+  "name": "PS5DreamcastX",
+  "slug": "ps5-dreamcastx",
+  "version": "0.1.0",
+  "titleId": "PPSA99765",
+  "contentId": "UP9000-PPSA99765_00-PS5DREAMCASTX001",
+  "contentVersion": "01.000.000",
+  "releaseTag": "ps5-dreamcastx-v0.1.0",
+  "core": "Press5elect/PSFlycast",
+  "frontend": "PS5GBAX-inspired cover flow",
+  "brand": "YAHBALLON"
+}

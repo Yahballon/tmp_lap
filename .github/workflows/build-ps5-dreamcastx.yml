@@ -1,0 +1,101 @@
+name: Build PS5DreamcastX (native Flycast)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/ps5-dreamcastx/**'
+      - '.github/workflows/build-ps5-dreamcastx.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-dreamcastx/**'
+      - '.github/workflows/build-ps5-dreamcastx.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ps5-dreamcastx-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native-ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    defaults:
+      run:
+        working-directory: homebrew/ps5-dreamcastx
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 cross-compiler and Mesa build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git ca-certificates wget curl tar unzip zip rsync \
+            clang-18 lld-18 llvm-18 llvm-18-dev llvm-18-tools libclang-18-dev \
+            cmake ninja-build make pkg-config meson glslang-tools \
+            python3 python3-dev python3-numpy python3-pil python3-mako \
+            python3-markupsafe libzstd-dev libssl-dev zstd bison flex \
+            libzip-dev libclc-18 libgl1-mesa-dev
+          if apt-cache show llvm-spirv-18 >/dev/null 2>&1; then
+            sudo apt-get install -y llvm-spirv-18
+          fi
+          echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+      - name: Syntax-check the PS5GBAX-inspired cover-flow renderer
+        run: |
+          clang++-18 -std=c++20 -Wall -Wextra -Wno-unused-parameter \
+            -fsyntax-only tests/compile_shelf.cpp
+          python3 -m py_compile scripts/prepare.py scripts/verify.py assets/generate_icon.py
+      - name: Fetch pinned native Flycast and integrate game shelf
+        run: |
+          python3 scripts/prepare.py
+          python3 scripts/verify.py
+      - name: Build pinned PS5 Vulkan RADV and PS5 Payload SDK
+        timeout-minutes: 315
+        run: bash scripts/bootstrap-ps5.sh
+      - name: Native PS5 compile and signed ZIP packaging
+        timeout-minutes: 30
+        env:
+          PS5_VULKAN_DIR: ${{ github.workspace }}/homebrew/ps5-dreamcastx/build/PS5_Vulkan
+          PS5_PAYLOAD_SDK: ${{ github.workspace }}/homebrew/ps5-dreamcastx/build/sdk-dreamcastx/ps5-payload-sdk
+          LIBSMB2_DIR: ${{ github.workspace }}/homebrew/ps5-dreamcastx/build/libsmb2
+          JOBS: '4'
+        run: bash scripts/build.sh
+      - name: Verify app package
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, zipfile, struct
+          zip_path=Path('dist/PPSA99765.zip')
+          assert zip_path.is_file() and zip_path.stat().st_size>100000
+          with zipfile.ZipFile(zip_path) as z:
+              assert z.testzip() is None
+              files=set(z.namelist())
+              for name in ('eboot.bin','sce_sys/param.json',
+                           'sce_sys/icon0.png','sce_module/libc.prx'):
+                  assert 'PPSA99765/'+name in files, name
+              assert z.read('PPSA99765/eboot.bin')[:4] == struct.pack('<I',0x1D3D154F)
+              param=json.loads(z.read('PPSA99765/sce_sys/param.json'))
+              assert param['titleId']=='PPSA99765'
+          print('PASS: signed PS5 homebrew package PPSA99765.zip')
+          PY
+      - name: Upload PS5 test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PS5DreamcastX-v0.1.0
+          path: homebrew/ps5-dreamcastx/dist/PPSA99765.zip
+          if-no-files-found: error
+      - name: Publish versioned release after successful main build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view ps5-dreamcastx-v0.1.0 -R "${{ github.repository }}" >/dev/null 2>&1; then
+            echo 'This app version has already been published.'
+            exit 0
+          fi
+          gh release create ps5-dreamcastx-v0.1.0 dist/PPSA99765.zip \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title 'PS5DreamcastX v0.1.0' \
+            --notes-file RELEASE_NOTES.md
