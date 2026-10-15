@@ -288,14 +288,60 @@ std::string youtube_run(std::string_view obj){
  const auto item=runs.substr(p,value_end(runs,p)-p);
  return decode(field(item,"text"));
 }
+
+std::string youtube_config(std::string_view data,const char* name){
+ const std::string key="\""+std::string(name)+"\":";
+ auto p=data.find(key);
+ if(p==std::string_view::npos)return {};
+ p+=key.size();skip(data,p);
+ if(p>=data.size()||data[p]!='"')return {};
+ auto end=value_end(data,p);
+ if(end<=p||end-p>2000)return {};
+ return decode(data.substr(p,end-p),1000);
+}
+std::string youtube_continuation(std::string_view page){
+ // Search continuation endpoints are embedded in continuationItemRenderer, not
+ // the first unrelated "token" in global bootstrap/configuration data.
+ std::string result;
+ constexpr std::string_view marker="\"continuationItemRenderer\":{";
+ size_t pos=0;
+ while((pos=page.find(marker,pos))!=std::string_view::npos){
+  const size_t start=pos+marker.size()-1;
+  const size_t end=value_end(page,start);
+  if(end<=start||end-start>25000){pos+=marker.size();continue;}
+  auto item=page.substr(start,end-start);
+  auto endpoint=field(item,"continuationEndpoint");
+  auto command=field(endpoint,"continuationCommand");
+  std::string token=decode(field(command,"token"),5000);
+  if(!token.empty())result=std::move(token);
+  pos=end;
+ }
+ if(!result.empty())return result;
+ // Older response shape.
+ pos=page.find("\"nextContinuationData\":{");
+ if(pos==std::string_view::npos)return {};
+ pos+=std::string_view("\"nextContinuationData\":{").size()-1;
+ const auto end=value_end(page,pos);
+ return end>pos?decode(field(page.substr(pos,end-pos),"continuation"),5000):std::string{};
+}
+std::string youtube_quote(std::string_view input){
+ const char hex[]="0123456789abcdef";
+ std::string out="\"";
+ for(unsigned char c:input){
+  if(c=='"'||c=='\\'){out+='\\';out+=(char)c;}
+  else if(c<32){out+="\\u00";out+=hex[c>>4];out+=hex[c&15];}
+  else out+=(char)c;
+ }
+ out+='"';return out;
+}
 std::vector<Video> parse_youtube_html(const std::string& html){
  std::vector<Video> videos;
  if(html.size()>kMaxJson)return videos;
  // The public, logged-out YouTube search page contains the renderer JSON.
  // Never interpret unrelated script data as a video: validate 11-char IDs.
  constexpr std::string_view needle="\"videoRenderer\":{";
- size_t from=html.find("ytInitialData");
- if(from==std::string::npos)return videos;
+ size_t from=0;
+ if(html.find("\"videoRenderer\":{")==std::string::npos)return videos;
  while(videos.size()<50){
   const size_t hit=html.find(needle,from);
   if(hit==std::string::npos)break;
@@ -441,13 +487,22 @@ bool Service::search(const std::string& query){
   const bool youtubeOk=https("www.youtube.com",
      "/results?search_query="+escape_url(directQuery),youtubeHtml,youtubeError);
   std::vector<Video> directVideos=youtubeOk?parse_youtube_html(youtubeHtml):std::vector<Video>{};
+  const std::string nextToken=youtubeOk?youtube_continuation(youtubeHtml):std::string{};
+  const std::string clientVersion=youtubeOk?youtube_config(youtubeHtml,"INNERTUBE_CONTEXT_CLIENT_VERSION"):std::string{};
+  const std::string apiKey=youtubeOk?youtube_config(youtubeHtml,"INNERTUBE_API_KEY"):std::string{};
+  const std::string visitor=youtubeOk?youtube_config(youtubeHtml,"VISITOR_DATA"):std::string{};
   if(!directVideos.empty()){
    save_feed_cache(directVideos);
    queue_thumbnails(directVideos);
    {
     std::lock_guard<std::mutex> g(svc.mutex_);
     svc.state_.videos=std::move(directVideos);
-    svc.state_.status="Live video list from YouTube.com (public search)";
+    svc.currentQuery_=directQuery;svc.continuation_=nextToken;
+    svc.clientVersion_=clientVersion;svc.apiKey_=apiKey;svc.visitor_=visitor;
+    svc.pagesLoaded_=1;
+    svc.state_.pagesLoaded=1;svc.state_.hasMore=!nextToken.empty()&&svc.state_.videos.size()<400;
+    svc.state_.loadingMore=false;
+    svc.state_.status="Loaded "+std::to_string(svc.state_.videos.size())+" videos from YouTube";
     svc.state_.searching=false;
    }
    svc.busy_.store(false,std::memory_order_release);
@@ -486,7 +541,9 @@ bool Service::search(const std::string& query){
   if(found){save_feed_cache(videos);queue_thumbnails(videos);}
   {
    std::lock_guard<std::mutex> g(svc.mutex_);
-   if(found)svc.state_.videos=std::move(videos);
+   if(found){svc.state_.videos=std::move(videos);
+     svc.continuation_.clear();svc.state_.hasMore=false;svc.state_.pagesLoaded=1;
+   }
    svc.state_.status=found?"Loaded "+std::to_string(svc.state_.videos.size())+
       " videos via "+successful:
       ("No videos from any provider. Last error: "+lastError);
@@ -497,6 +554,78 @@ bool Service::search(const std::string& query){
  pthread_attr_destroy(&a);
  if(rc){delete w;busy_.store(false);std::lock_guard<std::mutex> g(mutex_);state_.searching=false;state_.status="Unable to start network thread";return false;}
  pthread_detach(th);return true;
+}
+bool Service::load_more(){
+ if(busy_.exchange(true))return false;
+ std::string token,version,apikey,visitor,query;
+ {
+  std::lock_guard<std::mutex> g(mutex_);
+  if(continuation_.empty()||state_.videos.size()>=400){
+   busy_=false;return false;
+  }
+  token=continuation_;version=clientVersion_;apikey=apiKey_;
+  visitor=visitor_;query=currentQuery_;
+  state_.searching=true;state_.loadingMore=true;
+  state_.status="Loading more results...";
+ }
+ struct PageWork{Service* svc;std::string token,version,key,visitor,query;};
+ auto* w=new PageWork{this,token,version,apikey,visitor,query};
+ pthread_t thread{};pthread_attr_t attr;pthread_attr_init(&attr);
+ pthread_attr_setstacksize(&attr,1024*1024);
+ int rc=pthread_create(&thread,&attr,[](void* ptr)->void*{
+  std::unique_ptr<PageWork> w((PageWork*)ptr);
+  Service& svc=*w->svc;
+  const std::string version=w->version.empty()?"2.20261010.00.00":w->version;
+  const std::string body=
+     "{\"context\":{\"client\":{\"clientName\":\"WEB\","
+     "\"clientVersion\":"+youtube_quote(version)+",\"hl\":\"en\",\"gl\":\"US\""+
+     (w->visitor.empty()?std::string{}:std::string(",\"visitorData\":")+youtube_quote(w->visitor))+
+     "}},\"continuation\":"+youtube_quote(w->token)+"}";
+  std::string path="/youtubei/v1/search?prettyPrint=false";
+  if(!w->key.empty())path+="&key="+escape_url(w->key);
+  std::string response,error;
+  const bool ok=https("www.youtube.com",path,response,error,body);
+  auto loaded=ok?parse_youtube_html(response):std::vector<Video>{};
+  auto next=ok?youtube_continuation(response):std::string{};
+  int added=0;std::vector<Video> fresh;
+  {
+   std::lock_guard<std::mutex> g(svc.mutex_);
+   if(ok){
+    for(auto& video:loaded){
+     if(svc.state_.videos.size()>=400)break;
+     if(std::none_of(svc.state_.videos.begin(),svc.state_.videos.end(),
+      [&](const Video& v){return v.id==video.id;})){
+      fresh.push_back(video);svc.state_.videos.push_back(std::move(video));++added;
+     }
+    }
+    ++svc.pagesLoaded_;svc.state_.pagesLoaded=svc.pagesLoaded_;
+    svc.continuation_=added>0&&next!=w->token?next:std::string{};
+    svc.state_.hasMore=!svc.continuation_.empty()&&svc.state_.videos.size()<400;
+    svc.state_.status="Loaded "+std::to_string(svc.state_.videos.size())+
+     " videos ("+std::to_string(svc.pagesLoaded_)+" pages)";
+    if(added==0)svc.state_.status="No further new videos available";
+   }else{
+    svc.continuation_.clear();svc.state_.hasMore=false;
+    svc.state_.status="More results unavailable: "+error;
+   }
+   svc.state_.loadingMore=false;svc.state_.searching=false;
+  }
+  if(!fresh.empty()){
+   queue_thumbnails(fresh);
+   // Keep the most recent fetched real metadata in the cache, not fake cards.
+   const auto snapshot=svc.snapshot();
+   save_feed_cache(snapshot.videos);
+  }
+  svc.busy_.store(false,std::memory_order_release);
+  return nullptr;
+ },w);
+ pthread_attr_destroy(&attr);
+ if(rc){
+  delete w;std::lock_guard<std::mutex> g(mutex_);
+  state_.searching=false;state_.loadingMore=false;
+  state_.status="Unable to start pagination worker";busy_=false;return false;
+ }
+ pthread_detach(thread);return true;
 }
 bool Service::details(const std::string& id){return valid_id(id);}
 
