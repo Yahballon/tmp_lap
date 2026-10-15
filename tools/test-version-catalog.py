@@ -48,21 +48,26 @@ with tempfile.TemporaryDirectory() as tmp:
         result=json.loads((root/'version.json').read_text())
         selected={entry['title_id']:entry['version'] for entry in result['apps']}
         assert selected=={'PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0'},selected
-        (dc/'app.json').write_text(json.dumps({
-            'titleId':'PPSA99765','name':'PS5DreamcastX',
-            'slug':'ps5-dreamcastx','version':'0.1.4',
-            'releaseTag':'ps5-dreamcastx-v0.1.4'}))
+        # A raw.githubusercontent.com artifact does not have a GitHub
+        # Release; it must not silently replace a compatible console entry.
         fallback=root/'testbuilds/ps5-dreamcastx.json'
-        fallback.parent.mkdir(parents=True)
+        fallback.parent.mkdir(parents=True,exist_ok=True)
         fallback.write_text(json.dumps({
             'title_id':'PPSA99765','version':'0.1.4',
-            'tag':'ps5-dreamcastx-v0.1.4','zip_name':'PPSA99765.zip',
+            'tag':'ps5-dreamcastx-v0.1.4',
+            'zip_name':'PPSA99765.zip',
             'zip_url':'https://raw.githubusercontent.com/Yahballon/tmp_lap/testbuilds-artifacts/ps5-dreamcastx/v0.1.4/PPSA99765.zip',
-            'size_bytes':16000000,'sha256':'a'*64,'build_run_id':38821390905,
-            'published_at':'2026-10-16T00:00:00Z'}))
+            'size_bytes':16120744,
+        }))
         catalog.main()
-        entry=next(x for x in json.loads((root/'version.json').read_text())['apps'] if x['title_id']=='PPSA99765')
-        assert entry['version']=='0.1.4' and 'raw.githubusercontent.com' in entry['zip_url']
+        compatible=json.loads((root/'version.json').read_text())
+        dreamcast=next(x for x in compatible['apps'] if x['title_id']=='PPSA99765')
+        assert dreamcast['version']=='0.1.0'
+        assert '/releases/download/' in dreamcast['zip_url']
+        assert '/releases/tag/' in dreamcast['release_url']
+        assert all('/releases/download/' in entry['zip_url'] and
+                   '/releases/tag/' in entry['release_url']
+                   for entry in compatible['apps'])
         before=(root/'version.json').read_bytes()
         catalog.main()
         assert (root/'version.json').read_bytes()==before

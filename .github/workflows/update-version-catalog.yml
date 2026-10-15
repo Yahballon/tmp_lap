@@ -7,7 +7,6 @@ on:
       - '.github/workflows/build-*.yml'
       - 'homebrew/*/app.json'
       - 'tools/update-version.py'
-      - 'testbuilds/ps5-dreamcastx.json'
       - 'tools/test-version-catalog.py'
       - 'tools/test-catalog-triggers.py'
   push:
@@ -15,7 +14,6 @@ on:
     paths:
       - '.github/workflows/update-version-catalog.yml'
       - 'tools/update-version.py'
-      - 'testbuilds/ps5-dreamcastx.json'
       - 'tools/test-version-catalog.py'
       - 'tools/test-catalog-triggers.py'
   release:

@@ -1,16 +1,8 @@
 name: Publish PS5DreamcastX TESTBUILD
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/publish-ps5-dreamcastx-testbuild.yml'
-      - 'tools/publish-dreamcastx-artifact.py'
-      - 'tools/test-catalog-triggers.py'
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - Build PS5DreamcastX (native Flycast)
-    types: [completed]
+    # Legacy manual artifact hosting only. This does not update version.json:
+    # TESTBUILD requires a real GitHub Releases ZIP URL.
 permissions:
   actions: read
   contents: write
@@ -19,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    if: false # Disabled: raw artifacts are not accepted by PS5 TESTBUILD client
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
