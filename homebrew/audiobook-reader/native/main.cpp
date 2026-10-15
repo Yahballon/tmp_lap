@@ -7,6 +7,13 @@
 #include "audio_player.hpp"
 #include "library.hpp"
 #include "chapters.hpp"
+#include "cover_extract.hpp"
+#include "audio_cover_store.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_NO_STDIO
+#include "stb_image.h"
 #include "usb_bridge.hpp"
 #include "audio_log.hpp"
 #include <atomic>
@@ -18,6 +25,9 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <map>
+#include <cstdint>
+#include <cstring>
 using namespace hui::gfx;
 namespace {
 constexpr auto steel=0x9cb4ca,white=0xe9f5ff,cyan=0x57d9fb,muted=0x8b9aab;
@@ -44,21 +54,48 @@ void shelf(DrawList& d,float top){
     Color::rgb(i%2?0x91a6ba:0x5d7388,0.25f));
  d.rounded_rect({75,top+43,1770,12},2,Color::rgb(0x0a121c));
 }
-void case_art(DrawList& d,const Font& f,unsigned a,const audio::Book& b,float x,float y,bool selected){
+struct CoverTexture{unsigned id=0;int width=0,height=0;bool checked=false;};
+CoverTexture cover_texture(hui::gfx::Renderer& renderer,const std::string& encoded){
+ CoverTexture value{};value.checked=true;
+ if(encoded.size()<8||encoded.size()>6*1024*1024)return value;
+ int w=0,h=0,n=0;
+ if(!stbi_info_from_memory((const stbi_uc*)encoded.data(),(int)encoded.size(),&w,&h,&n)||
+     w<1||h<1||w>2048||h>2048||(int64_t)w*h>3000000)return value;
+ stbi_uc* rgba=stbi_load_from_memory((const stbi_uc*)encoded.data(),(int)encoded.size(),&w,&h,&n,4);
+ if(!rgba)return value;
+ value.id=renderer.batch().create_texture(w,h,rgba);
+ value.width=w;value.height=h;
+ stbi_image_free(rgba);return value;
+}
+void free_cover(CoverTexture& value){
+ if(value.id){GLuint id=value.id;glDeleteTextures(1,&id);value.id=0;}
+}
+void draw_cover(DrawList& d,const CoverTexture& cover,float x,float y,float w,float h){
+ if(!cover.id||cover.width<1||cover.height<1)return;
+ // Center-crop like Ebook Reader: portrait art fills the physical book.
+ const float src=(float)cover.width/(float)cover.height,dst=w/h;
+ float u=0,v=0,uw=1,vh=1;
+ if(src>dst){uw=dst/src;u=(1-uw)/2;}
+ else{vh=src/dst;v=(1-vh)/2;}
+ d.image(cover.id,{x,y,w,h},{u,v,uw,vh},Color::rgb(0xffffff),3);
+}
+void case_art(DrawList& d,const Font& f,unsigned a,const audio::Book& b,float x,float y,bool selected,const CoverTexture& cover){
  constexpr float w=206,h=265;
  unsigned seed=5381;for(unsigned char c:b.title)seed=seed*33+c;
  const unsigned palette[]={0x26435f,0x35576b,0x526472,0x3b4363,0x38576a,0x4d5865,0x314f59};
  if(selected)d.glow({x-4,y-4,w+8,h+8},10,7,kCyan);
  d.shadow({x,y,w,h},6,13,Color::rgb(0x000000,0.65f));
  d.bordered_rect({x,y,w,h},7,Color::rgb(palette[seed%7]),selected?4:2,selected?kCyan:kSteel);
- d.gradient_rect({x+9,y+8,w-18,86},0,Color::rgb(0x3e5367),Color::rgb(palette[seed%7]));
- d.line(x+29,y+50,x+w-29,y+50,3,kCyan);
- d.line(x+40,y+64,x+w-40,y+64,1,kSteel);
- txt(d,f,a,"M4B AUDIO",x+w/2,y+105,18,kCyan,Align::center);
- txt(d,f,a,cut(b.title,17),x+w/2,y+157,22,kWhite,Align::center);
- txt(d,f,a,cut(b.author,18),x+w/2,y+183,16,kSteel,Align::center);
- // Waveform emblem in the lower half.
- for(int j=0;j<9;j++){float mag=(float)((seed>>(j%5))%21);float cx=x+55+j*12.f;d.line(cx,y+213-mag,cx,y+213+mag,3,kCyan);}
+ if(cover.id)draw_cover(d,cover,x+5,y+5,w-10,h-10);
+ else {
+  d.gradient_rect({x+9,y+8,w-18,86},0,Color::rgb(0x3e5367),Color::rgb(palette[seed%7]));
+  d.line(x+29,y+50,x+w-29,y+50,3,kCyan);
+  d.line(x+40,y+64,x+w-40,y+64,1,kSteel);
+  txt(d,f,a,"M4B AUDIO",x+w/2,y+105,18,kCyan,Align::center);
+  txt(d,f,a,cut(b.title,17),x+w/2,y+157,22,kWhite,Align::center);
+  txt(d,f,a,cut(b.author,18),x+w/2,y+183,16,kSteel,Align::center);
+  for(int j=0;j<9;j++){float mag=(float)((seed>>(j%5))%21);float cx=x+55+j*12.f;d.line(cx,y+213-mag,cx,y+213+mag,3,kCyan);}
+ }
  d.rounded_rect({x+4,y+7,8,h-14},1,Color::rgb(0xdbe7f5,0.20f));
  if(b.favorite)d.star(x+w-22,y+20,10,kCyan);
  if(b.position>0&&b.duration>0)bar(d,x+16,y+h-13,w-32,5,(float)(b.position/b.duration));
@@ -66,7 +103,7 @@ void case_art(DrawList& d,const Font& f,unsigned a,const audio::Book& b,float x,
 std::vector<std::string> paths(){
  // Never recursively scan the data root: it also stores Logs, Cache and state.
  // The dedicated helper exposes /mnt/usb0/ABooks through elfldr :9021.
- return {audio::root()+"/Books","/app0/assets/ABooks","/download0/ABooks"};
+ return {audio::root()+"/Books",audio::root(),"/app0/assets/ABooks","/download0/ABooks"};
 }
 struct OpenTask {
  audio::Book book;
@@ -77,6 +114,7 @@ struct OpenResult {
  std::string source,local,error,title,author;
  double duration=0;
  std::vector<audio::Chapter> chapters;
+ std::string coverBytes;
  bool ok=false;
 };
 std::atomic<bool> g_openBusy{false},g_openCancel{false};
@@ -103,6 +141,13 @@ void* open_worker(void* pointer){
  if(result.ok&&!g_openCancel.load()){
   g_openStage.store(2);
   result.chapters=audio::chapters(result.local,&result.duration,&result.author,&result.title);
+  if(!audio_cover::load(result.source,result.coverBytes)){
+   std::string diag;
+   if(audio_cover::extract(result.local,result.coverBytes,diag)){
+    audio_cover::save(result.source,result.coverBytes);
+    audio_log::write("COVER_OK",result.source+" bytes="+std::to_string(result.coverBytes.size()));
+   }else audio_log::write("COVER_MISSING",result.source+" "+diag);
+  }
  }else if(g_openCancel.load()){result.ok=false;result.error="Audiobook loading cancelled";}
  if(g_openCancel.load()){result.ok=false;result.error="Audiobook loading cancelled";}
  {std::lock_guard<std::mutex> lock(g_openMutex);
@@ -111,6 +156,42 @@ void* open_worker(void* pointer){
  delete task;
  g_openBusy.store(false);
  return nullptr;
+}
+struct CoverTask{std::string path,local;};
+struct CoverDone{std::string path,encoded;};
+std::atomic<bool> g_coverBusy{false};
+std::mutex g_coverMutex;
+std::vector<CoverDone> g_coverReady;
+void* cover_worker(void* arg){
+ CoverTask* task=static_cast<CoverTask*>(arg);
+ std::string encoded;
+ if(!audio_cover::load(task->path,encoded) && !task->local.empty()){
+  std::string diag;
+  if(audio_cover::extract(task->local,encoded,diag))
+   audio_cover::save(task->path,encoded);
+ }
+ {
+  std::lock_guard<std::mutex> lock(g_coverMutex);
+  g_coverReady.push_back({task->path,std::move(encoded)});
+ }
+ delete task;
+ g_coverBusy.store(false);
+ return nullptr;
+}
+bool start_cover(const audio::Book& book){
+ if(g_coverBusy.exchange(true))return false;
+ auto* task=new CoverTask{book.path,book.path};
+ if(usbaudio::is_remote(book.path)){
+  usbaudio::Entry e;
+  task->local.clear();
+  if(usbaudio::entry_from_remote(book.path,e))
+   usbaudio::cached_copy(e,task->local);
+ }
+ pthread_t thread{};
+ if(pthread_create(&thread,nullptr,cover_worker,task)!=0){
+  delete task;g_coverBusy.store(false);return false;
+ }
+ pthread_detach(thread);return true;
 }
 bool start_open(const audio::Book& book,std::string& error){
  if(g_openBusy.exchange(true))return false;
@@ -142,7 +223,7 @@ int main(){
  auto atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  const bool logReady=audio_log::prepare();
- audio_log::write("BOOT","Audiobook Reader v0.2.1 started; PPSA99784");
+ audio_log::write("BOOT","Audiobook Reader v0.2.2 started; PPSA99784");
  audio_log::write("DATA","Local: "+audio_log::books_directory()+
                          " Log: "+audio_log::filename());
  std::vector<audio::Book> books;
@@ -151,6 +232,7 @@ int main(){
   if(g_openBusy.load())return;
   audio_log::write("SCAN_BEGIN","Searching local Books and USB ABooks");
   audio::scan(paths(),books);
+  audio_log::write("SCAN_LOCAL_DETAIL",audio::scan_report());
   audio_log::write("SCAN_LOCAL","Books="+std::to_string(books.size())+
      " Path="+audio_log::books_directory());
   usbCatalog=usbaudio::scan();
@@ -187,6 +269,8 @@ int main(){
     "Local Books + USB ABooks via elfldr :9021":
     "WARNING: /data/AudioBookReader log directory is not writable";
  std::string loadingTitle,playingPath;
+ std::map<std::string,CoverTexture> covers;
+ unsigned coverTick=0;
  int selected=0,filter=0,scroll=0,chapterIndex=0;
  bool viewing=false,chapterMode=false,exitDialog=false,closing=false;
  bool list=false;
@@ -222,6 +306,19 @@ int main(){
    if(now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
    holdCooldown=12;
   }
+  // M4B decoding/filesystem access runs on workers. GL uploads occur only here.
+  std::vector<CoverDone> finishedCovers;
+  {std::lock_guard<std::mutex> lock(g_coverMutex);finishedCovers.swap(g_coverReady);}
+  for(const auto& item:finishedCovers){
+   auto it=covers.find(item.path);
+   // If opening the same USB audiobook already produced an image, do not
+   // overwrite it with a stale empty background result.
+   if(item.encoded.empty()&&it!=covers.end()&&it->second.id)continue;
+   if(it!=covers.end())free_cover(it->second);
+   covers[item.path]=cover_texture(renderer,item.encoded);
+   audio_log::write(item.encoded.empty()?"COVER_NONE":"COVER_DRAW",
+     item.path+" encoded="+std::to_string(item.encoded.size()));
+  }
   std::vector<OpenResult> ready;
   {std::lock_guard<std::mutex> lock(g_openMutex);ready.swap(g_openResults);}
   for(auto& result:ready){
@@ -235,6 +332,12 @@ int main(){
    if(!result.title.empty())book->title=result.title;
    if(!result.author.empty())book->author=result.author;
    if(result.duration>0)book->duration=result.duration;
+   if(!result.coverBytes.empty()){
+    CoverTexture uploaded=cover_texture(renderer,result.coverBytes);
+    auto it=covers.find(result.source);
+    if(it!=covers.end())free_cover(it->second);
+    covers[result.source]=uploaded;
+   }
    if(player.start(result.local,book->position)){
     playingPath=book->path;
     chapters=std::move(result.chapters);
@@ -299,9 +402,10 @@ int main(){
     else if(message.empty())message="Audiobook loader already running";
    }
   }
-  if(closing && !g_openBusy.load()){
+  if(closing && !g_openBusy.load() && !g_coverBusy.load()){
    snapshotProgress();player.stop();audio::save(books);
    audio_log::write("EXIT","Audiobook Reader closed safely");
+   for(auto& item:covers)free_cover(item.second);
    pad.close();renderer.release();display.close();hui::sys::quit();
   }
   DrawList d;
@@ -311,14 +415,15 @@ int main(){
   d.bordered_rect({24,19,58,57},10,Color::rgb(0x1c3545),2,kSteel);
   for(int i=0;i<5;i++)d.line(35+i*8,49-(i%3)*7,35+i*8,55+(i%3)*7,3,kCyan);
   txt(d,font,atlas,"AUDIOBOOK READER by YAHBALLON",109,58,31,kWhite);
-  txt(d,font,atlas,"v0.2.1",1878,58,22,kCyan,Align::right);
+  txt(d,font,atlas,"v0.2.2",1878,58,22,kCyan,Align::right);
   if(viewing){
    auto st=player.snapshot();
    const auto& b=books[ids[selected]];
    txt(d,font,atlas,"NOW PLAYING",95,163,36,kWhite);
    txt(d,font,atlas,cut(b.title,75),95,222,32,kWhite);
    panel(d,80,255,590,631);
-   case_art(d,font,atlas,b,270,313,false);
+   const auto coverIt=covers.find(b.path);
+   case_art(d,font,atlas,b,270,313,false,coverIt==covers.end()?CoverTexture{}:coverIt->second);
    txt(d,font,atlas,cut(b.author,45),375,727,22,kSteel,Align::center);
    panel(d,714,255,1110,631);
    txt(d,font,atlas,st.opening?"LOADING AUDIO...":st.paused?"PAUSED":st.playing?"PLAYING":"STOPPED",770,329,28,kCyan);
@@ -350,6 +455,20 @@ int main(){
    for(int row=0;row<2;row++)shelf(d,592+row*356);
    const int count=(int)ids.size(),perPage=list?9:14;
    scroll=count?selected/perPage:0;
+   if(!closing&&!g_coverBusy.load()&&!g_openBusy.load()&&++coverTick%20==0){
+    for(int i=scroll*perPage;i<count&&i<(scroll+1)*perPage;i++){
+     const auto& b=books[ids[i]];
+     if(covers.find(b.path)!=covers.end())continue;
+     if(start_cover(b))break;
+    }
+   }
+   if(covers.size()>54){
+    auto it=covers.begin();
+    while(covers.size()>40&&it!=covers.end()){
+     free_cover(it->second);
+     it=covers.erase(it);
+    }
+   }
    for(int i=scroll*perPage;i<count&&i<(scroll+1)*perPage;i++){
     const audio::Book& b=books[ids[i]];
     const int cell=i-scroll*perPage;
@@ -361,7 +480,8 @@ int main(){
     }else{
      const int row=cell/7,col=cell%7;
      const float x=117+col*248.f,y=284+row*354.f;
-     case_art(d,font,atlas,b,x,y,i==selected);
+     const auto it=covers.find(b.path);
+     case_art(d,font,atlas,b,x,y,i==selected,it==covers.end()?CoverTexture{}:it->second);
     }
    }
    if(count==0){txt(d,font,atlas,"No M4B audiobooks found.",960,455,30,kWhite,Align::center);

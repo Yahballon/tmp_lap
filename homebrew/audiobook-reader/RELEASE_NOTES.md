@@ -1,7 +1,14 @@
-# Audiobook Reader v0.2.1
+# Audiobook Reader v0.2.2
 
-Fix USB audiobooks in dedicated ABooks folders. Probe /mnt/usb0/ABooks, /mnt/usb1/ABooks and compatible fallbacks. The helper uses a new port 9178 to avoid reusing an older resident v0.2.0 helper. The read-only elfldr helper now reports exact mount diagnostics instead of a generic 'not accessible' message. New logs include USB_HELPER_START, USB_ROOT, USB_SCAN_DONE/ERROR and SCAN_LOCAL, stored at /data/AudioBookReader/audiobook-reader.log.
+## Fixed
+- Extract embedded JPEG/PNG album artwork from DRM-free M4B (iTunes / MP4 cover streams) on a native background worker. Upload to OpenGL only on the UI thread.
+- Show real artwork on the aluminum bookshelf and Now Playing screen, with proportional center-crop instead of title-only placeholder.
+- Persist artwork under `/data/AudioBookReader/Covers/`; USB artwork is available after first playback/caching of the M4B file, including future launches.
+- Improve local M4B discovery: scan nested subfolders under `/data/AudioBookReader/Books/` (up to six levels) and also accept loose .m4b files directly in `/data/AudioBookReader/` without scanning Cache or Covers.
+- Add `SCAN_LOCAL_DETAIL` log entries with directory access errors, file counters, ignored tiny files, symlinks, and a sample filename.
 
-Install: update PPSA99784.zip under /data/homebrew, register with the compatible homebrew loader, and keep elfldr running on port 9021. Put DRM-free .m4b files on USB in ABooks or locally in /data/AudioBookReader/Books. Existing listening progress, favorites and audio cache are preserved.
+## Install and diagnostics
+Extract `PPSA99784.zip` to `/data/homebrew/`, overwriting the old install folder. Keep `/data/AudioBookReader` to preserve listening progress, USB cache and favorites. USB files belong in `/mnt/usb0/ABooks/` with a compatible running elfldr at TCP 9021. Local M4B files belong in `/data/AudioBookReader/Books/`. Press OPTIONS to rescan. If local books still do not appear, check `/data/AudioBookReader/audiobook-reader.log` for `SCAN_LOCAL_DETAIL`.
 
-Known limitations: USB mounts and elfldr must be accessible from the jailbreak runtime. USB audiobooks are copied to /data/AudioBookReader/Cache before playback. No DRM support. Hardware playback is not verified by CI.
+## Known limitations
+Album artwork must be embedded in a supported JPEG/PNG/GIF attached picture stream. USB covers are cached after the audio file has first been copied/opened, not downloaded separately during the initial catalog scan. Console hardware playback still requires user verification.

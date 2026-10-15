@@ -1,11 +1,11 @@
 {
   "name": "Audiobook Reader",
   "slug": "audiobook-reader",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "titleId": "PPSA99784",
   "contentId": "UP9000-PPSA99784_00-AUDIOBOOKREADER1",
-  "contentVersion": "01.000.003",
-  "releaseTag": "audiobook-reader-v0.2.1",
+  "contentVersion": "01.000.004",
+  "releaseTag": "audiobook-reader-v0.2.2",
   "formats": [
     "m4b"
   ],
