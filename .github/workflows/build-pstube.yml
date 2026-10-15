@@ -104,6 +104,9 @@ jobs:
             app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
             -lssl -lcrypto -o /tmp/pstube-native-download-test
           timeout 110s /tmp/pstube-native-download-test
+      - name: Diagnose available real YouTube HD video/audio formats
+        continue-on-error: true
+        run: python3 homebrew/pstube/tests/probe_hd_formats.py
       - name: Test HD source format selection (host)
         run: |
           g++ -std=c++20 -O2 -pthread -Iapp/src \
