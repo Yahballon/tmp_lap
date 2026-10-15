@@ -53,7 +53,7 @@ void case_art(DrawList& d,const Font& f,unsigned a,const audio::Book& b,float x,
  txt(d,f,a,cut(b.title,17),x+w/2,y+157,22,kWhite,Align::center);
  txt(d,f,a,cut(b.author,18),x+w/2,y+183,16,kSteel,Align::center);
  // Waveform emblem in the lower half.
- for(int j=0;j<9;j++){float mag=(float)(seed>>(j%5))%21;float cx=x+55+j*12.f;d.line(cx,y+213-mag,cx,y+213+mag,3,kCyan);}
+ for(int j=0;j<9;j++){float mag=(float)((seed>>(j%5))%21);float cx=x+55+j*12.f;d.line(cx,y+213-mag,cx,y+213+mag,3,kCyan);}
  d.rounded_rect({x+4,y+7,8,h-14},1,Color::rgb(0xdbe7f5,0.20f));
  if(b.favorite)d.star(x+w-22,y+20,10,kCyan);
  if(b.position>0&&b.duration>0)bar(d,x+16,y+h-13,w-32,5,(float)(b.position/b.duration));
