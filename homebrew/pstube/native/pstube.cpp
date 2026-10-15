@@ -66,6 +66,19 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
   if(postBody.find("\"clientName\":\"ANDROID\"")!=std::string::npos){
    request+="X-YouTube-Client-Name: 3\r\nX-YouTube-Client-Version: 21.26.364\r\n";
   }
+  else if(postBody.find("\"clientName\":\"WEB\"")!=std::string::npos){
+   request+="X-YouTube-Client-Name: 1\r\n";
+   constexpr std::string_view vkey="\"clientVersion\":\"";
+   auto at=postBody.find(vkey);
+   if(at!=std::string::npos){
+    at+=vkey.size();auto end=postBody.find('"',at);
+    auto version=postBody.substr(at,end==std::string::npos?0:end-at);
+    if(!version.empty()&&version.size()<64&&
+      std::all_of(version.begin(),version.end(),[](unsigned char ch){
+       return std::isalnum(ch)||ch=='.'||ch=='-';
+      }))request+="X-YouTube-Client-Version: "+version+"\r\n";
+   }
+  }
  }
  request+="\r\n"+postBody;
  bool ok=true;
