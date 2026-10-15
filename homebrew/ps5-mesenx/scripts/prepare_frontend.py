@@ -25,7 +25,7 @@ def generate():
     shutil.copytree(ORIGINAL, OUTPUT, symlinks=True)
     source = OUTPUT / "snes/src"
     for name in ("core_session.h", "core_session.cpp"):
-        shutil.copy2(ROOT / "src" / name, source / name)
+        shutil.copy2(ROOT / "src" / ("libretro_" + name), source / name)
 
     # Correct game detection: SNES-only validation must never reject iNES.
     rom = source / "games.cpp"
