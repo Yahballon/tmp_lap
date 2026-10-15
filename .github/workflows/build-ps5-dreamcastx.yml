@@ -32,7 +32,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential git ca-certificates wget curl tar unzip zip rsync \
-            clang-18 lld-18 llvm-18 llvm-18-dev llvm-18-tools libclang-18-dev \
+            clang-18 lld-18 llvm-18 llvm-18-dev llvm-18-tools libclang-18-dev libllvmspirvlib-18-dev llvm-spirv-18 \
             cmake ninja-build make pkg-config meson glslang-tools \
             python3 python3-dev python3-venv python3-numpy python3-pil python3-mako \
             python3-markupsafe libzstd-dev libssl-dev zstd bison flex \
@@ -41,6 +41,15 @@ jobs:
             sudo apt-get install -y llvm-spirv-18
           fi
           echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+      - name: Validate LLVM 18 SPIR-V translator and Mesa dependencies
+        run: |
+          llvm-config-18 --version
+          pkg-config --modversion LLVMSPIRVLib
+          pkg-config --exists LLVMSPIRVLib || {
+            echo "::error::Missing LLVMSPIRVLib development package (libllvmspirvlib-18-dev)"
+            exit 1
+          }
+          dpkg-query -W libllvmspirvlib-18-dev llvm-spirv-18
       - name: Install Meson 1.9.2 (Mesa requires at least 1.4)
         run: |
           python3 -m venv --system-site-packages "$RUNNER_TEMP/ps5-dreamcastx-tools"
