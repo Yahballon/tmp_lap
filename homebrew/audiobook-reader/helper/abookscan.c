@@ -33,7 +33,10 @@ static const char *roots[] = {
  AUDIOBOOK_USB_ROOT, "/mnt/usb0/abooks", "/mnt/usb1/ABooks", "/mnt/usb1/abooks",
  "/usb0/ABooks", "/usb0/abooks", "/usb1/ABooks", "/usb1/abooks"
 };
-static const char *local_roots[] = {"/data/AudioBookReader/Books"};
+#ifndef AUDIOBOOK_LOCAL_ROOT
+#define AUDIOBOOK_LOCAL_ROOT "/data/AudioBookReader/Books"
+#endif
+static const char *local_roots[] = {AUDIOBOOK_LOCAL_ROOT};
 static char selected_root[MAX_PATH];
 static char last_error[148];
 
@@ -93,7 +96,7 @@ static int scan(int local){
  if(local){
   int e=errno;
   snprintf(last_error,sizeof(last_error),
-   "LOCAL_BOOKS_OPEN_FAILED path=/data/AudioBookReader/Books errno=%d",e);
+   "LOCAL_BOOKS_OPEN_FAILED path=%s errno=%d",AUDIOBOOK_LOCAL_ROOT,e);
   return 0;
  }
  // Report whether the USB mount exists separately from a missing ABooks folder.
