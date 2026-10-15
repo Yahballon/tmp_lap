@@ -146,7 +146,14 @@ void* open_worker(void* pointer){
    if(audio_cover::extract(result.local,result.coverBytes,diag)){
     audio_cover::save(result.source,result.coverBytes);
     audio_log::write("COVER_OK",result.source+" bytes="+std::to_string(result.coverBytes.size()));
-   }else audio_log::write("COVER_MISSING",result.source+" "+diag);
+   }else{
+     std::string why;
+     if(usbaudio::is_remote(result.source) &&
+        usbaudio::fetch_cover(result.source,result.coverBytes,why)){
+       audio_cover::save(result.source,result.coverBytes);
+       audio_log::write("COVER_COMPANION_OK",result.source);
+     }else audio_log::write("COVER_MISSING",result.source+" embedded="+diag+" companion="+why);
+    }
   }
  }else if(g_openCancel.load()){result.ok=false;result.error="Audiobook loading cancelled";}
  if(g_openCancel.load()){result.ok=false;result.error="Audiobook loading cancelled";}
@@ -165,10 +172,16 @@ std::vector<CoverDone> g_coverReady;
 void* cover_worker(void* arg){
  CoverTask* task=static_cast<CoverTask*>(arg);
  std::string encoded;
- if(!audio_cover::load(task->path,encoded) && !task->local.empty()){
-  std::string diag;
-  if(audio_cover::extract(task->local,encoded,diag))
-   audio_cover::save(task->path,encoded);
+ if(!audio_cover::load(task->path,encoded)){
+  std::string error;
+  if(usbaudio::is_remote(task->path))
+   usbaudio::fetch_cover(task->path,encoded,error);
+  if(encoded.empty() && !task->local.empty()){
+   std::string diag;
+   audio_cover::extract(task->local,encoded,diag);
+  }
+  if(!encoded.empty())audio_cover::save(task->path,encoded);
+  else audio_log::write("COVER_LOOKUP",task->path+" "+error);
  }
  {
   std::lock_guard<std::mutex> lock(g_coverMutex);
@@ -201,7 +214,7 @@ bool start_open(const audio::Book& book,std::string& error){
  if(usbaudio::is_remote(book.path)){
   task->remote=true;
   if(!usbaudio::entry_from_remote(book.path,task->entry)){
-   error="USB catalogue changed; press OPTIONS to refresh";
+   error="Helper catalogue changed; press OPTIONS to refresh";
    delete task;g_openBusy.store(false);return false;
   }
  }
@@ -223,11 +236,11 @@ int main(){
  auto atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  const bool logReady=audio_log::prepare();
- audio_log::write("BOOT","Audiobook Reader v0.2.2 started; PPSA99784");
+ audio_log::write("BOOT","Audiobook Reader v0.2.3 started; PPSA99784");
  audio_log::write("DATA","Local: "+audio_log::books_directory()+
                          " Log: "+audio_log::filename());
  std::vector<audio::Book> books;
- usbaudio::Catalog usbCatalog;
+ usbaudio::Catalog usbCatalog,localCatalog;
  auto refresh=[&](){
   if(g_openBusy.load())return;
   audio_log::write("SCAN_BEGIN","Searching local Books and USB ABooks");
@@ -236,6 +249,22 @@ int main(){
   audio_log::write("SCAN_LOCAL","Books="+std::to_string(books.size())+
      " Path="+audio_log::books_directory());
   usbCatalog=usbaudio::scan();
+  localCatalog=usbaudio::scan_local();
+  if(localCatalog.viaHelper){
+   unsigned directBooks=0;
+   const auto prefix=audio::root()+"/Books/";
+   for(const auto& b:books)if(b.path.rfind(prefix,0)==0)directBooks++;
+   if(!directBooks){
+    for(const auto& remote:localCatalog.books){
+     audio::Book b;
+     b.path=usbaudio::remote_path(remote);
+     b.title=audio::clean_title(remote.relative);
+     b.author="Local Storage";
+     b.bytes=(int64_t)remote.bytes;
+     books.push_back(std::move(b));
+    }
+   }
+  }
   // Some jailbreak configurations expose USB mounts directly to the app,
   // without the ELF helper. Try direct read-only discovery as a fallback.
   if(usbCatalog.books.empty()){
@@ -258,6 +287,7 @@ int main(){
   audio::load(books);
   std::sort(books.begin(),books.end(),[](const auto& a,const auto& b){return a.title<b.title;});
   audio_log::write("SCAN_DONE","Books="+std::to_string(books.size())+
+    " LocalHelper="+std::to_string(localCatalog.books.size())+
     " USB="+std::to_string(usbCatalog.books.size())+
     " Root="+usbCatalog.usbRoot+
     " Status="+usbCatalog.message);
@@ -415,7 +445,7 @@ int main(){
   d.bordered_rect({24,19,58,57},10,Color::rgb(0x1c3545),2,kSteel);
   for(int i=0;i<5;i++)d.line(35+i*8,49-(i%3)*7,35+i*8,55+(i%3)*7,3,kCyan);
   txt(d,font,atlas,"AUDIOBOOK READER by YAHBALLON",109,58,31,kWhite);
-  txt(d,font,atlas,"v0.2.2",1878,58,22,kCyan,Align::right);
+  txt(d,font,atlas,"v0.2.3",1878,58,22,kCyan,Align::right);
   if(viewing){
    auto st=player.snapshot();
    const auto& b=books[ids[selected]];
