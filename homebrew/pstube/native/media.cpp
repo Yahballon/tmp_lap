@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include "ca_bundle.inc"
 #include <libavutil/dict.h>
+#include <libavutil/error.h>
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -114,11 +115,19 @@ void MediaPlayer::decode(){
    av_dict_set(&opts,"user_agent","com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",0);
    av_dict_set(&opts,"multiple_requests","1",0);
   }
+  if(remote_ && avformat_network_init()<0){
+   av_dict_free(&opts);error="FFmpeg network stack unavailable";goto cleanup;
+  }
   const int opened=avformat_open_input(&fmt,path_.c_str(),nullptr,&opts);
   av_dict_free(&opts);
-  if(opened<0){error=remote_?"Unable to open verified HTTPS stream":"Unable to open MP4";goto cleanup;}
+  if(opened<0){
+   char reason[128]{};
+   av_strerror(opened,reason,sizeof(reason));
+   error=std::string(remote_?"Verified HTTPS stream failed: ":"Unable to open MP4: ")+reason;
+   goto cleanup;
+  }
  }
- if(avformat_find_stream_info(fmt,nullptr)<0){error="Invalid media streams";goto cleanup;}
+ if(avformat_find_stream_info(fmt,nullptr)<0){error=remote_?"Cannot probe HTTPS video/audio tracks":"Invalid media streams";goto cleanup;}
  vi=av_find_best_stream(fmt,AVMEDIA_TYPE_VIDEO,-1,-1,nullptr,0);
  if(vi<0){error="Video track missing";goto cleanup;}
  {
