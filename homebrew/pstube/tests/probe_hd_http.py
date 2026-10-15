@@ -13,7 +13,26 @@ for label,url in zip(("720p H264","AAC"),urls):
    (7340032,7602175),(7602176,7733247),(7667712,7733247),
    (7733248,7737343),(7737344,7741439),(7737344,7798783),
    (7733248,7798783),(7667712,7798783),(7602176,7864319),
-   (7602176,8650751),(7340032,8388607)]
+   (7602176,8650751),(7340032,8388607),
+   (7737344,7737344),(7737343,7737344),(7737000,7737400),
+   (8388608,8392703),(10485760,10489855),(15728640,15732735),
+   (20971520,20975615),(26000000,26004095)]
+  from urllib.parse import urlsplit,parse_qsl, urlencode,urlunsplit
+  parsed=urlsplit(url)
+  print("HD URL query keys",sorted(set(k for k,_ in parse_qsl(parsed.query))),flush=True)
+  for begin,end in [(7737344,7741439),(7340032,8388607),(8388608,8392703)]:
+   adjusted=[(k,v) for k,v in parse_qsl(parsed.query) if k not in ("range","rn","rbuf")]
+   adjusted.extend([("range",f"{begin}-{end}"),("rn","1")])
+   q=urlunsplit((parsed.scheme,parsed.netloc,parsed.path,urlencode(adjusted),parsed.fragment))
+   for hdr in (None,f"bytes={begin}-{end}"):
+    try:
+     request=urllib.request.Request(q,headers={"User-Agent":ua_vr,
+       "Accept":"*/*",**({"Range":hdr} if hdr else {})})
+     with urllib.request.urlopen(request,timeout=8) as response:
+      response.read(512)
+      print("HD QUERY RANGE",begin,end,hdr is not None,response.status,flush=True)
+    except urllib.error.HTTPError as ex:print("HD QUERY RANGE",begin,end,hdr is not None,ex.code,flush=True)
+    except Exception as ex:print("HD QUERY RANGE",begin,end,hdr is not None,type(ex).__name__,flush=True)
   for begin,end in offsets:
    try:
     req=urllib.request.Request(url,headers={"User-Agent":ua_vr,
