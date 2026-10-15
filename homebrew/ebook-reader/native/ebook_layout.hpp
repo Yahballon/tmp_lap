@@ -47,7 +47,12 @@ inline float top_alignment(int tex_w,int tex_h,float zoom){
 struct PanBounds {float min_x=0.f,max_x=0.f,min_y=0.f,max_y=0.f;};
 constexpr Rectangle page_clip{179.f,199.f,1562.f,744.f};
 constexpr Rectangle text_page_bounds{218.f,264.f,1484.f,650.f};
-constexpr Rectangle single_text_page_bounds{525.f,264.f,870.f,650.f};
+// True text extents (first glyph at 550) and the inset of the visible
+// cream-coloured sheet. The viewport must be narrower than the whole book,
+// otherwise zoomed text bleeds into the brown margins in Single Page mode.
+constexpr Rectangle single_text_page_bounds{550.f,264.f,835.f,650.f};
+constexpr Rectangle single_sheet_clip{474.f,204.f,972.f,738.f};
+constexpr float single_first_glyph_x=550.f;
 // Legacy files store lines independent of the reader's display mode:
 // a spread shows 34 text lines (2 x 17), a single page shows 17.
 constexpr int text_rows=17;
@@ -100,8 +105,21 @@ inline PanBounds comic_pan_bounds(int w,int h,float zoom){
  return calculate_pan(content,zoom,960.f,comic_y,shift);
 }
 inline PanBounds text_pan_bounds(float zoom,bool single=false){
- return calculate_pan(single?single_text_page_bounds:text_page_bounds,
-                      zoom,960.f,264.f,0.f);
+ if(!single)return calculate_pan(text_page_bounds,zoom,960.f,264.f,0.f);
+ auto bounds=calculate_pan(single_text_page_bounds,zoom,960.f,264.f,0.f,
+                           single_sheet_clip);
+ if(zoom>1.001f){
+   // At zoom>100%, x=0 would hide the beginning of every line to the left
+   // of the physical paper (because our transform pivots at x=960).
+   const float zoomed_first=960.f+(single_first_glyph_x-960.f)*zoom;
+   bounds.max_x=single_first_glyph_x-zoomed_first;
+   // Scrolling right must still reveal the last part of each line.
+   bounds.min_x=std::min(bounds.min_x,bounds.max_x);
+ }
+ return bounds;
+}
+inline float single_page_start_x(float zoom){
+ return text_pan_bounds(zoom,true).max_x;
 }
 inline float clamp_x(float pan,const PanBounds& bounds){
  return std::clamp(pan,bounds.min_x,bounds.max_x);

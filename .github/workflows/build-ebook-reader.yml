@@ -84,7 +84,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.008')
+          d.update(titleId='PPSA99741',conceptId='99741',contentId='UP9000-PPSA99741_00-PS5EBOOKREADER01',contentVersion='01.000.009')
           d['localizedParameters']['en-US']['titleName']='Ebook Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -130,9 +130,9 @@ jobs:
           p=pathlib.Path('app/dist/PPSA99741')
           e=(p/'eboot.bin').read_bytes()
           assert len(e)>1000 and struct.unpack('<I',e[:4])[0]==0x1d3d154f
-          assert b'v0.1.8' in e
+          assert b'v0.1.9' in e
           j=json.loads((p/'sce_sys/param.json').read_text())
-          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.008'
+          assert j['titleId']=='PPSA99741' and j['contentVersion']=='01.000.009'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/Books/README.txt','bookscan.elf']:
             assert (p/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99741.zip') as z:
@@ -142,7 +142,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Ebook-Reader-v0.1.8
+          name: Ebook-Reader-v0.1.9
           path: app/dist/PPSA99741.zip
           if-no-files-found: error
       - name: Publish release
@@ -150,5 +150,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ebook-reader-v0.1.8 >/dev/null 2>&1; then exit 0; fi
-          gh release create ebook-reader-v0.1.8 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.1.8" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md
+          if gh release view ebook-reader-v0.1.9 >/dev/null 2>&1; then exit 0; fi
+          gh release create ebook-reader-v0.1.9 app/dist/PPSA99741.zip --target "$GITHUB_SHA" --title "Ebook Reader v0.1.9" --notes-file homebrew/ebook-reader/RELEASE_NOTES.md
