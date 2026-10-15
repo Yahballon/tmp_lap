@@ -17,7 +17,7 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libssl-dev
       - name: Prepare PS5 source and assets
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -30,11 +30,36 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.001')
+          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.002')
           d['localizedParameters']['en-US']['titleName']='PSTUBE'
           p.write_text(json.dumps(d,indent=2)+'\n')
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
           Path('app/src/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE(' + pem + ')PS5CABUNDLE";\n')
+          PY
+      - name: Test live catalog JSON parsing (host)
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src homebrew/pstube/tests/catalog_parser_test.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-catalog-test
+          /tmp/pstube-catalog-test
+      - name: Probe public API availability (non-blocking diagnostic)
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import urllib.request, json, concurrent.futures
+          domains=('inv.nadeko.net','invidious.nerdvpn.de','yt.chocolatemoo53.com','invidious.tiekoetter.com')
+          def check(domain):
+              try:
+                  request=urllib.request.Request('https://'+domain+'/api/v1/search?q=ps5&type=video',
+                      headers={'User-Agent':'PSTUBE/0.2.1','Accept':'application/json'})
+                  with urllib.request.urlopen(request,timeout=8) as response:
+                      data=json.load(response)
+                  valid=isinstance(data,list) and sum(bool(x.get('videoId')) for x in data if isinstance(x,dict))
+                  return domain, str(valid)+' videos'
+              except Exception as error:return domain,type(error).__name__+': '+str(error)[:90]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+              for host,message in executor.map(check,domains):
+                  print('Catalog provider:',host,message)
           PY
       - name: Prepare native OpenGL SDK
         working-directory: app
@@ -62,9 +87,9 @@ jobs:
           root=pathlib.Path('app/dist/PPSA99762')
           executable=(root/'eboot.bin').read_bytes()
           assert len(executable)>1000 and struct.unpack('<I',executable[:4])[0]==0x1D3D154F
-          assert b'v0.2.0' in executable
+          assert b'v0.2.1' in executable
           d=json.loads((root/'sce_sys/param.json').read_text())
-          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.001'
+          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.002'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']:
             assert (root/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99762.zip') as z:
@@ -73,7 +98,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PSTUBE-v0.2.0
+          name: PSTUBE-v0.2.1
           path: app/dist/PPSA99762.zip
           if-no-files-found: error
       - name: Publish alpha release
@@ -81,5 +106,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view pstube-v0.2.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create pstube-v0.2.0 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.2.0 (Playback Beta)" --notes-file homebrew/pstube/RELEASE_NOTES.md
+          if gh release view pstube-v0.2.1 >/dev/null 2>&1; then exit 0; fi
+          gh release create pstube-v0.2.1 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.2.1 (Catalog Fix)" --notes-file homebrew/pstube/RELEASE_NOTES.md
