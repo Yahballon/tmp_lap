@@ -15,6 +15,7 @@ class Service {
  bool trending();
  bool load_more();
  bool start_stream(const Video& video);
+ void cancel_stream();
  bool details(const std::string& id);
  bool download(const Video& video);
  std::string local_path(const std::string& videoId) const;
