@@ -49,7 +49,10 @@ for app_dir in sorted(app_dirs):
         assert "PS5_RELEASE_TOKEN" in pub_code
         testbuild = workflow_dir / "publish-ps5-dreamcastx-testbuild.yml"
         testbuild_code = testbuild.read_text()
-        assert "Build PS5DreamcastX (native Flycast)" in testbuild_code
+        assert "if: false # Disabled" in testbuild_code
+        # The raw-artifact route is intentionally disabled for the installed
+        # TESTBUILD parser; its manifest requires actual GitHub Releases.
+        assert "Build PS5DreamcastX (native Flycast)" in (workflow_dir / "build-ps5-dreamcastx.yml").read_text()
         assert "Publish PS5DreamcastX TESTBUILD" in names
         assert "Publish PS5DreamcastX Release" in names
         matching.append(("Publish PS5DreamcastX Release", publisher.name))
