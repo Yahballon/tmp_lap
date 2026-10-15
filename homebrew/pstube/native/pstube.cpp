@@ -345,9 +345,12 @@ std::vector<Video> parse_youtube_html(const std::string& html){
 // Continuations come from the same live YouTube response as the video cards.
 // Do not invent page tokens or use a fixed result offset.
 std::string youtube_continuation(const std::string& json){
- size_t start=0;
+ // Initial HTML embeds continuationItemRenderer; subsequent Innertube responses
+ // can instead contain continuationCommand under appendContinuationItemsAction or
+ // onResponseReceivedCommands. Search both response shapes.
  std::string result;
  constexpr std::string_view marker="\"continuationItemRenderer\":{";
+ size_t start=0;
  while((start=json.find(marker,start))!=std::string::npos){
   const size_t obj=start+marker.size()-1;
   const size_t end=value_end(json,obj);
@@ -357,6 +360,31 @@ std::string youtube_continuation(const std::string& json){
   const auto command=field(endpoint,"continuationCommand");
   auto token=decode(field(command,"token"),4096);
   if(token.size()>=16&&token.size()<4096)result=std::move(token);
+  start=end;
+ }
+ if(!result.empty())return result;
+ // Some YouTube continuations use a bare continuationCommand without
+ // continuationItemRenderer. Take the last matching token, normally the
+ // pagination item appended after actual video results.
+ constexpr std::string_view command="\"continuationCommand\":{";
+ start=0;
+ while((start=json.find(command,start))!=std::string::npos){
+  const size_t obj=start+command.size()-1;
+  const size_t end=value_end(json,obj);
+  if(end<=obj||end>json.size()){start+=command.size();continue;}
+  const auto token=decode(field(std::string_view(json.data()+obj,end-obj),"token"),4096);
+  if(token.size()>=16&&token.size()<4096)result=token;
+  start=end;
+ }
+ if(!result.empty())return result;
+ constexpr std::string_view older="\"nextContinuationData\":{";
+ start=0;
+ while((start=json.find(older,start))!=std::string::npos){
+  const size_t obj=start+older.size()-1;
+  const size_t end=value_end(json,obj);
+  if(end<=obj||end>json.size()){start+=older.size();continue;}
+  const auto token=decode(field(std::string_view(json.data()+obj,end-obj),"continuation"),4096);
+  if(token.size()>=16&&token.size()<4096)result=token;
   start=end;
  }
  return result;
@@ -630,7 +658,7 @@ bool Service::load_more(){
    else if(ok)svc.providerPage_=w->page;
    // Do not spin repeatedly on a failing or duplicate page.
    svc.state_.hasMore=ok&&newCount>0&&svc.state_.videos.size()<1800&&
-     (!w->token.empty()?!next.empty():added.size()>=8);
+     (!w->token.empty()?!next.empty()&&next!=w->token:added.size()>=8);
    svc.state_.status=!ok?"Couldn't load the next page: "+error:
      newCount?std::to_string(svc.state_.videos.size())+" videos - scroll for more":
               "End of available search results";
