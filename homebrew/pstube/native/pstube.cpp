@@ -23,7 +23,7 @@
 #include <string_view>
 namespace pstube {
 namespace {
-constexpr size_t kMaxJson=2*1024*1024;
+constexpr size_t kMaxJson=5*1024*1024;
 const char* kSave="/download0/pstube.txt";
 const char* kFallback="/data/pstube/state.txt";
 bool host_ok(const std::string& h) {
@@ -57,7 +57,7 @@ bool https(const std::string& host,const std::string& path,std::string& payload,
  if(!ssl){close(fd);SSL_CTX_free(ctx);error="TLS allocation failed";return false;}
  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,host.c_str());SSL_set1_host(ssl,host.c_str());
  if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){error="TLS verification failed";SSL_free(ssl);close(fd);SSL_CTX_free(ctx);return false;}
- std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: PSTUBE/0.2.1\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+ std::string request="GET "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: text/html,application/json;q=0.9,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
  bool ok=true;
  for(size_t off=0;off<request.size();){
   int n=SSL_write(ssl,request.data()+off,(int)(request.size()-off));if(n<=0){ok=false;error="HTTP send failed";break;}off+=(size_t)n;
@@ -210,6 +210,64 @@ std::vector<Video> parse_search(const std::string& s){
   }skip(s,p);if(p>=s.size()||s[p++]!=',')break;
  }return out;
 }
+
+int youtube_duration(const std::string& time){
+ int count=0,seconds=0;std::string number;
+ for(char c:time){
+  if(c>='0'&&c<='9'){if(number.size()<4)number+=c;}
+  else if(c==':'){
+   if(number.empty())return 0;
+   seconds=seconds*60+std::atoi(number.c_str());number.clear();++count;
+  }else return 0;
+ }
+ if(number.empty()||count>2)return 0;
+ seconds=seconds*60+std::atoi(number.c_str());
+ return seconds>=0&&seconds<=864000?seconds:0;
+}
+std::string youtube_run(std::string_view obj){
+ const auto runs=field(obj,"runs");size_t p=0;skip(runs,p);
+ if(p>=runs.size()||runs[p++]!='[')return {};
+ skip(runs,p);if(p>=runs.size()||runs[p]!='{')return {};
+ const auto item=runs.substr(p,value_end(runs,p)-p);
+ return decode(field(item,"text"));
+}
+std::vector<Video> parse_youtube_html(const std::string& html){
+ std::vector<Video> videos;
+ if(html.size()>kMaxJson)return videos;
+ // The public, logged-out YouTube search page contains the renderer JSON.
+ // Never interpret unrelated script data as a video: validate 11-char IDs.
+ constexpr std::string_view needle="\"videoRenderer\":{";
+ size_t from=html.find("ytInitialData");
+ if(from==std::string::npos)return videos;
+ while(videos.size()<50){
+  const size_t hit=html.find(needle,from);
+  if(hit==std::string::npos)break;
+  const size_t start=hit+needle.size()-1;
+  const size_t end=value_end(html,start);
+  if(end<=start||end>html.size()){from=hit+needle.size();continue;}
+  const std::string_view item(html.data()+start,end-start);
+  Video v;
+  v.id=decode(field(item,"videoId"));
+  v.title=youtube_run(field(item,"title"));
+  if(v.title.empty())v.title=decode(field(field(item,"title"),"simpleText"));
+  v.author=youtube_run(field(item,"longBylineText"));
+  if(v.author.empty())v.author=youtube_run(field(item,"ownerText"));
+  v.length=youtube_duration(decode(field(field(item,"lengthText"),"simpleText")));
+  const std::string count=decode(field(field(item,"viewCountText"),"simpleText"));
+  long views=0;
+  for(char c:count){
+   if(c>='0'&&c<='9'){if(views<=999999999L)views=views*10+(c-'0');}
+   else if((c<'0'||c>'9')&&c!=','&&c!='.')break;
+  }
+  v.views=views;
+  if(valid_id(v.id)&&!v.title.empty()&&
+    std::none_of(videos.begin(),videos.end(),[&](const Video& old){return old.id==v.id;})){
+   videos.push_back(std::move(v));
+  }
+  from=end;
+ }
+ return videos;
+}
 Service::Service(){
  mkdirs();
  state_.videos=load_feed_cache();
@@ -321,6 +379,24 @@ bool Service::search(const std::string& query){
  int rc=pthread_create(&th,&a,[](void* p)->void* {
   std::unique_ptr<Work> work((Work*)p);Service& svc=*work->svc;
   const bool trending=work->query=="@@TRENDING@@";
+  const std::string directQuery=trending?"PS5 gaming":work->query;
+  std::string youtubeHtml,youtubeError;
+  const bool youtubeOk=https("www.youtube.com",
+     "/results?search_query="+escape_url(directQuery),youtubeHtml,youtubeError);
+  std::vector<Video> directVideos=youtubeOk?parse_youtube_html(youtubeHtml):std::vector<Video>{};
+  if(!directVideos.empty()){
+   save_feed_cache(directVideos);
+   queue_thumbnails(directVideos);
+   {
+    std::lock_guard<std::mutex> g(svc.mutex_);
+    svc.state_.videos=std::move(directVideos);
+    svc.state_.status="Live video list from YouTube.com (public search)";
+    svc.state_.searching=false;
+   }
+   svc.busy_.store(false,std::memory_order_release);
+   return nullptr;
+  }
+
   const std::string path=trending?"/api/v1/trending?region=US":
      "/api/v1/search?q="+escape_url(work->query)+"&type=video";
   // Trusted instances from the official Invidious public-instance directory.
@@ -329,7 +405,7 @@ bool Service::search(const std::string& query){
     svc.instance(),"inv.nadeko.net","invidious.nerdvpn.de",
     "yt.chocolatemoo53.com","invidious.tiekoetter.com"};
   std::vector<Video> videos;
-  std::string lastError="Providers unavailable",successful;
+  std::string lastError=youtubeOk?"YouTube HTML contained no recognizable videos":"YouTube: "+youtubeError,successful;
   for(size_t index=0;index<sizeof(candidates)/sizeof(candidates[0]);++index){
    const std::string& host=candidates[index];
    bool duplicate=false;
