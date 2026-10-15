@@ -729,6 +729,60 @@ bool resolve_android_mp4(const std::string& id,std::string& mediaUrl,std::string
  mediaUrl=std::move(candidate);
  return true;
 }
+void Service::cancel_stream(){
+ std::lock_guard<std::mutex> g(mutex_);
+ state_.streamId.clear();state_.streamUrl.clear();state_.streamError.clear();
+ state_.streamResolving=false;
+}
+bool Service::start_stream(const Video& video){
+ if(!valid_id(video.id)||resolvingStream_.exchange(true))return false;
+ {
+  std::lock_guard<std::mutex> g(mutex_);
+  state_.streamId=video.id;
+  state_.streamUrl.clear();state_.streamError.clear();state_.streamResolving=true;
+ }
+ auto* work=new Work{this,"",video.id,3,video};
+ pthread_t thread{};pthread_attr_t attr;
+ pthread_attr_init(&attr);pthread_attr_setstacksize(&attr,1024*1024);
+ const int rc=pthread_create(&thread,&attr,[](void* ptr)->void*{
+  std::unique_ptr<Work> w((Work*)ptr);Service& svc=*w->svc;
+  std::string url,error;
+  if(!resolve_android_mp4(w->id,url,error)){
+   const std::string androidError=error;
+   const std::string host=svc.instance();
+   std::string page,webError;
+   if(https("www.youtube.com","/watch?v="+w->id,page,webError))
+    url=pick_youtube_video_mp4(page,webError);
+   if(url.empty()){
+    std::string response,apiError;
+    if(https(host,"/api/v1/videos/"+w->id,response,apiError))
+     url=pick_mp4(response);
+    if(url.empty())
+     error=androidError+"; Web: "+webError+"; Invidious: "+apiError;
+   }
+  }
+  // A stream URL is kept only in volatile memory and discarded when leaving
+  // the player. Do not log signed query parameters.
+  {
+   std::lock_guard<std::mutex> g(svc.mutex_);
+   if(svc.state_.streamId==w->id){
+    svc.state_.streamUrl=std::move(url);
+    svc.state_.streamError=svc.state_.streamUrl.empty()?
+      (error.empty()?"No direct HTTPS stream available":error):std::string();
+    svc.state_.streamResolving=false;
+   }
+  }
+  svc.resolvingStream_.store(false,std::memory_order_release);return nullptr;
+ },work);
+ pthread_attr_destroy(&attr);
+ if(rc){
+  delete work;resolvingStream_=false;
+  std::lock_guard<std::mutex> g(mutex_);
+  state_.streamResolving=false;state_.streamError="Could not start stream resolver";
+  return false;
+ }
+ pthread_detach(thread);return true;
+}
 bool Service::download(const Video& video){
  if(!valid_id(video.id)||downloading_.exchange(true))return false;
  const std::string path=local_path(video.id);
