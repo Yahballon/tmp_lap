@@ -40,3 +40,20 @@ jobs:
            for result in ex.map(probe,sources.items()):
             print('SOURCE TEST:',*result,flush=True)
           PY
+      - name: Inspect actual YouTube search JSON and CDN availability
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36','Accept':'text/html,*/*'}
+          for url in ('https://www.youtube.com/results?search_query=ps5','https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg'):
+           try:
+            with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=10) as response:
+             payload=response.read(2500000)
+             print('TARGET',url,'HTTP',response.status,'LENGTH',len(payload),'TYPE',response.headers.get('Content-Type'))
+            if 'search_query' in url:
+             for needle in (b'ytInitialData',b'videoRenderer',b'"videoId"',b'"title"'):
+              at=payload.find(needle)
+              print('NEEDLE',needle,at,'SAMPLE',payload[max(0,at-100):at+1100].decode('utf8','replace') if at>=0 else '')
+            else: print('THUMBNAIL MAGIC',payload[:32].hex())
+           except Exception as e:print('FAILED',type(e).__name__,str(e)[:150])
+          PY
