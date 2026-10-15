@@ -46,7 +46,11 @@ for app_dir in sorted(app_dirs):
         publisher = workflow_dir / "publish-ps5-dreamcastx.yml"
         pub_code = publisher.read_text()
         assert "gh release create" in pub_code
-        assert "Build PS5DreamcastX (native Flycast)" in pub_code
+        assert "PS5_RELEASE_TOKEN" in pub_code
+        testbuild = workflow_dir / "publish-ps5-dreamcastx-testbuild.yml"
+        testbuild_code = testbuild.read_text()
+        assert "Build PS5DreamcastX (native Flycast)" in testbuild_code
+        assert "Publish PS5DreamcastX TESTBUILD" in names
         assert "Publish PS5DreamcastX Release" in names
         matching.append(("Publish PS5DreamcastX Release", publisher.name))
     if not matching:

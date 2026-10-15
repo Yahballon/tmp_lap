@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/publish-ps5-dreamcastx-testbuild.yml'
       - 'tools/publish-dreamcastx-artifact.py'
+      - 'tools/test-catalog-triggers.py'
   workflow_dispatch:
   workflow_run:
     workflows:
