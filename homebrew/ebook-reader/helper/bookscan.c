@@ -24,7 +24,7 @@
 #define MAX_PATH 512
 #define MAX_FILE (2ULL * 1024ULL * 1024ULL * 1024ULL)
 #ifndef PORT
-#define PORT 9175
+#define PORT 9176
 #endif
 struct Item {char relative[MAX_PATH];off_t size;};
 static struct Item items[MAX_BOOKS];
@@ -96,7 +96,7 @@ static int emit_catalog(int fd){
  return write_all(fd,"DONE\n",5);
 }
 #ifndef EBOOK_USB_TEST
-static void fetch(int client,const char *name){
+static void fetch(int client,const char *name,uint64_t offset){
  if(!*selected_root)scan();
  const struct Item *item=NULL;
  for(unsigned i=0;i<item_count;i++)if(strcmp(name,items[i].relative)==0){item=&items[i];break;}
@@ -119,8 +119,10 @@ static void fetch(int client,const char *name){
  }
  struct stat st;if(lstat(path,&st)!=0||!S_ISREG(st.st_mode)||
                 st.st_size!=item->size||st.st_size<1||st.st_size>MAX_FILE)return;
+ if(offset>(uint64_t)st.st_size)return;
  FILE *f=fopen(path,"rb");if(!f)return;
- char line[80];n=snprintf(line,sizeof(line),"DATA %lld\n",(long long)st.st_size);
+ if(fseeko(f,(off_t)offset,SEEK_SET)!=0){fclose(f);return;}
+ char line[80];n=snprintf(line,sizeof(line),"DATA %lld\n",(long long)((uint64_t)st.st_size-offset));
  if(n>0&&write_all(client,line,(size_t)n)){
   char buf[16384];size_t got;size_t total=0;
   while((got=fread(buf,1,sizeof(buf),f))!=0){
@@ -150,7 +152,7 @@ static void serve(void){
   if(n>0){request[n]='\0';
    char *nl=strchr(request,'\n');if(nl)*nl='\0';
    if(!strcmp(request,"LIST"))emit_catalog(c);
-   else if(!strncmp(request,"FETCH ",6)&&strlen(request+6)<MAX_PATH)fetch(c,request+6);
+   else if(!strncmp(request,"FETCH ",6)&&strlen(request+6)<MAX_PATH)fetch(c,request+6,0);
   }
   close(c);
  }
