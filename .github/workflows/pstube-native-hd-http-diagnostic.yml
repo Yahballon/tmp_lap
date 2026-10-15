@@ -6,6 +6,7 @@ on:
       - 'homebrew/pstube/native/range_media.hpp'
       - 'homebrew/pstube/tests/native_hd_range_probe_test.cpp'
       - 'homebrew/pstube/tests/probe_hd_http.py'
+      - 'homebrew/pstube/tests/probe_alternate_clients.py'
       - '.github/workflows/pstube-native-hd-http-diagnostic.yml'
 permissions:
   contents: read
@@ -41,3 +42,6 @@ jobs:
             -lssl -lcrypto -o /tmp/pstube-probe-http
           /tmp/pstube-probe-http
           python3 homebrew/pstube/tests/probe_hd_http.py
+      - name: Probe VisionOS and Embedded HTTPS media
+        run: python3 homebrew/pstube/tests/probe_alternate_clients.py
+
