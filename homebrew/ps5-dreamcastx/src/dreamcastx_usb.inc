@@ -28,10 +28,10 @@ static std::vector<std::string> discoverDreamcastXUsbDirs(const std::string& mou
             if (!accepted) continue;
             const std::string base = mount + "/" + folder;
             struct stat st{};
-            // USB directory entries can report DT_UNKNOWN. lstat works reliably.
-            if (lstat(base.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+            // USB directory entries can report DT_UNKNOWN. stat works reliably.
+            if (stat(base.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) continue;
             const std::string gameDir = base + "/games";
-            if (low == "ps5dreamcastx" && lstat(gameDir.c_str(), &st) == 0 && S_ISDIR(st.st_mode))
+            if (low == "ps5dreamcastx" && stat(gameDir.c_str(), &st) == 0 && S_ISDIR(st.st_mode))
                 paths.push_back(gameDir);
             else
                 paths.push_back(base);
