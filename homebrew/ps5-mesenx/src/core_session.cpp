@@ -141,7 +141,7 @@ struct Session::State final : IInputProvider {
             [this]() -> IAudioDevice* { return new AudioDevice(this); },
             [this]() -> IRenderingDevice* { return new VideoDevice(this); });
     }
-    ~State() override {
+    ~State() {
         emu.Stop(false, true);
         emu.Release();
     }
