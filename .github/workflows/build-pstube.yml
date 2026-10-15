@@ -78,6 +78,11 @@ jobs:
       - name: Probe public video playback formats (diagnostic)
         continue-on-error: true
         run: python3 homebrew/pstube/tests/probe_watch_formats.py
+      - name: Verify actual JPEG over our native HTTPS transport
+        continue-on-error: true
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src homebrew/pstube/tests/thumbnail_http_test.cpp app/src/transfer.cpp -lssl -lcrypto -o /tmp/pstube-thumbnail-http-test
+          /tmp/pstube-thumbnail-http-test
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
