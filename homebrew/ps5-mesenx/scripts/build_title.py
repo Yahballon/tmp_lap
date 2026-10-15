@@ -64,6 +64,9 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     # Stubs are host-link-only and must not be packaged with the title.
     txt=replace_once(txt, "pie=out/'llvm-pie.elf'",
         "stubs.extend([str(Path(os.environ['AGC_STUB_DIR'])/n) for n in ('libSceAgc.so','libSceAgcDriver.so')])\npie=out/'llvm-pie.elf'")
+    txt=replace_once(txt,
+        "'--stub-dir',str(sdk/'target/lib'),",
+        "'--stub-dir',str(sdk/'target/lib'),'--stub',str(Path(os.environ['AGC_STUB_DIR'])/'libSceAgc.so'),'--stub',str(Path(os.environ['AGC_STUB_DIR'])/'libSceAgcDriver.so'),")
     # The PS5_Vulkan setup produces a target-native zlib archive. Preserve
     # it in the final static link for NES compression and archive helpers.
     txt=txt.replace("netlibs=[]", "netlibs=[z/'lib/libz.a']")
