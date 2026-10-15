@@ -46,4 +46,6 @@ std::vector<Video> parse_search(const std::string&);
 std::vector<Video> parse_youtube_html(const std::string&);
 std::string json_string(const std::string&,const std::string&);
 std::string escape_url(const std::string&);
+// Native HTTPS Innertube resolver. Returned URLs are ephemeral; never persist them.
+bool resolve_android_mp4(const std::string& videoId,std::string& mediaUrl,std::string& error);
 }
