@@ -32,7 +32,20 @@ def probe(q):
  h264=[fmt(x) for x in adaptive if "video/mp4" in x.get("mimeType","") and "avc1" in x.get("mimeType","")]
  aac=[fmt(x) for x in adaptive if "audio/mp4" in x.get("mimeType","") and "mp4a" in x.get("mimeType","")]
  other=[fmt(x) for x in adaptive if "video/" in x.get("mimeType","") and "avc1" not in x.get("mimeType","")]
- return f"{name}/{vid} status={play} mux={mux[:4]} avc={h264[:10]} aac={aac[:5]} other={other[:6]} adaptiveCount={len(adaptive)}"
+ mediaChecks=[]
+ if name=="android_tv" and play=="OK":
+  for itag in (136,137,140):
+   fmtitem=next((x for x in adaptive if x.get("itag")==itag and x.get("url")),None)
+   if not fmtitem:mediaChecks.append(f"{itag}: unavailable");continue
+   try:
+    url=fmtitem["url"]
+    assert url.startswith("https://") and "googlevideo.com" in url.split("/")[2]
+    req=urllib.request.Request(url,headers={"User-Agent":ua,"Range":"bytes=0-4095","Accept":"*/*"})
+    with urllib.request.urlopen(req,timeout=13) as media:
+     start=media.read(4096)
+     mediaChecks.append(f"{itag}: HTTP={media.status} bytes={len(start)} mp4={b'ftyp' in start[:64]} mime={media.headers.get('Content-Type','')[:50]}")
+   except Exception as e:mediaChecks.append(f"{itag}: {type(e).__name__} {str(e)[:55]}")
+ return f"{name}/{vid} status={play} mux={mux[:4]} avc={h264[:10]} aac={aac[:5]} other={other[:6]} adaptiveCount={len(adaptive)} checked={mediaChecks}"
 with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
  for result in ex.map(probe,[(a,b,c,d,e,vid) for a,b,c,d,e in configs for vid in ids]):
   print("HD_PROBE:",result,flush=True)
