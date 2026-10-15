@@ -11,7 +11,6 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <cstdint>
@@ -134,33 +133,28 @@ uint64_t fnv64(const std::string& name){
  for(unsigned char c:name){h^=c;h*=1099511628211ULL;}
  return h;
 }
-bool cachedir(size_t needed,std::string& dir,std::string& why){
- // Comics are larger than ebooks; a writable mount can still be full.
- size_t biggest=0;
- bool writeable=false;
-
+bool cachedir(std::string& dir,std::string& why){
+ // The PS5 POSIX compatibility layer does not guarantee statvfs support.
+ // Calling an unresolved runtime function when opening ANY USB book can
+ // crash the console. Only use known-good mkdir/fopen/write primitives.
+ // A full disk is reported by fwrite/fflush with errno (ENOSPC), not by a
+ // speculative filesystem-capacity query.
  for(const char* path:{EBOOK_USB_CACHE_ROOT,"/data/ebooks/.reader-cache"}){
   const std::string base=path;
   const auto slash=base.find_last_of('/');
   if(slash!=std::string::npos)mkdir(base.substr(0,slash).c_str(),0755);
-  if(mkdir(path,0755)!=0&&errno!=EEXIST)continue;
-  const auto test=base+"/.write-probe";
-  FILE* f=fopen(test.c_str(),"wb");
-  if(f){
-   fclose(f);remove(test.c_str());writeable=true;
-   struct statvfs fs{};
-   if(statvfs(base.c_str(),&fs)!=0){dir=base;return true;}
-   const unsigned long long freeBytes=(unsigned long long)fs.f_bavail*fs.f_frsize;
-   biggest=std::max(biggest,(size_t)std::min(freeBytes,(unsigned long long)SIZE_MAX));
-   if(freeBytes >= (unsigned long long)needed + 8ULL*1024*1024){
-     dir=base;return true;
-   }
-  }
+  if(mkdir(path,0755)!=0 && errno!=EEXIST)continue;
+  const std::string probe=base+"/.write-probe";
+  FILE* out=fopen(probe.c_str(),"wb");
+  if(!out)continue;
+  const bool writable=fputc('x',out)!=EOF && fflush(out)==0;
+  const int code=errno;
+  fclose(out);
+  remove(probe.c_str());
+  if(writable){dir=base;return true;}
+  if(code==ENOSPC){why="No free storage for book cache";return false;}
  }
- if(!writeable)why="No writable Ebook Reader cache directory";
- else why="Insufficient cache storage: need "+
-       std::to_string((needed+1048575)/1048576)+" MiB, free "+
-       std::to_string(biggest/1048576)+" MiB";
+ why="Cannot access a writable Ebook Reader cache directory";
  return false;
 }
 } // namespace
@@ -189,7 +183,7 @@ bool fetch(const Entry& book,std::string& localPath,std::string& error){
  if(!safe(book.relative)||book.bytes==0||book.bytes>kMaxFile){error="Invalid USB book";return false;}
  bool found=false;for(const auto& b:known)if(b.relative==book.relative && b.bytes==book.bytes)found=true;
  if(!found){error="USB catalogue expired; press OPTIONS to refresh";return false;}
- std::string folder;if(!cachedir(book.bytes,folder,error))return false;
+ std::string folder;if(!cachedir(folder,error))return false;
  std::string suffix=book.relative.substr(book.relative.find_last_of('.'));
  for(char& c:suffix)if(c>='A'&&c<='Z')c=(char)(c-'A'+'a');
  char hex[24];std::snprintf(hex,sizeof(hex),"%016llx",(unsigned long long)fnv64(book.relative));
