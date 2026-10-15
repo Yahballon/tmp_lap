@@ -1,6 +1,14 @@
 name: Update TESTBUILDS Catalog
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/update-version-catalog.yml'
+      - '.github/workflows/build-*.yml'
+      - 'homebrew/*/app.json'
+      - 'tools/update-version.py'
+      - 'tools/test-version-catalog.py'
+      - 'tools/test-catalog-triggers.py'
   push:
     branches: [main]
     paths:
@@ -34,8 +42,19 @@ concurrency:
   group: testbuilds-version-catalog
   cancel-in-progress: false
 jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release discovery and workflow subscriptions
+        run: |
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
   catalog:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'))
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
