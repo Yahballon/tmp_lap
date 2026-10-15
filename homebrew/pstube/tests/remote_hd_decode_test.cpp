@@ -36,7 +36,9 @@ int main(){
   std::vector<unsigned char> frame;
   int width=0,height=0;uint64_t seq=0;
   bool decoded=false;
-  for(int i=0;i<230;i++){
+  // HD adaptive tracks can exceed 80 MB. The original ~23-second timeout
+  // incorrectly reported valid, still-progressing 1080p downloads as failures.
+  for(int i=0;i<(quality>=1080?1150:620);i++){
    std::this_thread::sleep_for(std::chrono::milliseconds(100));
    auto state=player.snapshot();
    if(player.pull(frame,width,height,seq)&&height==quality&&width>600){
