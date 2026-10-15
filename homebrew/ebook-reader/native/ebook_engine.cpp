@@ -492,8 +492,8 @@ void collect(const std::string& path,std::vector<BookEntry>& out,
     if(!seen.insert(full).second)continue;
     BookEntry b;b.path=full;b.title=clean_title(name);
     b.format=ends(name,".pdf")?"PDF":ends(name,".cbr")?"CBR":ends(name,".cbz")?"CBZ":"EPUB";
-    if(b.format=="CBR"||b.format=="CBZ")b.collection="Comics";
-    b.collection=(lower(name).find("comic")!=std::string::npos)?"Comics":"Fiction";
+    b.collection=(b.format=="CBR"||b.format=="CBZ"||
+                  lower(name).find("comic")!=std::string::npos)?"Comics":"Fiction";
     b.author="Unknown Author";
     out.push_back(std::move(b));
     ++status.books;
