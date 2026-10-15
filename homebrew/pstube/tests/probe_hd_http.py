@@ -12,6 +12,8 @@ for label,url in zip(("720p H264","AAC"),urls):
  for user_agent,range_value in [(ua_vr,None),(ua_vr,"bytes=0-4095"),(ua_vr,"bytes=0-16383"),
        (ua_vr,"bytes=0-65535"),(ua_vr,"bytes=0-262143"),
        (ua_vr,"bytes=0-1048575"),
+       (ua_vr,"bytes=7340032-8388607"),
+       (ua_vr,"bytes=7340032-7344127"),
        (ua_vr,"bytes=0-"),(ua_vr,"bytes=1048576-1052671"),
        (ua_web,None),(ua_web,"bytes=0-4095")]:
   name=("VR" if user_agent==ua_vr else "WEB")+" "+(range_value or "whole GET")
@@ -23,7 +25,8 @@ for label,url in zip(("720p H264","AAC"),urls):
     magic=b"ftyp" in buf[:64] or b"moov" in buf[:64] or b"mdat" in buf[:64]
     print("MEDIA HTTPS:",label,name,"HTTP",response.status,
           "content_type",response.headers.get("Content-Type"),
-          "body_prefix_bytes",len(buf),"mp4",magic,flush=True)
+          "body_prefix_bytes",len(buf),"mp4",magic,
+          "range",response.headers.get("Content-Range","")[:75],flush=True)
   except urllib.error.HTTPError as e:
    print("MEDIA HTTPS:",label,name,"HTTP",e.code,flush=True)
   except Exception as e:
