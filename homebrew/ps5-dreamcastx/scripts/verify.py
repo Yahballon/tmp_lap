@@ -25,11 +25,13 @@ assert 'ps5::appDir + "sce_sys/param.json"' in (src/"ps5_main.cpp").read_text()
 assert 'swapIn(appDir,' in (src/"ps5_update.cpp").read_text()
 assert 'readLine(appDir + "BUILD.txt")' in (src/"ps5_update.cpp").read_text()
 shelf=(src/"dreamcastx_shelf.inc").read_text()
-for forbidden in ("softDisc(", "quad(", "AddImageQuad(", "drawCover("):
-    assert forbidden not in shelf, f"Legacy perspective renderer returned: {forbidden}"
-assert "dreamcastXFit(" in shelf and "imageFill(dl,art,fitted.x,fitted.y,fitted.w,fitted.h" in shelf
-assert "drawDreamcastXCase(" in shelf
-assert "PS5_VERSION \"0.1.3\"" in (src/"ps5_build.h").read_text()
+assert "dreamcastXFace(" in shelf and "dreamcastXCoverUV(" in shelf
+assert "dreamcastXReflection(" in shelf and "drawDreamcastXCase(" in shelf
+assert "dreamcastXDrawImage(" in shelf and "AddImageQuad(" in shelf
+assert "softDisc(" not in shelf and "drawCover(" not in shelf
+assert "imageFill(dl,art,imageFace.tl.x" in shelf
+assert "ps5-dreamcastx-v" in (src/"ps5_update.cpp").read_text()
+assert "PS5_VERSION \"0.1.4\"" in (src/"ps5_build.h").read_text()
 feed=(src/"ps5_update.cpp").read_text()
 assert "Yahballon/tmp_lap/releases" in feed
 assert "ps5-dreamcastx-v" in feed
