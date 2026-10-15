@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <mutex>
 #include <sys/stat.h>
 #include <unistd.h>
 namespace audio_cover {
@@ -36,6 +37,8 @@ inline bool load(const std::string& key,std::string& output){
  return true;
 }
 inline bool save(const std::string& key,const std::string& encoded){
+ static std::mutex saveMutex;
+ std::lock_guard<std::mutex> lock(saveMutex);
  if(!image(encoded)||!audio_log::prepare())return false;
  const std::string folder=directory();
  if(mkdir(folder.c_str(),0755)!=0&&errno!=EEXIST)return false;
