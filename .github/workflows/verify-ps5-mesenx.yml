@@ -1,0 +1,46 @@
+name: Verify PS5MesenX native bridge
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-mesenx/src/**'
+      - 'homebrew/ps5-mesenx/tests/**'
+      - 'homebrew/ps5-mesenx/scripts/preflight.py'
+      - '.github/workflows/verify-ps5-mesenx.yml'
+  pull_request:
+    paths:
+      - 'homebrew/ps5-mesenx/src/**'
+      - 'homebrew/ps5-mesenx/tests/**'
+      - 'homebrew/ps5-mesenx/scripts/preflight.py'
+      - '.github/workflows/verify-ps5-mesenx.yml'
+permissions:
+  contents: read
+jobs:
+  native-bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure pinned upstream source import exists
+        run: |
+          test -f homebrew/ps5-mesenx/upstream/MesenCE/Core/Shared/Emulator.h
+          test -f homebrew/ps5-mesenx/upstream/PS5SNESX/ps5/frontend/fe_file_io.h
+      - name: Run source integration checks
+        run: |
+          python3 homebrew/ps5-mesenx/scripts/preflight.py
+          python3 -m unittest discover -s homebrew/ps5-mesenx/tests -v
+      - name: Compile native bridge C++ syntax (Linux host)
+        run: |
+          M=homebrew/ps5-mesenx/upstream/MesenCE
+          P=homebrew/ps5-mesenx/upstream/PS5SNESX
+          clang++ -std=c++17 -fsyntax-only -Wno-undefined-inline \
+            -I"$M" -I"$M/Core" -I"$M/Utilities" \
+            -I"$P/ps5/frontend" \
+            homebrew/ps5-mesenx/src/core_session.cpp
+      - name: Verify original C++ MesenCE core (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang make libevdev-dev libsdl2-dev libx11-dev libgl1-mesa-dev
+          cd homebrew/ps5-mesenx/upstream/MesenCE
+          make -j 3 core LTO=false SYSTEM_LIBEVDEV=true

@@ -61,3 +61,4 @@ game art or third-party HD packs are bundled.
 7. [ ] Produce signed app ZIP, release and TESTBUILDS version.json entry.
 
 Read [PORTING.md](PORTING.md) before changing the emulation backend.
+\n## Native adapter development (October 2026)\n\n`src/core_session.{h,cpp}` implements an **experimental** native C++ MesenCE\nbridge with NES ROM staging, HD pack lookup, HD-safe video frame buffering,\n48 kHz stereo capture, controller input and Mesen-native save states. It is\nnot yet included in a PS5 `eboot.bin`. The `Verify PS5MesenX native bridge`\nworkflow compiles its interface on a Linux host and checks upstream MesenCE\nbuildability; passing Linux tests does not verify PS5 compilation or playback.\n\nA separate native PS5 packaging workflow and hardware verification are the\nnext gates before any app should appear in `version.json`.\n
