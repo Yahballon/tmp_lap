@@ -1,0 +1,108 @@
+name: Build PS5 Audiobook Reader
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['homebrew/audiobook-reader/**', '.github/workflows/build-audiobook-reader.yml']
+  push:
+    branches: [main]
+    paths: ['homebrew/audiobook-reader/**', '.github/workflows/build-audiobook-reader.yml']
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev ffmpeg
+      - name: Test audiobook library
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror             -D'AUDIOBOOK_DATA_ROOT="/tmp/ps5-audiobook-ci"'             homebrew/audiobook-reader/native/library.cpp             homebrew/audiobook-reader/tests/library_test.cpp             -o /tmp/audiobook-library-test
+          /tmp/audiobook-library-test
+      - name: Test native M4B parser and player compilation on host
+        run: |
+          g++ -std=c++20 -O2 -pthread -Wall -Wextra             -Ihomebrew/audiobook-reader/native -c             homebrew/audiobook-reader/native/chapters.cpp             $(pkg-config --cflags libavformat libavcodec libavutil)             -o /tmp/audiobook-chapters.o
+          g++ -std=c++20 -O2 -pthread -Wall -Wextra             -Ihomebrew/audiobook-reader/native -c             homebrew/audiobook-reader/native/audio_player.cpp             $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2)             -o /tmp/audiobook-player.o
+          ffmpeg -hide_banner -loglevel error -nostdin -y -f lavfi -i 'sine=frequency=440:sample_rate=48000' -t 3 -c:a aac -b:a 96k -f mp4 /tmp/audiobook-test.m4b
+          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1 /tmp/audiobook-test.m4b | grep -q aac
+      - name: Prepare PS5 scaffold and artwork
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/audiobook-reader/native/*.cpp homebrew/audiobook-reader/native/*.hpp app/src/
+          mkdir -p app/assets/Books
+          cp homebrew/audiobook-reader/assets/Books/README.txt app/assets/Books/README.txt
+          if test -s homebrew/audiobook-reader/sce_sys/icon0.png; then
+            python3 - <<'PYICON'
+            from PIL import Image
+            im=Image.open('homebrew/audiobook-reader/sce_sys/icon0.png').convert('RGB')
+            im.resize((512,512),Image.Resampling.LANCZOS).save('app/sce_sys/icon0.png')
+            PYICON
+          else
+            python3 homebrew/audiobook-reader/assets/generate_icon.py app/sce_sys/icon0.png
+          fi
+          cp app/sce_sys/icon0.png app/assets/icon0.png
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          metadata=json.loads(Path('homebrew/audiobook-reader/app.json').read_text())
+          path=Path('app/sce_sys/param.json')
+          param=json.loads(path.read_text())
+          param.update(titleId=metadata['titleId'], conceptId=metadata['titleId'][4:],
+            contentId=metadata['contentId'], contentVersion=metadata['contentVersion'])
+          param['localizedParameters']['en-US']['titleName']=metadata['name']
+          path.write_text(json.dumps(param,indent=2)+'\n')
+          PY
+      - name: Prepare native OpenGL SDK
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: bash tools/prepare-opengl.sh
+      - name: Prepare POSIX archive
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Build native PS5 app
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='libavformat libavcodec libavutil libswresample sdl2' app
+      - name: Verify installation ZIP
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,struct,zipfile
+          metadata=json.loads(pathlib.Path('homebrew/audiobook-reader/app.json').read_text())
+          title=metadata['titleId'];root=pathlib.Path('app/dist')/title
+          exe=(root/'eboot.bin').read_bytes()
+          assert len(exe)>1000 and struct.unpack('<I',exe[:4])[0]==0x1D3D154F
+          assert b'v0.1.0' in exe
+          param=json.loads((root/'sce_sys/param.json').read_text())
+          assert param['titleId']==title and param['contentVersion']==metadata['contentVersion']
+          for file in ['sce_sys/icon0.png','sce_module/libc.prx','assets/icon0.png','assets/fonts/inter-semibold.huifont','assets/Books/README.txt']:
+            assert (root/file).is_file(),file
+          with zipfile.ZipFile(pathlib.Path('app/dist')/(title+'.zip')) as archive:
+            assert archive.testzip() is None
+            assert title+'/eboot.bin' in archive.namelist()
+            assert title+'/sce_sys/icon0.png' in archive.namelist()
+          print('Verified installable',title+'.zip')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Audiobook-Reader-v0.1.0
+          path: app/dist/PPSA99784.zip
+          if-no-files-found: error
+      - name: Publish release after main branch build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view audiobook-reader-v0.1.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create audiobook-reader-v0.1.0 app/dist/PPSA99784.zip --target "$GITHUB_SHA" --title "Audiobook Reader v0.1.0" --notes-file homebrew/audiobook-reader/RELEASE_NOTES.md
