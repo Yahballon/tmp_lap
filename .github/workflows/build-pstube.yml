@@ -30,7 +30,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.008')
+          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.009')
           d['localizedParameters']['en-US']['titleName']='PSTUBE'
           p.write_text(json.dumps(d,indent=2)+'\n')
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
@@ -104,6 +104,13 @@ jobs:
             app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
             -lssl -lcrypto -o /tmp/pstube-native-download-test
           timeout 110s /tmp/pstube-native-download-test
+      - name: Test HD source format selection (host)
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/pstube/tests/quality_selection_test.cpp \
+            app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
+            -lssl -lcrypto -o /tmp/pstube-quality-test
+          /tmp/pstube-quality-test
       - name: Test native YouTube continuation with two real pages
         timeout-minutes: 2
         run: |
@@ -121,7 +128,7 @@ jobs:
           def check(domain):
               try:
                   request=urllib.request.Request('https://'+domain+'/api/v1/search?q=ps5&type=video',
-                      headers={'User-Agent':'PSTUBE/0.6.0','Accept':'application/json'})
+                      headers={'User-Agent':'PSTUBE/0.7.0','Accept':'application/json'})
                   with urllib.request.urlopen(request,timeout=8) as response:
                       data=json.load(response)
                   valid=isinstance(data,list) and sum(bool(x.get('videoId')) for x in data if isinstance(x,dict))
@@ -171,6 +178,21 @@ jobs:
             $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) \
             -o /tmp/pstube-media-seek-test
           SDL_AUDIODRIVER=dummy timeout 25s /tmp/pstube-media-seek-test app/assets/videos/pstube-selftest.mp4
+      - name: Exercise native HD video and separate AAC audio
+        run: |
+          ffmpeg -hide_banner -loglevel error -nostdin -y -threads 2 \
+            -f lavfi -i 'testsrc2=size=1280x720:rate=25' \
+            -t 8 -c:v libx264 -preset ultrafast -crf 38 -pix_fmt yuv420p -an \
+            -movflags +faststart /tmp/pstube-hd-test.mp4
+          ffmpeg -hide_banner -loglevel error -nostdin -y \
+            -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
+            -t 8 -c:a aac -b:a 128k /tmp/pstube-hd-audio.m4a
+          g++ -std=c++20 -O2 -pthread -Iapp/src -Ihomebrew/pstube/native \
+            homebrew/pstube/tests/adaptive_media_test.cpp app/src/media.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale libswresample sdl2) \
+            -o /tmp/pstube-adaptive-test
+          SDL_AUDIODRIVER=dummy timeout 35s /tmp/pstube-adaptive-test \
+            /tmp/pstube-hd-test.mp4 /tmp/pstube-hd-audio.m4a
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
@@ -197,9 +219,9 @@ jobs:
           root=pathlib.Path('app/dist/PPSA99762')
           executable=(root/'eboot.bin').read_bytes()
           assert len(executable)>1000 and struct.unpack('<I',executable[:4])[0]==0x1D3D154F
-          assert b'v0.6.0' in executable
+          assert b'v0.7.0' in executable
           d=json.loads((root/'sce_sys/param.json').read_text())
-          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.008'
+          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.009'
           for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/videos/pstube-selftest.mp4']:
             assert (root/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99762.zip') as z:
@@ -208,7 +230,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PSTUBE-v0.6.0
+          name: PSTUBE-v0.7.0
           path: app/dist/PPSA99762.zip
           if-no-files-found: error
       - name: Publish alpha release
@@ -216,5 +238,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view pstube-v0.6.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create pstube-v0.6.0 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.6.0 (Seek + Fullscreen + Jailbreak News)" --notes-file homebrew/pstube/RELEASE_NOTES.md
+          if gh release view pstube-v0.7.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create pstube-v0.7.0 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.7.0 (Selectable HD Quality 720p/1080p)" --notes-file homebrew/pstube/RELEASE_NOTES.md

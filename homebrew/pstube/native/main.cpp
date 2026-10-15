@@ -44,6 +44,13 @@ std::string clock_time(double seconds){
  else std::snprintf(buf,sizeof(buf),"%02d:%02d",min,sec);
  return buf;
 }
+std::string quality_name(int q){
+ switch(q){case 360:return "360p (data saver)";case 720:return "720p HD";
+ case 1080:return "1080p Full HD";default:return "Auto (up to 720p)";}
+}
+int next_quality(int q){
+ switch(q){case 0:return 360;case 360:return 720;case 720:return 1080;default:return 0;}
+}
 constexpr int kGridVisible=6;
 int grid_offset(int selected,int count){
  if(count<=kGridVisible)return 0;
@@ -143,7 +150,7 @@ int main(){
   std::vector<pstube::Video> videos=snapshot.videos;
   if(s.page==3)videos=service.favorite_videos();
   if(s.page==5)videos=service.history_videos();
-  s.selected=std::clamp(s.selected,0,std::max(0,(int)videos.size()-1));
+  s.selected=std::clamp(s.selected,0,s.page==6?1:std::max(0,(int)videos.size()-1));
   s.offset=grid_offset(s.selected,(int)videos.size());
   if(s.playing){
    // Options toggles true edge-to-edge video. Directional and shoulder inputs
@@ -235,15 +242,23 @@ int main(){
    }else{
     if(pressed&hui::pad_bits::kLeft){if(s.selected%3==0)s.focus=0;else --s.selected;}
     if(pressed&hui::pad_bits::kRight)s.selected=std::min(std::max(0,(int)videos.size()-1),s.selected+1);
-    if(pressed&hui::pad_bits::kUp)s.selected=std::max(0,s.selected-(s.page==4?1:3));
-    if(pressed&hui::pad_bits::kDown)s.selected=std::min(std::max(0,(int)(s.page==4?snapshot.jobs.size():videos.size())-1),s.selected+(s.page==4?1:3));
+    if(pressed&hui::pad_bits::kUp)s.selected=s.page==6?std::max(0,s.selected-1):
+       std::max(0,s.selected-(s.page==4?1:3));
+    if(pressed&hui::pad_bits::kDown)s.selected=s.page==6?std::min(1,s.selected+1):
+       std::min(std::max(0,(int)(s.page==4?snapshot.jobs.size():videos.size())-1),s.selected+(s.page==4?1:3));
     s.offset=grid_offset(s.selected,(int)videos.size());
     if(pressed&hui::pad_bits::kSquare){if(!videos.empty()&&s.page!=4){service.toggle_favourite(videos[(size_t)s.selected]);s.notice="Favourites updated";}}
     if(pressed&hui::pad_bits::kCross){
-     if(s.page==6){static const char* hosts[]={"inv.nadeko.net","invidious.nerdvpn.de","yt.chocolatemoo53.com","invidious.tiekoetter.com","yewtu.be"};
-      auto it=std::find_if(std::begin(hosts),std::end(hosts),[&](const char* h){return service.instance()==h;});
-      size_t next=(it==std::end(hosts)?0:(size_t)(it-std::begin(hosts))+1)%5;
-      service.set_instance(hosts[next]);s.notice="Provider changed to "+service.instance();
+     if(s.page==6){
+      if(s.selected==0){
+       const int q=next_quality(service.quality());
+       service.set_quality(q);s.notice="Video quality: "+quality_name(q)+" (saved)";
+      }else{
+       static const char* hosts[]={"inv.nadeko.net","invidious.nerdvpn.de","yt.chocolatemoo53.com","invidious.tiekoetter.com","yewtu.be"};
+       auto it=std::find_if(std::begin(hosts),std::end(hosts),[&](const char* h){return service.instance()==h;});
+       size_t next=(it==std::end(hosts)?0:(size_t)(it-std::begin(hosts))+1)%5;
+       service.set_instance(hosts[next]);s.notice="Provider changed to "+service.instance();
+      }
      }else if(s.page==4&&!snapshot.jobs.empty()){
       std::string file=service.local_path(snapshot.jobs[(size_t)std::clamp(s.selected,0,(int)snapshot.jobs.size()-1)].id);
       if(!file.empty()){
@@ -270,7 +285,9 @@ int main(){
    const std::string ready=service.local_path(s.active.id);
    if(!ready.empty())s.playerStarted=player.open(ready);
    else if(snapshot.streamId==s.active.id&&!snapshot.streamUrl.empty()){
-    s.playerStarted=player.openStream(snapshot.streamUrl);
+    if(snapshot.streamAdaptive&&!snapshot.streamAudioUrl.empty())
+     s.playerStarted=player.openAdaptiveStream(snapshot.streamUrl,snapshot.streamAudioUrl);
+    else s.playerStarted=player.openStream(snapshot.streamUrl);
     if(!s.playerStarted){s.streamOpenFailed=true;s.streamErrorText="FFmpeg network player unavailable or TLS roots could not be opened";s.notice=s.streamErrorText;}
    }
   }
@@ -300,7 +317,7 @@ int main(){
   text(d,font,atlas,"PSTUBE",158,79,51,white);
   text(d,font,atlas,"by YAHBALLON",162,112,23,dim);
   tile(d,466,37,892,76,false);text(d,font,atlas,"Search: "+cut(font,s.query,780,24),499,84,24,dim);
-  text(d,font,atlas,"v0.6.0",1850,84,25,white,Align::right);
+  text(d,font,atlas,"v0.7.0",1850,84,25,white,Align::right);
   d.rounded_rect({0,140,374,870},0,Color::rgb(0x041226));
   for(int i=0;i<7;i++){float y=180+i*112;
    if(s.page==i||s.focus==0&&s.nav==i)tile(d,31,y,326,88,s.focus==0&&s.nav==i);
@@ -319,15 +336,20 @@ int main(){
     text(d,font,atlas,p,1793,y+38,22,white,Align::right);
    }
   }else if(s.page==6){
-   text(d,font,atlas,"Search provider: "+service.instance(),430,310,29);
-   text(d,font,atlas,"Press Cross to change fallback provider.",430,365,23,dim);
-   text(d,font,atlas,"SQUARE: Test built-in 5-second video and audio decoder",430,417,24,white);
+   tile(d,423,261,1410,91,s.focus==1&&s.selected==0);
+   text(d,font,atlas,"Video quality",451,303,30,white);
+   text(d,font,atlas,quality_name(service.quality()),1780,305,27,blue,Align::right);
+   tile(d,423,373,1410,91,s.focus==1&&s.selected==1);
+   text(d,font,atlas,"Fallback search provider",451,414,27,white);
+   text(d,font,atlas,cut(font,service.instance(),620,23),1780,416,23,dim,Align::right);
+   text(d,font,atlas,"D-PAD Up/Down: select     X: change quality or provider",434,509,24,dim);
+   text(d,font,atlas,"Auto prefers HD when separate video + audio tracks are available.",434,559,22,dim);
+   text(d,font,atlas,"Requested quality may fall back to a lower available stream.",434,598,22,dim);
+   text(d,font,atlas,"SQUARE: Test built-in 5-second video/audio decoder",434,671,24,white);
    auto th=pstube::thumbnail_health();
-   text(d,font,atlas,"Thumbnail cache: "+th.directory,430,480,22,dim);
-   text(d,font,atlas,"Images: "+std::to_string(th.successful)+" OK  /  "+
-      std::to_string(th.pending)+" pending  /  "+std::to_string(th.failed)+" failed",430,525,25,th.failed?blue:green);
-   text(d,font,atlas,cut(font,"Last thumbnail error: "+th.lastError,1320,20),430,559,20,dim);
-   text(d,font,atlas,"Local favourites: /download0/pstube.txt or /data/pstube/state.txt",430,425,22,dim);
+   text(d,font,atlas,"Thumbnails: "+std::to_string(th.successful)+" ready / "+
+     std::to_string(th.failed)+" failed / "+std::to_string(th.pending)+" pending",434,743,22,dim);
+   if(th.failed)text(d,font,atlas,cut(font,th.lastError,1280,19),434,780,19,dim);
   }else{
    if(s.page==0&&videos.empty())text(d,font,atlas,"Connecting to public video services...",420,258,22,dim);
    result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
@@ -420,6 +442,8 @@ int main(){
    if(s.playerStarted&&st.ended)text(d,font,atlas,cut(font,st.message,1200,27),960,900,27,dim,Align::center);
    const bool showHud=!s.fullscreen||s.playerHudFrames>0||st.paused||st.ended;
    if(showHud){
+    if(st.width>0&&st.height>0)
+     text(d,font,atlas,std::to_string(st.height)+"p",1800,142,25,green,Align::right);
     if(s.fullscreen)d.rounded_rect({0,924,1920,156},0,Color::rgb(0x051124,.87f));
     else d.rounded_rect({0,946,1920,134},0,Color::rgb(0x06152b));
     const float y=s.fullscreen?990.f:982.f;

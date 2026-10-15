@@ -431,6 +431,7 @@ Service::Service(){
  for(auto* path:{kSave,kFallback}){FILE* f=fopen(path,"rb");if(!f)continue;char buf[65536]{};size_t n=fread(buf,1,sizeof(buf)-1,f);fclose(f);std::string v(buf,n);if(v.substr(0,9)!="PSTUBE:1\n")continue;
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
+   if(line=="Q 0"||line=="Q 360"||line=="Q 720"||line=="Q 1080")quality_=std::atoi(line.c_str()+2);
    if(line.substr(0,2)=="F "&&valid_id(line.substr(2))&&fav_.size()<300)fav_.push_back(line.substr(2));
    if(line.substr(0,2)=="V "||line.substr(0,2)=="H "){
     size_t a=line.find('|',2),b=a==std::string::npos?a:line.find('|',a+1);
@@ -453,7 +454,7 @@ Service::Service(){
 }
 Service::~Service(){while(busy_.load()||downloading_.load()||resolvingStream_.load())usleep(25000);}
 bool Service::persist()const{
- std::string out="PSTUBE:1\nI "+instance_+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
+ std::string out="PSTUBE:1\nI "+instance_+"\nQ "+std::to_string(quality_)+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
  for(const auto& v:favorite_meta_)if(valid_id(v.id))out+="V "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
  for(const auto& v:recent_meta_)if(valid_id(v.id))out+="H "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
  return save_text(kSave,out)||save_text(kFallback,out);
@@ -491,6 +492,11 @@ bool Service::toggle_favourite(const std::string& id){
 }
 void Service::set_instance(const std::string& s){if(!host_ok(s))return;std::lock_guard<std::mutex> g(mutex_);instance_=s;persist();}
 std::string Service::instance()const{std::lock_guard<std::mutex> g(mutex_);return instance_;}
+void Service::set_quality(int value){
+ if(value!=0&&value!=360&&value!=720&&value!=1080)return;
+ std::lock_guard<std::mutex> g(mutex_);quality_=value;persist();
+}
+int Service::quality()const{std::lock_guard<std::mutex> g(mutex_);return quality_;}
 Snapshot Service::snapshot()const{
  std::lock_guard<std::mutex> g(mutex_);
  Snapshot copy=state_;
@@ -718,6 +724,56 @@ std::string pick_youtube_video_mp4(const std::string& html,std::string& reason){
  return {};
 }
 
+bool select_stream_formats(const std::string& json,int quality,StreamSelection& out,std::string& error){
+ out=StreamSelection{};error.clear();
+ const auto streaming=field(json,"streamingData");
+ if(streaming.empty()){error="Video has no streamingData";return false;}
+ const int limit=quality==0?720:quality;
+ if(limit!=360&&limit!=720&&limit!=1080){error="Unsupported playback quality";return false;}
+ struct Format {std::string url;int height=0;int bitrate=0;};
+ Format mux,video,audio;
+ auto collect=[&](std::string_view arr,bool adaptive){
+  size_t p=0;skip(arr,p);if(p>=arr.size()||arr[p++]!='[')return;
+  while(p<arr.size()){
+   skip(arr,p);if(p>=arr.size()||arr[p]==']')break;
+   const size_t end=value_end(arr,p);if(end<=p)break;
+   auto item=arr.substr(p,end-p);p=end;
+   const auto mime=decode(field(item,"mimeType"));
+   const auto url=decode(field(item,"url"),12000);
+   const int h=integer(field(item,"height"));
+   int height=h>0?h:std::atoi(decode(field(item,"qualityLabel")).c_str());
+   const int bitrate=integer(field(item,"bitrate"));
+   if(url.rfind("https://",0)==0&&url.find("googlevideo.com")!=std::string::npos){
+    if(adaptive&&mime.find("audio/mp4")!=std::string::npos&&
+        mime.find("mp4a.")!=std::string::npos&&bitrate>audio.bitrate){
+     audio={url,0,bitrate};
+    }else if(mime.find("video/mp4")!=std::string::npos&&height>0&&height<=limit){
+     // Explicit AVC requirement: current FFmpeg software renderer may not
+     // decode AV1/VP9 at HD resolutions efficiently.
+     if(adaptive&&mime.find("avc1.")!=std::string::npos &&
+        (height>video.height||(height==video.height&&bitrate>video.bitrate)))
+      video={url,height,bitrate};
+     if(!adaptive&&
+        (height>mux.height||(height==mux.height&&bitrate>mux.bitrate)))
+      mux={url,height,bitrate};
+    }
+   }
+   skip(arr,p);if(p>=arr.size()||arr[p++]!=',')break;
+  }
+ };
+ collect(field(streaming,"formats"),false);
+ collect(field(streaming,"adaptiveFormats"),true);
+ // Prefer high-definition adaptive streams only if separate AAC audio exists.
+ // Never silently select a video-only stream without audio.
+ if(video.height>mux.height&&!audio.url.empty()&&limit>360){
+  out.videoUrl=std::move(video.url);out.audioUrl=std::move(audio.url);
+  out.height=video.height;out.adaptive=true;return true;
+ }
+ if(!mux.url.empty()){
+  out.videoUrl=std::move(mux.url);out.height=mux.height;return true;
+ }
+ error="No compatible AVC/AAC MP4 stream at requested quality";return false;
+}
 bool resolve_android_mp4(const std::string& id,std::string& mediaUrl,std::string& error){
  mediaUrl.clear();error.clear();
  if(!valid_id(id)){error="Invalid video identifier";return false;}
@@ -786,7 +842,7 @@ bool Service::start_stream(const Video& video){
  {
   std::lock_guard<std::mutex> g(mutex_);
   state_.streamId=video.id;
-  state_.streamUrl.clear();state_.streamError.clear();state_.streamResolving=true;
+  state_.streamUrl.clear();state_.streamAudioUrl.clear();state_.streamHeight=0;state_.streamAdaptive=false;state_.streamError.clear();state_.streamResolving=true;
  }
  auto* work=new Work{this,"",video.id,3,video};
  pthread_t thread{};pthread_attr_t attr;
@@ -794,7 +850,25 @@ bool Service::start_stream(const Video& video){
  const int rc=pthread_create(&thread,&attr,[](void* ptr)->void*{
   std::unique_ptr<Work> w((Work*)ptr);Service& svc=*w->svc;
   std::string url,error;
-  if(!resolve_android_mp4(w->id,url,error)){
+  StreamSelection chosen;
+  const int preferred=svc.quality();
+  // Quality selection is performed from one API response so that separate
+  // adaptive audio/video tracks share the same media timeline.
+  std::string payload;
+  const std::string agent="com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip";
+  const std::string body=
+   "{\"videoId\":\""+w->id+"\",\"context\":{\"client\":{\"clientName\":\"ANDROID\","
+   "\"clientVersion\":\"21.26.364\",\"hl\":\"en\",\"gl\":\"US\","
+   "\"androidSdkVersion\":30,\"osName\":\"Android\",\"osVersion\":\"11\","
+   "\"userAgent\":\""+agent+"\"}},"
+   "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
+  if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",payload,error,body)){
+   const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
+   if(status=="OK"){
+    if(select_stream_formats(payload,preferred,chosen,error))url=chosen.videoUrl;
+   }else error="Android player: "+(status.empty()?"invalid response":status);
+  }
+  if(url.empty()){
    const std::string androidError=error;
    const std::string host=svc.instance();
    std::string page,webError;
@@ -814,6 +888,9 @@ bool Service::start_stream(const Video& video){
    std::lock_guard<std::mutex> g(svc.mutex_);
    if(svc.state_.streamId==w->id){
     svc.state_.streamUrl=std::move(url);
+    svc.state_.streamAudioUrl=svc.state_.streamUrl.empty()?std::string{}:std::move(chosen.audioUrl);
+    svc.state_.streamHeight=chosen.height;
+    svc.state_.streamAdaptive=chosen.adaptive&&!svc.state_.streamAudioUrl.empty();
     svc.state_.streamError=svc.state_.streamUrl.empty()?
       (error.empty()?"No direct HTTPS stream available":error):std::string();
     svc.state_.streamResolving=false;
