@@ -23,7 +23,9 @@
 #define MAX_BOOKS 256
 #define MAX_PATH 512
 #define MAX_FILE (2ULL * 1024ULL * 1024ULL * 1024ULL)
+#ifndef PORT
 #define PORT 9175
+#endif
 struct Item {char relative[MAX_PATH];off_t size;};
 static struct Item items[MAX_BOOKS];
 static unsigned item_count;
