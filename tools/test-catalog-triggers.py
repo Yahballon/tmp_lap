@@ -20,10 +20,15 @@ assert names, "No build workflows subscribed by catalog updater"
 assert "types: [completed]" in block, "Catalog must run after builds complete"
 
 release_workflows = {}
-for meta in sorted((root / "homebrew").glob("*/app.json")):
-    data = json.loads(meta.read_text())
-    slug = meta.parent.name
-    assert data["slug"] == slug, (meta, data["slug"])
+# Legacy Crypto Tracker has no app.json; still require its release workflow.
+app_dirs = {m.parent for m in (root / "homebrew").glob("*/app.json")}
+app_dirs.add(root / "homebrew" / "crypto-tracker")
+for app_dir in sorted(app_dirs):
+    slug = app_dir.name
+    meta = app_dir / "app.json"
+    if meta.exists():
+        data = json.loads(meta.read_text())
+        assert data.get("slug", slug) == slug, (meta, data.get("slug"))
     matching = []
     for workflow in workflow_dir.glob("build-*.yml"):
         code = workflow.read_text()
