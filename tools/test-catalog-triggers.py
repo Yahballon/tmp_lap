@@ -46,7 +46,7 @@ for app_dir in sorted(app_dirs):
         publisher = workflow_dir / "publish-ps5-dreamcastx.yml"
         pub_code = publisher.read_text()
         assert "gh release create" in pub_code
-        assert "PS5_RELEASE_TOKEN" in pub_code
+        assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in pub_code
         testbuild = workflow_dir / "publish-ps5-dreamcastx-testbuild.yml"
         testbuild_code = testbuild.read_text()
         assert "if: false # Disabled" in testbuild_code
