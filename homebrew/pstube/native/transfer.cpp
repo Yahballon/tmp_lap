@@ -30,7 +30,7 @@ bool parse_url(const std::string& url,Url& out){
  return out.path.find('\r')==std::string::npos&&out.path.find('\n')==std::string::npos&&out.path.find('#')==std::string::npos;
 }
 bool allowed_host(const std::string& host){
- static const char* providers[]={"googlevideo.com","ytimg.com","yewtu.be","inv.nadeko.net","invidious.nerdvpn.de",
+ static const char* providers[]={"googlevideo.com","ytimg.com","img.youtube.com","yewtu.be","inv.nadeko.net","invidious.nerdvpn.de",
    "yt.chocolatemoo53.com","invidious.tiekoetter.com","inv.tux.pizza","invidious.private.coffee"};
  for(const char* p:providers){std::string d(p);if(host==d||(host.size()>d.size()&&host.compare(host.size()-d.size(),d.size(),d)==0&&host[host.size()-d.size()-1]=='.'))return true;}
  return false;
@@ -63,7 +63,7 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
  bool success=false;FILE* file=nullptr;
  do {
   if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){err="Media TLS certificate rejected";break;}
-  std::string req="GET "+url.path+" HTTP/1.1\r\nHost: "+url.host+"\r\nUser-Agent: PSTUBE/0.2\r\nAccept: */*\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
+  std::string req="GET "+url.path+" HTTP/1.1\r\nHost: "+url.host+"\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36\r\nAccept: image/jpeg,video/mp4,application/octet-stream,*/*;q=0.8\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n";
   bool send_ok=true;
   for(size_t off=0;off<req.size();){int n=SSL_write(ssl,req.data()+off,(int)(req.size()-off));if(n<=0){send_ok=false;break;}off+=(size_t)n;}
   if(!send_ok){err="Media request failed";break;}
@@ -101,12 +101,35 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
   };
   if(!append(response.data()+start,response.size()-start))break;
   bool read_failed=false;
+  int tls_error=0;
   for(;;){
    n=SSL_read(ssl,buf,sizeof(buf));
-   if(n<=0){int e=SSL_get_error(ssl,n);if(e!=SSL_ERROR_ZERO_RETURN&&e!=SSL_ERROR_SYSCALL){read_failed=true;}break;}
+   if(n<=0){
+    const int e=SSL_get_error(ssl,n);
+    // OpenSSL 3 reports an unexpected EOF when a server omits close_notify.
+    // A verified Content-Length plus exact byte count proves completeness.
+    if(e!=SSL_ERROR_ZERO_RETURN && !(expected>0&&size==expected)){
+     bool complete_jpeg=false;
+     if(!expected && target.size()>=4 &&
+        target.substr(target.size()-4)==".jpg" && size>1024 && file){
+      if(std::fflush(file)==0 && std::fseek(file,-2,SEEK_END)==0){
+       const int penultimate=std::fgetc(file),last=std::fgetc(file);
+       complete_jpeg=(penultimate==0xff&&last==0xd9);
+      }
+      std::fseek(file,0,SEEK_END);
+     }
+     if(!complete_jpeg){tls_error=e;read_failed=true;}
+    }
+    break;
+   }
    if(!append(buf,(size_t)n)){read_failed=true;break;}
   }
-  if(read_failed){if(err.empty())err="Media transfer interrupted";break;}
+  if(read_failed){
+   if(err.empty())err="TLS read ended before complete content ("+
+      std::to_string(size)+"/"+std::to_string(expected)+
+      " bytes, TLS "+std::to_string(tls_error)+")";
+   break;
+  }
   if(expected&&size!=expected){err="Truncated media transfer";break;}
   if(size<1024){err="Downloaded media is empty";break;}
   if(std::fflush(file)!=0||::fsync(fileno(file))!=0){err="Failed to flush media";break;}

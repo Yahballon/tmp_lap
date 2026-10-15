@@ -1,14 +1,12 @@
-# PSTUBE v0.2.1 — Video Catalog and Thumbnail Fix
+# PSTUBE v0.3.0 — Player and Thumbnail Reliability Update
 
-- **NEW**: Query real videos directly from the public YouTube search page without credentials, then fall back to community Invidious instances.
-- Automatically retry video search and Trending on multiple trusted community Invidious instances.
-- Surface the current provider and useful error messages rather than silently showing an empty page.
-- Save the last successful **real** video feed locally and restore it on startup if services fail.
-- Download JPEG thumbnails with three concurrent background workers; retry missing images for cached videos.
-- Keep favourites, downloads and video history from prior versions.
-- Test search and Trending JSON parsing in CI using representative response fixtures.
+- Fix reported empty thumbnails: browser-compatible request headers, writable cache directory detection (/data with /download0 fallback), JPEG validation, three parallel image workers, and on-console thumbnail diagnostic counters.
+- Replace the extra info-page step: **Cross on a video now opens the full-screen video player immediately**.
+- Player automatically opens completed local videos or displays actual MP4-resolution and download progress, and starts after a completed verified download.
+- Resolve eligible progressive MP4 URLs directly from YouTube watch-page player metadata, with Invidious as fallback.
+- Display precise signed-stream, bot-check, HTTP and provider errors on the player; Cross retries failed downloads.
+- Larger 16:9 thumbnails, richer TV-sized cards and inline status.
 
-## Important limitations
-YouTube may change its public HTML structure, require consent, rate-limit unauthenticated requests or block requests on the console; public Invidious sources remain fallback options. No service can guarantee search uptime, downloads or a stable media URL. If an HTTPS request fails because the console clock is invalid, correct PS5 date/time; TLS verification stays enabled. Hardware testing of streaming, video and audio remains necessary.
+**Known limitations**: YouTube commonly exposes only signatureCipher or separate adaptive audio/video formats, and may reject unauthenticated playback. No YouTube signing/JavaScript runtime is implemented. For those videos, PSTUBE shows an error rather than pretending playback works. FFmpeg decoding and SDL audio still require a real PS5 hardware test. It is not an official YouTube client.
 
-Install: download PPSA99762.zip, replace /data/homebrew/PPSA99762 and re-register with your homebrew loader. Existing saved content under /data/pstube is preserved.
+Download PPSA99762.zip and replace /data/homebrew/PPSA99762. Keep /data/pstube and /download0/pstube to retain saved data.

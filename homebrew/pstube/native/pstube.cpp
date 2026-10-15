@@ -442,6 +442,47 @@ bool Service::search(const std::string& query){
  pthread_detach(th);return true;
 }
 bool Service::details(const std::string& id){return valid_id(id);}
+
+std::string pick_youtube_video_mp4(const std::string& html,std::string& reason){
+ const std::string key="ytInitialPlayerResponse = ";
+ auto off=html.find(key);
+ if(off==std::string::npos){reason="YouTube returned no playback metadata";return {};}
+ off=html.find('{',off+key.size());
+ if(off==std::string::npos){reason="Playback metadata malformed";return {};}
+ const auto end=value_end(html,off);
+ if(end<=off||end>html.size()){reason="Playback metadata truncated";return {};}
+ const std::string_view player(html.data()+off,end-off);
+ const std::string status=decode(field(field(player,"playabilityStatus"),"status"));
+ if(!status.empty()&&status!="OK"){
+  reason="YouTube player: "+status;
+  const std::string text=decode(field(field(player,"playabilityStatus"),"reason"));
+  if(!text.empty())reason+=" ("+text.substr(0,100)+")";
+  return {};
+ }
+ const auto streaming=field(player,"streamingData");
+ const auto list=field(streaming,"formats");
+ size_t p=0;skip(list,p);
+ if(p==list.size()||list[p++]!='['){reason="No progressive audio+video stream available";return {};}
+ int best=-1;std::string url;
+ bool signedOnly=false;
+ while(p<list.size()){
+  skip(list,p);if(p>=list.size()||list[p]==']')break;
+  const auto e=value_end(list,p);if(e<=p)break;
+  const auto item=list.substr(p,e-p);p=e;
+  const std::string mime=decode(field(item,"mimeType"));
+  const int res=std::atoi(decode(field(item,"qualityLabel")).c_str());
+  const std::string candidate=decode(field(item,"url"),12000);
+  if(mime.find("video/mp4")!=std::string::npos && res>=best && res<=1080){
+   if(candidate.rfind("https://",0)==0){url=candidate;best=res;}
+   else if(!field(item,"signatureCipher").empty())signedOnly=true;
+  }
+  skip(list,p);if(p>=list.size()||list[p++]!=',')break;
+ }
+ if(!url.empty())return url;
+ reason=signedOnly?"YouTube stream requires signature deciphering (not available on-console)":
+     "No compatible unprotected MP4 stream found";
+ return {};
+}
 bool Service::download(const Video& video){
  if(!valid_id(video.id)||downloading_.exchange(true))return false;
  const std::string path=local_path(video.id);
@@ -457,9 +498,20 @@ bool Service::download(const Video& video){
  int rc=pthread_create(&th,&attr,[](void* ptr)->void*{
   std::unique_ptr<Work> w((Work*)ptr);Service& svc=*w->svc;
   std::string body,error,host=svc.instance();
-  bool ok=https(host,"/api/v1/videos/"+w->id,body,error);
-  std::string url=ok?pick_mp4(body):std::string{};
-  if(ok&&url.empty()){ok=false;error="No combined MP4 stream available";}
+  bool ok=https("www.youtube.com","/watch?v="+w->id,body,error);
+  std::string url=ok?pick_youtube_video_mp4(body,error):std::string{};
+  if(url.empty()){
+   // Fallback only: Invidious API is frequently access-restricted.
+   std::string response,apiError;
+   const bool apiOK=https(host,"/api/v1/videos/"+w->id,response,apiError);
+   if(apiOK)url=pick_mp4(response);
+   if(url.empty()){
+    const std::string fallback=apiOK?"no compatible MP4":apiError;
+    error=error.empty()?"Stream unavailable":error;
+    error+="; Invidious: "+fallback;
+   }
+  }
+  ok=!url.empty();
   if(ok){
    {std::lock_guard<std::mutex> g(svc.mutex_);for(auto& j:svc.state_.jobs)if(j.id==w->id)j.state="Downloading";}
    ok=fetch_mp4(url,stable_path(w->id),svc.download_progress_,error);

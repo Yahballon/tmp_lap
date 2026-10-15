@@ -17,7 +17,7 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libssl-dev
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libssl-dev ffmpeg
       - name: Prepare PS5 source and assets
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -30,7 +30,7 @@ jobs:
           import json
           p=Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.002')
+          d.update(titleId='PPSA99762',conceptId='99762',contentId='UP9000-PPSA99762_00-PSTUBEYAHBALLON1',contentVersion='01.000.003')
           d['localizedParameters']['en-US']['titleName']='PSTUBE'
           p.write_text(json.dumps(d,indent=2)+'\n')
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
@@ -51,7 +51,7 @@ jobs:
           def check(domain):
               try:
                   request=urllib.request.Request('https://'+domain+'/api/v1/search?q=ps5&type=video',
-                      headers={'User-Agent':'PSTUBE/0.2.1','Accept':'application/json'})
+                      headers={'User-Agent':'PSTUBE/0.3.0','Accept':'application/json'})
                   with urllib.request.urlopen(request,timeout=8) as response:
                       data=json.load(response)
                   valid=isinstance(data,list) and sum(bool(x.get('videoId')) for x in data if isinstance(x,dict))
@@ -75,6 +75,22 @@ jobs:
           print('Live YouTube HTML bytes:',len(html))
           PY
           /tmp/pstube-catalog-test /tmp/pstube-youtube.html
+      - name: Probe public video playback formats (diagnostic)
+        continue-on-error: true
+        run: python3 homebrew/pstube/tests/probe_watch_formats.py
+      - name: Verify actual JPEG over our native HTTPS transport
+        continue-on-error: true
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src homebrew/pstube/tests/thumbnail_http_test.cpp app/src/transfer.cpp -lssl -lcrypto -o /tmp/pstube-thumbnail-http-test
+          /tmp/pstube-thumbnail-http-test
+      - name: Generate licensed in-app video and audio self-test
+        run: |
+          mkdir -p app/assets/videos
+          ffmpeg -hide_banner -loglevel error -nostdin -y -threads 2 \
+            -f lavfi -i 'testsrc2=size=640x360:rate=25' \
+            -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
+            -t 5 -c:v libx264 -pix_fmt yuv420p -preset veryfast -crf 30 \
+            -c:a aac -b:a 96k -movflags +faststart app/assets/videos/pstube-selftest.mp4
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
@@ -101,10 +117,10 @@ jobs:
           root=pathlib.Path('app/dist/PPSA99762')
           executable=(root/'eboot.bin').read_bytes()
           assert len(executable)>1000 and struct.unpack('<I',executable[:4])[0]==0x1D3D154F
-          assert b'v0.2.1' in executable
+          assert b'v0.3.0' in executable
           d=json.loads((root/'sce_sys/param.json').read_text())
-          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.002'
-          for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']:
+          assert d['titleId']=='PPSA99762' and d['contentVersion']=='01.000.003'
+          for f in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/videos/pstube-selftest.mp4']:
             assert (root/f).is_file(),f
           with zipfile.ZipFile('app/dist/PPSA99762.zip') as z:
             assert z.testzip() is None
@@ -112,7 +128,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PSTUBE-v0.2.1
+          name: PSTUBE-v0.3.0
           path: app/dist/PPSA99762.zip
           if-no-files-found: error
       - name: Publish alpha release
@@ -120,5 +136,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view pstube-v0.2.1 >/dev/null 2>&1; then exit 0; fi
-          gh release create pstube-v0.2.1 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.2.1 (Catalog Fix)" --notes-file homebrew/pstube/RELEASE_NOTES.md
+          if gh release view pstube-v0.3.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create pstube-v0.3.0 app/dist/PPSA99762.zip --target "$GITHUB_SHA" --title "PSTUBE v0.3.0 (Player & Thumbnails)" --notes-file homebrew/pstube/RELEASE_NOTES.md

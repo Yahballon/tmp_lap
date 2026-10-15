@@ -1,16 +1,16 @@
-# PSTUBE v0.2.1 — Native PS5 Playback Beta
+# PSTUBE v0.3.0 — Native PS5 Playback Beta
 
 **PSTUBE by YAHBALLON** is an independent native C++ PS5 homebrew video search, download and playback client with a 1920×1080 OpenGL user interface.
 
 ## Features
 - Search the public logged-out YouTube web page directly first, extract real video metadata using a native validated parser, then fall back to community Invidious instances. Both use verified HTTPS.
 - Live Trending search, automatic failover between currently documented Invidious instances, and manual provider selection in Settings.
-- Three concurrent native thumbnail workers using the public thumbnail CDN, with a disk-backed JPEG cache.
+- Three native workers fetch actual 16:9 JPEG thumbnails using browser-compatible HTTPS headers. The cache tests write access under /data/pstube/thumbs and falls back to /download0/pstube/thumbs when necessary. Settings shows successes, failures and the latest precise error.
 - Persistent favourites and watch history, plus a cache of the last successful live video catalog for offline startup.
 - Left-stick navigation and Options shortcut to Settings.
 - DualSense-driven onscreen keyboard and selection navigation.
 - Persistent favourites and saved downloads stored outside app folder.
-- Query video details, select a **combined MP4** stream, download with progress into a .part file and atomic rename.
+- **Cross opens the player immediately**. Already downloaded files play right away. Otherwise a full-screen loading/progress/error player resolves a compatible combined MP4 stream from YouTube's public watch-page metadata or an Invidious fallback, downloads it atomically, then starts playback. Triangle toggles a favourite.
 - Locally play downloaded video with FFmpeg 7 software decoding, OpenGL RGBA frames and SDL2 queued audio.
 - Downloads tab shows progress and allows playback for completed files.
 
@@ -20,14 +20,14 @@ D-pad: navigate (keyboard/results/downloads). Cross: select, download/play video
 ## Limits and compatibility
 **Real console playback remains unverified** until tested in your environment.
 - Playback is available only for downloaded, non-DRM combined MP4 streams with codecs supported by FFmpeg; separate adaptive video and audio, playlists, subtitles, high-res 4K, and live/HLS are not implemented.
-- Invidious public instances may block clients or refuse media links. Browser-style YouTube account login and subscriptions are not implemented. This is not an official YouTube app.
+- The public YouTube watch page may not expose any usable unsigned MP4 URL (signatureCipher), block bots or demand account login; the Invidious fallback can return HTTP 403. A full-screen error and retry affordance are displayed in that case. A working stream is not guaranteed. Browser-style YouTube account login and subscriptions are not implemented. This is not an official YouTube app.
 - Downloads cap at 2 GiB; content-length validation for atomic completion; redirect destinations restricted to known public domains.
 - Some endpoints may use chunked transfer encoding not supported by the MP4 downloader in this version.
 - Native graphics plus SDL audio interoperability must be tested on physical PS5.
 - Video is software-decoded; demanding 1080p formats may underperform.
 
 ## Version and build
-Version 0.2.1. Title ID `PPSA99762`. Release tag `pstube-v0.2.1`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
+Version 0.3.0. Title ID `PPSA99762`. Release tag `pstube-v0.3.0`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
 The workflow fetches PS5-DevBridge's native scaffold, stages PSTUBE C++ files and builds with pinned PacBrew ffmpeg, SDL2 and OpenSSL packages. GitHub Actions validates eboot and ZIP but is not hardware verification.
 
 ## Installation
