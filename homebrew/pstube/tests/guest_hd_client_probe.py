@@ -49,3 +49,29 @@ print("GUEST_VISITOR_AVAILABLE",bool(visitor))
 work=[(*c,v,g) for c in CLIENTS for v in IDS for g in dict.fromkeys(["",visitor]) if (g=="" or bool(g))]
 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
  for result in ex.map(analyze,work):print("GUEST_HD:",result,flush=True)
+
+# Official unauthenticated guest visitor ID endpoint. A YouTube search page's
+# visitor value is not necessarily a valid playback guest context.
+for vid in ("dQw4w9WgXcQ","jNQXAC9IVRw"):
+ for client in ("VISIONOS","ANDROID_VR"):
+  version="1.02" if client=="VISIONOS" else "1.65.10"
+  agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15" if client=="VISIONOS" else "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L) gzip"
+  try:
+   guest=json.loads(req("https://youtubei.googleapis.com/youtubei/v1/visitor_id",
+        {"User-Agent":agent,"Content-Type":"application/json","Accept":"application/json"},
+        json.dumps({"context":{"client":{"clientName":client,"clientVersion":version}}}).encode()))
+   token=(guest.get("responseContext") or {}).get("visitorData","")
+   print("GUEST_VISITOR_API:",client,"ok",bool(token),flush=True)
+   for host in ("www.youtube.com","youtubei.googleapis.com"):
+    data={"videoId":vid,"context":{"client":{"clientName":client,"clientVersion":version,
+        "visitorData":token,"hl":"en","gl":"US"}},"contentCheckOk":True,"racyCheckOk":True}
+    if client=="VISIONOS":data["context"]["client"].update({"deviceMake":"Apple","deviceModel":"RealityDevice17,1","osName":"visionOS","osVersion":"26.5.23O471"})
+    if client=="ANDROID_VR":data["context"]["client"].update({"androidSdkVersion":32,"osName":"Android","osVersion":"12L","deviceMake":"Oculus","deviceModel":"Quest 3"})
+    j=json.loads(req("https://"+host+"/youtubei/v1/player",{"Content-Type":"application/json","User-Agent":agent},
+        json.dumps(data).encode()))
+    status=(j.get("playabilityStatus") or {}).get("status")
+    hd=[x.get("height") for x in (j.get("streamingData") or {}).get("adaptiveFormats",[]) if
+        x.get("url") and x.get("height",0)>=720 and "avc1" in x.get("mimeType","")]
+    print("GUEST_ID_RESULT:",client,vid,host,status,"hd",hd[:4],flush=True)
+  except Exception as exc:
+   print("GUEST_ID_ERROR:",client,vid,type(exc).__name__,str(exc)[:100],flush=True)
