@@ -65,6 +65,36 @@ jobs:
             app/src/pstube.cpp app/src/transfer.cpp app/src/thumbnails.cpp \
             -lssl -lcrypto -o /tmp/pstube-native-player-test
           /tmp/pstube-native-player-test
+      - name: Verify native FFmpeg reads HTTPS video before download completes (diagnostic)
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          /tmp/pstube-native-player-test /tmp/pstube-stream-uri.txt
+          python3 - <<'PY'
+          import os,subprocess,re
+          path="/tmp/pstube-stream-uri.txt"
+          with open(path) as handle: url=handle.read().strip()
+          os.remove(path)
+          if not (url.startswith("https://") and ".googlevideo.com" in url[:200]):
+              raise SystemExit("Unsafe test URI")
+          try:
+              result=subprocess.run([
+                "ffprobe","-v","error","-tls_verify","1","-ca_file",
+                "/etc/ssl/certs/ca-certificates.crt","-rw_timeout","12000000",
+                "-probesize","500000","-analyzeduration","2000000",
+                "-select_streams","v:0","-show_entries",
+                "stream=codec_name,width,height","-of","default=nw=1",url
+              ],capture_output=True,text=True,timeout=40)
+              if result.returncode:
+                  print("HTTPS FFmpeg probe failed; status",result.returncode,
+                        "HTTP403", "403" in result.stderr,
+                        "TLS", "certificate" in result.stderr.lower())
+                  raise SystemExit(result.returncode)
+              print("Native FFmpeg HTTPS can probe first video frames:",
+                    result.stdout.strip()[:180])
+          finally:
+              pass
+          PY
       - name: Verify native full MP4 download (network diagnostic)
         continue-on-error: true
         timeout-minutes: 3
