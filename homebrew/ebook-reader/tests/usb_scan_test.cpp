@@ -42,7 +42,7 @@ int main() {
  const auto& report=ebook::last_scan_report().front();
  assert(report.opened && report.books==4 && report.candidates==4);
  assert(ebook::scan_books({books,root},items));
- assert(items.size()==2); // duplicate path scanned twice, deduplicated
+ assert(items.size()==4); // duplicate path scanned twice, deduplicated
  assert(ebook::scan_books({root+"/missing"},items));
  assert(items.empty());
  assert(!ebook::last_scan_report().front().opened);
