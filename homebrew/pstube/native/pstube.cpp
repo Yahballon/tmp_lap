@@ -432,6 +432,17 @@ std::string continuation_body(const std::string& token,const std::string& versio
  return "{\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":"+
   quote(version)+",\"hl\":\"en\",\"gl\":\"US\"}},\"continuation\":"+quote(token)+"}";
 }
+bool supported_audio_preference(const std::string& value){
+ return value=="original"||value=="en"||value=="de"||value=="es"||
+        value=="fr"||value=="ja"||value=="ko"||value=="pt"||
+        value=="it"||value=="hi";
+}
+std::string language_base(std::string code){
+ for(char& c:code)c=(char)std::tolower((unsigned char)c);
+ const size_t sep=code.find_first_of("-_.");
+ return sep==std::string::npos?code:code.substr(0,sep);
+}
+
 Service::Service(){
  mkdirs();
  state_.videos=load_feed_cache();
@@ -744,16 +755,6 @@ std::string pick_youtube_video_mp4(const std::string& html,std::string& reason){
 }
 
 
-bool supported_audio_preference(const std::string& value){
- return value=="original"||value=="en"||value=="de"||value=="es"||
-        value=="fr"||value=="ja"||value=="ko"||value=="pt"||
-        value=="it"||value=="hi";
-}
-std::string language_base(std::string code){
- for(char& c:code)c=(char)std::tolower((unsigned char)c);
- const size_t sep=code.find_first_of("-_.");
- return sep==std::string::npos?code:code.substr(0,sep);
-}
 bool select_stream_formats(const std::string& json,int quality,StreamSelection& out,
                            std::string& error,const std::string& audioPreference){
  out=StreamSelection{};error.clear();
@@ -763,7 +764,7 @@ bool select_stream_formats(const std::string& json,int quality,StreamSelection& 
  if(limit!=360&&limit!=720&&limit!=1080){error="Unsupported playback quality";return false;}
  if(!supported_audio_preference(audioPreference)){error="Unsupported audio language";return false;}
  struct Format {std::string url;int height=0;int bitrate=0;};
- struct AudioFormat {std::string url,language;int bitrate=0;bool original=false,descriptive=false,drc=false;};
+ struct AudioFormat {std::string url,language;int bitrate=0,originConfidence=0;bool descriptive=false,drc=false;};
  Format mux,video;
  std::vector<AudioFormat> tracks;
  auto collect=[&](std::string_view arr,bool adaptive){
@@ -794,8 +795,7 @@ bool select_stream_formats(const std::string& json,int quality,StreamSelection& 
      const bool idOriginal=trackId.size()>2&&
                            trackId.substr(trackId.size()-2)==".0";
      const bool isDefault=field(meta,"audioIsDefault")=="true";
-     track.original=namedOriginal||idOriginal||isDefault;
-     const std::string lowerLabel=language_base(label);
+     track.originConfidence=(namedOriginal||idOriginal)?2:(isDefault?1:0);
      track.descriptive=label.find("descriptive")!=std::string::npos||
                        label.find("Description")!=std::string::npos||
                        kind.find("DESCRIPTIVE")!=std::string::npos;
@@ -822,7 +822,7 @@ bool select_stream_formats(const std::string& json,int quality,StreamSelection& 
   long score=0;
   // Prefer requested language, but use original when it is unavailable.
   if(langMatch)score+=20000;
-  if(track.original)score+=6000;
+  score+=track.originConfidence==2?9000:(track.originConfidence==1?3000:0);
   if(track.descriptive)score-=12000;
   if(track.drc)score-=500;
   score+=std::min(track.bitrate/10000,200);
@@ -834,7 +834,7 @@ bool select_stream_formats(const std::string& json,int quality,StreamSelection& 
   out.videoUrl=std::move(video.url);out.audioUrl=chosen->url;
   out.height=video.height;out.adaptive=true;
   out.audioLanguage=chosen->language.empty()?"unknown":chosen->language;
-  out.audioOriginal=chosen->original;
+  out.audioOriginal=chosen->originConfidence>0;
   return true;
  }
  if(!mux.url.empty()){
