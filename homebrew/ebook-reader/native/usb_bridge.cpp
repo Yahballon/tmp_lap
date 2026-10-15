@@ -14,12 +14,15 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cstdint>
+#include <mutex>
+#include <string>
 
 namespace usbbooks {
 namespace {
 constexpr int kPort=9175,kElfLoader=9021;
-constexpr size_t kMaxCatalog=196608,kMaxFile=512*1024*1024;
+constexpr size_t kMaxCatalog=196608,kMaxFile=2ULL*1024*1024*1024;
 std::vector<Entry> known;
+std::mutex transferMutex;
 bool safe(const std::string& s){
  if(s.empty()||s.size()>510||s[0]=='/'||s.back()=='/')return false;
  size_t at=0;
@@ -46,7 +49,7 @@ bool send_all(int fd,const char *data,size_t len){
 }
 int connect_to(int port){
  int fd=socket(AF_INET,SOCK_STREAM,0);if(fd<0)return -1;
- timeval tv{5,0};setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+ timeval tv{60,0};setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
  setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
  sockaddr_in address{};address.sin_family=AF_INET;
  address.sin_port=htons((uint16_t)port);
@@ -145,6 +148,8 @@ Catalog scan(){
  return out;
 }
 bool fetch(const Entry& book,std::string& localPath,std::string& error){
+ std::lock_guard<std::mutex> lock(transferMutex);
+ error.clear();
  if(!safe(book.relative)||book.bytes==0||book.bytes>kMaxFile){error="Invalid USB book";return false;}
  bool found=false;for(const auto& b:known)if(b.relative==book.relative && b.bytes==book.bytes)found=true;
  if(!found){error="USB catalogue expired; press OPTIONS to refresh";return false;}
