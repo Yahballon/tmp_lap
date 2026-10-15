@@ -6,6 +6,7 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
+| PS5DreamcastX (Flycast, PS5GBAX-style shelf) | [homebrew/ps5-dreamcastx](homebrew/ps5-dreamcastx/) | [Build PS5DreamcastX](.github/workflows/build-ps5-dreamcastx.yml) | [v0.1.0 (after successful CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-dreamcastx-v0.1.0) |
 | PS5 System Info | [homebrew/ps5-system-info](homebrew/ps5-system-info/) | [Build PS5 System Info](.github/workflows/build-ps5-system-info.yml) | [v0.1.0 (after verified CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-system-info-v0.1.0) |
 | Audiobook Reader (M4B preview) | [homebrew/audiobook-reader](homebrew/audiobook-reader/) | [Build Audiobook Reader](.github/workflows/build-audiobook-reader.yml) | [v0.2.5](https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.2.5) |
 | PSTUBE (playback beta) | [homebrew/pstube](homebrew/pstube/) | [Build PSTUBE](.github/workflows/build-pstube.yml) | [v0.7.4 (after validated CI)](https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.4) |
