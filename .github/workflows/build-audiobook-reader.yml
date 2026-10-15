@@ -36,11 +36,7 @@ jobs:
           mkdir -p app/assets/Books
           cp homebrew/audiobook-reader/assets/Books/README.txt app/assets/Books/README.txt
           if test -s homebrew/audiobook-reader/sce_sys/icon0.png; then
-            python3 - <<'PYICON'
-            from PIL import Image
-            im=Image.open('homebrew/audiobook-reader/sce_sys/icon0.png').convert('RGB')
-            im.resize((512,512),Image.Resampling.LANCZOS).save('app/sce_sys/icon0.png')
-            PYICON
+            python3 -c "from PIL import Image; Image.open('homebrew/audiobook-reader/sce_sys/icon0.png').convert('RGB').resize((512,512),Image.Resampling.LANCZOS).save('app/sce_sys/icon0.png')"
           else
             python3 homebrew/audiobook-reader/assets/generate_icon.py app/sce_sys/icon0.png
           fi
