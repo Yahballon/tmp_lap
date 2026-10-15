@@ -1,0 +1,82 @@
+name: Publish PS5DreamcastX Release
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Verified native PS5 build run containing the ZIP artifact
+        required: false
+        default: '38817755584'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-ps5-dreamcastx.yml'
+  workflow_run:
+    workflows:
+      - Build PS5DreamcastX (native Flycast)
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-ps5-dreamcastx
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: true
+      - name: Determine release version and source build
+        id: build
+        env:
+          FROM_WORKFLOW_RUN: ${{ github.event.workflow_run.id }}
+          MANUAL_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          app=json.loads(Path('homebrew/ps5-dreamcastx/app.json').read_text())
+          assert app['titleId']=='PPSA99765'
+          assert app['installFolder']=='PS5DreamcastX'
+          version=app['version']
+          assert app['releaseTag']==f'ps5-dreamcastx-v{version}'
+          run_id=os.getenv('FROM_WORKFLOW_RUN') or os.getenv('MANUAL_RUN_ID') or '38817755584'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write(f'version={version}\ntag={app["releaseTag"]}\nrun_id={run_id}\n')
+          print('Publishing only verified native app',app['releaseTag'],'from run',run_id)
+          PY
+      - name: Download original signed native PS5 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PS5DreamcastX-v${{ steps.build.outputs.version }}
+          run-id: ${{ steps.build.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: homebrew/ps5-dreamcastx/dist
+      - name: Verify downloaded ZIP before publishing
+        working-directory: homebrew/ps5-dreamcastx
+        run: |
+          python3 scripts/verify_package.py dist/PPSA99765.zip
+          sha256sum dist/PPSA99765.zip
+      - name: Publish versioned GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.build.outputs.tag }}
+          BUILD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        working-directory: homebrew/ps5-dreamcastx
+        run: |
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; nothing to change."
+            exit 0
+          fi
+          gh release create "$TAG" dist/PPSA99765.zip \
+            --repo "${{ github.repository }}" \
+            --target "$BUILD_SHA" \
+            --title "PS5DreamcastX v${{ steps.build.outputs.version }}" \
+            --notes-file RELEASE_NOTES.md
