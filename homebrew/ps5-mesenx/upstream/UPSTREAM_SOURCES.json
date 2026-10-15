@@ -1,0 +1,33 @@
+{
+  "PS5SNESX": {
+    "url": "https://github.com/Yahballon/PS5SNESX.git",
+    "sha": "4e0bca4df88e015dc71bc214b72545ce1305168d",
+    "included_paths": [
+      "ps5",
+      "snes",
+      "3rdparty",
+      "bin",
+      "README.md",
+      "COPYING.GPLv3",
+      "THIRD_PARTY_NOTICES.md",
+      "LICENSE"
+    ]
+  },
+  "MesenCE": {
+    "url": "https://github.com/nesdev-org/MesenCE.git",
+    "sha": "4b8a196e299b3de297b204fd1208d2981562c89b",
+    "included_paths": [
+      "Core",
+      "InteropDLL",
+      "Utilities",
+      "Sdl",
+      "Linux",
+      "Lua",
+      "SevenZip",
+      "makefile",
+      "README.md",
+      "LICENSE",
+      "COMPILING.md"
+    ]
+  }
+}
