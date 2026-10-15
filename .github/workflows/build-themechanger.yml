@@ -1,0 +1,91 @@
+name: Build PS5 ThemeChanger
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/themechanger/**'
+      - '.github/workflows/build-themechanger.yml'
+  pull_request:
+    paths:
+      - 'homebrew/themechanger/**'
+      - '.github/workflows/build-themechanger.yml'
+permissions:
+  contents: write
+jobs:
+  native-ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates ffmpeg g++
+      - name: Generate original wallpapers
+        run: python3 homebrew/themechanger/assets/generate.py
+      - name: Prepare existing native PS5 UI kit
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/themechanger/native/* app/src/
+          curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
+          mkdir -p app/assets/wallpapers
+          cp homebrew/themechanger/generated/wallpapers/* app/assets/wallpapers/
+          python3 - <<'PY'
+          import pathlib,json
+          d=json.loads(pathlib.Path('homebrew/themechanger/app.json').read_text())
+          p=pathlib.Path('app/sce_sys/param.json')
+          j=json.loads(p.read_text())
+          j.update(titleId=d['titleId'],conceptId=d['titleId'][-5:],contentId=d['contentId'],contentVersion=d['contentVersion'])
+          j['localizedParameters']['en-US']['titleName']=d['name']
+          p.write_text(json.dumps(j,indent=2)+'\n')
+          PY
+      - name: Prepare PS5 graphics SDK
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: bash tools/prepare-opengl.sh
+      - name: Prepare POSIX compat
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Build FSELF installer
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify installer and assets
+        run: |
+          python3 - <<'PY'
+          import pathlib,zipfile,struct,json
+          title='PPSA99891'
+          root=pathlib.Path('app/dist')/title
+          binary=(root/'eboot.bin').read_bytes()
+          assert len(binary)>1000
+          assert struct.unpack('<I',binary[:4])[0]==0x1d3d154f
+          j=json.loads((root/'sce_sys/param.json').read_text())
+          assert j['titleId']==title
+          assert len(list((root/'assets/wallpapers').glob('*.png')))==12
+          assert len(list((root/'assets/wallpapers').glob('*.mp4')))==12
+          with zipfile.ZipFile(f'app/dist/{title}.zip') as z:
+              assert z.testzip() is None
+              assert f'{title}/eboot.bin' in z.namelist()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ThemeChanger-v0.1.0-PPSA99891
+          path: app/dist/PPSA99891.zip
+          if-no-files-found: error
+      - name: Publish TESTBUILD-compatible release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view themechanger-v0.1.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.1.0 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.1.0" --notes-file homebrew/themechanger/RELEASE_NOTES.md
