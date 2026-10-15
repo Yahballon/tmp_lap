@@ -9,7 +9,9 @@ ua_vr="com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L)
 ua_web="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 for label,url in zip(("720p H264","AAC"),urls):
  assert url.startswith("https://") and ".googlevideo.com/" in url[:300]
- for user_agent,range_value in [(ua_vr,None),(ua_vr,"bytes=0-4095"),
+ for user_agent,range_value in [(ua_vr,None),(ua_vr,"bytes=0-4095"),(ua_vr,"bytes=0-16383"),
+       (ua_vr,"bytes=0-65535"),(ua_vr,"bytes=0-262143"),
+       (ua_vr,"bytes=0-1048575"),
        (ua_vr,"bytes=0-"),(ua_vr,"bytes=1048576-1052671"),
        (ua_web,None),(ua_web,"bytes=0-4095")]:
   name=("VR" if user_agent==ua_vr else "WEB")+" "+(range_value or "whole GET")
