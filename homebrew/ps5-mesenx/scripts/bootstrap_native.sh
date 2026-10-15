@@ -14,15 +14,17 @@ bash tools/setup-native-dependencies.sh
 # The prior build stopped on undefined symbol ps5_fp_ieee from that demo.
 bash tools/rebuild-libc.sh
 test -s runtime/libc.prx
-# Rebuild the exact public shader compiler source tree from the signed SDK tag.
-# The published v0.2.0 binary archive carries an SDK layout without the
+# Fetch the PS5_Vulkan-documented OpenGL SDK v0.3.0 sources at a fixed commit.
+# The v0.2.0 shader compiler was incompatible with PS5_Vulkan's
+# fragment-input patch. The 0.3.0 sources contain the revised anchor.
+# The published old SDK binary archive carries a layout without the
 # third_party source tree, so it cannot feed PS5_Vulkan's shader compiler.
-sdk_checkout="$base/ps5-opengl-sdk-0.2.0"
+sdk_checkout="$base/ps5-opengl-sdk-0.3.0"
 if [[ ! -d "$sdk_checkout/.git" ]]; then
-  git clone -q --depth=1 --branch sdk-0.2.0 \
+  git clone -q --depth=1 --branch v0.3.0 \
     https://github.com/blackbearreloaded/ps5-opengl.git "$sdk_checkout"
 fi
-test "$(git -C "$sdk_checkout" rev-parse HEAD)" = 81772162408ff21a6876d4d9dde396bf6275f778
+test "$(git -C "$sdk_checkout" rev-parse HEAD)" = 6cb291abea32281571c49705735046425cf000fd
 # Pre-fetch the large Mesa archive with resumable HTTP retries. Upstream's
 # Python urlretrieve() has no retry policy and may fail on connection resets.
 read -r mesa_version mesa_url mesa_sha < <(python3 - "$sdk_checkout/dependencies.json" <<'PY'
