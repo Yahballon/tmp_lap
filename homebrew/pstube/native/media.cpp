@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "media.hpp"
-#include "pstube.hpp"
 #include "range_media.hpp"
 #include <SDL.h>
 #include "ca_bundle.inc"
@@ -51,6 +50,14 @@ std::string root_certificate_file(){
 }
 int interrupt_cb(void* ctx){return ((std::atomic<bool>*)ctx)->load() ? 1:0;}
 void sleep_us(int n){if(n>0)usleep((useconds_t)n);}
+bool valid_media_id(const std::string& id){
+ if(id.size()!=11)return false;
+ for(unsigned char c:id)
+  if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
+       (c>='0'&&c<='9')||c=='-'||c=='_'))return false;
+ return true;
+}
+
 bool writable_cache(const std::string& path){
  struct stat st{};
  if(stat(path.c_str(),&st)==0 && !S_ISDIR(st.st_mode))return false;
@@ -121,7 +128,7 @@ bool MediaPlayer::openStream(const std::string& url){
 bool MediaPlayer::openAdaptiveStream(const std::string& videoUrl,const std::string& audioUrl,
     const std::string& videoId,int videoHeight){
  close();
- if(!media_host(videoUrl)||!media_host(audioUrl)||!valid_id(videoId)||
+ if(!media_host(videoUrl)||!media_host(audioUrl)||!valid_media_id(videoId)||
      videoHeight<360||videoHeight>2160)return false;
  {
   std::lock_guard<std::mutex> g(lock_);
