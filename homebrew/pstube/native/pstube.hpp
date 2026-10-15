@@ -32,8 +32,9 @@ class Service {
  private:
  mutable std::mutex mutex_;
  std::atomic<bool> busy_{false},downloading_{false},resolvingStream_{false};
- std::string currentQuery_,continuation_,clientVersion_,pagingProvider_;
+ std::string currentQuery_,continuation_,clientVersion_,apiKey_,visitorData_,pagingProvider_;
  int providerPage_=1;
+ int duplicatePageStreak_=0;
  uint64_t feedGeneration_=0;
  std::atomic<int> download_progress_{0};
  std::string downloading_id_;
