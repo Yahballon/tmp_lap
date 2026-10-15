@@ -1,4 +1,4 @@
-# Ebook Reader v0.1.3 — USB bridge support
+# Ebook Reader v0.1.4 — USB bridge support
 
 Native PS5 EPUB/PDF text reader. Title ID: `PPSA99741`.
 
@@ -38,6 +38,9 @@ Requires a compatible already-running elfldr for accessing an inaccessible USB m
 
 Dedicated workflow: [build-ebook-reader.yml](../../.github/workflows/build-ebook-reader.yml). Uses PS5-DevBridge, OpenGL SDK, zlib and its native payload SDK to compile `bookscan.elf`; both `eboot.bin` and `bookscan.elf` are verified in the installable `PPSA99741.zip`.
 
-Release tag: `ebook-reader-v0.1.3`.
+Release tag: `ebook-reader-v0.1.4`.
 
 Source license: GPL-3.0-or-later, respecting dependency licenses.
+
+## v0.1.4 EPUB container fix
+The former parser matched `<rootfiles>` when it was looking for `<rootfile>`. This caused the common error `Cannot resolve EPUB package` before the EPUB chapter data could load. The replacement checks XML start element names (also namespaced rootfile entries), skips comments, resolves the real OPF `full-path`, and includes host tests with generated standards-shaped EPUB files. This does not change USB Helper, saved book progress, or the application's Title ID.
