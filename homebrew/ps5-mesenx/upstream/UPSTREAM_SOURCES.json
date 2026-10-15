@@ -22,6 +22,7 @@
       "Utilities",
       "Sdl",
       "Linux",
+      "MacOS",
       "Lua",
       "SevenZip",
       "makefile",
