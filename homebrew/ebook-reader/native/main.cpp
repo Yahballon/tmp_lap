@@ -482,6 +482,7 @@ int main(){
     ebook_log::write("EXIT_PROMPT","Press Cross Yes or Circle No");
    }
   }
+  if(exitPending){pressed=0;now=0;}
   // Detached cover/page workers may still use application state; wait until
   // they finish before destroying their textures and terminating the app.
   if(exitPending && !g_coverBusy.load() && !g_openBusy.load() &&
