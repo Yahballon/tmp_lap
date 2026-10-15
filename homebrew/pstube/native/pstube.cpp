@@ -876,13 +876,20 @@ bool Service::start_stream(const Video& video){
     "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
    if(https("www.youtube.com","/youtubei/v1/player?prettyPrint=false",payload,error,vr)){
     const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
-    if(status=="OK"&&select_stream_formats(payload,preferred,chosen,error)&&chosen.adaptive)
+    if(status=="OK"&&select_stream_formats(payload,preferred,chosen,error)&&
+       chosen.adaptive&&chosen.height>=(preferred==0?720:preferred))
      url=chosen.videoUrl;
     else if(status!="OK")error="HD player: "+(status.empty()?"invalid response":status);
-    else if(!chosen.adaptive){chosen={};error="HD client returned no separate video/audio pair";}
+    else {
+     const int available=chosen.height;
+     chosen={};
+     error="Selected HD quality unavailable";
+     if(available>0)error+=" (provider offered "+std::to_string(available)+"p)";
+     error+="; choose Auto or 360p for lower-quality playback";
+    }
    }
   }
-  if(url.empty()){
+  if(url.empty()&&preferred<720){
    const std::string vrError=error;
    payload.clear();chosen={};
    const std::string agent="com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip";
@@ -900,7 +907,7 @@ bool Service::start_stream(const Video& video){
    }
    if(url.empty()&&!vrError.empty())error=vrError+"; Android: "+error;
   }
-  if(url.empty()){
+  if(url.empty()&&preferred<720){
    const std::string androidError=error;
    const std::string host=svc.instance();
    std::string page,webError;
