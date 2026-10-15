@@ -1,9 +1,12 @@
-# PSTUBE v0.7.2 — True HD Playback Fix
+# PSTUBE v0.7.3 — Anonymous Guest HD Session (Experimental)
 
-- Correct cached-file playback precedence: selecting 720p or 1080p now uses the native HD resolver even if an earlier 360p MP4 is already downloaded.
-- For explicitly selected HD, do not silently downgrade to the old 360p Android/Web/Invidious stream; display the real failure instead.
-- Show requested quality alongside actual decoded frame height in playback.
-- Add an end-to-end native C++/FFmpeg test that must **decode actual 720p and 1080p HTTPS video**, not merely parse URLs, with separate AAC input.
-- Preserve existing search, favourites, saved downloads, controller shortcuts and user preferences.
+- Retrieve a temporary, unauthenticated YouTube visitor context directly on PS5 from the public visitor_id endpoint.
+- Attach guest visitorData to both VisionOS and Android VR player requests for 720p/1080p, and refresh that identity once when YouTube returns LOGIN_REQUIRED.
+- Keep the guest identity in RAM only; do not request Google credentials, use browser cookies, install Windows helpers, or persist login secrets.
+- Improve errors to distinguish an HD stream being unavailable from an explicit rejection of anonymous playback.
+- Preserve 360p fallback, existing player, seeking, fullscreen, favourites and settings.
 
-HD remains dependent on available YouTube tracks and hardware decoding throughput. Streaming HD is separate from the Downloads library; existing 360p offline files are preserved. No companion PC tools needed.
+## Important limitation
+YouTube may still return LOGIN_REQUIRED or demand playback attestation even for videos that play in an ordinary browser. In live CI tests, multiple publicly indexed PS5 jailbreak news videos remained login-restricted across guest client profiles, so this update is **not a guaranteed bypass** of YouTube's anonymous playback restrictions. True 720p/1080p requires YouTube to return accessible HD and AAC URLs. No DRM or authentication restrictions are circumvented.
+
+To test: Settings → Video quality → 720p; open a known public video. If playback is refused, send the video's URL and the exact on-screen error.
