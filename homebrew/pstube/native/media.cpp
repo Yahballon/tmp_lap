@@ -2,9 +2,9 @@
 #include "media.hpp"
 #include <SDL.h>
 #include "ca_bundle.inc"
+extern "C" {
 #include <libavutil/dict.h>
 #include <libavutil/error.h>
-extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/imgutils.h>
