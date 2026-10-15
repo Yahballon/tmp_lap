@@ -110,6 +110,9 @@ jobs:
       - name: Probe native Innertube direct media support (diagnostic)
         continue-on-error: true
         run: python3 homebrew/pstube/tests/probe_native_innertube.py
+      - name: Probe public YouTube continuation pagination (diagnostic)
+        continue-on-error: true
+        run: python3 homebrew/pstube/tests/probe_search_pagination.py
       - name: Prepare native OpenGL SDK
         working-directory: app
         env:
