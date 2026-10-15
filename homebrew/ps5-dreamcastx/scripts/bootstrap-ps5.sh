@@ -28,17 +28,21 @@ sed -i "s/^mesa_revision=.*/mesa_revision=$(git -C PS5_Mesa rev-parse HEAD)/" PS
 export PS5_VULKAN_DIR="$work/PS5_Vulkan"
 export PS5_MESA_FORK="$work/PS5_Mesa"
 export PS5_PAYLOAD_SDK_FORK="$work/PS5_PayloadSDK"
-# The upstream script can finish with a nonzero code solely because PS5_HOST is
-# not configured; the workflow only needs the toolchain and build libraries.
-set +e
-bash PS5_VulkanTemplate/ps5/tools/bootstrap.sh
-status=$?
-set -e
-if (( status != 0 )); then
-  for p in PS5_Vulkan/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a PS5_Vulkan/runtime/libc.prx PS5_Vulkan/build/host/ps5-native-tool; do
-    test -s "$p" || { echo "Bootstrap failed: $p is missing" >&2; exit "$status"; }
-  done
-fi
+# Bootstrap only the toolchain the PS5 title actually uses; no console IP,
+# controller payload, FTP access, or unrelated demo app is needed in CI.
+(
+  cd "$work/PS5_Vulkan"
+  bash tools/setup-native-dependencies.sh
+  make
+  bash tools/build-radv.sh release
+)
+git -C PS5_VulkanTemplate submodule update --init external/glm
+bash PS5_VulkanTemplate/ps5/tools/setup-sdk.sh
+
+test -s "$work/PS5_Vulkan/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a"
+test -s "$work/PS5_Vulkan/runtime/libc.prx"
+test -x "$work/PS5_Vulkan/build/host/ps5-native-tool"
+
 # Reuse the exact PS5_VulkanTemplate SDK pin built by bootstrap.sh.
 # The previous independent SDK checkout was redundant and out of sync.
 sdk="$work/PS5_VulkanTemplate/.deps/native/ps5-payload-sdk"
