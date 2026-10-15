@@ -12,7 +12,7 @@ assert sdk.joinpath("target/include").exists() and wrapper.is_file()
 cpp=[src/"Libretro/libretro.cpp",src/"Core/pch.cpp"]
 for part in ("Core/NES","Core/Shared","Core/Netplay","Utilities"):
     cpp+=list((src/part).rglob("*.cpp"))
-cpp+=[p for p in (src/"Core/Debugger").rglob("*.cpp") if not p.name.startswith("ExpressionEvaluator.")]
+cpp+=[p for p in (src/"Core/Debugger").rglob("*.cpp") if not p.name.startswith("ExpressionEvaluator.") or p.name=="ExpressionEvaluator.cpp"]
 cpp+=[src/"Core/Debugger/ExpressionEvaluator.Nes.cpp"]
 c=list((src/"SevenZip").rglob("*.c"))+list((src/"Utilities").rglob("*.c"))
 c += [p for p in (src/"Lua").rglob("*.c") if p.name not in {"serial.c","unix.c","unixdgram.c","unixstream.c"}]
