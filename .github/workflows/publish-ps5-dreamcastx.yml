@@ -9,8 +9,12 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/publish-ps5-dreamcastx.yml'
+  workflow_run:
+    workflows:
+      - Build PS5DreamcastX (native Flycast)
+    types: [completed]
   schedule:
-    # A short independent publisher: no expensive Vulkan recompilation.
+    # Retry publishing a verified artifact after its PS5_RELEASE_TOKEN has been configured.
     - cron: '7,27,47 * * * *'
 
 permissions:
@@ -23,6 +27,7 @@ concurrency:
 
 jobs:
   publish:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout release metadata
@@ -36,7 +41,10 @@ jobs:
             echo 'ready=true' >> "$GITHUB_OUTPUT"
           else
             echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::GitHub API denied release creation with GITHUB_TOKEN (403). Configure the PS5_RELEASE_TOKEN repository Actions secret with Contents: Read and write to publish this verified artifact automatically.'
+            echo '::error::Cannot publish a real GitHub Release: set PS5_RELEASE_TOKEN in repo Actions secrets (fine-grained PAT for Yahballon/tmp_lap, Contents: Read and write). Do NOT paste a token into chat.'
+            if [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+              exit 1
+            fi
           fi
       - name: Find newest successful matching signed PS5 artifact
         if: steps.release_auth.outputs.ready == 'true'
