@@ -8,7 +8,7 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 | --- | --- | --- | --- |
 | PS5 System Info | [homebrew/ps5-system-info](homebrew/ps5-system-info/) | [Build PS5 System Info](.github/workflows/build-ps5-system-info.yml) | [v0.1.0 (after verified CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-system-info-v0.1.0) |
 | Audiobook Reader (M4B preview) | [homebrew/audiobook-reader](homebrew/audiobook-reader/) | [Build Audiobook Reader](.github/workflows/build-audiobook-reader.yml) | [v0.2.2](https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.2.2) |
-| PSTUBE (playback beta) | [homebrew/pstube](homebrew/pstube/) | [Build PSTUBE](.github/workflows/build-pstube.yml) | [v0.7.3 (after validated CI)](https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.3) |
+| PSTUBE (playback beta) | [homebrew/pstube](homebrew/pstube/) | [Build PSTUBE](.github/workflows/build-pstube.yml) | [v0.7.4 (after validated CI)](https://github.com/Yahballon/tmp_lap/releases/tag/pstube-v0.7.4) |
 | Ebook Reader | [homebrew/ebook-reader](homebrew/ebook-reader/) | [Build Ebook Reader](.github/workflows/build-ebook-reader.yml) | [v0.1.0 (after validated CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ebook-reader-v0.1.0) |
 | Torrent Flow | [homebrew/ps5-torrent](homebrew/ps5-torrent/) | [Build Torrent Flow](.github/workflows/build-ps5-torrent.yml) | [v0.4.4](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-torrent-v0.4.5) |
 | Crypto Tracker | [homebrew/crypto-tracker](homebrew/crypto-tracker/) | [Build Crypto Tracker](.github/workflows/build-ps5-crypto-tracker.yml) | [v0.4.2](https://github.com/Yahballon/tmp_lap/releases/tag/v0.3.0) |

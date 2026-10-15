@@ -1,12 +1,14 @@
-# PSTUBE v0.7.3 — Anonymous Guest HD Session (Experimental)
+# PSTUBE v0.7.4 — Audio Language and Original Voice
 
-- Retrieve a temporary, unauthenticated YouTube visitor context directly on PS5 from the public visitor_id endpoint.
-- Attach guest visitorData to both VisionOS and Android VR player requests for 720p/1080p, and refresh that identity once when YouTube returns LOGIN_REQUIRED.
-- Keep the guest identity in RAM only; do not request Google credentials, use browser cookies, install Windows helpers, or persist login secrets.
-- Improve errors to distinguish an HD stream being unavailable from an explicit rejection of anonymous playback.
-- Preserve 360p fallback, existing player, seeking, fullscreen, favourites and settings.
+- Add persistent audio-language preference in Settings: Original (default), English, German, Spanish, French, Japanese, Korean, Portuguese, Italian and Hindi.
+- Select the desired AAC audio track from the YouTube player response instead of choosing whichever language has the highest bitrate.
+- Prefer original language over an automatically dubbed locale-default track when audio-track metadata identifies the source track; fall back to the original when the requested translation is unavailable.
+- Display the selected audio language in the player overlay, when the source reports metadata.
+- Preserve the existing native 720p/1080p H.264 video decoder, separate AAC playback, seeking, fullscreen, search pagination and personal data.
+- Add native C++ regression tests for English-original / German AI dub cases, explicit language selection, and missing-language fallback.
 
-## Important limitation
-YouTube may still return LOGIN_REQUIRED or demand playback attestation even for videos that play in an ordinary browser. In live CI tests, multiple publicly indexed PS5 jailbreak news videos remained login-restricted across guest client profiles, so this update is **not a guaranteed bypass** of YouTube's anonymous playback restrictions. True 720p/1080p requires YouTube to return accessible HD and AAC URLs. No DRM or authentication restrictions are circumvented.
+### Limitations
+YouTube may omit or change per-track language/original metadata. In that case the app cannot reliably distinguish the original soundtrack and reports unavailable metadata rather than fabricating a language. The setting applies to the currently offered separate AAC streams; already-downloaded 360p combined MP4 files retain their existing audio. Real PS5 hardware testing is still required.
 
-To test: Settings → Video quality → 720p; open a known public video. If playback is refused, send the video's URL and the exact on-screen error.
+### Installation
+Install `PPSA99762.zip` to `/data/homebrew/PPSA99762/`. Update your TESTBUILD catalogue. Do not delete `/data/pstube` or existing settings.

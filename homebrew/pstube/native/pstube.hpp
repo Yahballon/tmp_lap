@@ -6,11 +6,12 @@
 #include <atomic>
 namespace pstube {
 struct Video {std::string id,title,author,description,thumbnail;int length=0;long views=0;bool live=false;};
-struct StreamSelection {std::string videoUrl,audioUrl;int height=0;bool adaptive=false;};
+struct StreamSelection {std::string videoUrl,audioUrl;int height=0;bool adaptive=false;std::string audioLanguage;bool audioOriginal=false;};
 // Select only verified direct AVC/H.264 MP4 video + AAC/MP4 audio formats.
-bool select_stream_formats(const std::string& json,int quality,StreamSelection& out,std::string& error);
+bool select_stream_formats(const std::string& json,int quality,StreamSelection& out,std::string& error,
+                           const std::string& audioPreference="original");
 struct Job {std::string id,title;float progress=0;std::string state,error,path;};
-struct Snapshot {std::vector<Video> videos;std::vector<Job> jobs;std::string status="Search for videos to begin";bool searching=false,loadingMore=false,hasMore=false;std::string streamId,streamUrl,streamAudioUrl,streamError;int streamHeight=0;bool streamAdaptive=false;bool streamResolving=false;};
+struct Snapshot {std::vector<Video> videos;std::vector<Job> jobs;std::string status="Search for videos to begin";bool searching=false,loadingMore=false,hasMore=false;std::string streamId,streamUrl,streamAudioUrl,streamError;int streamHeight=0;bool streamAdaptive=false;std::string streamAudioLanguage;bool streamAudioOriginal=false;bool streamResolving=false;};
 class Service {
  public:
  Service();~Service();
@@ -33,6 +34,8 @@ class Service {
  void set_instance(const std::string& hostname);
  void set_quality(int quality);
  int quality()const;
+ void set_audio_language(const std::string& code);
+ std::string audio_language()const;
  std::string instance()const;
  private:
  mutable std::mutex mutex_;
@@ -44,6 +47,7 @@ class Service {
  std::string downloading_id_;
  std::string instance_="yewtu.be";
  int quality_=0; // 0=Auto (720p preferred), 360, 720, 1080
+ std::string audioLanguage_="original";
  std::vector<std::string> fav_;
  std::vector<Video> favorite_meta_,recent_meta_;
  Snapshot state_;

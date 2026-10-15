@@ -432,6 +432,17 @@ std::string continuation_body(const std::string& token,const std::string& versio
  return "{\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":"+
   quote(version)+",\"hl\":\"en\",\"gl\":\"US\"}},\"continuation\":"+quote(token)+"}";
 }
+bool supported_audio_preference(const std::string& value){
+ return value=="original"||value=="en"||value=="de"||value=="es"||
+        value=="fr"||value=="ja"||value=="ko"||value=="pt"||
+        value=="it"||value=="hi";
+}
+std::string language_base(std::string code){
+ for(char& c:code)c=(char)std::tolower((unsigned char)c);
+ const size_t sep=code.find_first_of("-_.");
+ return sep==std::string::npos?code:code.substr(0,sep);
+}
+
 Service::Service(){
  mkdirs();
  state_.videos=load_feed_cache();
@@ -443,6 +454,7 @@ Service::Service(){
   size_t pos=9;while(pos<v.size()){size_t e=v.find('\n',pos);if(e==std::string::npos)break;std::string line=v.substr(pos,e-pos);pos=e+1;
    if(line.substr(0,2)=="I "&&host_ok(line.substr(2)))instance_=line.substr(2);
    if(line=="Q 0"||line=="Q 360"||line=="Q 720"||line=="Q 1080")quality_=std::atoi(line.c_str()+2);
+   if(line.substr(0,2)=="L "&&supported_audio_preference(line.substr(2)))audioLanguage_=line.substr(2);
    if(line.substr(0,2)=="F "&&valid_id(line.substr(2))&&fav_.size()<300)fav_.push_back(line.substr(2));
    if(line.substr(0,2)=="V "||line.substr(0,2)=="H "){
     size_t a=line.find('|',2),b=a==std::string::npos?a:line.find('|',a+1);
@@ -465,7 +477,7 @@ Service::Service(){
 }
 Service::~Service(){while(busy_.load()||downloading_.load()||resolvingStream_.load())usleep(25000);}
 bool Service::persist()const{
- std::string out="PSTUBE:1\nI "+instance_+"\nQ "+std::to_string(quality_)+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
+ std::string out="PSTUBE:1\nI "+instance_+"\nQ "+std::to_string(quality_)+"\nL "+audioLanguage_+"\n";for(const auto& v:fav_)out+="F "+v+"\n";
  for(const auto& v:favorite_meta_)if(valid_id(v.id))out+="V "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
  for(const auto& v:recent_meta_)if(valid_id(v.id))out+="H "+v.id+"|"+encode(v.title)+"|"+encode(v.author)+"\n";
  return save_text(kSave,out)||save_text(kFallback,out);
@@ -508,6 +520,13 @@ void Service::set_quality(int value){
  std::lock_guard<std::mutex> g(mutex_);quality_=value;persist();
 }
 int Service::quality()const{std::lock_guard<std::mutex> g(mutex_);return quality_;}
+void Service::set_audio_language(const std::string& code){
+ if(!supported_audio_preference(code))return;
+ std::lock_guard<std::mutex> g(mutex_);audioLanguage_=code;persist();
+}
+std::string Service::audio_language()const{
+ std::lock_guard<std::mutex> g(mutex_);return audioLanguage_;
+}
 Snapshot Service::snapshot()const{
  std::lock_guard<std::mutex> g(mutex_);
  Snapshot copy=state_;
@@ -735,14 +754,19 @@ std::string pick_youtube_video_mp4(const std::string& html,std::string& reason){
  return {};
 }
 
-bool select_stream_formats(const std::string& json,int quality,StreamSelection& out,std::string& error){
+
+bool select_stream_formats(const std::string& json,int quality,StreamSelection& out,
+                           std::string& error,const std::string& audioPreference){
  out=StreamSelection{};error.clear();
  const auto streaming=field(json,"streamingData");
  if(streaming.empty()){error="Video has no streamingData";return false;}
  const int limit=quality==0?720:quality;
  if(limit!=360&&limit!=720&&limit!=1080){error="Unsupported playback quality";return false;}
+ if(!supported_audio_preference(audioPreference)){error="Unsupported audio language";return false;}
  struct Format {std::string url;int height=0;int bitrate=0;};
- Format mux,video,audio;
+ struct AudioFormat {std::string url,language;int bitrate=0,originConfidence=0;bool descriptive=false,drc=false;};
+ Format mux,video;
+ std::vector<AudioFormat> tracks;
  auto collect=[&](std::string_view arr,bool adaptive){
   size_t p=0;skip(arr,p);if(p>=arr.size()||arr[p++]!='[')return;
   while(p<arr.size()){
@@ -752,20 +776,36 @@ bool select_stream_formats(const std::string& json,int quality,StreamSelection& 
    const auto mime=decode(field(item,"mimeType"));
    const auto url=decode(field(item,"url"),12000);
    const int h=integer(field(item,"height"));
-   int height=h>0?h:std::atoi(decode(field(item,"qualityLabel")).c_str());
+   const int height=h>0?h:std::atoi(decode(field(item,"qualityLabel")).c_str());
    const int bitrate=integer(field(item,"bitrate"));
    if(url.rfind("https://",0)==0&&url.find("googlevideo.com")!=std::string::npos){
     if(adaptive&&mime.find("audio/mp4")!=std::string::npos&&
-        mime.find("mp4a.")!=std::string::npos&&bitrate>audio.bitrate){
-     audio={url,0,bitrate};
+       mime.find("mp4a.")!=std::string::npos){
+     const auto meta=field(item,"audioTrack");
+     const auto trackId=decode(field(meta,"id"),128);
+     const auto label=decode(field(meta,"displayName"),128);
+     const auto kind=decode(field(meta,"audioTrackKind"),64);
+     const auto languageField=decode(field(meta,"languageCode"),64);
+     AudioFormat track;track.url=url;track.bitrate=bitrate;
+     track.language=language_base(!languageField.empty()?languageField:trackId);
+     // A locale-specific default can be a dubbed track. A track marked
+     // "original", or ID suffix ".0" is preferred before that default.
+     const bool namedOriginal=(label.find("original")!=std::string::npos||
+                               kind.find("ORIGINAL")!=std::string::npos);
+     const bool idOriginal=trackId.size()>2&&
+                           trackId.substr(trackId.size()-2)==".0";
+     const bool isDefault=field(meta,"audioIsDefault")=="true";
+     track.originConfidence=(namedOriginal||idOriginal)?2:(isDefault?1:0);
+     track.descriptive=label.find("descriptive")!=std::string::npos||
+                       label.find("Description")!=std::string::npos||
+                       kind.find("DESCRIPTIVE")!=std::string::npos;
+     track.drc=field(item,"isDrc")=="true";
+     tracks.push_back(std::move(track));
     }else if(mime.find("video/mp4")!=std::string::npos&&height>0&&height<=limit){
-     // Explicit AVC requirement: current FFmpeg software renderer may not
-     // decode AV1/VP9 at HD resolutions efficiently.
-     if(adaptive&&mime.find("avc1.")!=std::string::npos &&
+     if(adaptive&&mime.find("avc1.")!=std::string::npos&&
         (height>video.height||(height==video.height&&bitrate>video.bitrate)))
       video={url,height,bitrate};
-     if(!adaptive&&
-        (height>mux.height||(height==mux.height&&bitrate>mux.bitrate)))
+     if(!adaptive&&(height>mux.height||(height==mux.height&&bitrate>mux.bitrate)))
       mux={url,height,bitrate};
     }
    }
@@ -774,14 +814,32 @@ bool select_stream_formats(const std::string& json,int quality,StreamSelection& 
  };
  collect(field(streaming,"formats"),false);
  collect(field(streaming,"adaptiveFormats"),true);
- // Prefer high-definition adaptive streams only if separate AAC audio exists.
- // Never silently select a video-only stream without audio.
- if(video.height>mux.height&&!audio.url.empty()&&limit>360){
-  out.videoUrl=std::move(video.url);out.audioUrl=std::move(audio.url);
-  out.height=video.height;out.adaptive=true;return true;
+ const AudioFormat* chosen=nullptr;
+ long best=-999999;
+ const bool explicitLanguage=audioPreference!="original";
+ for(const auto& track:tracks){
+  const bool langMatch=explicitLanguage&&track.language==audioPreference;
+  long score=0;
+  // Prefer requested language, but use original when it is unavailable.
+  if(langMatch)score+=20000;
+  score+=track.originConfidence==2?9000:(track.originConfidence==1?3000:0);
+  if(track.descriptive)score-=12000;
+  if(track.drc)score-=500;
+  score+=std::min(track.bitrate/10000,200);
+  if(!chosen||score>best){chosen=&track;best=score;}
+ }
+ // The HD track must have an actual AAC audio partner; audio-only returns
+ // and incompatible variants must never be passed as a playable video.
+ if(video.height>mux.height&&chosen&&limit>360){
+  out.videoUrl=std::move(video.url);out.audioUrl=chosen->url;
+  out.height=video.height;out.adaptive=true;
+  out.audioLanguage=chosen->language.empty()?"unknown":chosen->language;
+  out.audioOriginal=chosen->originConfidence==2;
+  return true;
  }
  if(!mux.url.empty()){
-  out.videoUrl=std::move(mux.url);out.height=mux.height;return true;
+  out.videoUrl=std::move(mux.url);out.height=mux.height;
+  out.audioLanguage="unknown";return true;
  }
  error="No compatible AVC/AAC MP4 stream at requested quality";return false;
 }
@@ -845,7 +903,9 @@ bool resolve_android_mp4(const std::string& id,std::string& mediaUrl,std::string
 }
 void Service::cancel_stream(){
  std::lock_guard<std::mutex> g(mutex_);
- state_.streamId.clear();state_.streamUrl.clear();state_.streamError.clear();
+ state_.streamId.clear();state_.streamUrl.clear();state_.streamAudioUrl.clear();
+ state_.streamAudioLanguage.clear();state_.streamAudioOriginal=false;
+ state_.streamError.clear();
  state_.streamResolving=false;
 }
 
@@ -905,7 +965,7 @@ bool Service::start_stream(const Video& video){
  {
   std::lock_guard<std::mutex> g(mutex_);
   state_.streamId=video.id;
-  state_.streamUrl.clear();state_.streamAudioUrl.clear();state_.streamHeight=0;state_.streamAdaptive=false;state_.streamError.clear();state_.streamResolving=true;
+  state_.streamUrl.clear();state_.streamAudioUrl.clear();state_.streamHeight=0;state_.streamAdaptive=false;state_.streamAudioLanguage.clear();state_.streamAudioOriginal=false;state_.streamError.clear();state_.streamResolving=true;
  }
  auto* work=new Work{this,"",video.id,3,video};
  pthread_t thread{};pthread_attr_t attr;
@@ -915,6 +975,7 @@ bool Service::start_stream(const Video& video){
   std::string url,error;
   StreamSelection chosen;
   const int preferred=svc.quality();
+  const std::string audioPreference=svc.audio_language();
   // Quality selection is performed from one API response so that separate
   // adaptive audio/video tracks share the same media timeline.
   // The legacy ANDROID response lists HD formats but supplies no URLs for
@@ -936,7 +997,7 @@ bool Service::start_stream(const Video& video){
     "\"playbackContext\":{\"contentPlaybackContext\":{\"html5Preference\":\"HTML5_PREF_WANTS\"}}}";
    if(anonymous_player("VISIONOS","1.02",body,payload,error)){
     const auto status=decode(field(field(payload,"playabilityStatus"),"status"));
-    if(status=="OK"&&select_stream_formats(payload,preferred,chosen,error)&&
+    if(status=="OK"&&select_stream_formats(payload,preferred,chosen,error,audioPreference)&&
        chosen.adaptive&&chosen.height>=(preferred==0?720:preferred))url=chosen.videoUrl;
     else if(status!="OK"){
      error="VisionOS public player: "+(status.empty()?"invalid response":status);
@@ -1015,6 +1076,8 @@ bool Service::start_stream(const Video& video){
     svc.state_.streamAudioUrl=svc.state_.streamUrl.empty()?std::string{}:std::move(chosen.audioUrl);
     svc.state_.streamHeight=chosen.height;
     svc.state_.streamAdaptive=chosen.adaptive&&!svc.state_.streamAudioUrl.empty();
+    svc.state_.streamAudioLanguage=chosen.audioLanguage;
+    svc.state_.streamAudioOriginal=chosen.audioOriginal;
     svc.state_.streamError=svc.state_.streamUrl.empty()?
       (error.empty()?"No direct HTTPS stream available":error):std::string();
     svc.state_.streamResolving=false;

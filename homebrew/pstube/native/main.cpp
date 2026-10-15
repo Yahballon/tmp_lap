@@ -51,6 +51,25 @@ std::string quality_name(int q){
 int next_quality(int q){
  switch(q){case 0:return 360;case 360:return 720;case 720:return 1080;default:return 0;}
 }
+std::string audio_language_name(const std::string& code){
+ if(code=="en")return "English";
+ if(code=="de")return "German";
+ if(code=="es")return "Spanish";
+ if(code=="fr")return "French";
+ if(code=="ja")return "Japanese";
+ if(code=="ko")return "Korean";
+ if(code=="pt")return "Portuguese";
+ if(code=="it")return "Italian";
+ if(code=="hi")return "Hindi";
+ if(code=="original")return "Original audio";
+ return code.empty()?"Unknown":code;
+}
+std::string next_audio_language(const std::string& value){
+ static const char* choices[]={"original","en","de","es","fr","ja","ko","pt","it","hi"};
+ for(size_t i=0;i<sizeof(choices)/sizeof(choices[0]);++i)
+  if(value==choices[i])return choices[(i+1)%(sizeof(choices)/sizeof(choices[0]))];
+ return "original";
+}
 constexpr int kGridVisible=6;
 int grid_offset(int selected,int count){
  if(count<=kGridVisible)return 0;
@@ -150,7 +169,7 @@ int main(){
   std::vector<pstube::Video> videos=snapshot.videos;
   if(s.page==3)videos=service.favorite_videos();
   if(s.page==5)videos=service.history_videos();
-  s.selected=std::clamp(s.selected,0,s.page==6?1:std::max(0,(int)videos.size()-1));
+  s.selected=std::clamp(s.selected,0,s.page==6?2:std::max(0,(int)videos.size()-1));
   s.offset=grid_offset(s.selected,(int)videos.size());
   if(s.playing){
    // Options toggles true edge-to-edge video. Directional and shoulder inputs
@@ -244,7 +263,7 @@ int main(){
     if(pressed&hui::pad_bits::kRight)s.selected=std::min(std::max(0,(int)videos.size()-1),s.selected+1);
     if(pressed&hui::pad_bits::kUp)s.selected=s.page==6?std::max(0,s.selected-1):
        std::max(0,s.selected-(s.page==4?1:3));
-    if(pressed&hui::pad_bits::kDown)s.selected=s.page==6?std::min(1,s.selected+1):
+    if(pressed&hui::pad_bits::kDown)s.selected=s.page==6?std::min(2,s.selected+1):
        std::min(std::max(0,(int)(s.page==4?snapshot.jobs.size():videos.size())-1),s.selected+(s.page==4?1:3));
     s.offset=grid_offset(s.selected,(int)videos.size());
     if(pressed&hui::pad_bits::kSquare){if(!videos.empty()&&s.page!=4){service.toggle_favourite(videos[(size_t)s.selected]);s.notice="Favourites updated";}}
@@ -253,6 +272,10 @@ int main(){
       if(s.selected==0){
        const int q=next_quality(service.quality());
        service.set_quality(q);s.notice="Video quality: "+quality_name(q)+" (saved)";
+      }else if(s.selected==1){
+       const auto lang=next_audio_language(service.audio_language());
+       service.set_audio_language(lang);
+       s.notice="Preferred audio: "+audio_language_name(lang)+" (saved)";
       }else{
        static const char* hosts[]={"inv.nadeko.net","invidious.nerdvpn.de","yt.chocolatemoo53.com","invidious.tiekoetter.com","yewtu.be"};
        auto it=std::find_if(std::begin(hosts),std::end(hosts),[&](const char* h){return service.instance()==h;});
@@ -319,7 +342,7 @@ int main(){
   text(d,font,atlas,"PSTUBE",158,79,51,white);
   text(d,font,atlas,"by YAHBALLON",162,112,23,dim);
   tile(d,466,37,892,76,false);text(d,font,atlas,"Search: "+cut(font,s.query,780,24),499,84,24,dim);
-  text(d,font,atlas,"v0.7.3",1850,84,25,white,Align::right);
+  text(d,font,atlas,"v0.7.4",1850,84,25,white,Align::right);
   d.rounded_rect({0,140,374,870},0,Color::rgb(0x041226));
   for(int i=0;i<7;i++){float y=180+i*112;
    if(s.page==i||s.focus==0&&s.nav==i)tile(d,31,y,326,88,s.focus==0&&s.nav==i);
@@ -338,20 +361,23 @@ int main(){
     text(d,font,atlas,p,1793,y+38,22,white,Align::right);
    }
   }else if(s.page==6){
-   tile(d,423,261,1410,91,s.focus==1&&s.selected==0);
-   text(d,font,atlas,"Video quality",451,303,30,white);
-   text(d,font,atlas,quality_name(service.quality()),1780,305,27,blue,Align::right);
-   tile(d,423,373,1410,91,s.focus==1&&s.selected==1);
-   text(d,font,atlas,"Fallback search provider",451,414,27,white);
-   text(d,font,atlas,cut(font,service.instance(),620,23),1780,416,23,dim,Align::right);
-   text(d,font,atlas,"D-PAD Up/Down: select     X: change quality or provider",434,509,24,dim);
-   text(d,font,atlas,"Auto prefers HD when separate video + audio tracks are available.",434,559,22,dim);
-   text(d,font,atlas,"Requested quality may fall back to a lower available stream.",434,598,22,dim);
-   text(d,font,atlas,"SQUARE: Test built-in 5-second video/audio decoder",434,671,24,white);
+   tile(d,423,258,1410,86,s.focus==1&&s.selected==0);
+   text(d,font,atlas,"Video quality",451,303,29,white);
+   text(d,font,atlas,quality_name(service.quality()),1780,305,26,blue,Align::right);
+   tile(d,423,360,1410,86,s.focus==1&&s.selected==1);
+   text(d,font,atlas,"Audio language",451,405,29,white);
+   text(d,font,atlas,audio_language_name(service.audio_language()),1780,407,26,blue,Align::right);
+   tile(d,423,462,1410,86,s.focus==1&&s.selected==2);
+   text(d,font,atlas,"Fallback search provider",451,506,27,white);
+   text(d,font,atlas,cut(font,service.instance(),650,24),1780,508,24,dim,Align::right);
+   text(d,font,atlas,"D-PAD Up/Down: choose setting     X: change selected option",434,590,23,dim);
+   text(d,font,atlas,"Original audio avoids AI-dubbed tracks when YouTube identifies them.",434,633,22,dim);
+   text(d,font,atlas,"If your language is unavailable, PSTUBE prefers the original track.",434,669,22,dim);
+   text(d,font,atlas,"SQUARE: Test built-in 5-second video/audio decoder",434,733,23,white);
    auto th=pstube::thumbnail_health();
    text(d,font,atlas,"Thumbnails: "+std::to_string(th.successful)+" ready / "+
-     std::to_string(th.failed)+" failed / "+std::to_string(th.pending)+" pending",434,743,22,dim);
-   if(th.failed)text(d,font,atlas,cut(font,th.lastError,1280,19),434,780,19,dim);
+     std::to_string(th.failed)+" failed / "+std::to_string(th.pending)+" pending",434,801,21,dim);
+   if(th.failed)text(d,font,atlas,cut(font,th.lastError,1280,19),434,836,19,dim);
   }else{
    if(s.page==0&&videos.empty())text(d,font,atlas,"Connecting to public video services...",420,258,22,dim);
    result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
@@ -450,6 +476,11 @@ int main(){
      const std::string qualityInfo=actual+"  |  Requested: "+(wanted?std::to_string(wanted)+"p":std::string("Auto"));
      text(d,font,atlas,qualityInfo,1800,142,25,
        wanted>=720&&st.height<720?Color::rgb(0xff9d78):green,Align::right);
+    }
+    if(!snapshot.streamAudioLanguage.empty()&&s.active.id==snapshot.streamId){
+     const std::string played=audio_language_name(snapshot.streamAudioLanguage);
+     text(d,font,atlas,"Audio: "+played+
+       (snapshot.streamAudioOriginal?" (original)":""),1800,177,21,dim,Align::right);
     }
     if(s.fullscreen)d.rounded_rect({0,924,1920,156},0,Color::rgb(0x051124,.87f));
     else d.rounded_rect({0,946,1920,134},0,Color::rgb(0x06152b));
