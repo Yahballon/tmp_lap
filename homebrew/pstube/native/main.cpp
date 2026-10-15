@@ -36,6 +36,14 @@ void tile(DrawList& d,float x,float y,float w,float h,bool sel){
 const char* pages[]={"Home","Search","Trending","Favorites","Downloads","History","Settings"};
 const char* symbols[]={"H","?","^","*","v","O","#"};
 const std::string keys="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_."; // 40 keys
+constexpr int kGridVisible=6;
+// A partial final page shares its preceding cards instead of showing 1-2 orphan tiles.
+int visible_start(int selected,int count){
+ if(count<=kGridVisible)return 0;
+ const int block=std::max(0,selected)/kGridVisible*kGridVisible;
+ return std::min(block,count-kGridVisible);
+}
+
 struct State {
  int page=0,focus=0,nav=0,selected=0,offset=0,kbd=0;
  bool keyboard=false,inspect=false,playing=false,playerStarted=false;
@@ -51,10 +59,20 @@ void write_help(DrawList& d,const Font& f,unsigned a,State& s){
  text(d,f,a,help,965,1050,22,dim,Align::center);
 }
 void result_grid(DrawList& d,const Font& f,unsigned a,const std::vector<pstube::Video>& videos,const State& s,const pstube::Service& svc,Renderer& renderer,std::map<std::string,unsigned>& images){
+ if(images.size()>30){
+  // Bound GPU texture allocations during hundreds of search results.
+  const int end=std::min((int)videos.size(),s.offset+kGridVisible);
+  for(auto it=images.begin();it!=images.end();){
+   bool visible=false;
+   for(int n=s.offset;n<end;++n)if(videos[(size_t)n].id==it->first){visible=true;break;}
+   if(!visible){unsigned texture=it->second;glDeleteTextures(1,&texture);it=images.erase(it);}
+   else ++it;
+  }
+ }
  if(videos.empty()){text(d,f,a,"No videos received",1080,444,34,white,Align::center);text(d,f,a,"Press Triangle to search or check your network and date/time.",1080,502,24,dim,Align::center);return;}
  d.push_clip({405,240,1485,704});
  const int columns=3;
- for(int i=s.offset;i<(int)videos.size()&&i<s.offset+6;i++){
+ for(int i=s.offset;i<(int)videos.size()&&i<s.offset+kGridVisible;i++){
   const int k=i-s.offset;float x=418+(k%columns)*490,y=259+(k/columns)*332;
   if(y>940)break;
   tile(d,x,y,466,321,i==s.selected);
@@ -129,6 +147,12 @@ int main(){
   if(s.page==3)videos=service.favorite_videos();
   if(s.page==5)videos=service.history_videos();
   s.selected=std::clamp(s.selected,0,std::max(0,(int)videos.size()-1));
+  s.offset=visible_start(s.selected,(int)videos.size());
+  if((s.page==0||s.page==1||s.page==2)&&s.focus==1&&
+     snapshot.hasMore&&!snapshot.searching&&!s.playing&&
+     !videos.empty()&&s.selected>=(int)videos.size()-5){
+    service.load_more();
+  }
   if(s.playing){
    if(pressed&hui::pad_bits::kCircle){
     player.close();s.playing=false;s.playerStarted=false;last_frame=0;
@@ -193,7 +217,7 @@ int main(){
     if(pressed&hui::pad_bits::kRight)s.selected=std::min(std::max(0,(int)videos.size()-1),s.selected+1);
     if(pressed&hui::pad_bits::kUp)s.selected=std::max(0,s.selected-(s.page==4?1:3));
     if(pressed&hui::pad_bits::kDown)s.selected=std::min(std::max(0,(int)(s.page==4?snapshot.jobs.size():videos.size())-1),s.selected+(s.page==4?1:3));
-    s.offset=(s.selected/6)*6;
+    s.offset=visible_start(s.selected,(int)videos.size());
     if(pressed&hui::pad_bits::kSquare){if(!videos.empty()&&s.page!=4){service.toggle_favourite(videos[(size_t)s.selected]);s.notice="Favourites updated";}}
     if(pressed&hui::pad_bits::kCross){
      if(s.page==6){static const char* hosts[]={"inv.nadeko.net","invidious.nerdvpn.de","yt.chocolatemoo53.com","invidious.tiekoetter.com","yewtu.be"};
@@ -234,7 +258,7 @@ int main(){
   text(d,font,atlas,"PSTUBE",158,79,51,white);
   text(d,font,atlas,"by YAHBALLON",162,112,23,dim);
   tile(d,466,37,892,76,false);text(d,font,atlas,"Search: "+cut(font,s.query,780,24),499,84,24,dim);
-  text(d,font,atlas,"v0.4.0",1850,84,25,white,Align::right);
+  text(d,font,atlas,"v0.4.1",1850,84,25,white,Align::right);
   d.rounded_rect({0,140,374,870},0,Color::rgb(0x041226));
   for(int i=0;i<7;i++){float y=180+i*112;
    if(s.page==i||s.focus==0&&s.nav==i)tile(d,31,y,326,88,s.focus==0&&s.nav==i);
@@ -265,10 +289,27 @@ int main(){
   }else{
    if(s.page==0&&videos.empty())text(d,font,atlas,"Connecting to public video services...",420,258,22,dim);
    result_grid(d,font,atlas,videos,s,service,renderer,thumb_textures);
+   if((s.page==0||s.page==1||s.page==2)&&!videos.empty()){
+    const int visibleEnd=std::min((int)videos.size(),s.offset+kGridVisible);
+    std::string label=std::to_string(s.offset+1)+"-"+std::to_string(visibleEnd)+
+      " / "+std::to_string(videos.size())+
+      (snapshot.hasMore?"+":"")+" results";
+    if(snapshot.loadingMore)label+="  |  Loading more...";
+    else if(snapshot.hasMore)label+="  |  D-Pad Down: more videos";
+    text(d,font,atlas,label,420,918,21,dim);
+    // Small scroll progress indicator for navigation through many results.
+    const float track=1420.f;
+    d.rounded_rect({420,944,track,5},2,edge);
+    const float denom=(float)std::max(1,(int)videos.size());
+    const float thumb=std::max(38.f,track*(float)kGridVisible/denom);
+    const float x=420.f+(track-thumb)*((float)s.offset/(float)std::max(1,(int)videos.size()-kGridVisible));
+    d.rounded_rect({x,944,thumb,5},2,blue);
+   }
    if(snapshot.searching)text(d,font,atlas,"Loading...",1850,207,22,blue,Align::right);
-   else if(!videos.empty())text(d,font,atlas,std::to_string(videos.size())+" videos",1850,206,21,dim,Align::right);
+   else if(!videos.empty())text(d,font,atlas,std::to_string(videos.size())+
+    (snapshot.hasMore?"+":"")+" videos",1850,206,21,dim,Align::right);
    if(s.page==0||s.page==1||s.page==2){
-    text(d,font,atlas,cut(font,snapshot.status,1420,21),430,945,21,snapshot.searching?blue:dim);
+    text(d,font,atlas,cut(font,snapshot.status,1420,18),430,963,18,snapshot.searching?blue:dim);
    }
   }
   text(d,font,atlas,cut(font,s.notice,1250,20),423,992,20,dim);
