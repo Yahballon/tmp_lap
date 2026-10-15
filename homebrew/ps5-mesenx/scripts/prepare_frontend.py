@@ -23,6 +23,15 @@ def generate():
     if OUTPUT.exists():
         shutil.rmtree(OUTPUT)
     shutil.copytree(ORIGINAL, OUTPUT, symlinks=True)
+    # The pinned PS5SNESX revision predates build-mesa-util.sh. Vendor the
+    # independently licensed helper from upstream and fail early if absent.
+    mesa_helper = ROOT / "vendor/build-mesa-util.sh"
+    if not mesa_helper.is_file():
+        raise RuntimeError("Missing PS5 Mesa utility build helper")
+    helper_target = OUTPUT / "ps5/tools/build-mesa-util.sh"
+    helper_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(mesa_helper, helper_target)
+    helper_target.chmod(0o755)
     source = OUTPUT / "snes/src"
     for name in ("core_session.h", "core_session.cpp"):
         shutil.copy2(ROOT / "src" / ("libretro_" + name), source / name)
