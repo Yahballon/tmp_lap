@@ -153,6 +153,13 @@ static void serve(void){
    char *nl=strchr(request,'\n');if(nl)*nl='\0';
    if(!strcmp(request,"LIST"))emit_catalog(c);
    else if(!strncmp(request,"FETCH ",6)&&strlen(request+6)<MAX_PATH)fetch(c,request+6,0);
+   else if(!strncmp(request,"FETCHR ",7)){
+     char *end=NULL;
+     errno=0;
+     const unsigned long long offset=strtoull(request+7,&end,10);
+     if(!errno && end && *end==' ' && strlen(end+1)<MAX_PATH)
+       fetch(c,end+1,(uint64_t)offset);
+   }
   }
   close(c);
  }
