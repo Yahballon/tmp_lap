@@ -249,7 +249,7 @@ void* cover_worker(void* arg){
  if(!bytes.empty())ebook_log::write("COVER_READY",task->bookPath);
  {std::lock_guard<std::mutex> lock(g_coverLock);
   g_coverReady.push_back({task->bookPath,std::move(bytes),
-                             error=="Book loading cancelled"});
+                             error.find("Book loading cancelled")!=std::string::npos});
  }
  delete task;
  g_coverBusy.store(false);
