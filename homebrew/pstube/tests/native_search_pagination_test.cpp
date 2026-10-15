@@ -36,7 +36,7 @@ int main(){
      <<" status="<<snap.status<<"\\n"<<std::flush;
    if(snap.loadingMore || snap.videos.size()<=count)return 7;
  }
- if(snap.videos.size()<60)return 8;
+ if(snap.videos.size()<=first+10)return 8;
  std::set<std::string> ids;
  for(auto& v:snap.videos)if(!ids.insert(v.id).second)return 5;
  std::cout<<"SEARCH PAGINATION: PASS "<<snap.videos.size()<<" distinct real videos\n";
