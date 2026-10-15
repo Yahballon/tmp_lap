@@ -477,6 +477,11 @@ int main(){
      text(d,font,atlas,qualityInfo,1800,142,25,
        wanted>=720&&st.height<720?Color::rgb(0xff9d78):green,Align::right);
     }
+    if(!snapshot.streamAudioLanguage.empty()&&s.active.id==snapshot.streamId){
+     const std::string played=audio_language_name(snapshot.streamAudioLanguage);
+     text(d,font,atlas,"Audio: "+played+
+       (snapshot.streamAudioOriginal?" (original)":""),1800,177,21,dim,Align::right);
+    }
     if(s.fullscreen)d.rounded_rect({0,924,1920,156},0,Color::rgb(0x051124,.87f));
     else d.rounded_rect({0,946,1920,134},0,Color::rgb(0x06152b));
     const float y=s.fullscreen?990.f:982.f;
