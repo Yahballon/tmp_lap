@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "cover_extract.hpp"
 #include "audio_cover_store.hpp"
+#include "mp4_cover.hpp"
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/codec_par.h>
@@ -39,8 +40,12 @@ bool extract(const std::string& file,std::string& encoded,std::string& diagnosti
    }
   }
  }
- diagnostic="No supported embedded JPG/PNG/GIF cover in M4B";
  avformat_close_input(&fmt);
+ if(audio_cover::extract_mp4_covr(file,encoded)){
+  diagnostic="iTunes covr box extracted directly";
+  return true;
+ }
+ diagnostic="No attached art or readable MP4 covr box; companion JPG/PNG will be checked";
  return false;
 }
 }
