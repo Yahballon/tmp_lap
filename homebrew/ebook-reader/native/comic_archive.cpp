@@ -22,7 +22,7 @@ bool ends(const std::string& str,const char* ext){
 }
 bool image_file(const std::string& name) {
  return ends(name,".jpg")||ends(name,".jpeg")||ends(name,".png")||
-        ends(name,".webp")||ends(name,".gif");
+        ends(name,".gif");
 }
 bool safe(const std::string& path) {
  if(path.empty()||path.size()>900||path.front()=='/'||path.front()=='\\')return false;
