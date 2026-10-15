@@ -1,4 +1,4 @@
-# PSTUBE v0.5.0 — Native PS5 Playback Beta
+# PSTUBE v0.5.1 — Native PS5 Playback Beta
 
 **PSTUBE by YAHBALLON** is an independent native C++ PS5 homebrew video search, download and playback client with a 1920×1080 OpenGL user interface.
 
@@ -27,7 +27,7 @@ D-pad: navigate (keyboard/results/downloads). Cross: select, download/play video
 - Video is software-decoded; demanding 1080p formats may underperform.
 
 ## Version and build
-Version 0.5.0. Title ID `PPSA99762`. Release tag `pstube-v0.5.0`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
+Version 0.5.1. Title ID `PPSA99762`. Release tag `pstube-v0.5.1`. Dedicated workflow: `.github/workflows/build-pstube.yml`.
 The workflow fetches PS5-DevBridge's native scaffold, stages PSTUBE C++ files and builds with pinned PacBrew ffmpeg, SDL2 and OpenSSL packages. GitHub Actions validates eboot and ZIP but is not hardware verification.
 
 ## Installation
@@ -38,7 +38,12 @@ GPL-3.0-or-later. Native renderer: https://github.com/blackbearreloaded/ps5-home
 ## Catalog troubleshooting
 The Home page displays the last successful real catalog during temporary API failures and the exact provider/HTTP error. Search and Trending automatically try several community public servers. After updating, launch PSTUBE and wait for the first live fetch; press Triangle to search. Thumbnails download in three parallel workers and may arrive after titles. Network connectivity and correct PS5 date/time are essential for verified HTTPS. No fake videos are generated.
 
-## Infinite scrolling and streaming (v0.5.0)
+## Infinite scrolling and streaming (v0.5.1)
 - Scrolling to the last few cards requests the next result page using YouTube's real search continuation token. Responses append to the existing grid, remove duplicates and display the number of loaded videos. The Invidious fallback also supports numbered pages. API pagination can stop when YouTube withholds or rejects continuation tokens.
 - **Cross** begins buffered native HTTPS playback immediately on a compatible progressive MP4, without storing it first. **Square** while inside the player separately saves the video for offline use. Playback still uses FFmpeg/OpenGL and SDL. **Circle** aborts playback.
 - YouTube signing restrictions and the PS5's availability of network-enabled FFmpeg still affect which streams can play; console testing remains necessary.
+
+## Search results and navigation
+- Navigate through the entire loaded search with D-Pad Up/Down or the left stick. The final partially filled page displays the preceding videos instead of showing only one or two tiles.
+- Six videos per TV screen with a visible result range (for example 15-20 of 20) and a scroll position indicator.
+- The existing v0.5.0 continuation engine fetches additional real YouTube search pages as you approach the last loaded results. No artificial 15-video search limit. Actual results depend on YouTube's response and network availability.
