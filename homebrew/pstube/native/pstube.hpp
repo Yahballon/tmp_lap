@@ -37,7 +37,10 @@ class Service {
  Snapshot state_;
  bool persist() const;
 };
+struct ThumbnailHealth {int successful=0,failed=0,pending=0;std::string lastError;std::string directory;};
 void queue_thumbnails(const std::vector<Video>& videos);
+std::string thumbnail_file(const std::string& videoId);
+ThumbnailHealth thumbnail_health();
 bool valid_id(const std::string&);
 std::vector<Video> parse_search(const std::string&);
 std::vector<Video> parse_youtube_html(const std::string&);
