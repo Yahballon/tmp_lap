@@ -143,7 +143,7 @@ def generate():
     assert 'fonts.AddText(ui,"SNES",' in loading_src
     assert 'v2 modded by YAHBALLON' in loading_src
     loading_src=loading_src.replace('fonts.AddText(ui,"SNES",','fonts.AddText(ui,"MesenX",')
-    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.13 by YAHBALLON')
+    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.14 by YAHBALLON')
     # Do not claim the games are ready while the console denies /data access.
     loading_src=loading_src.replace('#include <cmath>',
         '#include <cmath>' + chr(10) + '#include <dirent.h>' + chr(10) + '#include <cerrno>')
@@ -226,6 +226,13 @@ def generate():
     assert 'hd_on?"enabled":"disabled"' in runtime.read_text()
     assert 'Toggle("NES/HdPacks", "HD Packs", "false"' in options_file.read_text()
 
+    # Application-specific performance safety patch: no cross-thread core
+    # access; keep the controller/Vulkan pump moving and HD optional.
+    subprocess.run(["python3", str(ROOT / "scripts/patch_performance.py"), str(source),
+                    str(options_file)], check=True)
+    assert 'NES/SafeMode' in options_file.read_text()
+    assert 'PERF_FRAME_SLOW' in runtime.read_text()
+
     # Regression isolation: v0.1.12 moved retro_load_game to std::thread.
     # PS5 native libretro core init, ROM load, and callbacks ran on different
     # threads; restore the known synchronous caller and log every stage.
@@ -257,6 +264,19 @@ def generate():
     assert "GAME_CORE_LOAD_OK" in runtime.read_text()
     assert "std::thread load_thread;" not in (source/"shelf_runtime.h").read_text()
     assert "HDPACK_LOAD_BEGIN" not in runtime.read_text()
+
+    # The upstream core's option is read at retro_load_game; avoid a
+    # redundant retro_deinit/retro_init on every game selection.
+    sess = source / "core_session.cpp"
+    replace_required(sess, '''    mesen_diag::write("CORE_REINIT_BEGIN");
+    retro_deinit();
+    mesen_diag::write("CORE_DEINIT_OK");
+    retro_init(); // Apply MesenCE options before ROM loading.
+    mesen_diag::write("CORE_REINIT_OK");''',
+                     '''    // One Session lifetime, one retro_init. The core asks GET_VARIABLE
+    // again inside retro_load_game, so recreation here is unnecessary.
+    mesen_diag::write("CORE_INIT_REUSED");''')
+    assert 'CORE_INIT_REUSED' in sess.read_text()
 
     # Isolated NES cache: the source inherited a SNES-only extension check
     # and otherwise refuses to read valid .nes entries after the first scan.
@@ -354,13 +374,13 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.014"
+    param["contentVersion"] = "01.000.015"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
             raise RuntimeError(f"Legacy SNES app or core identifier in {file}")
     assert "NES\\x1A" in rom.read_text()
-    assert 'v0.1.13 by YAHBALLON' in loading.read_text()
+    assert 'v0.1.14 by YAHBALLON' in loading.read_text()
     assert 'SCAN_COMPLETE' in shelf.read_text()
     assert 'Filesystem access denied' in loading.read_text()
     assert 'elevation::path()' in main.read_text()

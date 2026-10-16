@@ -1,108 +1,11 @@
-# PS5MesenX v0.1.13 — game-start crash regression isolation
+# PS5MesenX v0.1.14 – Performance Safe Mode
 
-First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
-Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
-is intended for testing on jailbroken PS5 consoles, not production use.
-Untested on real PS5 hardware.
+Experimental native PS5 build. On-console performance still needs verification.
 
-**Expected capabilities:** NES ROM scanning/loading, DualSense controls,
-local game saves, stereo audio and Mesen-compatible high-resolution NES HD
-packs. These are intended behaviors, not guarantees of console compatibility.
+- **Safe mode ON by default:** forces HD packs off even if an old per-game setting requests them, to isolate the HD-pack latency. To explicitly test HD packs, disable Safe mode in Settings > Emulation and turn HD Packs On; restart game.
+- Bound emulation catch-up to 1 frame/tick with Safe mode (2 outside it) instead of 6; drop overdue backlog so pad and Vulkan presentation are polled.
+- Reduce periodic battery-save disk I/O from 5 to 60 seconds; saves still occur on stopping the game.
+- Reuse Libretro init instead of deinit/init on every game open; MesenCE options are read again at ROM load.
+- Log `PERF_CONFIG`, `PERF_LOAD_DURATION_MS`, `PERF_FRAME_SLOW`, `PERF_UPLOAD_SLOW`, and `PERF_GAME_READY` to `/data/PS5MesenX/logs/boot.log`.
 
-**Install folder:** `/data/homebrew/PS5MesenX/` (from `PPSA99896.zip`).
-**Title ID:** `PPSA99896`. Copy the full directory and keep its `sce_module`.
-**ROMs:** `/data/PS5NES/games/*.nes` (shared NES library) or
-`/data/homebrew/PPSA99896/roms/*.nes` or the matching *.zip files. USB NES ROMs remain supported at `/mnt/usb0/PS5MesenX/games/`. ZIPs must contain exactly one NES ROM (NFS disabled).
-**Saves, covers, settings, logs and HD packs stay separate under** `/data/PS5MesenX/`.
-
-**HD packs:** `/data/PS5MesenX/HdPacks/<ROM filename without .nes>/hires.txt`.
-HD pack assets must meet the pack author's ROM hash/revision requirements.
-
-**ROM scanner diagnostics:** Look for `[romscan]`, `[library] scan source`, and `[library] ROM FOUND` lines in
-
-**What to report:** boot output in `/data/PS5MesenX/logs/boot.log`,
-startup success, NES video/audio, buttons, and HD pack loading.
-There are no ROMs, firmware or proprietary HD packs in the archive.
-
-**Safety gates:** A release is permitted only if the genuine MesenCE core
-cross-compiles for x86_64-sie-ps5, links with the PS5 Vulkan frontend,
-the PS5 native signer emits `eboot.bin`, the SELF magic is verified,
-and `PPSA99896.zip` passes integrity and content checks.
-
-Credits: MesenCE/MesenCE-Libretro, PS5SNESX, original PS5SX2 frontend,
-public PS5 Payload SDK and Vulkan contributors. GPL-3.0 sources and notices.
-
-### v0.1.6 fixes
-
-- Scans `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms`.
-- Accepts `.nes` and `.zip` files containing exactly one valid NES ROM.
-- Uses a NES-only library cache rather than the old SNES extension validator.
-- Writes directory visibility, scan sources, ROM counts and permission errors to boot.log.
-
-### v0.1.6 scanner fix
-
-Fixed PS5 filesystem metadata compatibility: try stat and fstatat, then dirent d_type fallback for NES games visible to PS5NES. Log every discovered NES file. Saves and ROMs are untouched.
-
-### v0.1.6: PS5NESX proven scanner integration
-- Reused PS5NESX filesystem ROM scanning with DT_REG/DT_UNKNOWN and descriptor metadata fallbacks
-- Direct ROM header checks when path metadata is denied
-- Bounded stream reads without requiring fstat to work
-- Retains shared /data/PS5NES/games and /data/homebrew/PPSA99896/roms
-
-### v0.1.6: Never silently use an empty cache
-- Force a fresh PS5NESX ROM directory scan every app startup, preserving its live progress.
-- Change hardcoded loading header to PS5MesenX and v0.1.6.
-- Low-level scan diagnostics append to /data/PS5MesenX/logs/boot.log, with fallback at /download0/PS5MesenX/logs/boot.log and /data/homebrew/PPSA99896/mesenx-debug.log.
-
-### v0.1.6 diagnostics
-- Preserve early BOOT and ELEVATION lines by not truncating boot.log during startup
-- Log DIR_OPEN, DIR_FAIL (errno), DIR_ENTRY and DIR_DONE per directory
-- Distinguish unavailable USB folders from the primary shared NES ROM path
-
-### v0.1.9: Real filesystem permission fix
-- Console reported ELEVATION filesystem=5 (unavailable), with EPERM opening NES ROM directories
-- Restored the original PS5NESX title-bound one-request Lapy helper using the pinned upstream builder and SDK
-- Includes verified lapy.elf, lapy-manifest.json and Lapy-MIT.txt license in installation ZIP
-- Displays filesystem permission errors instead of misleading 0-game success if elevation remains unavailable
-- Logs elevation status plus selected resident/helper path; no ROMs are modified
-
-### v0.1.9 Video output compatibility
-- MesenCE decoded-frame fallback if the headless renderer fails to publish the video frame.
-- Disable video frame duplication to ensure real frames arrive at the PS5 host.
-- Enable MesenCE FrameProbe and log VIDEO_CALLBACK, VIDEO_NULL_FRAME, and VIDEO_STATUS to boot.log.
-- Audio and ROM scanner remain unchanged.
-
-### v0.1.9 – Black-screen rendering pipeline
-- Added separate PS5 Vulkan RGBA NES video shader, independent from the SDF text/shape UI shader
-- Recompiled embedded SPIR-V shaders from updated source during every build
-- Logged VIDEO_COLOR stats to distinguish all-black MesenCE frames from GPU texture sampling problems
-- Removed inapplicable SNES special-chip option (LLE/HLE); enabled NES HD pack toggle
-
-### v0.1.10 – NES black screen with working sound
-
-**Cause:** MesenCE registers its palette option only through RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2. This minimal PS5 frontend does not provide that options version. No palette was configured, so upstream mapped all 64 NES colors to 0xFF000000. Audio and 256x240 video callbacks continued normally but pixels were black.
-
-**Fix:** When no palette is configured, initialize the original MesenCE default NES 64-color palette before populating NesConfig.UserPalette. Preserve user-provided palettes when present. Core emits the `[MesenCE][PS5Palette]` diagnostic when this fallback is used.
-
-Previous ROM scanning, audio, saves and Vulkan renderer are unchanged. Gameplay video still requires verification on actual PS5 hardware.
-
-### v0.1.11 – HD Packs On/Off
-
-- Settings → Emulation → **HD Packs**: Off by default, On to load a compatible Mesen HD pack. Global and per-game settings persist, and apply when starting the game again.
-- Fixed UI values: the toggle stores `true`/`false`, while MesenCE requires `enabled`/`disabled`. Existing older values are also supported.
-- Extract `hires.txt` and the pack assets to `/data/PS5MesenX/HdPacks/<ROM basename>/`, matching the ROM filename without `.nes`.
-- Look for `HDPACK_SETTING`, `HDPACK_PROBE`, `HDPACK_APPLY`, `HDPACK_CORE_QUERY` and `MESENCE_CORE` in `/data/PS5MesenX/logs/boot.log`.
-- Rendering with HD packs still needs testing on real PS5 hardware: compare On versus Off on the same game.
-
-### v0.1.12 – HD pack load responsiveness and off toggle
-- Move ROM I/O, core initialization and PNG/HD pack loading onto a dedicated worker so the native pad and Vulkan frame pump remains active while a game opens.
-- Use at most two threads for independent PNG/tile preload stages, with full synchronization before gameplay. Actual loading time depends on pack size and device performance.
-- Honor `HD Packs: Off` at the ROM loading boundary, with an explicit disabled default and diagnostic output of the option passed to MesenCE. Close/reopen the game to apply settings.
-- Log `HDPACK_LOAD_BEGIN`, `HDPACK_LOAD_WAIT`, `HDPACK_LOAD_END` (ms), `HDPACK_LOAD_READY` and the core's HD pack decision into `/data/PS5MesenX/logs/boot.log`.
-- PS5 system menu and screenshot support depends on launcher, jailbreak and native app integration; keeping the render loop active may improve responsiveness but does not guarantee the system overlay/capture APIs work.
-
-### v0.1.13 — crash when launching NES games
-- Revert v0.1.12 asynchronous game-loading thread as a regression-isolation step; use the synchronous launch path until safe PS5 thread stack/core affinity is established
-- Record ROM read, core entry, retro_deinit/init, retro_load_game and AV info stages in /data/PS5MesenX/logs/boot.log
-- No ROMs, saves, or HD pack files are modified; loading large HD packs can block UI until the core finishes
-- Actual cause and fix must be verified on real PS5; upload log ending around GAME_* / CORE_* if it still crashes
+Games: `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms`. HD packs are in `/data/PS5MesenX/HdPacks`. No ROMs are included. Title ID `PPSA99896`.
