@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.3 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.5 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -182,7 +182,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.3",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.5",490,515,38);
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
@@ -221,7 +221,7 @@ int main(){
  std::array<unsigned,12> pictures{};
  const char* files[]={"baseball","anime","gaming","cyber-city","racing","space","samurai","retro-neon","mountains","forest","beach","snow"};
  for(int i=0;i<12;i++)pictures[i]=texture(renderer,asset+"/wallpapers/ThemeChanger-"+files[i]+".png");
- tc::log("BOOT","ThemeChanger v0.3.3 starting");
+ tc::log("BOOT","ThemeChanger v0.3.5 starting");
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
