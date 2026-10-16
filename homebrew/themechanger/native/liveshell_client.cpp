@@ -106,6 +106,7 @@ PlaybackState decode_playback(const std::string& json){
  out.file=display_file(json_field(json,"current"));
  out.shellStatus=json_field(json,"status");
  out.game=json_field(json,"game");
+ out.engineRevision=json_field(json,"themechanger_engine");
  return out;
 }
 std::string summary(const PlaybackState& p){
@@ -135,6 +136,13 @@ bool select_clip(const std::string& filename,std::string& result){
  std::lock_guard<std::mutex> guard(g_select_lock);
  const auto state=http_get("/api/state");
  if(state.empty()){result="LiveShell offline, clip saved";tc::log("SELECT_OFFLINE",filename.c_str());return false;}
+ const auto current=decode_playback(state);
+ if(current.engineRevision!="0.3.6"){
+   result="Outdated LiveShell engine. Please wait for bundled engine handover";
+   tc::log("ENGINE_OUTDATED",(std::string("revision=")+current.engineRevision+
+     " game="+current.game+" status="+current.shellStatus).c_str());
+   return false;
+ }
  const int idx=find_index(state,filename);
  if(idx<0){result="Video not yet listed by LiveShell";tc::log("SELECT_NOT_FOUND",filename.c_str());return false;}
  // Selecting a global wallpaper must also enable the global video option.
