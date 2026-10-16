@@ -1,0 +1,29 @@
+name: Diagnose MotionBGS Preview Images
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/diagnose-motionbgs-previews.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect public page media markup
+        run: |
+          python3 - <<'PY'
+          import re,urllib.request,html
+          for slug in ('a-galaxy-within','crimson-demon-queen'):
+              req=urllib.request.Request('https://motionbgs.com/'+slug,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125 Safari/537.36'})
+              with urllib.request.urlopen(req,timeout=15) as response:
+                  page=response.read(1200000).decode('utf8','replace')
+              print('PAGE',slug,'LEN',len(page))
+              for pattern in [r'<meta[^>]*>',r'<img[^>]*>',r'<picture[^>]*>',r'<source[^>]*>',r'<video[^>]*>',r'<link[^>]*>',r'url\\([^\\)]{0,250}\\)']:
+                  lines=re.findall(pattern,page,re.I|re.S)
+                  print('MATCH',pattern,len(lines))
+                  for x in lines[:12]:print(' ',html.unescape(x)[:550])
+              for token in ['.webp','.jpg','.png','thumb','screenshot','poster']:
+                  pos=page.lower().find(token)
+                  print('TOKEN',token,'at',pos,'context',page[max(0,pos-170):pos+130].replace('\\n',' '))
+          PY
