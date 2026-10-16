@@ -2,7 +2,7 @@
 
 **Native Dreamcast emulation on PS5 with white DVD-style CoverFlow cases, angled neighbours and subtle reflections.**
 
-Version **0.1.4** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.1.5** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -24,7 +24,7 @@ then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the build workflow uploads the verified
 `PPSA99765.zip` as an artifact. The independent release publisher uploads
-it to the `ps5-dreamcastx-v0.1.4` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
+it to the `ps5-dreamcastx-v0.1.5` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
 Run locally from the app directory (requires clang 18, CMake/Ninja, PS5 stack):
@@ -135,8 +135,15 @@ copyright and license notices. No commercial game assets or proprietary BIOS
 files are included.
 
 
-### CoverFlow v0.1.4
 
-This original console-style shelf draws a large frontal case in the middle, white jewel-case edges and angled cases on both sides. The album art fills the entire cover face directly under the Dreamcast header. **Square Dreamcast art is centre-cropped horizontally to fit the tall case without distortion**, so use portrait custom covers if you want no cropping at all. The reflection is shallow and fades below each box. No long projected floor shadows. The native Dreamcast core, USB library and `/data/PS5DreamcastX/` saved data are unchanged.
+### v0.1.5: PS5 hardware renderer hotfix
 
-The dedicated `Publish PS5DreamcastX Release` workflow publishes a previously verified signed PS5 build. It automatically triggers when the native build succeeds. The `version.json` catalog refreshes after the publisher finishes successfully.
+Replaces the broken custom perspective image quads introduced in v0.1.4
+with the known-working v0.1.3 `rect` + `imageFill` drawing path.
+White Dreamcast cases and a larger centered game remain; artwork fills
+each case immediately below its small Dreamcast header. Neighbour cases
+are smaller to evoke depth without unsupported texture transforms.
+To prevent images being scattered or blank on PS5, **angled texture quads
+and reflections are temporarily disabled**. Full real-hardware verification
+is still needed; this is not a claim that perspective is supported.
+Saves, games, USB and /data/PS5DreamcastX paths are unchanged.

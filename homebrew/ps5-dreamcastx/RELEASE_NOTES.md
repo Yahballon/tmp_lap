@@ -1,13 +1,14 @@
-# PS5DreamcastX v0.1.4
+# PS5DreamcastX v0.1.5
 
-## White DVD CoverFlow UI
+## Emergency PS5 CoverFlow renderer correction
 
-- Large center jewel case with a bright white Dreamcast header.
-- Angled left/right game boxes with matching side spines and perspective.
-- Enlarged artwork fills each case right below the header, with **centered crop** to preserve proportions.
-- Short, subtle mirrored-art reflections beneath each case. No large stretched shadow geometry.
-- New geometry/UV tests for case perspective, art crop, and image bounds.
-- Native Flycast core, DualSense, USB folder discovery and `/data/PS5DreamcastX/` persist unchanged.
-- Dedicated verified-artifact release automation; no second PS5 rebuild needed.
+- Replaced v0.1.4's white/blank cases and misplaced giant images with
+  v0.1.3's PS5-tested axis-aligned imageFill texture path.
+- Kept larger white Dreamcast-style cases and nearly full-face artwork.
+- Kept centered title and consistent left/right case scaling.
+- Temporarily disabled buggy perspective texture quads and reflections.
+- Added host tests that reject unsafe draw-list primitives and check
+  actual cover placement, bounds and animated focus changes.
+- No emulator, USB, BIOS, save, or configuration changes.
 
-ZIP file: `PPSA99765.zip`. Install root: `PS5DreamcastX/`. PS5 title ID: `PPSA99765`.
+Native Title ID `PPSA99765`. Download `PPSA99765.zip`.

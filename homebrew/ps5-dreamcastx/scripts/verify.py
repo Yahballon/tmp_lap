@@ -25,13 +25,15 @@ assert 'ps5::appDir + "sce_sys/param.json"' in (src/"ps5_main.cpp").read_text()
 assert 'swapIn(appDir,' in (src/"ps5_update.cpp").read_text()
 assert 'readLine(appDir + "BUILD.txt")' in (src/"ps5_update.cpp").read_text()
 shelf=(src/"dreamcastx_shelf.inc").read_text()
-assert "dreamcastXFace(" in shelf and "dreamcastXCoverUV(" in shelf
-assert "dreamcastXReflection(" in shelf and "drawDreamcastXCase(" in shelf
-assert "dreamcastXDrawImage(" in shelf and "AddImageQuad(" in shelf
-assert "softDisc(" not in shelf and "drawCover(" not in shelf
-assert "imageFill(dl,art,imageFace.tl.x" in shelf
+# PS5 v0.1.5 broke due to experimental raw ImageQuad/perspective UVs.
+# Only native imageFill / rect helpers proven by v0.1.3 are allowed here.
+assert "dreamcastXArtworkBounds(" in shelf
+assert "drawDreamcastXCase(" in shelf
+assert "imageFill(dl,image,art.x,art.y,art.w,art.h" in shelf
+for forbidden in ("AddImageQuad(", "AddQuadFilled(", "PrimReserve(", "dreamcastXReflection(", "softDisc("):
+    assert forbidden not in shelf, "Unsafe PS5 renderer reintroduced: "+forbidden
 assert "ps5-dreamcastx-v" in (src/"ps5_update.cpp").read_text()
-assert "PS5_VERSION \"0.1.4\"" in (src/"ps5_build.h").read_text()
+assert "PS5_VERSION \"0.1.5\"" in (src/"ps5_build.h").read_text()
 feed=(src/"ps5_update.cpp").read_text()
 assert "Yahballon/tmp_lap/releases" in feed
 assert "ps5-dreamcastx-v" in feed
