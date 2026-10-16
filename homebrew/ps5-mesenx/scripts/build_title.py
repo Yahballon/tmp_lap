@@ -81,8 +81,8 @@ for name in ('lapy.elf','lapy-manifest.json'):
     # Keep a distinct human-readable app name but the correct numeric title ID.
     txt=txt.replace("'title':'"+APP+"'", "'title':'"+TITLE+"'")
     txt=txt.replace("PS5SNES-v6-Repository-Covers-by-YAHBALLON.zip",TITLE+".zip")
-    txt=txt.replace("PS5SNES v6 by YAHBALLON",APP+" v0.1.7")
-    txt=txt.replace("'name':'"+APP+"'", "'name':'"+APP+" v0.1.7'")
+    txt=txt.replace("PS5SNES v6 by YAHBALLON",APP+" v0.1.8")
+    txt=txt.replace("'name':'"+APP+"'", "'name':'"+APP+" v0.1.8'")
     txt=txt.replace("'bsnes-mercury balanced'","'MesenCE-Libretro NES HD'")
     txt=txt.replace("'https://github.com/libretro/bsnes-mercury'",
                     "'https://github.com/FrederickCampbell/MesenCE-Libretro'")

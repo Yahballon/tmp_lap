@@ -16,6 +16,54 @@ cpp+=[p for p in (src/"Core/Debugger").rglob("*.cpp") if not p.name.startswith("
 cpp+=[src/"Core/Debugger/ExpressionEvaluator.Nes.cpp"]
 c=list((src/"SevenZip").rglob("*.c"))+list((src/"Utilities").rglob("*.c"))
 c += [p for p in (src/"Lua").rglob("*.c") if p.name not in {"serial.c","unix.c","unixdgram.c","unixstream.c"}]
+# Actual rendered-video fallback: the frame decoder can complete while
+# VideoRenderer::GetLastFrame() is still empty on a headless PS5.
+video_h = src/"Core/Shared/Video/VideoDecoder.h"
+video_cpp = src/"Core/Shared/Video/VideoDecoder.cpp"
+libretro = src/"Libretro/libretro.cpp"
+h = video_h.read_text()
+needle = "\tuint32_t GetFrameCount();"
+assert h.count(needle)==1
+h = h.replace(needle, "\tuint32_t* GetDecodedOutputBuffer();\\n"+needle)
+h = h.replace("\\n", "\n")
+video_h.write_text(h)
+s = video_cpp.read_text()
+needle = "uint32_t VideoDecoder::GetFrameCount()"
+assert s.count(needle)==1
+s = s.replace(needle, """uint32_t* VideoDecoder::GetDecodedOutputBuffer()
+{
+    // Called only after WaitForAsyncFrameDecode() and before the next
+    // RunFrame(). The filter owns this decoded BGRA32 framebuffer.
+    return _videoFilter ? _videoFilter->GetOutputBuffer() : nullptr;
+}
+
+"""+needle)
+video_cpp.write_text(s)
+s = libretro.read_text()
+needle = "\t\tbool validFrame = frame.FrameBuffer && frame.Width > 0 && frame.Height > 0;"
+assert s.count(needle)==1
+s=s.replace(needle, """\t\t// PS5 headless renderer compatibility: if the intermediate
+        // VideoRenderer has not published a frame yet, use the completed
+        // VideoDecoder's actual RGB buffer directly. Never invent a frame.
+        if(!frame.FrameBuffer && decoder && !frontendFastForward) {
+            FrameInfo decoded = decoder->GetFrameInfo();
+            uint32_t* decodedBuffer = decoder->GetDecodedOutputBuffer();
+            if(decodedBuffer && decoded.Width > 0 && decoded.Height > 0 &&
+               decoded.Width <= 2560 && decoded.Height <= 2560 &&
+               decoder->GetLastDecodedFrameNumber() > 0) {
+                frame.FrameBuffer=decodedBuffer;
+                frame.Width=decoded.Width;
+                frame.Height=decoded.Height;
+                frame.FrameNumber=decoder->GetLastDecodedFrameNumber();
+                if(logCallback && (_libretroRunCounter<=5 || (_libretroRunCounter%300)==0))
+                    logCallback(RETRO_LOG_INFO,
+                        "[MesenCE][PS5Video] direct decoded fallback %ux%u frame=%u\\n",
+                        frame.Width,frame.Height,frame.FrameNumber);
+            }
+        }
+"""+needle)
+libretro.write_text(s)
+
 sources=sorted(set(c+cpp))
 assert len(sources)>100 and all(p.is_file() for p in sources)
 common=["-O1","-fPIC","-march=znver2","-ffunction-sections","-fdata-sections","-DLIBRETRO"]

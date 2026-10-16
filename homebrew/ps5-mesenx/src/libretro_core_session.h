@@ -38,6 +38,7 @@ private:
     std::map<std::string, std::string> m_variables;
     retro_game_info_ext m_info = {};
     retro_pixel_format m_format = RETRO_PIXEL_FORMAT_0RGB1555;
+    uint32_t m_run_count = 0, m_video_callbacks = 0, m_null_video_callbacks = 0;
     bool m_loaded = false;
 };
 }

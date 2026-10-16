@@ -8,6 +8,8 @@
 #include <cerrno>
 #include <sys/stat.h>
 #include <string>
+#include <cstdlib>
+#include "rom_diagnostics.h"
 
 namespace snes {
 Session* Session::current = nullptr;
@@ -16,6 +18,9 @@ Session::Session(std::string directory) : m_directory(std::move(directory)) {
     if(m_system_dir.size()>=6 && m_system_dir.substr(m_system_dir.size()-6)=="/saves")
         m_system_dir.resize(m_system_dir.size()-6);
     current = this;
+    // MesenCE emits FrameProbe counters once per core run and every 300 frames.
+    setenv("MESENCE_FRAME_DIAGNOSTICS", "1", 1);
+    mesen_diag::write("VIDEO_DIAG enabled=MESENCE_FRAME_DIAGNOSTICS");
     retro_set_environment(Environment);
     retro_set_video_refresh(Video);
     retro_set_audio_sample(Sample);
@@ -71,7 +76,7 @@ bool Session::Environment(unsigned cmd, void* data) {
         *static_cast<const retro_game_info_ext**>(data) = &s.m_info; return true;
     case RETRO_ENVIRONMENT_GET_INPUT_BITMASKS: return true;
     case RETRO_ENVIRONMENT_GET_CAN_DUPE:
-        *static_cast<bool*>(data) = true; return true;
+        *static_cast<bool*>(data) = false; return true;
     case RETRO_ENVIRONMENT_GET_LANGUAGE:
         *static_cast<unsigned*>(data) = RETRO_LANGUAGE_ENGLISH; return true;
     case RETRO_ENVIRONMENT_SET_GEOMETRY: return true;
@@ -165,7 +170,17 @@ bool Session::LoadState() {
     }
     return true;
 }
-void Session::Run() { if (m_loaded) { audio.clear(); retro_run(); } }
+void Session::Run() {
+    if (!m_loaded) return;
+    audio.clear();
+    retro_run();
+    ++m_run_count;
+    if (m_run_count == 1 || m_run_count == 120 || m_run_count % 300 == 0) {
+        mesen_diag::write("VIDEO_STATUS runs=%u callbacks=%u null=%u pixels=%zu dim=%ux%u format=%d audio_samples=%zu",
+            m_run_count,m_video_callbacks,m_null_video_callbacks,pixels.size(),
+            width,height,int(m_format),audio.size());
+    }
+}
 int16_t Session::Input(unsigned port, unsigned device, unsigned, unsigned id) {
     if (port >= 2 || device != RETRO_DEVICE_JOYPAD) return 0;
     if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return static_cast<int16_t>(current->buttons[port]);
@@ -177,8 +192,20 @@ size_t Session::Samples(const int16_t* data, size_t frames) {
     current->audio.insert(current->audio.end(), data, data + frames * 2); return frames;
 }
 void Session::Video(const void* data, unsigned w, unsigned h, size_t pitch) {
-    if (!data) return;
     auto& s = *current;
+    if (!data) {
+        ++s.m_null_video_callbacks;
+        if(s.m_null_video_callbacks==1 || s.m_null_video_callbacks%300==0)
+            mesen_diag::write("VIDEO_NULL_FRAME callbacks=%u",s.m_null_video_callbacks);
+        return;
+    }
+    ++s.m_video_callbacks;
+    if(s.m_video_callbacks<=3 || s.m_video_callbacks%300==0) {
+        uint32_t first=0;
+        std::memcpy(&first,data,s.m_format==RETRO_PIXEL_FORMAT_XRGB8888?4:2);
+        mesen_diag::write("VIDEO_CALLBACK count=%u width=%u height=%u pitch=%zu fmt=%d pixel0=0x%08x",
+            s.m_video_callbacks,w,h,pitch,int(s.m_format),first);
+    }
     const size_t bytes = s.m_format == RETRO_PIXEL_FORMAT_XRGB8888 ? 4 : 2;
     if (!w || !h || w > 4096 || h > 4096 || size_t(w)*h>4096u*4096u || pitch < size_t(w)*bytes) { s.error = "Invalid MesenCE HD video frame"; return; }
     s.width = w; s.height = h; s.pixels.resize(w * h);
