@@ -3,7 +3,7 @@
 Native theme chooser for PlayStation 5 homebrew. Reproduces the provided dark blue screenshot as a PS5 native 1920x1080 menu, built with [ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-homebrew-ui) and the [PS5-DevBridge](https://github.com/Yahballon/PS5-DevBridge) SDK framework.
 
 ## LiveShell integration
-Uses the documented [LiveShell by ZiZc3](https://github.com/ZiZc3/LiveShell) GPL-3.0 REST endpoints on localhost:9050. It installs selected MP4 clips to `/data/LiveShell/video/ThemeChanger-*.mp4`, reads `/api/state`, and calls `/api/select?i=N`. When LiveShell is not running the app shows a clear message, instead of claiming PS5 firmware was modified. **Since v0.2.0 the release ZIP bundles LiveShell v1.0 and automatically launches it through existing elfldr (127.0.0.1:9021). No manual LiveShell loading is required once elfldr is running.** The LiveShell payload itself requires its supported OnionHEN/ShellUI environment and is **not** bundled.
+Uses the documented [LiveShell by ZiZc3](https://github.com/ZiZc3/LiveShell) GPL-3.0 REST endpoints on localhost:9050. It installs selected MP4 clips to `/data/LiveShell/video/ThemeChanger-*.mp4`, reads `/api/state`, and calls `/api/select?i=N`. When LiveShell is not running the app shows a clear message, instead of claiming PS5 firmware was modified. **Since v0.2.0 the release ZIP bundles LiveShell v1.0 and automatically launches it through existing elfldr (127.0.0.1:9021). No manual LiveShell loading is required once elfldr is running.** The bundled LiveShell engine still requires compatible ShellUI privileges and a running jailbreak ELF loader; no separate LiveShell installation is necessary.
 
 ## Controls
 - D-pad / left stick: browse
