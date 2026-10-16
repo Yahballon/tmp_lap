@@ -221,9 +221,18 @@ int main(){
  std::array<unsigned,12> pictures{};
  const char* files[]={"baseball","anime","gaming","cyber-city","racing","space","samurai","retro-neon","mountains","forest","beach","snow"};
  for(int i=0;i<12;i++)pictures[i]=texture(renderer,asset+"/wallpapers/ThemeChanger-"+files[i]+".png");
+ tc::log("BOOT","ThemeChanger v0.3.2 starting");
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
+ std::vector<int> installedIds;
+ auto refreshInstalled=[&](){
+   installedIds.clear();
+   for(int i=0;i<(int)online.entries().size();i++)
+     if(online.installed(i)) installedIds.push_back(i);
+ };
+ refreshInstalled();
+ tc::log("WALLPAPERS_FOUND",std::to_string(installedIds.size()).c_str());
  std::vector<int> filtered;
  int filterIndex=0, onlineSelected=0, onlinePage=0,sideRow=0;
  const char* categoryKeys[]={"","Featured","Anime","Games","Nature","Cars","Space","Technology","Fantasy"};
@@ -241,6 +250,8 @@ int main(){
  const std::string appRoot=asset.substr(0,asset.size()-7);
  engine::start_if_needed(appRoot);
  bool live=theme::probe();if(live)active=theme::current_theme();
+ std::string activeFile=live?theme::current_file():std::string{};
+ tc::log("LIVESHELL_START",live?"Connected":"Waiting for engine");
  std::string status="Choose a background and press X to apply";
  unsigned previous=0,previousDirections=0;int repeats=0;
  constexpr unsigned arrows=hui::pad_bits::kUp|hui::pad_bits::kDown|
@@ -271,8 +282,11 @@ int main(){
      else{pad.close();renderer.release();display.close();hui::sys::quit();}
    }
    if(pressed&hui::pad_bits::kSquare){engine::start_if_needed(appRoot,true);status="Restart requested: "+engine::status();}
-   if(pressed&hui::pad_bits::kL1){page=0;sidebar=false;}
-   if(pressed&hui::pad_bits::kR1){page=(page+1)%4;sidebar=false;}
+   if(pressed&hui::pad_bits::kL1){page=0;sidebar=false;tc::log("TAB","Backgrounds");}
+   if(pressed&hui::pad_bits::kR1){
+     page=page==3?0:3;sidebar=false;
+     tc::log("TAB",page==3?"Online Wallpapers":"Backgrounds");
+   }
    if(page==3&&(pressed&hui::pad_bits::kL2)){filterIndex=(filterIndex+8)%9;rebuildFilter();}
    if(page==3&&(pressed&hui::pad_bits::kR2)){filterIndex=(filterIndex+1)%9;rebuildFilter();}
    if(page==3&&(pressed&hui::pad_bits::kTriangle)&&!filtered.empty()){
@@ -284,7 +298,10 @@ int main(){
        if(pressed&hui::pad_bits::kUp)sideRow=std::max(0,sideRow-1);
        if(pressed&hui::pad_bits::kDown)sideRow=std::min(3,sideRow+1);
        if(pressed&hui::pad_bits::kRight)sidebar=false;
-       if(pressed&hui::pad_bits::kCross){page=sideRow==0?0:sideRow==1?3:sideRow==2?1:2;sidebar=false;}
+       if(pressed&hui::pad_bits::kCross){
+         page=sideRow==0?0:sideRow==1?3:sideRow==2?1:2;sidebar=false;
+         tc::log("TAB",(page==3?"Online Wallpapers":page==0?"Backgrounds":page==1?"About":"Settings"));
+       }
      }else if(page==3){
        if(pressed&hui::pad_bits::kLeft){
          if(onlineSelected%4==0){sidebar=true;sideRow=1;}
@@ -298,19 +315,36 @@ int main(){
          if(!online.download(filtered[(size_t)onlineSelected]))status="Download already running";
        }
      }else{
-     if(pressed&hui::pad_bits::kLeft){if(selected%4==0){sidebar=true;sideRow=0;}else selected=std::max(0,selected-1);}
-     if(pressed&hui::pad_bits::kRight)selected=std::min(11,selected+1);
+     const int total=12+(int)installedIds.size();
+     if(pressed&hui::pad_bits::kLeft){
+       if(selected%4==0){sidebar=true;sideRow=0;}
+       else selected=std::max(0,selected-1);
+     }
+     if(pressed&hui::pad_bits::kRight)selected=std::min(total-1,selected+1);
      if(pressed&hui::pad_bits::kUp)selected=std::max(0,selected-4);
-     if(pressed&hui::pad_bits::kDown)selected=std::min(11,selected+4);
+     if(pressed&hui::pad_bits::kDown)selected=std::min(total-1,selected+4);
      if(pressed&hui::pad_bits::kCross){
-       if(theme::install_and_select(selected,asset,status))active=selected;
-       else if(!theme::probe()){pendingApply=selected;engine::start_if_needed(appRoot,true);status="Starting LiveShell. Theme queued...";}
+       if(selected<12){
+         if(theme::install_and_select(selected,asset,status)){
+           active=selected;activeFile=theme::theme_file(selected);
+           tc::log("SELECT_BUILTIN",activeFile.c_str());
+         }else if(!theme::probe()){
+           pendingApply=selected;engine::start_if_needed(appRoot,true);
+           status="Starting LiveShell. Theme queued...";
+         }
+       }else if(selected-12<(int)installedIds.size()){
+         const auto id=installedIds[(size_t)(selected-12)];
+         const auto name="MotionBGS-"+online.entries()[(size_t)id].slug+".mp4";
+         if(theme::activate_file(name,status)){
+           activeFile=name;active=-1;tc::log("SELECT_DOWNLOADED",name.c_str());
+         }else tc::log("SELECT_FAILED",(name+" "+status).c_str());
+       }
        live=theme::probe();
      }
      }
    }else if(page==2){
      if(pressed&hui::pad_bits::kUp)opt=std::max(0,opt-1);
-     if(pressed&hui::pad_bits::kDown)opt=std::min(3,opt+1);
+     if(pressed&hui::pad_bits::kDown)opt=std::min(4,opt+1);
      if(opt==1&&(pressed&(hui::pad_bits::kLeft|hui::pad_bits::kRight))){
        dim=std::clamp(dim+((pressed&hui::pad_bits::kRight)?5:-5),0,80);
        theme::send_setting("/api/dim?v="+std::to_string(dim),status);
@@ -322,29 +356,48 @@ int main(){
      }
    }
    if(++frame%120==0){
+     refreshInstalled();
+     selected=std::clamp(selected,0,11+(int)installedIds.size());
      live=theme::probe();
      if(live){
       active=theme::current_theme();
+      activeFile=theme::current_file();
       if(pendingApply>=0){int target=pendingApply;pendingApply=-1;
        if(theme::install_and_select(target,asset,status))active=target;}
      }else if(!engine::busy())status=engine::status();
    }
-   if(page==3){
-     for(int idx:online.consume_ready()){
-       if(idx>=0&&idx<(int)onlineTextures.size()&&!onlineTextures[(size_t)idx])
-         onlineTextures[(size_t)idx]=texture(renderer,online.thumbnail_path(idx));
+   for(int idx:online.consume_ready()){
+     if(idx>=0&&idx<(int)onlineTextures.size()&&!onlineTextures[(size_t)idx]){
+       unsigned tex=texture(renderer,online.thumbnail_path(idx));
+       if(tex)onlineTextures[(size_t)idx]=tex;
+       else tc::log("PREVIEW_DECODE_ERROR",online.entries()[(size_t)idx].slug.c_str());
+     }
+   }
+   if(!online.thumbnail_busy()){
+     // Prioritize the focused wallpaper, then fill the visible rows.
+     if(page==3&&!filtered.empty()&&onlineSelected<(int)filtered.size()){
+       online.request_thumbnail(filtered[(size_t)onlineSelected]);
      }
      if(!online.thumbnail_busy()){
-       int first=onlinePage*12;
-       for(int q=first;q<(int)filtered.size()&&q<first+12;q++){
-         const int id=filtered[(size_t)q];
-         if(id>=0&&id<(int)onlineTextures.size()&&!onlineTextures[(size_t)id] &&
-             online.request_thumbnail(id))break;
+       if(page==3){
+         const int first=onlinePage*12;
+         for(int q=first;q<(int)filtered.size()&&q<first+12;q++){
+           const int id=filtered[(size_t)q];
+           if(id>=0&&id<(int)onlineTextures.size()&&!onlineTextures[(size_t)id]&&
+               online.request_thumbnail(id))break;
+         }
+       }else if(page==0){
+         const int first=(selected/12)*12;
+         for(int q=std::max(0,first-12);q<(int)installedIds.size()&&q<first+12;q++){
+           const int id=installedIds[(size_t)q];
+           if(id>=0&&id<(int)onlineTextures.size()&&!onlineTextures[(size_t)id]&&
+               online.request_thumbnail(id))break;
+         }
        }
      }
    }
    DrawList ui;draw(ui,font,atlas,pictures,selected,active,page,opt,status,live,engine::busy(),sidebar,
-                    online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow);
+                     online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow,installedIds,activeFile);
    renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
 }
