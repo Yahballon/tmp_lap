@@ -30,6 +30,10 @@ jobs:
         run: |
           python3 homebrew/ps5-mesenx/scripts/preflight.py
           python3 -m unittest discover -s homebrew/ps5-mesenx/tests -v
+      - name: Install PS5 frontend shader validator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends glslang-tools
       - name: Prepare isolated NES PS5 frontend sources
         run: |
           python3 homebrew/ps5-mesenx/scripts/prepare_frontend.py
