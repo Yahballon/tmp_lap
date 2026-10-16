@@ -10,6 +10,7 @@ state=dict(enabled=True,mainvideo=False,gamepause=False,game="",
              dict(name="MotionBGS-neon.mp4",where="Internal",path="/data/LiveShell/video/MotionBGS-neon.mp4")
            ])
 class Handler(BaseHTTPRequestHandler):
+    protocol_version='HTTP/1.1'
     def do_GET(self):
         path=urlparse(self.path)
         q=parse_qs(path.query)
