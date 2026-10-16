@@ -92,7 +92,9 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
     }
     break;
   }
-  if(header(heads,"transfer-encoding:").find("chunked")!=std::string::npos){err="Chunked media response not supported";break;}
+  const bool chunked=header(heads,"transfer-encoding:").find("chunked")!=std::string::npos;
+  const bool metadata=target.size()>=5&&target.substr(target.size()-5)==".html";
+  if(chunked&&!metadata){err="Chunked binary media response not supported";break;}
   const auto content_length=header(heads,"content-length:");
   unsigned long long expected=0;
   if(!content_length.empty()){
@@ -111,30 +113,64 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
    if(expected)progress.store((int)std::min(99ULL,size*100/expected));
    return true;
   };
-  if(!append(response.data()+start,response.size()-start))break;
   bool read_failed=false;
   int tls_error=0;
-  for(;;){
-   n=SSL_read(ssl,buf,sizeof(buf));
-   if(n<=0){
-    const int e=SSL_get_error(ssl,n);
-    // OpenSSL 3 reports an unexpected EOF when a server omits close_notify.
-    // A verified Content-Length plus exact byte count proves completeness.
-    if(e!=SSL_ERROR_ZERO_RETURN && !(expected>0&&size==expected)){
-     bool complete_jpeg=false;
-     if(!expected && target.size()>=4 &&
-        target.substr(target.size()-4)==".jpg" && size>1024 && file){
-      if(std::fflush(file)==0 && std::fseek(file,-2,SEEK_END)==0){
-       const int penultimate=std::fgetc(file),last=std::fgetc(file);
-       complete_jpeg=(penultimate==0xff&&last==0xd9);
-      }
-      std::fseek(file,0,SEEK_END);
-     }
-     if(!complete_jpeg){tls_error=e;read_failed=true;}
-    }
-    break;
+  if(chunked){
+   // Detail-page HTML is served with Transfer-Encoding: chunked. Only buffer
+   // these small metadata responses; video/JPEG binaries stay streamed.
+   std::string chunks(response.data()+start,response.size()-start);
+   while(chunks.size()<2*1024*1024){
+    n=SSL_read(ssl,buf,sizeof(buf));
+    if(n<=0)break;
+    chunks.append(buf,(size_t)n);
    }
-   if(!append(buf,(size_t)n)){read_failed=true;break;}
+   if(chunks.size()>=2*1024*1024){err="Metadata page exceeds 2MB";read_failed=true;}
+   size_t pos=0;
+   std::string decoded;
+   while(!read_failed){
+    const size_t end=chunks.find("\r\n",pos);
+    if(end==std::string::npos||end-pos>64){err="Truncated chunk-size line";read_failed=true;break;}
+    const std::string number=chunks.substr(pos,end-pos);
+    char* e=nullptr;
+    const unsigned long length=std::strtoul(number.c_str(),&e,16);
+    if(e==number.c_str()||(*e&&*e!=';')){err="Malformed chunk-size line";read_failed=true;break;}
+    pos=end+2;
+    if(length==0){
+      // Final zero-sized chunk establishes completeness, regardless of
+      // an optional trailer block or missing TLS close_notify.
+      break;
+    }
+    if(length>2*1024*1024||length>chunks.size()-pos||chunks.size()-pos-length<2){
+      err="Truncated chunked metadata";read_failed=true;break;
+    }
+    decoded.append(chunks,pos,length);pos+=length;
+    if(chunks.compare(pos,2,"\r\n")!=0){err="Invalid chunk terminator";read_failed=true;break;}
+    pos+=2;
+   }
+   if(!read_failed&&!append(decoded.data(),decoded.size()))read_failed=true;
+  }else{
+   if(!append(response.data()+start,response.size()-start))break;
+   for(;;){
+    n=SSL_read(ssl,buf,sizeof(buf));
+    if(n<=0){
+     const int e=SSL_get_error(ssl,n);
+     // OpenSSL 3 reports an unexpected EOF when a server omits close_notify.
+     if(e!=SSL_ERROR_ZERO_RETURN && !(expected>0&&size==expected)){
+      bool complete_jpeg=false;
+      if(!expected && target.size()>=4 &&
+         target.substr(target.size()-4)==".jpg" && size>1024 && file){
+       if(std::fflush(file)==0 && std::fseek(file,-2,SEEK_END)==0){
+        const int penultimate=std::fgetc(file),last=std::fgetc(file);
+        complete_jpeg=(penultimate==0xff&&last==0xd9);
+       }
+       std::fseek(file,0,SEEK_END);
+      }
+      if(!complete_jpeg){tls_error=e;read_failed=true;}
+     }
+     break;
+    }
+    if(!append(buf,(size_t)n)){read_failed=true;break;}
+   }
   }
   if(read_failed){
    if(err.empty())err="TLS read ended before complete content ("+
