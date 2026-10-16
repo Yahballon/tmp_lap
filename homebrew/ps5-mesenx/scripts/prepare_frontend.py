@@ -226,13 +226,6 @@ def generate():
     assert 'hd_on?"enabled":"disabled"' in runtime.read_text()
     assert 'Toggle("NES/HdPacks", "HD Packs", "false"' in options_file.read_text()
 
-    # Application-specific performance safety patch: no cross-thread core
-    # access; keep the controller/Vulkan pump moving and HD optional.
-    subprocess.run(["python3", str(ROOT / "scripts/patch_performance.py"), str(source),
-                    str(options_file)], check=True)
-    assert 'NES/SafeMode' in options_file.read_text()
-    assert 'PERF_FRAME_SLOW' in runtime.read_text()
-
     # Regression isolation: v0.1.12 moved retro_load_game to std::thread.
     # PS5 native libretro core init, ROM load, and callbacks ran on different
     # threads; restore the known synchronous caller and log every stage.
@@ -261,6 +254,11 @@ def generate():
     }
     mesen_diag::write("GAME_CORE_LOAD_OK fps=%.3f sample_rate=%.0f",core.fps,core.sample_rate);''')
     runtime.write_text(runtime_code)
+    # Patch only AFTER the diagnostic game-load markers have been added.
+    subprocess.run(["python3", str(ROOT / "scripts/patch_performance.py"), str(source),
+                    str(options_file)], check=True)
+    assert 'NES/SafeMode' in options_file.read_text()
+    assert 'PERF_FRAME_SLOW' in runtime.read_text()
     assert "GAME_CORE_LOAD_OK" in runtime.read_text()
     assert "std::thread load_thread;" not in (source/"shelf_runtime.h").read_text()
     assert "HDPACK_LOAD_BEGIN" not in runtime.read_text()
