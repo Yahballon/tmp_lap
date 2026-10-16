@@ -47,3 +47,10 @@ Browse publicly listed **1920x1080 MP4** wallpapers from [MotionBGS](https://mot
 
 ## Controller input fix (v0.3.1)
 Both the D-pad and the left analog stick now use edge-triggered input and controlled key repeats instead of treating every analog frame as a fresh press. This prevents unexpected rapid selection jumps when browsing large MotionBGS lists.
+
+## v0.3.2: Gallery, preview troubleshooting and controller access
+
+- Press **R1** once from Backgrounds to open Online Wallpapers, **L1** to return to Backgrounds. The sidebar remains accessible with Left from the first column, then Up/Down and X.
+- Downloaded MotionBGS MP4s appear after the built-in themes in **Backgrounds**, including additional 12-item pages. Select with **X** to reapply through LiveShell.
+- App diagnostics are written to `/data/ThemeChanger/themechanger.log` (rotates at 2MB to `themechanger.old.log`). Events include catalog, preview URL, download, image-decode, selection and LiveShell states. Send this log when thumbnails remain blank.
+- Online previews use still artwork from the source webpage where offered. The build-time catalog adds a fallback for normal JPEG/PNG poster images when metadata is absent; no copyrighted preview files are bundled.
