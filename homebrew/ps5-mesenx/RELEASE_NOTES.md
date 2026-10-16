@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.15 – HD texture memory and CPU optimization
+# PS5MesenX v0.1.16 – HD texture memory and CPU optimization
 
 Experimental PS5 HD-pack performance build; requires physical-console verification.
 
@@ -22,3 +22,9 @@ hardware-verified. If the console becomes unresponsive, use Safe mode.
 ROMs: /data/PS5NES/games and /data/homebrew/PPSA99896/roms
 HD packs: /data/PS5MesenX/HdPacks
 Logs: /data/PS5MesenX/logs/boot.log
+
+### v0.1.16 experimental HD responsiveness
+- Core constructor, ROM loading, frame execution and destructor remain exclusively on one worker thread; PS5 Pad and Vulkan remain on main thread.
+- Keeping the main event loop alive during expensive HD texture decoding is intended to improve PS button and screenshot responsiveness.
+- No catch-up bursts; periodic CPU yielding. HD pack PNG decoding and emulation can still be slow; hardware validation is needed.
+- Suppress continuous frame traces, scan only mounted USB roots and skip recursive shader cache scanning.

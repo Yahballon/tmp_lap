@@ -143,7 +143,7 @@ def generate():
     assert 'fonts.AddText(ui,"SNES",' in loading_src
     assert 'v2 modded by YAHBALLON' in loading_src
     loading_src=loading_src.replace('fonts.AddText(ui,"SNES",','fonts.AddText(ui,"MesenX",')
-    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.15 by YAHBALLON')
+    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.16 by YAHBALLON')
     # Do not claim the games are ready while the console denies /data access.
     loading_src=loading_src.replace('#include <cmath>',
         '#include <cmath>' + chr(10) + '#include <dirent.h>' + chr(10) + '#include <cerrno>')
@@ -255,13 +255,43 @@ def generate():
     mesen_diag::write("GAME_CORE_LOAD_OK fps=%.3f sample_rate=%.0f",core.fps,core.sample_rate);''')
     runtime.write_text(runtime_code)
     # Patch only AFTER the diagnostic game-load markers have been added.
-    subprocess.run(["python3", str(ROOT / "scripts/patch_performance.py"), str(source),
+    subprocess.run(["python3", str(ROOT / "scripts/patch_threaded_runtime.py"), str(source),
                     str(options_file)], check=True)
     assert 'NES/SafeMode' in options_file.read_text()
     assert 'PERF_FRAME_SLOW' in runtime.read_text()
     assert "GAME_CORE_LOAD_OK" in runtime.read_text()
-    assert "std::thread load_thread;" not in (source/"shelf_runtime.h").read_text()
+    assert 'Session core(root+"/saves")' in runtime.read_text()
+    assert 'std::atomic<bool> request_stop' in (source/"shelf_runtime.h").read_text()
     assert "HDPACK_LOAD_BEGIN" not in runtime.read_text()
+
+    # Keep rendering the existing menu while the HD core loads asynchronously.
+    ps5frontend = OUTPUT / "ps5/frontend/fe_ps5.cpp"
+    replace_required(ps5frontend, '                app.Build(frame, Clock());' + chr(10) +
+        '            }' + chr(10) + '        }' + chr(10) + '        else' + chr(10) +
+        '        {' + chr(10) + '            app.Update(dt, in);',
+        '                app.Build(frame, Clock());' + chr(10) +
+        '            }' + chr(10) +
+        '            else if(nes_game.Loading()) app.Build(frame, Clock());' + chr(10) +
+        '        }' + chr(10) + '        else' + chr(10) +
+        '        {' + chr(10) + '            app.Update(dt, in);')
+    replace_required(ps5frontend, 'Nintendo_-_Super_Nintendo_Entertainment_System',
+                     'Nintendo_-_Nintendo_Entertainment_System')
+    # Skip nonmounted USB ports and the application's own shader caches.
+    shelf_text=shelf.read_text()
+    old='auto dirs=directories;std::string root;for(const auto& d:dirs)'
+    replacement='''auto dirs=directories;
+    dirs.erase(std::remove_if(dirs.begin(),dirs.end(),[](const std::string& dir){
+        if(dir=="/data/PS5MesenX")return true;
+        if(dir.rfind("/mnt/usb",0)==0) {
+            const std::string mount=dir.substr(0,9);
+            struct stat sb{};
+            return stat(mount.c_str(),&sb)!=0 || !S_ISDIR(sb.st_mode);
+        }
+        return false;
+    }),dirs.end());
+    std::string root;for(const auto& d:dirs)'''
+    assert old in shelf_text
+    shelf.write_text(shelf_text.replace(old,replacement,1))
 
     # The upstream core's option is read at retro_load_game; avoid a
     # redundant retro_deinit/retro_init on every game selection.
@@ -372,13 +402,13 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.016"
+    param["contentVersion"] = "01.000.017"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
             raise RuntimeError(f"Legacy SNES app or core identifier in {file}")
     assert "NES\\x1A" in rom.read_text()
-    assert 'v0.1.15 by YAHBALLON' in loading.read_text()
+    assert 'v0.1.16 by YAHBALLON' in loading.read_text()
     assert 'SCAN_COMPLETE' in shelf.read_text()
     assert 'Filesystem access denied' in loading.read_text()
     assert 'elevation::path()' in main.read_text()

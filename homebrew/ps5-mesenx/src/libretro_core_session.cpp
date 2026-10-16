@@ -21,8 +21,8 @@ Session::Session(std::string directory) : m_directory(std::move(directory)) {
         m_system_dir.resize(m_system_dir.size()-6);
     current = this;
     // MesenCE emits FrameProbe counters once per core run and every 300 frames.
-    setenv("MESENCE_FRAME_DIAGNOSTICS", "1", 1);
-    mesen_diag::write("VIDEO_DIAG enabled=MESENCE_FRAME_DIAGNOSTICS");
+    setenv("MESENCE_FRAME_DIAGNOSTICS", "0", 1);
+    mesen_diag::write("VIDEO_DIAG disabled for HD performance; worker traces retained");
     retro_set_environment(Environment);
     retro_set_video_refresh(Video);
     retro_set_audio_sample(Sample);
