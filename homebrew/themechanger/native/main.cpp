@@ -285,6 +285,21 @@ int main(){
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
+ std::deque<int> textureAge;
+ auto loadTexture=[&](int id){
+   if(id<0||id>=(int)onlineTextures.size()||onlineTextures[(size_t)id])return;
+   const unsigned tex=texture(renderer,online.thumbnail_path(id));
+   if(!tex)return;
+   onlineTextures[(size_t)id]=tex;textureAge.push_back(id);
+   // Thumbnail JPEGs remain on disk; only ~72 uncompressed RGBA textures
+   // remain in GPU RAM, even after browsing thousands of results.
+   while(textureAge.size()>72){
+     const int old=textureAge.front();textureAge.pop_front();
+     GLuint handle=(GLuint)onlineTextures[(size_t)old];
+     if(handle)glDeleteTextures(1,&handle);
+     onlineTextures[(size_t)old]=0;
+   }
+ };
  std::vector<int> installedIds;
  auto refreshInstalled=[&](){
    installedIds.clear();
@@ -516,10 +531,21 @@ int main(){
    }
    for(int idx:online.consume_ready()){
      if(idx>=0&&idx<(int)onlineTextures.size()&&!onlineTextures[(size_t)idx]){
-       unsigned tex=texture(renderer,online.thumbnail_path(idx));
-       if(tex)onlineTextures[(size_t)idx]=tex;
-       else tc::log("PREVIEW_DECODE_ERROR",online.entries()[(size_t)idx].slug.c_str());
+       loadTexture(idx);
+       if(!onlineTextures[(size_t)idx])
+         tc::log("PREVIEW_DECODE_ERROR",online.entries()[(size_t)idx].slug.c_str());
      }
+   }
+   if(page==3&&!filtered.empty()){
+     const int begin=onlinePage*12;
+     for(int i=begin;i<(int)filtered.size()&&i<begin+12;i++)
+       loadTexture(filtered[(size_t)i]);
+     if(onlineSelected>=0&&onlineSelected<(int)filtered.size())
+       loadTexture(filtered[(size_t)onlineSelected]);
+   }else if(page==0){
+     const int begin=(selected/12)*12;
+     for(int q=std::max(0,begin-12);q<(int)installedIds.size()&&q<begin+12;q++)
+       loadTexture(installedIds[(size_t)q]);
    }
    if(!online.thumbnail_busy()){
      // Prioritize the focused wallpaper, then fill the visible rows.
