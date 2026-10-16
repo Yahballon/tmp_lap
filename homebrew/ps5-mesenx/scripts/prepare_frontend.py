@@ -119,7 +119,7 @@ def generate():
     # Retain the two user-provided paths and our original ROM folder. The
     # regular scanner performs path-based deduplication for overlapping roots.
     replace_required(main,
-        '"/data/PS5MesenX/roms","/data/NES"',
+        '"/data/PS5MesenX/roms","/data/SNES"',
         '"/data/PS5MesenX/games","/data/PS5MesenX/roms","/data/NES"')
     replace_required(main, '    orbis_frontend_set_language(root+"/lang");',
         '''    // Inspect actual filesystem visibility before scanner thread starts.
