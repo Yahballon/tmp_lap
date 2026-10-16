@@ -44,15 +44,12 @@ inline bool durable_copy(const std::string& source,const std::string& dst){
  // Never leave incomplete MP4 files that are interpreted as installed.
  const std::string temp=dst+".part";
  unlink(temp.c_str());
- if(link(source.c_str(),temp.c_str())==0){
-  if(rename(temp.c_str(),dst.c_str())==0)return true;
-  unlink(temp.c_str());return false;
- }
  FILE* in=fopen(source.c_str(),"rb");
  if(!in)return false;
  FILE* out=fopen(temp.c_str(),"wb");
  if(!out){fclose(in);return false;}
- char chunk[65536];size_t n;
+ // Keep data buffers small: PS5 homebrew worker stacks can be below 128 KB.
+ char chunk[8192];size_t n;
  bool ok=true;
  while((n=fread(chunk,1,sizeof(chunk),in))!=0){
   if(fwrite(chunk,1,n,out)!=n){ok=false;break;}
@@ -136,5 +133,10 @@ inline Report recover(const std::vector<std::string>& catalogueNames={}){
   }
  }
  return r;
+}
+// Recover only explicitly indexed downloads. Never stat the entire 9K+
+// catalog on the UI thread (previous v0.3.11 startup regression).
+inline Report recover_indexed(){
+ return recover({});
 }
 } // namespace wallpaper_storage
