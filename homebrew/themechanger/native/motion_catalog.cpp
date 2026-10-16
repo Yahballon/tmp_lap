@@ -57,6 +57,9 @@ bool Catalog::load(const std::string& assets){
  }
  fclose(f);records_=std::move(next);
  preview_requested_.assign(records_.size(),false);
+ installed_cache_.assign(records_.size(),false);
+ for(int i=0;i<(int)records_.size();i++)
+   installed_cache_[(size_t)i]=exists(wallpaper_path(i),1024)&&is_mp4(wallpaper_path(i));
  if(records_.empty()){report("Online catalog empty. Check MotionBGS availability.");return false;}
  report("MotionBGS catalog: "+std::to_string(records_.size())+" HD wallpapers");
  return true;
@@ -70,7 +73,9 @@ std::string Catalog::thumbnail_path(int i)const{
  return "/data/ThemeChanger/cache/MotionBGS-"+records_[(size_t)i].slug+".img";
 }
 bool Catalog::installed(int i)const{
- return exists(wallpaper_path(i),1024)&&is_mp4(wallpaper_path(i));
+ if(i<0||i>=(int)records_.size())return false;
+ std::lock_guard<std::mutex> lock(mutex_);
+ return installed_cache_[(size_t)i];
 }
 void Catalog::report(std::string message){std::lock_guard<std::mutex> g(mutex_);status_=std::move(message);}
 std::string Catalog::status()const{std::lock_guard<std::mutex> g(mutex_);return status_;}
@@ -121,6 +126,7 @@ void* Catalog::run(void* p){
   if(ok&&!is_mp4(path)){unlink(path.c_str());ok=false;err="Server did not send a valid MP4";}
  }
  if(ok){
+  {std::lock_guard<std::mutex> lock(self.mutex_);self.installed_cache_[(size_t)job.index]=true;}
   self.percent_=100;
   std::string applied;
   if(theme::activate_file("MotionBGS-"+item.slug+".mp4",applied))
