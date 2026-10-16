@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "0982866ecc0ec5d4420d343b240bd3605571260f634ef72214deff9ea3f5949f",
+  "version": "09e566e5cf95acaf4fe0ae864ee78613a69ee4d16e3a2f012b33944b0fa1cedb",
   "repository": "Yahballon/tmp_lap",
   "app_count": 13,
   "apps": [
@@ -164,14 +164,14 @@
       "name": "PS5MesenX",
       "slug": "ps5-mesenx",
       "title_id": "PPSA99896",
-      "version": "0.1.2",
-      "tag": "ps5-mesenx-v0.1.2",
+      "version": "0.1.3",
+      "tag": "ps5-mesenx-v0.1.3",
       "zip_name": "PPSA99896.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-mesenx-v0.1.2/PPSA99896.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-mesenx-v0.1.2",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-mesenx-v0.1.3/PPSA99896.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-mesenx-v0.1.3",
       "source": "homebrew/ps5-mesenx",
-      "size_bytes": 7142987,
-      "published_at": "2026-10-16T00:40:09Z"
+      "size_bytes": 7143293,
+      "published_at": "2026-10-16T01:00:40Z"
     }
   ]
 }
