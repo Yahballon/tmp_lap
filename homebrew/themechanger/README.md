@@ -88,3 +88,16 @@ The on-console v0.3.5 logs showed `game=PPSA99891`, `shellui=stopped`, despite a
 Our source-built engine now includes `"themechanger_engine":"0.3.6"` in its `/api/state` response. On app start, ThemeChanger checks that exact revision. If an old/foreign daemon is active, the native loader sends our patched `liveshell.elf` to elfldr:9021 even while the old daemon is still online. LiveShell's supported `handover` mechanism stops the old engine and initializes the new version. No silent configuration changes to `gamepause` or force-terminate are used. Once the API confirms version 0.3.6, wallpapers can be selected again. If handover is unavailable or fails, the UI reports it rather than claiming an update.
 
 If this still doesn't work, send `/data/ThemeChanger/themechanger.log`, `/data/LiveShell/liveshell.log`, and `/data/LiveShell/shellui.log`. Check especially `ENGINE_HANDOVER`, `ENGINE_HANDOVER_OK`, and `SHELLUI_MONITOR`.
+
+## v0.3.7 – full MotionBGS catalogue, search and tags
+
+- Reads every eligible desktop wallpaper from MotionBGS's official public sitemap rather than the old 153-item catalogue.
+- Catalogue metadata includes available genre/category assignments and popular site tags. Site pagination is indexed at build time for tags, including anime/games/nature/cars and selected sub-tags. Tags count only indexed matches; absent tag assignments are not invented.
+- Built-in **controller-friendly search keyboard**: switch to Online Wallpapers, press **Triangle**, move with D-pad or analog stick, **X** types, **Square** backspaces, **R2** clears, **Triangle** accepts. Search updates immediately without network requests.
+- **Options** opens Tags with result counts; **L2/R2** pages through tags, **X** chooses, **Square** resets. Category switches with L2/R2 outside overlays.
+- Grid: 12 cards per page, D-pad across boundaries; **Square** moves to previous page. Download/Install with **X** remains identical.
+- MP4 and JPEG URLs for uncached sitemap entries are resolved *only when needed* from their original item page and kept in `/data/ThemeChanger/meta/` as local metadata. This avoids hammering the source site with 9K full-size downloads during a release and keeps the app ZIP small.
+- GPU only keeps 72 JPEG textures in memory. More are reloaded from the thumbnail disk cache when revisiting a page.
+- Retains ThemeChanger's integrated LiveShell 0.3.6 engine, so the verified PS5 background switching is unchanged.
+
+Data provenance: MotionBGS public sitemap, metadata and tag listings. No MP4s or poster artwork are bundled in the release. Full list size follows the site's public sitemap at build time; invalid and mobile-only entries are excluded.
