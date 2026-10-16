@@ -47,8 +47,6 @@ jobs:
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/themechanger/native/* app/src/
-          # Keep experimental native FFmpeg outside the tested PS5 binary.
-          rm -f app/src/smooth_video.cpp
           curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
           mkdir -p app/assets/motionbgs
           cp homebrew/themechanger/generated/motionbgs/catalog.tsv app/assets/motionbgs/catalog.tsv
@@ -65,6 +63,21 @@ jobs:
           j.update(titleId=d['titleId'],conceptId=d['titleId'][-5:],contentId=d['contentId'],contentVersion=d['contentVersion'])
           j['localizedParameters']['en-US']['titleName']=d['name']
           p.write_text(json.dumps(j,indent=2)+'\n')
+          PY
+      - name: Guard known-good PS5 boot path against unsupported syscalls
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          main=Path('homebrew/themechanger/native/main.cpp').read_text()
+          catalog=Path('homebrew/themechanger/native/motion_catalog.cpp').read_text()
+          assert 'wallpaper_storage::recover(' not in main, 'PS5 startup must not invoke unverified file API'
+          assert 'wallpaper_storage.hpp' not in main
+          assert 'wallpaper_storage.hpp' not in catalog
+          assert 'smooth_video.hpp' not in main and 'smooth_video.hpp' not in catalog
+          assert 'rescan_installed()' not in main
+          assert 'pthread_attr_setstacksize' not in catalog
+          assert 'ThemeChanger v0.3.12 starting' in main
+          print('Stable v0.3.9 boot and download path retained')
           PY
       - name: Verify native MotionBGS HTTPS downloader with real HD MP4
         timeout-minutes: 2
@@ -111,26 +124,6 @@ jobs:
           code=Path('homebrew/themechanger/native/liveshell_client.cpp').read_text()
           assert 'mp4compat::normalize(' in code
           assert 'MP4_COMPAT' in code and 'MP4_INCOMPATIBLE' in code
-          PY
-      - name: Test persistent wallpaper archive and MP4 restore
-        run: |
-          g++ -std=c++20 -O2 -Ihomebrew/themechanger/native \
-            homebrew/themechanger/tests/test_wallpaper_storage.cpp -o /tmp/themechanger-storage-test
-          sudo install -d -m 0777 /data/ThemeChanger /data/LiveShell
-          /tmp/themechanger-storage-test
-      - name: Verify PS5 stable-download mode
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          app=Path('homebrew/themechanger/native/main.cpp').read_text()
-          catalog=Path('homebrew/themechanger/native/motion_catalog.cpp').read_text()
-          store=Path('homebrew/themechanger/native/wallpaper_storage.hpp').read_text()
-          assert 'smooth_video::' not in app
-          assert 'smooth_video::' not in catalog
-          assert 'VIDEO_NATIVE_CONVERSION_DISABLED' in catalog
-          assert 'pthread_attr_setstacksize' in catalog
-          assert 'opendir(kArchive)' not in store
-          assert 'saved_names()' in store and 'recover(' in store
           PY
       - name: Prepare PS5 graphics SDK
         working-directory: app
@@ -226,7 +219,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.11-PPSA99891
+          name: ThemeChanger-v0.3.12-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -234,5 +227,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.11 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.11 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.11" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.12 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.12 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.12" --notes-file homebrew/themechanger/RELEASE_NOTES.md
