@@ -58,17 +58,17 @@ def generate():
     reference = ROOT / "vendor/ps5nesx_games_reference.cpp"
     expected = reference.read_text()
     first = expected.index('    DIR* dir=opendir(path.c_str());')
-    last = expected.index('\\n}\\nstd::vector<Game> Scan(', first)
+    last = expected.index(chr(10) + '}' + chr(10) + 'std::vector<Game> Scan(', first)
     working_scan = expected[first:last]
-    first = expected.index('    } else {\\n        const int fd=open(path.c_str(),O_RDONLY);', expected.index('bool ReadRom('))
-    last = expected.index('\\n    if(path.size()>4&&Lower(', first)
+    first = expected.index('    } else {' + chr(10) + '        const int fd=open(path.c_str(),O_RDONLY);', expected.index('bool ReadRom('))
+    last = expected.index(chr(10) + '    if(path.size()>4&&Lower(', first)
     working_load = expected[first:last]
     original = rom.read_text()
     start = original.index('    DIR* dir=opendir(path.c_str());')
-    end = original.index('\\n}\\nstd::vector<Game> Scan(', start)
+    end = original.index(chr(10) + '}' + chr(10) + 'std::vector<Game> Scan(', start)
     original = original[:start] + working_scan + original[end:]
-    start = original.index('    } else {\\n        const int fd=open(path.c_str(),O_RDONLY);', original.index('bool ReadRom('))
-    end = original.index('\\n    if(path.size()>4&&Lower(', start)
+    start = original.index('    } else {' + chr(10) + '        const int fd=open(path.c_str(),O_RDONLY);', original.index('bool ReadRom('))
+    end = original.index(chr(10) + '    if(path.size()>4&&Lower(', start)
     original = original[:start] + working_load + original[end:]
     rom.write_text(original)
     # PS5NESX reports per-folder discovery counts for the actual native scan.
