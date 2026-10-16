@@ -105,7 +105,7 @@ def adapt():
     shelf_function="void buildShelves(bool selectDisk)"
     assert t.count(shelf_function)==1, "Pinned Flycast shelf entry point changed"
     t=t.replace(shelf_function,
-       '#include "dreamcastx_library_order.inc"\\n\\n'+shelf_function,1)
+       '#include "dreamcastx_library_order.inc"\n\n'+shelf_function,1)
     assert t.count('dreamcastXPutAllFirst(shelves, all, selectDisk)')==1
     ps5_source=p/"dreamcastx_library_order.inc"
     shutil.copy2(ROOT/"src/dreamcastx_library_order.inc",ps5_source)
