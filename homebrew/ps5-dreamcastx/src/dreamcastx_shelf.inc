@@ -83,6 +83,18 @@ void drawDreamcastXShelf(ImDrawList* dl,Game* focused,bool selectDisk)
         return std::fabs(a-sh.focusAnim)>std::fabs(b-sh.focusAnim);
     });
 
+    // Prime the selected game and both neighbours *before* the farthest-first
+    // painting pass. Downloads/scraping and decoding remain asynchronous;
+    // this also makes the centre cover the first requested texture on boot.
+    for(int radius=0;radius<=2;radius++) {
+        for(int dir=-1;dir<=1;dir+=2) {
+            if(radius==0 && dir>0) continue;
+            const int index=sh.focus+radius*dir;
+            if(index>=0 && index<count)
+                (void)coverTexture(games[sh.items[(size_t)index]]);
+        }
+    }
+
     // The clip is limited to game cases only. The title and footer are drawn
     // outside this clip to avoid the cut-off corruption seen in v0.1.4.
     dl->PushClipRect(V(38.f,224.f),V(W-38.f,795.f),true);
