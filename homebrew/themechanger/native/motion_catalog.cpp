@@ -159,8 +159,8 @@ void* Catalog::run(void* p){
   tc::log("DOWNLOAD_COMPLETE",path.c_str());
   std::string applied;
   if(theme::activate_file("MotionBGS-"+item.slug+".mp4",applied)){
-   tc::log("LIVESHELL_APPLIED",item.slug.c_str());
-   self.report(item.title+": installed and applied");
+   tc::log("LIVESHELL_SELECTED",(item.slug+" "+applied).c_str());
+   self.report(item.title+": "+applied);
   }else{
    tc::log("LIVESHELL_PENDING",(item.slug+" "+applied).c_str());
    self.report(item.title+": installed. "+applied);
