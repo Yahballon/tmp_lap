@@ -15,6 +15,8 @@ public:
  bool download(int index);
  bool request_thumbnail(int index);
  std::vector<int> consume_ready();
+ // Completed MP4s are emitted immediately so Backgrounds never waits for a polling tick.
+ std::vector<int> consume_installed();
  std::string thumbnail_path(int index) const;
  std::string wallpaper_path(int index) const;
  bool installed(int index) const;
@@ -30,6 +32,7 @@ private:
  std::vector<Entry> records_;
  mutable std::mutex mutex_;
  std::vector<int> ready_;
+ std::vector<int> newly_installed_;
  std::vector<bool> preview_requested_;
  std::vector<bool> installed_cache_;
  std::atomic<bool> downloading_{false};
