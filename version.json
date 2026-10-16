@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "707db38b098eef166f515e5675b14cf7d5f6b9753463e3b4ed94ed53f9946c74",
+  "version": "178b0490a6e392ba659486822059544e48850a8fdc42339d30070d7ad49db916",
   "repository": "Yahballon/tmp_lap",
   "app_count": 13,
   "apps": [
@@ -151,14 +151,14 @@
       "name": "ThemeChanger",
       "slug": "themechanger",
       "title_id": "PPSA99891",
-      "version": "0.3.12",
-      "tag": "themechanger-v0.3.12",
+      "version": "0.3.13",
+      "tag": "themechanger-v0.3.13",
       "zip_name": "PPSA99891.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/themechanger-v0.3.12/PPSA99891.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/themechanger-v0.3.12",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/themechanger-v0.3.13/PPSA99891.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/themechanger-v0.3.13",
       "source": "homebrew/themechanger",
-      "size_bytes": 9221715,
-      "published_at": "2026-10-16T14:33:14Z"
+      "size_bytes": 9223537,
+      "published_at": "2026-10-16T15:05:03Z"
     },
     {
       "name": "PS5MesenX",
