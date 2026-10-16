@@ -17,7 +17,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
-          Path('homebrew/themechanger/native/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE('+pem+')PS5CABUNDLE";\\n')
+          Path('homebrew/themechanger/native/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE('+pem+')PS5CABUNDLE";\n')
           PY
           cat >/tmp/media_inspect.cpp <<'CPP'
           #include "motion_download.hpp"
