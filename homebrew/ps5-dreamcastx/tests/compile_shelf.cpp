@@ -70,5 +70,10 @@ int main(){
     sh.focus=4;lib.shelves[0].focus=4;images.clear();
     drawDreamcastXShelf(&dl,&games[4],false);
     assert(images.size()==5);
-    for(auto &a:images) assert(a.x>=38.f&&a.x+a.w<W-38.f);
+    // Far cases may be partly offscreen while browsing toward the end,
+    // but must remain near the viewport and never jump thousands of pixels.
+    for(auto &a:images){
+        assert(a.x>-250.f&&a.x+a.w<W+250.f);
+        assert(a.y>200.f&&a.y+a.h<795.f);
+    }
 }

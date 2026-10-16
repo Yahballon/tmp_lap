@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.1.6"
+VERSION="0.1.7"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -56,10 +56,17 @@ def adapt():
         t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
                     '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
     marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.1.6"' not in t:
+    if marker in t and '"v0.1.7"' not in t:
         t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.1.6");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.6");',1)
+            'const ImVec2 vs = textSize(regular(), 17, "v0.1.7");\n\t'
+            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.7");',1)
+    # Log scanner totals when the async catalog grows or shrinks. A scan
+    # root count is NOT a game count; record both for PS5 diagnostics.
+    catalogAnchor='findDiscSets();\n\treturn true;'
+    assert t.count(catalogAnchor)==1, "Flycast game catalogue changed"
+    t=t.replace(catalogAnchor,
+        'findDiscSets();\n\tps5::diag::mark("library: scanner=%d media, shown=%d titles", '
+        '(int)list.size(), (int)games.size());\n\treturn true;',1)
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
 
@@ -85,6 +92,15 @@ def adapt():
     shutil.copy2(ROOT/"src/dreamcastx_cover_async.inc",
                  SOURCE/"core/ui/dreamcastx_cover_async.inc")
 
+    # Flycast's game scanner is recursive. Normalize uppercase .GDI/.CHD/
+    # .CDI/.CUE extensions before format checks, just like lowercase dumps.
+    scanner=SOURCE/"core/ui/game_scanner.cpp"
+    sc=scanner.read_text()
+    extline='std::string extension = get_file_extension(item.name);'
+    assert sc.count(extline)==1, "Pinned Flycast scanner extension hook changed"
+    sc=sc.replace(extline,extline+'\n\t\tstring_tolower(extension);',1)
+    scanner.write_text(sc)
+
     # Rename the physical ShadowMount folder, not the mandatory PPSA titleId.
     main=p/"ps5_main.cpp"
     m=main.read_text()
@@ -101,7 +117,7 @@ void findUsbDirs()
     ps5::usbDirs = discoverDreamcastXUsbDirs("/mnt/usb", 8);
     for (const std::string& dir : ps5::usbDirs)
         ps5::diag::mark("usb: DreamcastX game directory: %s", dir.c_str());
-    ps5::diag::mark("usb: %d game folder(s)", (int)ps5::usbDirs.size());
+    ps5::diag::mark("usb: %d recursive scan root(s) (includes games/ subfolders)", (int)ps5::usbDirs.size());
 }
 
 '''+m[end:]
@@ -228,9 +244,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 7',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 8',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.6"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.7"',v)
     assert n==1
     ver.write_text(v)
 
@@ -239,7 +255,7 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.006"
+    data["contentVersion"]="01.000.007"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
     meta.write_text(json.dumps(data,indent=2)+"\n")

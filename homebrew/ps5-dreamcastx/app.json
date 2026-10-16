@@ -1,16 +1,16 @@
 {
   "name": "PS5DreamcastX",
   "slug": "ps5-dreamcastx",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "titleId": "PPSA99765",
   "contentId": "UP9000-PPSA99765_00-PS5DREAMCASTX001",
-  "contentVersion": "01.000.006",
-  "releaseTag": "ps5-dreamcastx-v0.1.6",
+  "contentVersion": "01.000.007",
+  "releaseTag": "ps5-dreamcastx-v0.1.7",
   "core": "Press5elect/PSFlycast",
   "frontend": "PS5-safe DVD CoverFlow with asynchronous 640px decoded artwork cache",
   "brand": "YAHBALLON",
   "installFolder": "PS5DreamcastX",
   "internalGameDirectory": "/data/PS5DreamcastX/games",
-  "usbGameDirectory": "/mnt/usb0/PS5DreamcastX/games",
+  "usbGameDirectory": "/mnt/usb0/PS5DreamcastX (recursive, includes games/)",
   "dataFolder": "/data/PS5DreamcastX"
 }

@@ -1,15 +1,22 @@
-# PS5DreamcastX v0.1.6
+# PS5DreamcastX v0.1.7
 
-## Faster, nonblocking artwork in the game library
+## USB library regression hotfix — recover missing games
 
-- Eliminated synchronous cover JPEG/PNG decoding on the PS5 menu thread.
-- One background worker loads and shrinks cover images to a maximum of
-  640 pixels, reducing PS5 GPU texture upload time and memory.
-- Selected game and nearest neighbours are preloaded ahead of distant covers.
-- Finished textures upload from the graphics thread at most twice per frame.
-- Bounded waiting/staging queue avoids large-library RAM spikes.
-- Existing driver texture cache continues to serve already-seen covers.
-- v0.1.5's working DVD-style case artwork renderer is unchanged.
-- No changes to save data, games, BIOS, USB discovery or controls.
+- Fixed a USB scan-root regression: if `PS5DreamcastX/games/`
+  exists, v0.1.6 scans **only** that subfolder, hiding games
+  in `PS5DreamcastX/` and its other subdirectories.
+- Now recursively scans the entire `/mnt/usb0/PS5DreamcastX/`
+  folder (or USB1–7). The existing `games/`, `Games/` and nested
+  subfolders are included automatically, with no duplicate roots.
+- Corrected uppercase Dreamcast ROM extensions: `.GDI`, `.CHD`,
+  `.CDI` and `.CUE` are now accepted like lowercase extensions.
+- Added a regression test simulating six games across root and nested
+  folders, verifying all six are discoverable.
+- Improved logging: separate *USB scan roots* from *detected media/titles*.
+- Retained the nonblocking v0.1.6 cover decoder and v0.1.5 stable cases.
+- No saves, BIOS, games, USB file or controller configurations are modified.
 
-ZIP: `PPSA99765.zip` · Title: `PPSA99765`.
+TheGamesDB HTTP 503 is an unrelated online cover-service failure. Existing
+local cover files and ROM scanning do not require that API.
+
+Native title ID: `PPSA99765`. Install ZIP: `PPSA99765.zip`.

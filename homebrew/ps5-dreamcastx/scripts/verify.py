@@ -18,6 +18,13 @@ assert 'candidates.push_back("/data/homebrew/PS5DreamcastX");' in (src/"ps5_main
 assert 'discoverDreamcastXUsbDirs("/mnt/usb", 8)' in (src/"ps5_main.cpp").read_text()
 assert 'bool usb = true;' in (src/"ps5_frontend.h").read_text()
 assert '"PS5DreamcastX/"' in (src/"ps5_update.cpp").read_text()
+assert "recursive scan root(s)" in (src/"ps5_main.cpp").read_text()
+assert "library: scanner=%d media, shown=%d titles" in ui
+assert "string_tolower(extension);" in (root/"build/flycast/core/ui/game_scanner.cpp").read_text()
+usb=(src/"dreamcastx_usb.inc").read_text()
+assert "const std::string base=mount+\"/\"+folder;" in usb
+assert 'base+"/games"' not in usb
+
 assert 'extern std::string appDir;' in (src/"ps5_frontend.h").read_text()
 assert 'const std::string externalData = "/data/PS5DreamcastX";' in (src/"ps5_main.cpp").read_text()
 assert 'ps5::rootDir = externalData + "/";' in (src/"ps5_main.cpp").read_text()
@@ -33,7 +40,7 @@ assert "imageFill(dl,image,art.x,art.y,art.w,art.h" in shelf
 for forbidden in ("AddImageQuad(", "AddQuadFilled(", "PrimReserve(", "dreamcastXReflection(", "softDisc("):
     assert forbidden not in shelf, "Unsafe PS5 renderer reintroduced: "+forbidden
 assert "ps5-dreamcastx-v" in (src/"ps5_update.cpp").read_text()
-assert "PS5_VERSION \"0.1.6\"" in (src/"ps5_build.h").read_text()
+assert "PS5_VERSION \"0.1.7\"" in (src/"ps5_build.h").read_text()
 async_ui=(root/"build/flycast/core/ui/gui_util.cpp").read_text()
 assert '#include "dreamcastx_cover_async.inc"' in async_ui
 assert 'dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount)' in async_ui
