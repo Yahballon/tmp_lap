@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.1.8"
+VERSION="0.1.9"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -61,10 +61,10 @@ def adapt():
         t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
                     '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
     marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.1.8"' not in t:
+    if marker in t and '"v0.1.9"' not in t:
         t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.1.8");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.8");',1)
+            'const ImVec2 vs = textSize(regular(), 17, "v0.1.9");\n\t'
+            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.9");',1)
     # Log scanner totals when the async catalog grows or shrinks. A scan
     # root count is NOT a game count; record both for PS5 diagnostics.
     catalogAnchor='findDiscSets();\n\treturn true;'
@@ -90,6 +90,26 @@ def adapt():
 		path = g.art.boxartPath;'''
     assert t.count(old_cover) == 1, "Pinned Flycast coverTexture hook changed"
     t=t.replace(old_cover,new_cover,1)
+    # When a player has played two games, upstream puts "Recently played"
+    # at index 0 and the menu misleadingly shows 2 / 2 even though the
+    # scanner has already found 5 / 5. Always put "All games" at index 0.
+    # A disc-change picker keeps "This game's discs" first.
+    shelf_insert='''\tif (!all.items.empty())
+\t\tshelves.push_back(all);
+\tif (!arcade.items.empty())'''
+    shelf_replacement='''\tif (!all.items.empty())
+\t\tdreamcastXPutAllFirst(shelves, all, selectDisk);
+\tif (!arcade.items.empty())'''
+    assert t.count(shelf_insert)==1, "Pinned Flycast shelf ordering changed"
+    t=t.replace(shelf_insert,shelf_replacement,1)
+    shelf_function="void buildShelves(bool selectDisk)"
+    assert t.count(shelf_function)==1, "Pinned Flycast shelf entry point changed"
+    t=t.replace(shelf_function,
+       '#include "dreamcastx_library_order.inc"\\n\\n'+shelf_function,1)
+    assert t.count('dreamcastXPutAllFirst(shelves, all, selectDisk)')==1
+    ps5_source=p/"dreamcastx_library_order.inc"
+    shutil.copy2(ROOT/"src/dreamcastx_library_order.inc",ps5_source)
+
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
 
@@ -279,9 +299,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 9',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 10',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.8"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.9"',v)
     assert n==1
     ver.write_text(v)
 
@@ -290,7 +310,7 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.008"
+    data["contentVersion"]="01.000.009"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
     meta.write_text(json.dumps(data,indent=2)+"\n")
