@@ -48,7 +48,7 @@ assert 'dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount)' 
 assert (root/"build/flycast/core/ui/dreamcastx_cover_async.inc").exists()
 assert "loadDisk(path,decoded,w,h)" in (root/"build/flycast/core/ui/dreamcastx_cover_async.inc").read_text()
 assert "saveDisk(path,decoded,w,h)" in (root/"build/flycast/core/ui/dreamcastx_cover_async.inc").read_text()
-assert "if (path.empty() || lib.details)" in ui
+assert "if (path.empty())" in ui
 assert "pauseUntil = getTimeMs() + 15 * 60 * 1000;" in (root/"build/flycast/core/ui/boxart/boxart.cpp").read_text()
 assert "for(int radius=0;radius<=2;radius++)" in shelf
 feed=(src/"ps5_update.cpp").read_text()
