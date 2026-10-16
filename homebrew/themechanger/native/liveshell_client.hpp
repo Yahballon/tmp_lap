@@ -12,6 +12,7 @@ std::string theme_file(int index);
 bool install_and_select(int index,const std::string& assets,std::string& result);
 bool send_setting(const std::string& route,std::string& result);
 bool probe();
+bool activate_file(const std::string& filename,std::string& status);
 int current_theme();
 int load_selected();
 void save_selected(int index);

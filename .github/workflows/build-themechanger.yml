@@ -21,15 +21,42 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates ffmpeg g++
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates ffmpeg g++ libssl-dev
       - name: Generate original wallpapers
         run: python3 homebrew/themechanger/assets/generate.py
+      - name: Discover live MotionBGS HD catalog
+        timeout-minutes: 4
+        run: python3 homebrew/themechanger/assets/motionbgs_catalog.py
+      - name: Probe MotionBGS HD MP4 response
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.request import Request,urlopen
+          rows=[l.split('\t') for l in Path('homebrew/themechanger/generated/motionbgs/catalog.tsv').read_text().splitlines() if l and not l.startswith('#')]
+          for row in rows[:3]:
+              url=row[3]
+              assert url.startswith('https://motionbgs.com/dl/hd/')
+              req=Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'video/mp4,*/*','Range':'bytes=0-63'})
+              with urlopen(req,timeout=15) as response:
+                  data=response.read(64)
+                  print(row[1],response.status,response.headers.get('Content-Type'),response.geturl(),'ftyp=',data[4:8],flush=True)
+                  assert data[4:8]==b'ftyp' and 'video' in response.headers.get('Content-Type','')
+          PY
       - name: Prepare existing native PS5 UI kit
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/themechanger/native/* app/src/
           curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
+          mkdir -p app/assets/motionbgs
+          cp homebrew/themechanger/generated/motionbgs/catalog.tsv app/assets/motionbgs/catalog.tsv
+          python3 - <<'PY'
+          from pathlib import Path
+          pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
+          Path('app/src/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE('+pem+')PS5CABUNDLE";\n')
+          PY
           mkdir -p app/assets/wallpapers
           cp homebrew/themechanger/generated/wallpapers/* app/assets/wallpapers/
           python3 - <<'PY'
@@ -41,6 +68,14 @@ jobs:
           j['localizedParameters']['en-US']['titleName']=d['name']
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
+      - name: Verify native MotionBGS HTTPS downloader with real HD MP4
+        timeout-minutes: 2
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/themechanger/tests/test_native_download.cpp \
+            app/src/motion_download.cpp -lssl -lcrypto \
+            -o /tmp/themechanger-native-http-test
+          timeout 65s /tmp/themechanger-native-http-test
       - name: Bundle verified upstream LiveShell v1.0 payload
         run: |
           curl --fail --location --retry 3 --silent --show-error \
@@ -71,7 +106,7 @@ jobs:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
-        run: make USE_CCACHE=0 BUILD_JOBS=4 APP_ROOT_FILES=liveshell.elf app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=openssl APP_ROOT_FILES=liveshell.elf app
       - name: Verify installer and assets
         run: |
           python3 - <<'PY'
@@ -86,14 +121,18 @@ jobs:
           assert len(list((root/'assets/wallpapers').glob('*.png')))==12
           assert len(list((root/'assets/wallpapers').glob('*.mp4')))==12
           assert (root/'liveshell.elf').stat().st_size==903112
+          manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
+          assert len(manifest.splitlines())>=7
+          assert 'https://motionbgs.com/dl/hd/' in manifest
           with zipfile.ZipFile(f'app/dist/{title}.zip') as z:
               assert z.testzip() is None
               assert f'{title}/eboot.bin' in z.namelist()
               assert f'{title}/liveshell.elf' in z.namelist()
+              assert f'{title}/assets/motionbgs/catalog.tsv' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.2.0-PPSA99891
+          name: ThemeChanger-v0.3.0-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -101,5 +140,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.2.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.2.0 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.2.0" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.0 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.0" --notes-file homebrew/themechanger/RELEASE_NOTES.md
