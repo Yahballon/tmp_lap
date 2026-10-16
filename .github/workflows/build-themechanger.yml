@@ -27,6 +27,23 @@ jobs:
       - name: Discover live MotionBGS HD catalog
         timeout-minutes: 4
         run: python3 homebrew/themechanger/assets/motionbgs_catalog.py
+      - name: Probe MotionBGS HD MP4 response
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.request import Request,urlopen
+          rows=[l.split('\t') for l in Path('homebrew/themechanger/generated/motionbgs/catalog.tsv').read_text().splitlines() if l and not l.startswith('#')]
+          for row in rows[:3]:
+              url=row[3]
+              assert url.startswith('https://motionbgs.com/dl/hd/')
+              req=Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'video/mp4,*/*','Range':'bytes=0-63'})
+              with urlopen(req,timeout=15) as response:
+                  data=response.read(64)
+                  print(row[1],response.status,response.headers.get('Content-Type'),response.geturl(),'ftyp=',data[4:8],flush=True)
+                  assert data[4:8]==b'ftyp' and 'video' in response.headers.get('Content-Type','')
+          PY
       - name: Prepare existing native PS5 UI kit
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
