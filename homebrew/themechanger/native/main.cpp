@@ -8,6 +8,7 @@
 #include "liveshell_loader.hpp"
 #include "motion_catalog.hpp"
 #include "theme_log.hpp"
+#include "wallpaper_storage.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -288,7 +289,13 @@ int main(){
  struct stat catalogStat{};
  if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
    asset="/data/homebrew/PPSA99891/assets";
- tc::log("BOOT","ThemeChanger v0.3.9 starting");
+ tc::log("BOOT","ThemeChanger v0.3.10 starting");
+ const auto archive=wallpaper_storage::recover();
+ tc::log("LIBRARY_RECOVERY",("live="+std::to_string(archive.live)+
+   " backups="+std::to_string(archive.backups)+
+   " restored="+std::to_string(archive.restored)+
+   " archived="+std::to_string(archive.archived)+
+   " errors="+std::to_string(archive.errors)).c_str());
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
