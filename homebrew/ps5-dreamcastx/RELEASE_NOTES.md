@@ -1,10 +1,17 @@
-# PS5DreamcastX v0.1.8
+# PS5DreamcastX v0.1.9
 
-- New persistent 640px predecoded RGBA thumbnail cache on internal SSD (`/data/PS5DreamcastX/cache/covers/`).
-- Keeps the original downloaded JPG/PNG artwork in `/data/PS5DreamcastX/covers/`.
-- Reloads thumbnails on subsequent launches without re-decoding, and invalidates stale entries when source files change.
-- Prioritizes local artwork over TheGamesDB requests while browsing.
-- Backs off failing online metadata requests for 15 minutes instead of 10 seconds (HTTP 503).
-- Adds cold/warm/invalidation regression tests. Case rendering and saves are unchanged.
+## All games visible on startup
 
-Native PS5 installation package: `PPSA99765.zip`, Title ID `PPSA99765`.
+- Fixed initial USB library selection: the catalogue now opens **All games**
+  instead of **Recently played** when you have launched games before.
+- With 5 scanned Dreamcast titles and 2 recent titles, the shelf now starts
+  at **5/5**, rather than mistakenly looking like a two-game library.
+- Keeps Recently played and Favourites accessible using up/down on the D-pad.
+- Incremental rescans and source-tab changes retain the complete library
+  as the initial shelf; disc-selection retains its disc-specific priority.
+- Added C++ regression checks for startup, partial rescans, no recents and
+  the multi-disc selection dialog.
+- No changes to GPU cover rendering, local artwork cache, ROM discovery,
+  BIOS, save files or controller controls.
+
+PS5 install ZIP: `PPSA99765.zip`; Title ID: `PPSA99765`.

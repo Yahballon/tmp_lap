@@ -2,7 +2,7 @@
 
 **Native Dreamcast emulation on PS5 with white DVD-style CoverFlow cases, angled neighbours and subtle reflections.**
 
-Version **0.1.8** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.1.9** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -24,7 +24,7 @@ then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the build workflow uploads the verified
 `PPSA99765.zip` as an artifact. The independent release publisher uploads
-it to the `ps5-dreamcastx-v0.1.8` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
+it to the `ps5-dreamcastx-v0.1.9` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
 Run locally from the app directory (requires clang 18, CMake/Ninja, PS5 stack):
@@ -169,3 +169,14 @@ USB folders are scanned recursively from the top-level `PS5DreamcastX` directory
 ### v0.1.8 — Cover cache on internal SSD
 
 The original downloaded artwork stays in `/data/PS5DreamcastX/covers/`. This update stores already-decoded 640px thumbnails in `/data/PS5DreamcastX/cache/covers/`; after a restart, those thumbnails load without repeatedly decoding PNG/JPEG files. The cache checks each original file's size and modification date and automatically refreshes after a cover changes. Downloaded covers take priority over TheGamesDB metadata lookups; repeated failed metadata requests now back off for 15 minutes instead of 10 seconds. Initial artwork downloads still require a working network source. Games, BIOS and saves remain unchanged.
+
+### v0.1.9: Show every detected game immediately
+
+The PS5 log already reported all five available games, but the default
+Dreamcast shelf was **Recently played** (2/2), not **All games** (5/5).
+The console now starts each source tab on the complete **All games** shelf
+and keeps **Recently played** and **Favourites** available with up/down.
+New games appear on the selected shelf during the incremental USB scan.
+The disc-selection popup retains its existing preferred disc-set shelf.
+This fixes library selection, **not** the unrelated temporary TheGamesDB
+HTTP 503 metadata warning. No games, covers or save data are changed.
