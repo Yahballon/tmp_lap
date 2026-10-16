@@ -93,7 +93,7 @@ def generate():
     main = source / "main_shelf.cpp"
     replace_required(main, 'PS5SNES', TITLE)
     replace_required(main, 'PPSA99205', TITLE_ID)
-    replace_required(main, '#include <cerrno>', '#include <cerrno>\\n#include <dirent.h>')
+    replace_required(main, '#include <cerrno>', '#include <cerrno>' + chr(10) + '#include <dirent.h>')
     replace_required(main, '"/SNES"', '"/NES"')
     # Share ONLY the ROM library with PS5NES. Keep saves, cover cache,
     # HD packs and logs in /data/PS5MesenX to avoid clobbering other apps.
@@ -167,6 +167,7 @@ def generate():
     assert '"/data/homebrew/PPSA99896/roms"' in compiled_main
     assert '"/data/PS5NES/games"' in compiled_main
     assert "[romscan]" in compiled_main
+    assert '#include <cerrno>' + chr(10) + '#include <dirent.h>' in compiled_main
     assert 'extension!=".zip"&&extension!=".nes"' in cache.read_text()
     assert 'PS5MXN01\\0' in cache.read_text()
     print("Prepared PS5MesenX source under", OUTPUT)
