@@ -121,7 +121,7 @@ std::string codec_hint(const std::string& filename){
  if(stat(path.c_str(),&info)!=0)return "file missing";
  FILE* f=fopen(path.c_str(),"rb");
  if(!f)return "file unreadable";
- std::string header(512*1024,\x00);
+ std::string header(512*1024,'\0');
  const size_t n=fread(header.data(),1,header.size(),f);fclose(f);
  header.resize(n);
  std::string codec="unknown";
