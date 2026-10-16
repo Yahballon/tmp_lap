@@ -31,6 +31,7 @@ private:
  mutable std::mutex mutex_;
  std::vector<int> ready_;
  std::vector<bool> preview_requested_;
+ std::vector<bool> installed_cache_;
  std::atomic<bool> downloading_{false};
  std::atomic<bool> preview_busy_{false};
  std::atomic<int> percent_{0};
