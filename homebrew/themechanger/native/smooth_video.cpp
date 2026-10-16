@@ -105,7 +105,7 @@ int reference_frames(const std::string& path){
    const unsigned atom=(unsigned(buf[i-4])<<24)|(unsigned(buf[i-3])<<16)|
                        (unsigned(buf[i-2])<<8)|buf[i-1];
    if(atom<23||atom>4096||i+atom-4>count||buf[i+4]!=1)continue;
-   size_t j=i+13;
+   size_t j=i+9;
    const unsigned count_sps=buf[j++]&31;
    if(count_sps==0||count_sps>8)continue;
    if(j+2>=count)continue;
@@ -141,7 +141,7 @@ bool convert(const std::string& filename,std::atomic<int>& progress,std::string&
  AVFrame *raw=nullptr,*scaled=nullptr;
  AVPacket* packet=nullptr;
  SwsContext* sws=nullptr;
- bool success=false,header=false;
+ bool success=false;
  int ret=0;
  do{
   ret=avformat_open_input(&input,filename.c_str(),nullptr,nullptr);
@@ -198,7 +198,6 @@ bool convert(const std::string& filename,std::atomic<int>& progress,std::string&
   if(ret<0){error="Cannot write optimized video: "+ff_error(ret);break;}
   ret=avformat_write_header(dst,nullptr);
   if(ret<0){error="Cannot write MP4 header: "+ff_error(ret);break;}
-  header=true;
   raw=av_frame_alloc();scaled=av_frame_alloc();packet=av_packet_alloc();
   if(!raw||!scaled||!packet){error="Video optimization out of memory";break;}
   scaled->format=enc->pix_fmt;scaled->width=enc->width;scaled->height=enc->height;
@@ -260,7 +259,6 @@ bool convert(const std::string& filename,std::atomic<int>& progress,std::string&
   if(ret<0||!drain_encoder()){if(error.empty())error="Failed finalizing video encoder";break;}
   ret=av_write_trailer(dst);
   if(ret<0){error="Failed finalizing MP4: "+ff_error(ret);break;}
-  header=false;
   avio_closep(&dst->pb);
   struct stat st{};
   if(stat(output.c_str(),&st)!=0||st.st_size<2048){
