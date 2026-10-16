@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
+#include <vector>
+#include <unordered_set>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -64,44 +66,75 @@ inline bool durable_copy(const std::string& source,const std::string& dst){
  }
  return true;
 }
+
+inline constexpr const char* kIndex="/data/ThemeChanger/wallpapers.index";
+inline std::vector<std::string> saved_names(){
+ std::vector<std::string> names;
+ FILE* f=fopen(kIndex,"rb");if(!f)return names;
+ char line[160];
+ std::unordered_set<std::string> seen;
+ while(fgets(line,sizeof(line),f) && names.size()<25000){
+  const size_t len=strlen(line);
+  if(!len)continue;
+  if(line[len-1]!='\n'){
+   int c;while((c=fgetc(f))!=EOF&&c!='\n'){}
+   continue;
+  }
+  line[len-1]='\0';
+  const std::string name(line);
+  if(filename_ok(name)&&seen.insert(name).second)names.push_back(name);
+ }
+ fclose(f);return names;
+}
+inline bool remember(const std::string& name){
+ if(!filename_ok(name))return false;
+ // Avoid growing the index after reselecting an existing background.
+ const auto names=saved_names();
+ for(const auto& n:names)if(n==name)return true;
+ FILE* f=fopen(kIndex,"ab");if(!f)return false;
+ bool ok=fwrite(name.data(),1,name.size(),f)==name.size();
+ ok=ok&&fputc('\n',f)!=EOF;
+ if(fflush(f)!=0||fsync(fileno(f))!=0)ok=false;
+ if(fclose(f)!=0)ok=false;
+ return ok;
+}
 inline bool preserve(const std::string& name,bool replace_existing=false){
  if(!filename_ok(name)||!folders())return false;
  const std::string dst=std::string(kArchive)+"/"+name;
- // Overwrite the backup only after a completed, validated re-encode.
- if(!replace_existing&&valid_file(dst))return true;
- return durable_copy(std::string(kLive)+"/"+name,dst);
+ if((!replace_existing&&valid_file(dst)) ||
+    durable_copy(std::string(kLive)+"/"+name,dst)){
+   // Keep an explicit filename index; PS5 native opendir/readdir may not work.
+   return remember(name);
+ }
+ return false;
 }
-inline Report recover(){
+inline Report recover(const std::vector<std::string>& catalogueNames={}){
  Report r{};
  if(!folders()){r.errors++;return r;}
- // First, recover backups into LiveShell for its scanner. This must run
- // BEFORE Catalog::load and LiveShell is started/handover is attempted.
- if(DIR* d=opendir(kArchive)){
-  while(auto* e=readdir(d)){
-   std::string name=e->d_name;
-   if(!filename_ok(name))continue;
-   const std::string original=std::string(kArchive)+"/"+name;
-   if(!valid_file(original))continue;
-   r.backups++;
-   if(valid_file(std::string(kLive)+"/"+name))continue;
-   if(durable_copy(original,std::string(kLive)+"/"+name))r.restored++;
+ auto names=saved_names();
+ std::unordered_set<std::string> visited(names.begin(),names.end());
+ for(const auto& name:catalogueNames)
+  if(filename_ok(name)&&visited.insert(name).second)names.push_back(name);
+ // Stat filenames by their full path, never rely on broken dirent emulation.
+ for(const auto& name:names){
+  const std::string live=std::string(kLive)+"/"+name;
+  const std::string backup=std::string(kArchive)+"/"+name;
+  const bool hasLive=valid_file(live);
+  const bool hasBackup=valid_file(backup);
+  if(hasBackup)r.backups++;
+  if(hasLive)r.live++;
+  if(hasBackup&&!hasLive){
+   if(durable_copy(backup,live))r.restored++;
    else r.errors++;
+  }else if(hasLive&&!hasBackup){
+   if(durable_copy(live,backup)){
+    r.archived++;r.backups++;
+    if(!remember(name))r.errors++;
+   }else r.errors++;
+  }else if(hasLive&&hasBackup){
+   if(!remember(name))r.errors++;
   }
-  closedir(d);
- }else r.errors++;
- // Migrate videos downloaded with ThemeChanger <= v0.3.9 into archive.
- if(DIR* d=opendir(kLive)){
-  while(auto* e=readdir(d)){
-   std::string name=e->d_name;
-   if(!filename_ok(name)||!valid_file(std::string(kLive)+"/"+name))continue;
-   r.live++;
-   const std::string backup=std::string(kArchive)+"/"+name;
-   if(valid_file(backup))continue;
-   if(durable_copy(std::string(kLive)+"/"+name,backup)){r.archived++;r.backups++;}
-   else r.errors++;
-  }
-  closedir(d);
- }else r.errors++;
+ }
  return r;
 }
 } // namespace wallpaper_storage

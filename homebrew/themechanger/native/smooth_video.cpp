@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
+#include <memory>
 #include <sys/stat.h>
 #include <unistd.h>
 extern "C" {
@@ -93,7 +94,11 @@ int reference_frames(const std::string& path){
  FILE* f=fopen(path.c_str(),"rb");
  if(!f)return -1;
  // MP4 avcC may appear after mdat. Scan in fixed memory.
- unsigned char buf[65536+48]{};
+ // Native homebrew worker threads may have much smaller stacks than Linux CI.
+ // The old 65 KB stack buffer could overflow before VIDEO_OPTIMIZE_START.
+ auto backing=std::make_unique<unsigned char[]>(65536+48);
+ unsigned char* buf=backing.get();
+ std::memset(buf,0,65536+48);
  size_t carry=0;
  int refs=-1;
  while(true){

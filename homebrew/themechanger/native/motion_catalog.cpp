@@ -5,7 +5,6 @@
 #include "liveshell_client.hpp"
 #include "theme_log.hpp"
 #include "wallpaper_storage.hpp"
-#include "smooth_video.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -153,20 +152,29 @@ bool Catalog::load(const std::string& assets){
  records_=std::move(next);
  preview_requested_.assign(records_.size(),false);
  installed_cache_.assign(records_.size(),false);
- std::unordered_set<std::string> downloaded;
- if(DIR* dir=opendir("/data/LiveShell/video")){
-   while(dirent* de=readdir(dir))downloaded.insert(de->d_name);
-   closedir(dir);
- }
- for(size_t i=0;i<records_.size();i++){
-   const std::string name="MotionBGS-"+records_[i].slug+".mp4";
-   // Only hit the disk for files actually found in the directory.
-   if(downloaded.count(name))installed_cache_[i]=is_mp4(wallpaper_path((int)i));
- }
+ // On PS5 the directory iterator may report no entries even for readable
+ // MP4s. Use explicit paths for every catalog entry instead.
+ rescan_installed();
  if(records_.empty()){report("Online catalog empty. Check MotionBGS availability.");return false;}
  report("MotionBGS: "+std::to_string(records_.size())+" indexed (download on demand)");
  tc::log("CATALOG_LOADED",std::to_string(records_.size()).c_str());
  return true;
+}
+int Catalog::rescan_installed(){
+ int found=0;
+ std::vector<bool> installed(records_.size(),false);
+ for(size_t i=0;i<records_.size();i++){
+  const std::string path=wallpaper_path((int)i);
+  if(wallpaper_storage::valid_file(path)){
+   installed[i]=true;
+   found++;
+  }
+ }
+ {
+  std::lock_guard<std::mutex> guard(mutex_);
+  installed_cache_.swap(installed);
+ }
+ return found;
 }
 std::string Catalog::wallpaper_path(int i)const{
  if(i<0||i>=(int)records_.size())return {};
@@ -193,8 +201,20 @@ bool Catalog::start(int i,bool preview){
   preview_requested_[(size_t)i]=true;
  }else{percent_=0;report("Connecting to MotionBGS...");tc::log("DOWNLOAD_REQUEST",records_[(size_t)i].slug.c_str());}
  auto* w=new Worker{this,i,preview};pthread_t thread{};
- if(pthread_create(&thread,nullptr,Catalog::run,w)!=0){
-  delete w;active=false;report("Unable to start network thread");return false;
+ pthread_attr_t attrs{};
+ int rc=pthread_attr_init(&attrs);
+ if(rc!=0){
+  tc::log("THREAD_ATTR_ERROR",std::to_string(rc).c_str());
+  delete w;active=false;report("Unable to initialize worker");return false;
+ }
+ // Decoding/transcoding + TLS on a default PS5 pthread can overflow its
+ // limited stack and terminate the whole app after download.
+ rc=pthread_attr_setstacksize(&attrs,2*1024*1024);
+ if(rc==0)rc=pthread_create(&thread,&attrs,Catalog::run,w);
+ pthread_attr_destroy(&attrs);
+ if(rc!=0){
+  tc::log("THREAD_STACK_ERROR",std::to_string(rc).c_str());
+  delete w;active=false;report("Unable to start safe download worker");return false;
  }
  pthread_detach(thread);return true;
 }
@@ -238,24 +258,16 @@ void* Catalog::run(void* p){
   if(resolve(item,url,preview,err)){
     tc::log("MP4_URL_RESOLVED",(item.slug+" "+url).c_str());
     ok=fetch_file(url,path,self.percent_,err);
+    if(ok)tc::log("VIDEO_TRANSFER_DONE",item.slug.c_str());
+    else tc::log("VIDEO_TRANSFER_FAILED",(item.slug+" "+err).c_str());
   }
   if(ok&&!is_mp4(path)){unlink(path.c_str());ok=false;err="Server did not send a valid MP4";}
  }
- bool optimized=false;
- if(ok&&smooth_video::needs_conversion(path)){
-  self.report("Optimizing "+item.title+" for smooth PS5 playback...");
-  tc::log("VIDEO_OPTIMIZE_START",(item.slug+" (8+ reference frames)").c_str());
-  self.percent_=0;
-  if(smooth_video::convert(path,self.percent_,err)){
-    optimized=true;
-    tc::log("VIDEO_OPTIMIZE_DONE",(item.slug+" compatible H264 stream").c_str());
-  }
-  else{
-    tc::log("VIDEO_OPTIMIZE_FAILED",(item.slug+" "+err).c_str());
-    self.report("Video conversion failed: "+err);
-    ok=false;
-  }
- }
+ // Keep the verified v0.3.9 download path: no native FFmpeg work in
+ // the download worker. PS5 frame conversion caused immediate exits in
+ // v0.3.10; it remains experimental and must be separately validated.
+ const bool optimized=false;
+ if(ok)tc::log("VIDEO_NATIVE_CONVERSION_DISABLED","Safe download mode");
  if(ok){
   {std::lock_guard<std::mutex> lock(self.mutex_);
    self.installed_cache_[(size_t)job.index]=true;
