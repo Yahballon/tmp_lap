@@ -47,6 +47,8 @@ jobs:
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/themechanger/native/* app/src/
+          # Keep experimental native FFmpeg outside the tested PS5 binary.
+          rm -f app/src/smooth_video.cpp
           curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
           mkdir -p app/assets/motionbgs
           cp homebrew/themechanger/generated/motionbgs/catalog.tsv app/assets/motionbgs/catalog.tsv
@@ -116,18 +118,20 @@ jobs:
             homebrew/themechanger/tests/test_wallpaper_storage.cpp -o /tmp/themechanger-storage-test
           sudo install -d -m 0777 /data/ThemeChanger /data/LiveShell
           /tmp/themechanger-storage-test
-      - name: Verify FFmpeg H264 native converter on host
-        timeout-minutes: 5
+      - name: Verify PS5 stable-download mode
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libx264-dev
-          g++ -std=c++20 -O2 -pthread -Ihomebrew/themechanger/native \
-            homebrew/themechanger/tests/test_native_smooth.cpp \
-            homebrew/themechanger/native/smooth_video.cpp \
-            app/src/motion_download.cpp \
-            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale x264 openssl) \
-            -o /tmp/themechanger-smooth-test
-          timeout 200s /tmp/themechanger-smooth-test
+          python3 - <<'PY'
+          from pathlib import Path
+          app=Path('homebrew/themechanger/native/main.cpp').read_text()
+          catalog=Path('homebrew/themechanger/native/motion_catalog.cpp').read_text()
+          store=Path('homebrew/themechanger/native/wallpaper_storage.hpp').read_text()
+          assert 'smooth_video::' not in app
+          assert 'smooth_video::' not in catalog
+          assert 'VIDEO_NATIVE_CONVERSION_DISABLED' in catalog
+          assert 'pthread_attr_setstacksize' in catalog
+          assert 'opendir(kArchive)' not in store
+          assert 'saved_names()' in store and 'recover(' in store
+          PY
       - name: Prepare PS5 graphics SDK
         working-directory: app
         env:
@@ -191,7 +195,7 @@ jobs:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
-        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='openssl libavformat libavcodec libswscale libavutil x264' APP_ROOT_FILES=liveshell.elf app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=openssl APP_ROOT_FILES=liveshell.elf app
       - name: Verify installer and assets
         run: |
           python3 - <<'PY'
@@ -222,7 +226,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.10-PPSA99891
+          name: ThemeChanger-v0.3.11-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -230,5 +234,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.10 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.10 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.10" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.11 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.11 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.11" --notes-file homebrew/themechanger/RELEASE_NOTES.md
