@@ -101,3 +101,11 @@ If this still doesn't work, send `/data/ThemeChanger/themechanger.log`, `/data/L
 - Retains ThemeChanger's integrated LiveShell 0.3.6 engine, so the verified PS5 background switching is unchanged.
 
 Data provenance: MotionBGS public sitemap, metadata and tag listings. No MP4s or poster artwork are bundled in the release. Full list size follows the site's public sitemap at build time; invalid and mobile-only entries are excluded.
+
+## v0.3.8 – Only downloaded backgrounds
+
+The Backgrounds tab is now a personal downloaded-wallpaper library. All twelve original example wallpapers and their associated bundled MP4/PNG assets have been removed from the app UI and distribution ZIP.
+
+Any wallpaper downloaded through Online Wallpapers is immediately added to Backgrounds by a completion event, without restarting ThemeChanger or waiting for a timed disk scan. Wallpapers appear **newest first** and can be reapplied with **X**. The library is paginated in groups of twelve. If nothing is downloaded, switch to Online Wallpapers using **R1**.
+
+Existing MotionBGS downloads persist at `/data/LiveShell/video/MotionBGS-<slug>.mp4`. Old `ThemeChanger-*.mp4` sample clips from previous releases are not deleted from the console automatically, but are not part of this library.
