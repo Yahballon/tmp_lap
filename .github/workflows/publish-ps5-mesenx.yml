@@ -82,7 +82,7 @@ jobs:
               assert 'PPSA99896/lapy-manifest.json' in z.namelist()
               lapy=z.read('PPSA99896/lapy.elf')
               elev=json.loads(z.read('PPSA99896/lapy-manifest.json'))
-              assert lapy[:6]==b'\\x7fELF\\x02\\x01'
+              assert lapy[:6]==bytes((0x7f,0x45,0x4c,0x46,0x02,0x01))
               assert elev['target_title']=='PPSA99896' and elev['mode']=='elf-helper'
               assert elev['max_requests']==1
               assert hashlib.sha256(lapy).hexdigest()==elev['elf_sha256']

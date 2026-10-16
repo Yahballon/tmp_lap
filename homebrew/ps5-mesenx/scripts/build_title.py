@@ -142,7 +142,7 @@ def main():
         assert TITLE+"/lapy-manifest.json" in z.namelist()
         assert TITLE+"/licenses/Lapy-MIT.txt" in z.namelist()
         lapy=z.read(TITLE+"/lapy.elf")
-        assert lapy[:6]==b"\\x7fELF\\x02\\x01" and len(lapy)>4096
+        assert lapy[:6]==bytes((0x7f,0x45,0x4c,0x46,0x02,0x01)) and len(lapy)>4096
         helper=json.loads(z.read(TITLE+"/lapy-manifest.json"))
         assert helper["target_title"]==TITLE and helper["mode"]=="elf-helper"
         assert helper["max_requests"]==1 and helper["elf_sha256"]==hashlib.sha256(lapy).hexdigest()
