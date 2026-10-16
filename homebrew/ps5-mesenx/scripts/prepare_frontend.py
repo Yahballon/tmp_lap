@@ -86,6 +86,41 @@ def generate():
         'auto dirs=directories;std::string root;for(const auto& d:dirs)std::printf("[library] scan source: %s\\n",d.c_str());')
 
 
+    # Never let an old 0-game cache mask the library. Preserve live scan
+    # progress instead of reporting 0 / 0 after a cached-library rescan.
+    shelf_body = shelf.read_text()
+    cache_start = shelf_body.index('    const std::string cache=root.empty()?')
+    cache_end = shelf_body.index('    std::vector<GameInfo> games;for(const auto& game:listed)',cache_start)
+    shelf_body = (shelf_body[:cache_start] +
+        '''    // PS5MesenX: always rescan local NES folders on startup.
+    mesen_diag::write("SCAN_START folders=%zu", dirs.size());
+    for(const auto& d:dirs)mesen_diag::write("SCAN_FOLDER %s", d.c_str());
+    auto listed=snes::Scan(dirs);
+    mesen_diag::write("SCAN_COMPLETE games=%zu failed=%d",listed.size(),int(snes::ScanFailed()));
+''' + shelf_body[cache_end:])
+    shelf_body = shelf_body.replace('#include "scan_progress.h"',
+        '#include "scan_progress.h"\\n#include "rom_diagnostics.h"'.replace('\\n',chr(10)))
+    shelf.write_text(shelf_body)
+    # Real ROM results are also written to the log, without stdout redirection.
+    game_src=rom.read_text()
+    needle='auto dot=name.rfind(\\'.\\');games.push_back({path,name.substr(0,dot),bytes});'
+    assert needle in game_src
+    game_src=game_src.replace(needle, needle+
+        'mesen_diag::write("ROM_FOUND %s bytes=%llu",path.c_str(),(unsigned long long)bytes);')
+    game_src=game_src.replace('#include "games.h"',
+        '#include "games.h"\\n#include "rom_diagnostics.h"'.replace('\\n',chr(10)))
+    rom.write_text(game_src)
+    # Dedicated low-level logger opens its file on every write, so logs
+    # survive stdout/stderr redirection problems in PS5 libc.
+    shutil.copy2(ROOT / "vendor/rom_diagnostics.h", source / "rom_diagnostics.h")
+    loading = source / "loading.cpp"
+    loading_src=loading.read_text()
+    assert 'fonts.AddText(ui,"SNES",' in loading_src
+    assert 'v2 modded by YAHBALLON' in loading_src
+    loading_src=loading_src.replace('fonts.AddText(ui,"SNES",','fonts.AddText(ui,"MesenX",')
+    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.5 by YAHBALLON')
+    loading.write_text(loading_src)
+
     runtime = source / "shelf_runtime.cpp"
     replace_required(runtime, '''    core.SetOption("bsnes_region",get("SNES/Region","auto"));
     core.SetOption("bsnes_violate_accuracy","enabled");
@@ -157,6 +192,20 @@ def generate():
     }
     orbis_frontend_set_language(root+"/lang");''')
 
+    # Log initial elevation, active root and filesystem access even when
+    # stdout is unavailable. This is independent of the normal console logger.
+    replace_required(main, '#include <dirent.h>',
+                     '#include <dirent.h>' + chr(10) + '#include "rom_diagnostics.h"')
+    replace_required(main, '    sceNetInit();',
+                     '    mesen_diag::write("BOOT version=0.1.5 title=PPSA99896");' +
+                     chr(10) + '    sceNetInit();')
+    replace_required(main, '    std::string root="/data/PS5MesenX";',
+                     '    mesen_diag::write("ELEVATION filesystem=%u",unsigned(access));' +
+                     chr(10) + '    std::string root="/data/PS5MesenX";')
+    replace_required(main, '    int fd=open((root+"/logs/boot.log").c_str()',
+                     '    mesen_diag::write("ROOT %s",root.c_str());' +
+                     chr(10) + '    int fd=open((root+"/logs/boot.log").c_str()')
+
     # The SNES frontend cache paths and per-ROM NFS root must be independent.
     replace_required(shelf, 'PS5SNES', TITLE)
     for name in ("INSTALL.md",):
@@ -170,12 +219,16 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.005"
+    param["contentVersion"] = "01.000.006"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
             raise RuntimeError(f"Legacy SNES app or core identifier in {file}")
     assert "NES\\x1A" in rom.read_text()
+    assert 'v0.1.5 by YAHBALLON' in loading.read_text()
+    assert 'SCAN_COMPLETE' in shelf.read_text()
+    assert 'snes::ReportCached(' not in shelf.read_text()
+    assert 'mesen_diag::write("ROM_FOUND' in rom.read_text()
     # Fail the build early if the shared NES path is not actually wired.
     compiled_main=main.read_text()
     assert 'paths.games_dir="/data/PS5NES/games";' in compiled_main
