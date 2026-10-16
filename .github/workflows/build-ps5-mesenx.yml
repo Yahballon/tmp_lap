@@ -8,6 +8,7 @@ on:
       - 'homebrew/ps5-mesenx/scripts/bootstrap_native.sh'
       - 'homebrew/ps5-mesenx/scripts/compile_ps5_core.py'
       - 'homebrew/ps5-mesenx/scripts/prepare_frontend.py'
+      - 'homebrew/ps5-mesenx/scripts/patch_hd_async.py'
       - 'homebrew/ps5-mesenx/src/libretro_core_session.cpp'
       - 'homebrew/ps5-mesenx/src/libretro_core_session.h'
       - 'homebrew/ps5-mesenx/RELEASE_NOTES.md'
