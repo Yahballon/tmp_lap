@@ -178,9 +178,15 @@ int Catalog::discover_legacy(int budget){
   const int i=(int)discovery_cursor_++;
   if(installed(i))continue;
   const std::string path=wallpaper_path(i);
-  if(!wallpaper_storage::valid_file(path))continue;
-  // Existing v0.3.12 MP4s may not be present in the durable index.
   const std::string name="MotionBGS-"+records_[(size_t)i].slug+".mp4";
+  const std::string archive=std::string(wallpaper_storage::kArchive)+"/"+name;
+  if(!wallpaper_storage::valid_file(path)){
+    // Legacy v0.3.10/11 archives may predate the filename index.
+    if(!wallpaper_storage::valid_file(archive)||
+       !wallpaper_storage::durable_copy(archive,path))continue;
+    tc::log("LEGACY_ARCHIVE_RESTORED",name.c_str());
+  }
+  // Existing v0.3.12 MP4s may not be present in the durable index.
   if(wallpaper_storage::preserve(name)){
    std::lock_guard<std::mutex> lock(mutex_);
    installed_cache_[(size_t)i]=true;
