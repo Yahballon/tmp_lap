@@ -63,6 +63,28 @@ def adapt():
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
 
+    # Async thumbnail decoding: the PS5 UI must NEVER load/decode large
+    # cover files on its ImGui frame. Keep GPU uploads on the main thread.
+    gui_util=SOURCE/"core/ui/gui_util.cpp"
+    gu=gui_util.read_text()
+    begin='int ImguiFileTexture::textureLoadCount;'
+    assert gu.count(begin)==1, "Upstream ImguiFileTexture loader changed"
+    gu=gu.replace(begin,
+        '#include "dreamcastx_cover_async.inc"\n\n'+begin,1)
+    before='''\tImTextureID id = imguiDriver->getTexture(path);
+\tif (id == ImTextureID() && textureLoadCount < 10)'''
+    assert gu.count(before)==1, "Upstream sync image loader changed"
+    after='''#ifdef USE_PS5
+\tif (dreamcastx_cover_async::isCoverPath(path))
+\t\treturn dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount);
+#endif
+\tImTextureID id = imguiDriver->getTexture(path);
+\tif (id == ImTextureID() && textureLoadCount < 10)'''
+    gu=gu.replace(before,after,1)
+    gui_util.write_text(gu)
+    shutil.copy2(ROOT/"src/dreamcastx_cover_async.inc",
+                 SOURCE/"core/ui/dreamcastx_cover_async.inc")
+
     # Rename the physical ShadowMount folder, not the mandatory PPSA titleId.
     main=p/"ps5_main.cpp"
     m=main.read_text()
