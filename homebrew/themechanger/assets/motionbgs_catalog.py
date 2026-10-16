@@ -82,6 +82,20 @@ def page(item):
                 if urlparse(candidate).scheme=="https" and len(candidate)<420:
                     image=candidate
                 break
+        # Some item pages omit og:image. Read the real wallpaper <img> instead.
+        if not image:
+            for tag in re.findall(r'<(?:img|source)\\b[^>]*>',raw,re.I):
+                attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(
+                    r'([\\w-]+)\\s*=\\s*["\\']([^"\\']+)["\\']',tag))
+                for key in ("data-src","data-original","src","poster","srcset"):
+                    candidate=attrs.get(key,"").split(",")[0].split(" ")[0]
+                    if not candidate or candidate.startswith("data:"):continue
+                    full=urljoin(ORIGIN+"/",candidate)
+                    host=urlparse(full).hostname or ""
+                    if host=="motionbgs.com" or host.endswith(".motionbgs.com"):
+                        if re.search(r'\\.(?:jpg|jpeg|png)(?:\\?|$)',urlparse(full).path,re.I):
+                            image=full;break
+                if image:break
         return (slug,name[:90],category,f"{ORIGIN}/dl/hd/{fid}/",image)
     except Exception as e:
         print("Skip:",slug,type(e).__name__,str(e)[:100],flush=True)
@@ -118,6 +132,6 @@ def main():
         for values in records:
             f.write("\t".join(str(v).replace("\t"," ").replace("\n"," ") for v in values)+"\n")
     print("Live verified MotionBGS 1080p catalog:",len(records),"records",flush=True)
-    for r in records[:6]:print("  ",r[:4],flush=True)
+    for r in records[:8]:print("  ",r,flush=True)
 
 if __name__=="__main__":main()
