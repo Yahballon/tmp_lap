@@ -3,7 +3,7 @@
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 import json
-state=dict(enabled=True,mainvideo=False,gamepause=False,game="",
+state=dict(themechanger_engine="0.3.6",enabled=True,mainvideo=False,gamepause=False,game="",
            current="/data/LiveShell/video/ThemeChanger-baseball.mp4",status="stopped",
            videos=[
              dict(name="ThemeChanger-baseball.mp4",where="Internal",path="/data/LiveShell/video/ThemeChanger-baseball.mp4"),

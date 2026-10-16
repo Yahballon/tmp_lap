@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.5 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.6 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -182,7 +182,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.5",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.6",490,515,38);
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
@@ -221,7 +221,7 @@ int main(){
  std::array<unsigned,12> pictures{};
  const char* files[]={"baseball","anime","gaming","cyber-city","racing","space","samurai","retro-neon","mountains","forest","beach","snow"};
  for(int i=0;i<12;i++)pictures[i]=texture(renderer,asset+"/wallpapers/ThemeChanger-"+files[i]+".png");
- tc::log("BOOT","ThemeChanger v0.3.5 starting");
+ tc::log("BOOT","ThemeChanger v0.3.6 starting");
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
@@ -255,10 +255,12 @@ int main(){
  std::string activeFile=state.file;
  std::string shellStatus=state.shellStatus;
  std::string lastStateLog;
- tc::log("LIVESHELL_START",live?"API connected (ShellUI status recorded separately)":"Waiting for engine");
- if(live&&!state.mainVideoSupported)tc::log("ENGINE_LEGACY","Old LiveShell API active; restart PS5 and jailbreak to load bundled v1.1");
- std::string status=(live&&!state.mainVideoSupported)
-   ?"Old LiveShell running. Restart PS5 to load v1.1"
+ tc::log("LIVESHELL_START",(live?std::string("Engine revision=")+state.engineRevision+
+ " game="+state.game+" ShellUI="+state.shellStatus:"Waiting for bundled engine").c_str());
+ if(live&&state.engineRevision!="0.3.6")
+   tc::log("ENGINE_LEGACY","LiveShell without bundled fixes detected. Automatic handover requested");
+ std::string status=(live&&state.engineRevision!="0.3.6")
+   ?"Upgrading outdated LiveShell engine. Please wait..."
    :"Choose a background and press X to apply";
  unsigned previous=0,previousDirections=0;int repeats=0;
  constexpr unsigned arrows=hui::pad_bits::kUp|hui::pad_bits::kDown|
@@ -381,8 +383,9 @@ int main(){
         " mainvideo="+(state.mainVideo?"1":"0")+
         " gamepause="+(state.gamePause?"1":"0")+" game="+state.game;
       if(stateText!=lastStateLog){
-        tc::log("SHELLUI_MONITOR",stateText.c_str());
+        tc::log("SHELLUI_MONITOR",(stateText+" engine="+state.engineRevision).c_str());
         lastStateLog=stateText;
+        if(state.engineRevision=="0.3.6"&&engine::busy()==false&&status.find("Upgrading")!=std::string::npos)status="LiveShell engine updated. Select a wallpaper";
       }
       if(pendingApply>=0){int target=pendingApply;pendingApply=-1;
        if(theme::install_and_select(target,asset,status))active=target;}
