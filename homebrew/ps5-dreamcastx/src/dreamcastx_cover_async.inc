@@ -16,6 +16,11 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace dreamcastx_cover_async {
 enum class Status { Queued, Decoding, Ready, Failed };
@@ -25,6 +30,87 @@ struct Staged {
     int width = 0, height = 0;
     uint64_t serial = 0;
 };
+
+// Persistent 640px RGBA thumbnails. Originals stay in /data/PS5DreamcastX/covers.
+// The cache header checks the original file size + mtime before reuse.
+struct DiskHeader {
+    char magic[8];
+    uint32_t width=0,height=0;
+    uint64_t size=0;
+    int64_t modified=0;
+};
+static std::string diskDirectory() {
+#ifdef DREAMCASTX_COVER_CACHE_TEST
+    if(const char* test=std::getenv("DREAMCASTX_COVER_CACHE_DIR"))
+        return std::string(test)+"/";
+#endif
+    return "/data/PS5DreamcastX/cache/covers/";
+}
+static std::string diskName(const std::string& path) {
+    uint64_t hash=14695981039346656037ULL;
+    for(unsigned char c:path) {
+        hash^=c;
+        hash*=1099511628211ULL;
+    }
+    char name[32];
+    std::snprintf(name,sizeof(name),"%016llx.rgba",(unsigned long long)hash);
+    return diskDirectory()+name;
+}
+static bool originalStat(const std::string& path,DiskHeader& hdr) {
+    struct stat st{};
+    if(stat(path.c_str(),&st)!=0 || st.st_size<=0) return false;
+    std::memcpy(hdr.magic,"DCXRGBA1",8);
+    hdr.size=(uint64_t)st.st_size;
+    hdr.modified=(int64_t)st.st_mtime;
+    return true;
+}
+static bool loadDisk(const std::string& path,std::vector<u8>& rgba,int& w,int& h) {
+    DiskHeader original{};
+    if(!originalStat(path,original)) return false;
+    FILE* fp=std::fopen(diskName(path).c_str(),"rb");
+    if(!fp) return false;
+    DiskHeader hdr{};
+    bool ok=std::fread(&hdr,1,sizeof(hdr),fp)==sizeof(hdr)
+        && std::memcmp(hdr.magic,original.magic,8)==0
+        && hdr.size==original.size && hdr.modified==original.modified
+        && hdr.width>0 && hdr.height>0 && hdr.width<=640 && hdr.height<=640;
+    if(ok) {
+        const size_t bytes=(size_t)hdr.width*hdr.height*4;
+        rgba.resize(bytes);
+        ok=std::fread(rgba.data(),1,bytes,fp)==bytes && std::fgetc(fp)==EOF;
+    }
+    std::fclose(fp);
+    if(!ok) {
+        rgba.clear();
+        return false;
+    }
+    w=(int)hdr.width;
+    h=(int)hdr.height;
+    return true;
+}
+static void saveDisk(const std::string& path,const std::vector<u8>& rgba,int w,int h) {
+    if(w<=0||h<=0||w>640||h>640||rgba.size()!=(size_t)w*h*4) return;
+    DiskHeader hdr{};
+    if(!originalStat(path,hdr)) return;
+#ifndef DREAMCASTX_COVER_CACHE_TEST
+    mkdir("/data/PS5DreamcastX/cache",0777);
+    mkdir("/data/PS5DreamcastX/cache/covers",0777);
+#endif
+    hdr.width=(uint32_t)w;
+    hdr.height=(uint32_t)h;
+    const std::string dest=diskName(path),part=dest+".part";
+    FILE* fp=std::fopen(part.c_str(),"wb");
+    if(!fp) return;
+    const bool ok=std::fwrite(&hdr,1,sizeof(hdr),fp)==sizeof(hdr)
+        && std::fwrite(rgba.data(),1,rgba.size(),fp)==rgba.size();
+    const bool closed=std::fclose(fp)==0;
+    if(ok&&closed&&rename(part.c_str(),dest.c_str())==0) {
+        chmod(dest.c_str(),0666);
+        return;
+    }
+    unlink(part.c_str());
+}
+
 class Loader {
 public:
     // Returns cached GPU image immediately; otherwise queues a background
@@ -159,7 +245,8 @@ private:
             }
             int w=0,h=0;
             std::vector<u8> decoded;
-            u8* raw=loadImage(path,w,h);
+            const bool warm=loadDisk(path,decoded,w,h);
+            u8* raw=warm?nullptr:loadImage(path,w,h);
             if (raw!=nullptr) {
                 // Bound GPU/staging memory and drastically shorten uploads.
                 if (w>0 && h>0 && w<=8192 && h<=8192) {
@@ -188,6 +275,7 @@ private:
                     w=dw;h=dh;
                 }
                 free(raw);
+                if(!decoded.empty()) saveDisk(path,decoded,w,h);
             }
             {
                 std::lock_guard<std::mutex> lock(mu);
