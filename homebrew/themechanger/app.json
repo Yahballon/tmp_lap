@@ -1,13 +1,13 @@
 {
   "name": "ThemeChanger",
   "slug": "themechanger",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "titleId": "PPSA99891",
   "contentId": "UP9000-PPSA99891_00-THEMECHANGER0000",
-  "contentVersion": "01.000.009",
-  "releaseTag": "themechanger-v0.3.6",
+  "contentVersion": "01.000.010",
+  "releaseTag": "themechanger-v0.3.7",
   "engine": "Integrated LiveShell 0.3.6 engine identification with automatic upstream-supported handover from stale daemon",
   "ui": "blackbearreloaded/ps5-homebrew-ui",
   "dataFolder": "/data/ThemeChanger",
-  "online": "MotionBGS HD MP4 browser, TLS download, progress + LiveShell apply"
+  "online": "Complete MotionBGS sitemap catalog (9K+), local title/tag search, on-demand HD MP4/JPEG retrieval, 72-image GPU cache"
 }

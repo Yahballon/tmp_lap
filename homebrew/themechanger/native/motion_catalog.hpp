@@ -6,7 +6,7 @@
 #include <vector>
 namespace motion {
 struct Entry {
- std::string slug,title,category,url,preview;
+ std::string slug,title,category,url,preview,tags;
 };
 class Catalog {
 public:
