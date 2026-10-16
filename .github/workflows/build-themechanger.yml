@@ -84,6 +84,19 @@ jobs:
           )
           test -n "$preview"
           timeout 65s /tmp/themechanger-native-http-test "$preview"
+      - name: Test LiveShell API response and playback selection
+        timeout-minutes: 2
+        run: |
+          g++ -std=c++20 -O2 -pthread -Ihomebrew/themechanger/native \
+            homebrew/themechanger/tests/mock_liveshell.cpp \
+            homebrew/themechanger/native/liveshell_client.cpp \
+            homebrew/themechanger/native/theme_log.cpp \
+            -o /tmp/themechanger-live-api-test
+          python3 homebrew/themechanger/tests/mock_liveshell.py >/tmp/themechanger-mock.log 2>&1 &
+          mock_pid=$!
+          trap 'kill "$mock_pid" 2>/dev/null || true' EXIT
+          sleep 1
+          /tmp/themechanger-live-api-test
       - name: Bundle verified upstream LiveShell v1.1 payload
         run: |
           curl --fail --location --retry 3 --silent --show-error \
