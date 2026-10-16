@@ -22,7 +22,7 @@ static void run(unsigned w,unsigned h,bool expect){
  avc1[26]=(unsigned char)(h>>8);avc1[27]=(unsigned char)h;
  box(bytes,"avc1",avc1);
  const size_t avcC=bytes.size();
- const std::vector<unsigned char> record={1,100,0,50,255,225,0,4,0x67,100,0,50,0};
+ const std::vector<unsigned char> record={1,100,0,50,255,225,0,4,0x67,100,0,50,1,0,2,0x68,0};
  box(bytes,"avcC",record);
  box(bytes,"free",std::vector<unsigned char>(512,0));
  const std::string name="/tmp/test-themechanger-compat.mp4";
