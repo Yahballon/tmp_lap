@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.6 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.7 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -16,6 +16,10 @@
 #include <algorithm>
 #include <cstdio>
 #include <vector>
+#include <unordered_map>
+#include <deque>
+#include <cctype>
+#include <GL/glcorearb.h>
 #include <sys/stat.h>
 #include <string>
 using namespace hui::gfx;
@@ -41,10 +45,61 @@ void symbol(DrawList& d,float x,float y,float size=58){
  d.chamfer_rect({x+size*.18f,y+size*.19f,size*.64f,size*.62f},size*.15f,Color::rgb(0x071931),0,{});
  d.rounded_rect({x+size*.48f,y+size*.4f,size*.47f,size*.14f},2,Color::rgb(0x00b9ff));
 }
+std::string lower(std::string s){
+ for(char& c:s)c=(char)std::tolower((unsigned char)c);
+ return s;
+}
+constexpr const char* kKeyChars="1234567890qwertyuiopasdfghjklzxcvbnm -";
+enum class Overlay {none,search,tags};
+void modal(DrawList& d,const Font& font,unsigned atlas,Overlay overlay,
+           const std::string& query,const std::string& tag,
+           const std::vector<std::pair<std::string,int>>& tags,
+           int key,int tagFocus){
+ if(overlay==Overlay::none)return;
+ d.rounded_rect({371,402,1538,583},18,Color::rgb(0x010916,.98f));
+ d.bordered_rect({385,412,1513,565},16,Color::rgb(0x07162b),
+                 2.5f,Color::rgb(0x1baaff));
+ if(overlay==Overlay::search){
+   txt(d,font,atlas,"SEARCH WALLPAPERS",445,465,35);
+   panel(d,{445,489,1352,65},9,Color::rgb(0x020c1e),Color::rgb(0x148bea));
+   txt(d,font,atlas,query.empty()?"Type to search all indexed wallpapers...":query,
+       468,532,27,query.empty()?muted:white);
+   const std::string caps=kKeyChars;
+   for(int n=0;n<(int)caps.size();n++){
+     const int col=n%10,row=n/10;
+     const float x=447+col*135.f,y=581+row*89.f;
+     panel(d,{x,y,122,70},9,Color::rgb(n==key?0x0758be:0x0b2444),
+           Color::rgb(n==key?0x52cfff:0x294f7d));
+     txt(d,font,atlas,caps[n]==' '?"SPACE":std::string(1,caps[n]),x+61,y+46,
+         caps[n]==' '?17:31,white,Align::center);
+   }
+   txt(d,font,atlas,"X: TYPE     SQUARE: DELETE     R2: CLEAR     TRIANGLE: DONE     O: CLOSE",
+       457,953,21,muted);
+ }else{
+   txt(d,font,atlas,"MOTIONBGS TAGS",446,468,35);
+   txt(d,font,atlas,"Selected: "+(tag.empty()?"ALL TAGS":tag)+
+       "     L2/R2: PAGE     SQUARE: CLEAR     X: SELECT",447,507,21,muted);
+   const int start=(tagFocus/18)*18;
+   for(int n=start;n<(int)tags.size()&&n<start+18;n++){
+     const int slot=n-start,col=slot%3,row=slot/3;
+     const float x=444+col*460.f,y=530+row*64.f;
+     panel(d,{x,y,444,55},8,Color::rgb(n==tagFocus?0x0a66ba:0x0a2345),
+           Color::rgb(n==tagFocus?0x50ccff:0x2b4b70));
+     std::string label=tags[(size_t)n].first;
+     if(label.size()>23)label=label.substr(0,21)+"...";
+     txt(d,font,atlas,label,x+13,y+34,22);
+     txt(d,font,atlas,std::to_string(tags[(size_t)n].second),x+420,y+34,19,muted,Align::right);
+   }
+   txt(d,font,atlas,"Tag "+std::to_string(tags.empty()?0:tagFocus+1)+
+     " / "+std::to_string(tags.size()),1770,957,20,muted,Align::right);
+ }
+}
 void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pics,int selected,int active,int page,int opt,const std::string& status,bool live,bool loading,bool sidebar,const motion::Catalog& catalog,
           const std::vector<int>& filtered,const std::vector<unsigned>& thumbnails,
           int onlineSelected,int onlinePage,int filterIndex,int sideRow,
-          const std::vector<int>& installedIds,const std::string& activeFile,const std::string& shellStatus){
+          const std::vector<int>& installedIds,const std::string& activeFile,const std::string& shellStatus,
+          Overlay overlay,const std::string& search,const std::string& tag,
+          const std::vector<std::pair<std::string,int>>& tags,int key,int tagFocus){
  // All positions are in 1920x1080 virtual pixels, derived from the reference's 1671x941 grid.
  // The third row ends at y=985; the footer begins at y=994 (no clipping).
  d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020a16),Color::rgb(0x010615));
@@ -146,12 +201,16 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
    if(focus)d.bordered_rect({x-2,y-2,w+4,h+4},10,Color::rgb(0x000000,0),3,Color::rgb(0x04a7ff));
   }
  }else if(page==3){
-  const char* categories[]={"All","Featured","Anime","Games","Nature","Cars","Space","Technology","Fantasy"};
+  const char* categories[]={"All","Featured","Anime","Games","Nature","Cars","Space","Technology","Fantasy","Superhero","TV & Movie","Horror","Animal","Japan","Football","Other"};
   txt(d,f,a,"MotionBGS Online Wallpapers",398,435,30);
-  txt(d,f,a,"L2/R2: "+std::string(categories[std::clamp(filterIndex,0,8)])+"   TRIANGLE: next page   X: download / install",
-      1880,432,18,muted,Align::right);
+  txt(d,f,a,std::to_string(filtered.size())+" results | Page "+std::to_string(onlinePage+1)+
+      "/"+std::to_string(std::max(1,(int)((filtered.size()+11)/12)))+
+      " | "+categories[std::clamp(filterIndex,0,15)],1880,431,19,muted,Align::right);
+  txt(d,f,a,"TRIANGLE Search: "+(search.empty()?std::string("All"):search.substr(0,20))+
+      "   OPTIONS Tags: "+(tag.empty()?std::string("All"):tag.substr(0,16))+
+      "   SQUARE Previous page",402,1006,18,muted);
   const int begin=onlinePage*12;
-  if(filtered.empty())txt(d,f,a,"Online catalog unavailable",1102,644,36,white,Align::center);
+  if(filtered.empty())txt(d,f,a,"No matching wallpapers. Try another search or tag.",1102,644,29,white,Align::center);
   for(int pos=0;pos<12&&begin+pos<(int)filtered.size();pos++){
    int idx=filtered[(size_t)(begin+pos)];
    const auto& item=catalog.entries()[(size_t)idx];
@@ -182,7 +241,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.6",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.7",490,515,38);
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
@@ -206,6 +265,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  txt(d,f,a,"L1/R1: Backgrounds / Online    Square: Retry Engine",403,1045,19,muted);
  txt(d,f,a,loading?"LiveShell starting...":live?("LiveShell API | ShellUI: "+(shellStatus.empty()?std::string("no status"):shellStatus.substr(0,38))):"LiveShell offline",1856,1028,18,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
  txt(d,f,a,(page==3?catalog.status():status).substr(0,99),1856,1057,17,muted,Align::right);
+ modal(d,f,a,overlay,search,tag,tags,key,tagFocus);
 }
 }
 int main(){
@@ -221,7 +281,7 @@ int main(){
  std::array<unsigned,12> pictures{};
  const char* files[]={"baseball","anime","gaming","cyber-city","racing","space","samurai","retro-neon","mountains","forest","beach","snow"};
  for(int i=0;i<12;i++)pictures[i]=texture(renderer,asset+"/wallpapers/ThemeChanger-"+files[i]+".png");
- tc::log("BOOT","ThemeChanger v0.3.6 starting");
+ tc::log("BOOT","ThemeChanger v0.3.7 starting");
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
@@ -235,12 +295,38 @@ int main(){
  tc::log("WALLPAPERS_FOUND",std::to_string(installedIds.size()).c_str());
  std::vector<int> filtered;
  int filterIndex=0, onlineSelected=0, onlinePage=0,sideRow=0;
- const char* categoryKeys[]={"","Featured","Anime","Games","Nature","Cars","Space","Technology","Fantasy"};
+ const char* categoryKeys[]={"","Featured","Anime","Games","Nature","Cars","Space",
+ "Technology","Fantasy","Superhero","TV & Movie","Horror","Animal","Japan","Football","Other"};
+ std::unordered_map<std::string,int> tagFrequency;
+ for(const auto& entry:online.entries()){
+   size_t begin=0;
+   while(begin<entry.tags.size()){
+     size_t end=entry.tags.find(',',begin);
+     const std::string value=entry.tags.substr(begin,end==std::string::npos?std::string::npos:end-begin);
+     if(!value.empty())tagFrequency[value]++;
+     if(end==std::string::npos)break;
+     begin=end+1;
+   }
+ }
+ std::vector<std::pair<std::string,int>> availableTags(tagFrequency.begin(),tagFrequency.end());
+ std::sort(availableTags.begin(),availableTags.end(),[](const auto& a,const auto& b){
+   if(a.second!=b.second)return a.second>b.second;
+   return a.first<b.first;
+ });
+ Overlay overlay=Overlay::none;
+ std::string searchText,selectedTag;
+ int keyboardKey=0,tagFocus=0;
  auto rebuildFilter=[&](){
    filtered.clear();
-   for(int i=0;i<(int)online.entries().size();i++)
-     if(filterIndex==0||online.entries()[(size_t)i].category==categoryKeys[filterIndex])
-       filtered.push_back(i);
+   const std::string term=lower(searchText),wanted=lower(selectedTag);
+   for(int i=0;i<(int)online.entries().size();i++){
+     const auto& entry=online.entries()[(size_t)i];
+     if(filterIndex!=0&&entry.category!=categoryKeys[filterIndex])continue;
+     const std::string tags=lower(entry.tags);
+     if(!wanted.empty()&&(","+tags+",").find(","+wanted+",")==std::string::npos)continue;
+     if(!term.empty()&&lower(entry.title+" "+entry.slug+" "+tags+" "+entry.category).find(term)==std::string::npos)continue;
+     filtered.push_back(i);
+   }
    onlineSelected=0;onlinePage=0;
  };
  rebuildFilter();
@@ -290,21 +376,53 @@ int main(){
    }else repeats=0;
    previousDirections=directions;
    previous=held;
+   if(overlay!=Overlay::none){
+     if(overlay==Overlay::search){
+       const int total=(int)std::string(kKeyChars).size();
+       if(pressed&hui::pad_bits::kLeft)keyboardKey=std::max(0,keyboardKey-1);
+       if(pressed&hui::pad_bits::kRight)keyboardKey=std::min(total-1,keyboardKey+1);
+       if(pressed&hui::pad_bits::kUp)keyboardKey=std::max(0,keyboardKey-10);
+       if(pressed&hui::pad_bits::kDown)keyboardKey=std::min(total-1,keyboardKey+10);
+       if(pressed&hui::pad_bits::kCross && searchText.size()<48){
+         searchText+=kKeyChars[keyboardKey];rebuildFilter();
+       }
+       if((pressed&hui::pad_bits::kSquare)&&!searchText.empty()){searchText.pop_back();rebuildFilter();}
+       if(pressed&hui::pad_bits::kR2){searchText.clear();rebuildFilter();}
+       if(pressed&(hui::pad_bits::kTriangle|hui::pad_bits::kCircle))overlay=Overlay::none;
+     }else{
+       if(!availableTags.empty()){
+         if(pressed&hui::pad_bits::kLeft)tagFocus=std::max(0,tagFocus-1);
+         if(pressed&hui::pad_bits::kRight)tagFocus=std::min((int)availableTags.size()-1,tagFocus+1);
+         if(pressed&hui::pad_bits::kUp)tagFocus=std::max(0,tagFocus-3);
+         if(pressed&hui::pad_bits::kDown)tagFocus=std::min((int)availableTags.size()-1,tagFocus+3);
+         if(pressed&hui::pad_bits::kL2)tagFocus=std::max(0,tagFocus-18);
+         if(pressed&hui::pad_bits::kR2)tagFocus=std::min((int)availableTags.size()-1,tagFocus+18);
+         if(pressed&hui::pad_bits::kCross){
+           selectedTag=availableTags[(size_t)tagFocus].first;rebuildFilter();overlay=Overlay::none;
+         }
+       }
+       if(pressed&hui::pad_bits::kSquare){selectedTag.clear();rebuildFilter();overlay=Overlay::none;}
+       if(pressed&(hui::pad_bits::kCircle|hui::pad_bits::kOptions))overlay=Overlay::none;
+     }
+   }else{
+   if(page==3&&(pressed&hui::pad_bits::kTriangle)){overlay=Overlay::search;keyboardKey=0;}
+   else if(page==3&&(pressed&hui::pad_bits::kOptions)){overlay=Overlay::tags;tagFocus=0;}
+   else {
    if(pressed&hui::pad_bits::kCircle){
      if(page!=0)page=0;
      else{pad.close();renderer.release();display.close();hui::sys::quit();}
    }
-   if(pressed&hui::pad_bits::kSquare){engine::start_if_needed(appRoot,true);status="Restart requested: "+engine::status();}
+   if(page!=3&&(pressed&hui::pad_bits::kSquare)){engine::start_if_needed(appRoot,true);status="Restart requested: "+engine::status();}
    if(pressed&hui::pad_bits::kL1){page=0;sidebar=false;tc::log("TAB","Backgrounds");}
    if(pressed&hui::pad_bits::kR1){
      page=page==3?0:3;sidebar=false;
      tc::log("TAB",page==3?"Online Wallpapers":"Backgrounds");
    }
-   if(page==3&&(pressed&hui::pad_bits::kL2)){filterIndex=(filterIndex+8)%9;rebuildFilter();}
-   if(page==3&&(pressed&hui::pad_bits::kR2)){filterIndex=(filterIndex+1)%9;rebuildFilter();}
-   if(page==3&&(pressed&hui::pad_bits::kTriangle)&&!filtered.empty()){
-     onlinePage=(onlinePage+1)%std::max(1,(int)((filtered.size()+11)/12));
-     onlineSelected=std::min((int)filtered.size()-1,onlinePage*12);
+   if(page==3&&(pressed&hui::pad_bits::kL2)){filterIndex=(filterIndex+15)%16;rebuildFilter();}
+   if(page==3&&(pressed&hui::pad_bits::kR2)){filterIndex=(filterIndex+1)%16;rebuildFilter();}
+   if(page==3&&(pressed&hui::pad_bits::kSquare)&&!filtered.empty()){
+     onlinePage=std::max(0,onlinePage-1);
+     onlineSelected=onlinePage*12;
    }
    if(page==0||page==3){
      if(sidebar){
@@ -368,6 +486,8 @@ int main(){
        live=theme::probe();
      }
    }
+   }
+   }
    if(++frame%120==0){
      refreshInstalled();
      selected=std::clamp(selected,0,11+(int)installedIds.size());
@@ -425,7 +545,8 @@ int main(){
      }
    }
    DrawList ui;draw(ui,font,atlas,pictures,selected,active,page,opt,status,live,engine::busy(),sidebar,
-                     online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow,installedIds,activeFile,shellStatus);
+                     online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow,installedIds,activeFile,shellStatus,
+                    overlay,searchText,selectedTag,availableTags,keyboardKey,tagFocus);
    renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
 }
