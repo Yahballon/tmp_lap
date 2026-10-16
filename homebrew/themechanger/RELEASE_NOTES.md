@@ -1,11 +1,8 @@
-# ThemeChanger v0.3.3 – Playback Reliability & LiveShell v1.1
+# ThemeChanger v0.3.4 – Reliable Background Switching
 
-- Bundles verified upstream LiveShell v1.1 ELF, replacing v1.0 in the installer.
-- Fixes repeated Cross presses after long blocking or empty scePadRead controller reads.
-- Increases video-selection API timeout to 20 seconds for ShellUI video release and remount operations.
-- Auto-enables Main Video on global theme selections (LiveShell v1.1).
-- Verifies the selected filename and LiveShell enabled state; distinguishes API acceptance from actual ShellUI playback.
-- Logs `SHELLUI_MONITOR`, `PLAYBACK_STATE`, API selection details, codec hints and legacy engine detection to `/data/ThemeChanger/themechanger.log`.
-- Adds a mock HTTP LiveShell integration test to GitHub Actions, retaining MP4, JPEG and PS5 package verification.
-- Important: restart the PS5 and reapply jailbreak once so the newly bundled v1.1 engine replaces any resident v1.0 daemon.
-- Console testing is needed to verify real ShellUI injection/rendering; no background change is guaranteed by HTTP acknowledgement alone.
+- Fixed root cause of 'The home screen did not release the old video': LiveShell game pause treated ThemeChanger PPSA99891 as a game. Exempts this title in the GPL-source-built LiveShell engine while keeping pause enabled for real games.
+- Removed the upstream LiveShell Media tile installation call: ThemeChanger already autostarts the engine. A previously installed LVSH00001 tile may be deleted once through PS5 UI.
+- Compile LiveShell directly from ZiZc3 source within the OnionHEN payload toolchain; include patched sources/build script and preserve GPL attribution.
+- Keep MotionBGS MP4 downloads, JPEG previews, installed gallery and detailed ShellUI monitoring.
+- A full console reboot + jailbreak is required to unload the resident older LiveShell payload.
+- Real console playback testing is still required; GitHub CI confirms source patch and native compilation only.
