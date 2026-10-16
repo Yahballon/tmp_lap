@@ -256,7 +256,10 @@ int main(){
  std::string shellStatus=state.shellStatus;
  std::string lastStateLog;
  tc::log("LIVESHELL_START",live?"API connected (ShellUI status recorded separately)":"Waiting for engine");
- std::string status="Choose a background and press X to apply";
+ if(live&&!state.mainVideoSupported)tc::log("ENGINE_LEGACY","Old LiveShell API active; restart PS5 and jailbreak to load bundled v1.1");
+ std::string status=(live&&!state.mainVideoSupported)
+   ?"Old LiveShell running. Restart PS5 to load v1.1"
+   :"Choose a background and press X to apply";
  unsigned previous=0,previousDirections=0;int repeats=0;
  constexpr unsigned arrows=hui::pad_bits::kUp|hui::pad_bits::kDown|
                             hui::pad_bits::kLeft|hui::pad_bits::kRight;
@@ -373,7 +376,7 @@ int main(){
       shellStatus=state.shellStatus;
       active=-1;
       for(int k=0;k<theme::kCount;k++)if(activeFile==theme::theme_file(k))active=k;
-      const std::string stateText=std::string("file=")+activeFile+
+      const std::string stateText=std::string("api_v11=")+(state.mainVideoSupported?"1":"0")+" file="+activeFile+
         " shellui="+shellStatus+" enabled="+(state.enabled?"1":"0")+
         " mainvideo="+(state.mainVideo?"1":"0")+
         " gamepause="+(state.gamePause?"1":"0")+" game="+state.game;
