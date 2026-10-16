@@ -8,6 +8,8 @@
 #include "liveshell_loader.hpp"
 #include "motion_catalog.hpp"
 #include "theme_log.hpp"
+#include "wallpaper_storage.hpp"
+#include "smooth_video.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -288,7 +290,13 @@ int main(){
  struct stat catalogStat{};
  if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
    asset="/data/homebrew/PPSA99891/assets";
- tc::log("BOOT","ThemeChanger v0.3.9 starting");
+ tc::log("BOOT","ThemeChanger v0.3.10 starting");
+ const auto archive=wallpaper_storage::recover();
+ tc::log("LIBRARY_RECOVERY",("live="+std::to_string(archive.live)+
+   " backups="+std::to_string(archive.backups)+
+   " restored="+std::to_string(archive.restored)+
+   " archived="+std::to_string(archive.archived)+
+   " errors="+std::to_string(archive.errors)).c_str());
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
@@ -370,7 +378,7 @@ int main(){
  rebuildFilter();
  hui::ps5::Pad pad;pad.open();
  int selected=0,active=-1,page=0,opt=0,dim=25,frame=0;
- bool sidebar=false;bool pendingRetry=false;
+ bool sidebar=false;bool pendingRetry=false;bool wasDownloadBusy=false;
  const std::string appRoot=asset.substr(0,asset.size()-7);
  engine::start_if_needed(appRoot);
  auto state=theme::playback_state();
@@ -496,7 +504,12 @@ int main(){
        if((pressed&hui::pad_bits::kCross)&&selected>=0&&selected<total){
          const auto id=installedIds[(size_t)selected];
          const auto name="MotionBGS-"+online.entries()[(size_t)id].slug+".mp4";
-         if(theme::activate_file(name,status)){
+         if(smooth_video::needs_conversion(online.wallpaper_path(id))){
+           if(online.download(id)){
+             status="Optimizing downloaded video for smooth PS5 playback...";
+             tc::log("VIDEO_OPTIMIZE_QUEUED",name.c_str());
+           }else status="Another download or optimization is already running";
+         }else if(theme::activate_file(name,status)){
            activeFile=name;active=-1;
            tc::log("SELECT_DOWNLOADED",name.c_str());
          }else tc::log("SELECT_FAILED",(name+" "+status).c_str());
@@ -543,6 +556,9 @@ int main(){
        if(!engine::busy())status=engine::status();
      }
    }
+   const bool downloadBusy=online.downloading();
+   if(page==0&&(downloadBusy||wasDownloadBusy))status=online.status();
+   wasDownloadBusy=downloadBusy;
    // Download-complete event is emitted immediately by the worker and is
    // independent of whether LiveShell could activate the wallpaper.
    for(int idx:online.consume_installed()){

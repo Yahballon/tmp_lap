@@ -4,6 +4,8 @@
 #include "motion_download.hpp"
 #include "liveshell_client.hpp"
 #include "theme_log.hpp"
+#include "wallpaper_storage.hpp"
+#include "smooth_video.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -239,12 +241,30 @@ void* Catalog::run(void* p){
   }
   if(ok&&!is_mp4(path)){unlink(path.c_str());ok=false;err="Server did not send a valid MP4";}
  }
+ bool optimized=false;
+ if(ok&&smooth_video::needs_conversion(path)){
+  self.report("Optimizing "+item.title+" for smooth PS5 playback...");
+  tc::log("VIDEO_OPTIMIZE_START",(item.slug+" (8+ reference frames)").c_str());
+  self.percent_=0;
+  if(smooth_video::convert(path,self.percent_,err)){
+    optimized=true;
+    tc::log("VIDEO_OPTIMIZE_DONE",(item.slug+" compatible H264 stream").c_str());
+  }
+  else{
+    tc::log("VIDEO_OPTIMIZE_FAILED",(item.slug+" "+err).c_str());
+    self.report("Video conversion failed: "+err);
+    ok=false;
+  }
+ }
  if(ok){
   {std::lock_guard<std::mutex> lock(self.mutex_);
    self.installed_cache_[(size_t)job.index]=true;
    self.newly_installed_.push_back(job.index);
   }
   self.percent_=100;
+  if(wallpaper_storage::preserve("MotionBGS-"+item.slug+".mp4",optimized))
+    tc::log("LIBRARY_SAVED",path.c_str());
+  else tc::log("LIBRARY_SAVE_FAILED",(path+" persistent backup failed").c_str());
   tc::log("DOWNLOAD_COMPLETE",path.c_str());
   std::string applied;
   if(theme::activate_file("MotionBGS-"+item.slug+".mp4",applied)){
