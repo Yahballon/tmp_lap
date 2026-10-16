@@ -33,7 +33,12 @@ assert "imageFill(dl,image,art.x,art.y,art.w,art.h" in shelf
 for forbidden in ("AddImageQuad(", "AddQuadFilled(", "PrimReserve(", "dreamcastXReflection(", "softDisc("):
     assert forbidden not in shelf, "Unsafe PS5 renderer reintroduced: "+forbidden
 assert "ps5-dreamcastx-v" in (src/"ps5_update.cpp").read_text()
-assert "PS5_VERSION \"0.1.5\"" in (src/"ps5_build.h").read_text()
+assert "PS5_VERSION \"0.1.6\"" in (src/"ps5_build.h").read_text()
+async_ui=(root/"build/flycast/core/ui/gui_util.cpp").read_text()
+assert '#include "dreamcastx_cover_async.inc"' in async_ui
+assert 'dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount)' in async_ui
+assert (root/"build/flycast/core/ui/dreamcastx_cover_async.inc").exists()
+assert "for(int radius=0;radius<=2;radius++)" in shelf
 feed=(src/"ps5_update.cpp").read_text()
 assert "Yahballon/tmp_lap/releases" in feed
 assert "ps5-dreamcastx-v" in feed

@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.1.5"
+VERSION="0.1.6"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -56,12 +56,34 @@ def adapt():
         t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
                     '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
     marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.1.5"' not in t:
+    if marker in t and '"v0.1.6"' not in t:
         t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.1.5");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.5");',1)
+            'const ImVec2 vs = textSize(regular(), 17, "v0.1.6");\n\t'
+            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.6");',1)
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
+
+    # Async thumbnail decoding: the PS5 UI must NEVER load/decode large
+    # cover files on its ImGui frame. Keep GPU uploads on the main thread.
+    gui_util=SOURCE/"core/ui/gui_util.cpp"
+    gu=gui_util.read_text()
+    begin='int ImguiFileTexture::textureLoadCount;'
+    assert gu.count(begin)==1, "Upstream ImguiFileTexture loader changed"
+    gu=gu.replace(begin,
+        '#include "dreamcastx_cover_async.inc"\n\n'+begin,1)
+    before='''\tImTextureID id = imguiDriver->getTexture(path);
+\tif (id == ImTextureID() && textureLoadCount < 10)'''
+    assert gu.count(before)==1, "Upstream sync image loader changed"
+    after='''#ifdef USE_PS5
+\tif (dreamcastx_cover_async::isCoverPath(path))
+\t\treturn dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount);
+#endif
+\tImTextureID id = imguiDriver->getTexture(path);
+\tif (id == ImTextureID() && textureLoadCount < 10)'''
+    gu=gu.replace(before,after,1)
+    gui_util.write_text(gu)
+    shutil.copy2(ROOT/"src/dreamcastx_cover_async.inc",
+                 SOURCE/"core/ui/dreamcastx_cover_async.inc")
 
     # Rename the physical ShadowMount folder, not the mandatory PPSA titleId.
     main=p/"ps5_main.cpp"
@@ -206,9 +228,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 6',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 7',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.5"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.6"',v)
     assert n==1
     ver.write_text(v)
 
@@ -217,7 +239,7 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.005"
+    data["contentVersion"]="01.000.006"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
     meta.write_text(json.dumps(data,indent=2)+"\n")
