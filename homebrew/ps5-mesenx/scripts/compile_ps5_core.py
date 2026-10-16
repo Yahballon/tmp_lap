@@ -137,11 +137,14 @@ hd=hd[:a]+"""    void PreloadResources()
             if(ImageFileData[i])ImageFileData[i]->Init();
         });
         if(_cancelLoad)return;
-        parallel(Tiles.size(), [&](size_t i) {
-            if(Tiles[i] && Tiles[i]->NeedInit())Tiles[i]->Init();
-        });
-        MessageManager::Log("[HDPack] PS5 dual-worker preload complete: images=" +
-            std::to_string(ImageFileData.size()) + " tiles=" +
+        // HD tile pixels are a duplicate of the already-decoded PNG atlas.
+        // Init() allocates a fresh Width*Height RGBA buffer for EACH tile.
+        // For large Zelda packs that duplicates entire texture sheets and
+        // increases working-set pressure. HdNesPack::GetMatchingTile()
+        // already calls tile->Init() on first actual use, so preserve lazy
+        // initialization and do not expand all unused tiles at ROM load.
+        MessageManager::Log("[HDPack] PS5 atlas preload complete: images=" +
+            std::to_string(ImageFileData.size()) + " deferredTiles=" +
             std::to_string(Tiles.size()) + " elapsedMs=" +
             std::to_string(tmr.GetElapsedMS()));
     }
@@ -151,13 +154,22 @@ hd_data.write_text(hd)
 
 sources=sorted(set(c+cpp))
 assert len(sources)>100 and all(p.is_file() for p in sources)
-common=["-O1","-fPIC","-march=znver2","-ffunction-sections","-fdata-sections","-DLIBRETRO"]
+# Large Mesen HD packs spend most CPU time in software tile blending and
+# conditional video filtering. -O1 was used throughout the initial bring-up;
+# optimize the hot files aggressively, keeping conservative flags elsewhere.
+common=["-O2","-fPIC","-march=znver2","-ffunction-sections","-fdata-sections","-DLIBRETRO"]
 common += ["-I"+str(src/p) for p in (".","Core","Utilities","Libretro","Core/Shared","Core/NES")]
 def build(p):
     obj=out/p.relative_to(src).with_suffix(".o")
     obj.parent.mkdir(parents=True,exist_ok=True)
     if p.suffix==".cpp":
-        cmd=["sh",str(wrapper),*common,"-std=c++17","-fexceptions","-frtti","-Wno-undefined-inline"]
+        # The HD renderer is purely CPU-based; the PS5 Vulkan frontend only
+        # uploads the completed frame. Prioritize inner-loop optimization.
+        hot=(p.parent.name=="HdPacks" and p.name in
+             {"HdNesPack.cpp","HdVideoFilter.cpp","HdNesPpu.cpp"}) or (
+                 p.name in {"VideoDecoder.cpp","libretro.cpp"})
+        flags=[("-O3" if x=="-O2" else x) for x in common] if hot else common
+        cmd=["sh",str(wrapper),*flags,"-std=c++17","-fexceptions","-frtti","-Wno-undefined-inline"]
     else:
         cmd=["clang-18","-target","x86_64-sie-ps5","-isysroot",str(sdk),
              "-isystem",str(sdk/"target/include"),*common,"-std=gnu11"]

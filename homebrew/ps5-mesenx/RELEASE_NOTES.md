@@ -1,11 +1,24 @@
-# PS5MesenX v0.1.14 – Performance Safe Mode
+# PS5MesenX v0.1.15 – HD texture memory and CPU optimization
 
-Experimental native PS5 build. On-console performance still needs verification.
+Experimental PS5 HD-pack performance build; requires physical-console verification.
 
-- **Safe mode ON by default:** forces HD packs off even if an old per-game setting requests them, to isolate the HD-pack latency. To explicitly test HD packs, disable Safe mode in Settings > Emulation and turn HD Packs On; restart game.
-- Bound emulation catch-up to 1 frame/tick with Safe mode (2 outside it) instead of 6; drop overdue backlog so pad and Vulkan presentation are polled.
-- Reduce periodic battery-save disk I/O from 5 to 60 seconds; saves still occur on stopping the game.
-- Reuse Libretro init instead of deinit/init on every game open; MesenCE options are read again at ROM load.
-- Log `PERF_CONFIG`, `PERF_LOAD_DURATION_MS`, `PERF_FRAME_SLOW`, `PERF_UPLOAD_SLOW`, and `PERF_GAME_READY` to `/data/PS5MesenX/logs/boot.log`.
+## What changed
+- Preserve full HD pack effects and the original NES emulation logic.
+- Decode the pack PNG atlases using the existing bounded two-worker preload.
+- Avoid eagerly allocating and copying **every HD tile** from the decoded PNG sheets.
+  MesenCE's existing GetMatchingTile() initializes the tile on first actual use.
+  This is intended to reduce memory spikes and launch time for large packs.
+- Cross-compile the core with -O2 instead of -O1; build HD rendering hot paths
+  (HdNesPack, HdVideoFilter, HdNesPpu, VideoDecoder, Libretro) with -O3.
+- Leave Safe mode ON by default, preserving the verified smooth non-HD mode.
+- Existing bounded catch-up loop and performance logging remain enabled.
 
-Games: `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms`. HD packs are in `/data/PS5MesenX/HdPacks`. No ROMs are included. Title ID `PPSA99896`.
+## What to measure
+Turn off Safe mode for the specific Zelda ROM, enable HD Packs, restart the game.
+Record PERF_LOAD_DURATION_MS, PERF_FRAME_SLOW and actual perceived FPS. Large
+texture sheets can still be expensive on PS5; this update is not yet
+hardware-verified. If the console becomes unresponsive, use Safe mode.
+
+ROMs: /data/PS5NES/games and /data/homebrew/PPSA99896/roms
+HD packs: /data/PS5MesenX/HdPacks
+Logs: /data/PS5MesenX/logs/boot.log
