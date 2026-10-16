@@ -30,5 +30,21 @@ int main(int argc,char** argv){
    std::printf("MotionBGS native preview: %s, progress=%d\n",jpeg?"JPEG OK":"INVALID",percent.load());
    if(!jpeg||percent!=100)return 6;
  }
+ // New sitemap entries resolve their preview/HD IDs lazily from item HTML.
+ // Verify the native PS5 HTTPS implementation can fetch regular HTML as well.
+ const std::string htmlPath="/tmp/themechanger-motionbgs-detail.html";
+ percent=0;error.clear();
+ const bool page=motion::fetch_file("https://motionbgs.com/a-galaxy-within",htmlPath,percent,error);
+ if(!page){
+   std::fprintf(stderr,"MotionBGS detail HTML failed: %s\n",error.c_str());
+   return 7;
+ }
+ FILE* item=std::fopen(htmlPath.c_str(),"rb");
+ if(!item)return 8;
+ char head[1024]{};
+ const size_t count=std::fread(head,1,sizeof(head)-1,item);
+ std::fclose(item);std::remove(htmlPath.c_str());
+ if(count<100||std::string(head).find("<html")==std::string::npos)return 9;
+ std::printf("MotionBGS detail HTML: OK\n");
  return 0;
 }
