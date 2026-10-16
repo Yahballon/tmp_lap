@@ -22,8 +22,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates ffmpeg g++ libssl-dev
-      - name: Generate original wallpapers
-        run: python3 homebrew/themechanger/assets/generate.py
       - name: Discover complete MotionBGS sitemap and tag catalog
         timeout-minutes: 15
         run: python3 homebrew/themechanger/assets/motionbgs_catalog.py
@@ -57,8 +55,6 @@ jobs:
           pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
           Path('app/src/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE('+pem+')PS5CABUNDLE";\n')
           PY
-          mkdir -p app/assets/wallpapers
-          cp homebrew/themechanger/generated/wallpapers/* app/assets/wallpapers/
           python3 - <<'PY'
           import pathlib,json
           d=json.loads(pathlib.Path('homebrew/themechanger/app.json').read_text())
@@ -172,8 +168,11 @@ jobs:
           assert struct.unpack('<I',binary[:4])[0]==0x1d3d154f
           j=json.loads((root/'sce_sys/param.json').read_text())
           assert j['titleId']==title
-          assert len(list((root/'assets/wallpapers').glob('*.png')))==12
-          assert len(list((root/'assets/wallpapers').glob('*.mp4')))==12
+          assert not (root/'assets/wallpapers').exists(), 'Old bundled wallpapers must not be shipped'
+          app_src=Path('homebrew/themechanger/native/main.cpp').read_text()
+          assert 'ThemeChanger-baseball.png' not in app_src
+          assert 'const int total=12+' not in app_src
+          assert 'consume_installed()' in app_src
           assert (root/'liveshell.elf').stat().st_size>100000
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
           assert len(manifest.splitlines())>8000, 'Full sitemap should contain thousands of desktop wallpaper entries'
@@ -188,7 +187,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.7-PPSA99891
+          name: ThemeChanger-v0.3.8-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -196,5 +195,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.7 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.7 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.7" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.8 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.8 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.8" --notes-file homebrew/themechanger/RELEASE_NOTES.md
