@@ -2,7 +2,7 @@
 
 **Native Dreamcast emulation on PS5 with white DVD-style CoverFlow cases, angled neighbours and subtle reflections.**
 
-Version **0.1.6** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.1.7** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -24,7 +24,7 @@ then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the build workflow uploads the verified
 `PPSA99765.zip` as an artifact. The independent release publisher uploads
-it to the `ps5-dreamcastx-v0.1.6` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
+it to the `ps5-dreamcastx-v0.1.7` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
 Run locally from the app directory (requires clang 18, CMake/Ninja, PS5 stack):
@@ -84,8 +84,8 @@ move them. Leave `eboot.bin`, `sce_sys/`, `sce_module/` and
 
 Plug a USB drive into the PS5. The application discovers
 `PS5DreamcastX` case-insensitively on any of `/mnt/usb0/` through
-`/mnt/usb7/` and scans the **games/** subfolder if present; otherwise
-it scans the parent `PS5DreamcastX/` directory. Existing
+`/mnt/usb7/` and **recursively scans the entire** `PS5DreamcastX/` directory, including
+`games/` and any other nested folders. Root games are never skipped. Existing
 `flycast/`, `dreamcast/`, `dc/`, `naomi/`, `atomiswave/`, and
 `arcade/` USB folders remain supported.
 
@@ -136,7 +136,7 @@ files are included.
 
 
 
-### v0.1.6: PS5 hardware renderer hotfix
+### v0.1.7: PS5 hardware renderer hotfix
 
 Replaces the broken custom perspective image quads introduced in v0.1.4
 with the known-working v0.1.3 `rect` + `imageFill` drawing path.
@@ -148,7 +148,7 @@ and reflections are temporarily disabled**. Full real-hardware verification
 is still needed; this is not a claim that perspective is supported.
 Saves, games, USB and /data/PS5DreamcastX paths are unchanged.
 
-### v0.1.6: Nonblocking background cover loading
+### v0.1.7: Nonblocking background cover loading
 
 The original Flycast `ImguiFileTexture::getId()` decoded PNG/JPG files
 synchronously inside the display loop, up to ten files in one frame.
@@ -161,3 +161,7 @@ two immediate neighbours are requested first. Non-cover image handling stays
 unchanged, and we did not touch the stable case renderer from v0.1.5.
 Local files should no longer stall menu navigation. Initial network cover
 downloads may still take time depending on the source and connection.
+
+### v0.1.7: USB library fix
+
+USB folders are scanned recursively from the top-level `PS5DreamcastX` directory, rather than selecting `games/` exclusively. Mixed layouts with game files in both locations work and case-insensitive game extensions are recognized. The console log now distinguishes recursive scan roots from detected media/titles. TheGamesDB temporary 503 errors only affect online artwork fetching.
