@@ -103,7 +103,7 @@ def generate():
     shelf.write_text(shelf_body)
     # Real ROM results are also written to the log, without stdout redirection.
     game_src=rom.read_text()
-    needle='auto dot=name.rfind(\\'.\\');games.push_back({path,name.substr(0,dot),bytes});'
+    needle = """auto dot=name.rfind('.');games.push_back({path,name.substr(0,dot),bytes});"""
     assert needle in game_src
     game_src=game_src.replace(needle, needle+
         'mesen_diag::write("ROM_FOUND %s bytes=%llu",path.c_str(),(unsigned long long)bytes);')
