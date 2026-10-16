@@ -46,7 +46,7 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
-          cp homebrew/themechanger/native/* app/src/
+          cp -a homebrew/themechanger/native/. app/src/
           cp homebrew/themechanger/assets/icon0.png app/sce_sys/icon0.png
           # v0.3.10/v0.3.11 left an experimental FFmpeg/x264 unit in the
           # repository. It MUST NOT enter the known-good PS5 executable.
@@ -69,6 +69,13 @@ jobs:
           j['localizedParameters']['en-US']['titleName']=d['name']
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
+      - name: Test integrated Signal Companion
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src -Ihomebrew/themechanger/tests \
+            homebrew/themechanger/tests/test_signal_panel.cpp \
+            app/src/signal_panel.cpp app/src/signal/*.cpp app/src/core/save_file.cpp \
+            -o /tmp/themechanger-signal-test
+          /tmp/themechanger-signal-test
       - name: Verify bounded persistent wallpaper recovery
         run: |
           python3 - <<'PY'
@@ -146,6 +153,17 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: bash tools/prepare-opengl.sh
+      - name: Build bundled ps5-signal (loopback-only release)
+        run: |
+          set -euo pipefail
+          git clone https://github.com/Marice/ps5-signal.git /tmp/theme-signal
+          git -C /tmp/theme-signal checkout --detach 8ed455197a8643302a066b7b0e97972036998304
+          export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          export PATH="/usr/lib/llvm-18/bin:$PS5_PAYLOAD_SDK/bin:$PATH"
+          make -C /tmp/theme-signal PS5_PAYLOAD_SDK="$PS5_PAYLOAD_SDK" all
+          mkdir -p app/assets/payload
+          cp /tmp/theme-signal/ps5-signal.elf app/assets/payload/
+          cp /tmp/theme-signal/LICENSE app/assets/payload/ps5-signal-LICENSE
       - name: Compile integrated LiveShell from GPL source (no Media tile)
         timeout-minutes: 35
         env:
@@ -223,6 +241,8 @@ jobs:
           assert 'const int total=12+' not in app_src
           assert 'consume_installed()' in app_src
           assert (root/'liveshell.elf').stat().st_size>100000
+          signal=(root/'assets/payload/ps5-signal.elf').read_bytes()
+          assert signal[:5]==b'\x7fELF\x02' and 64<len(signal)<4194304
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
           assert len(manifest.splitlines())>8000, 'Full sitemap should contain thousands of desktop wallpaper entries'
           assert any(len(r.split('\t'))>=6 for r in manifest.splitlines()[1:])
@@ -233,11 +253,12 @@ jobs:
               assert f'{title}/eboot.bin' in z.namelist()
               assert z.read(f'{title}/sce_sys/icon0.png')==icon
               assert f'{title}/liveshell.elf' in z.namelist()
+              assert z.read(f'{title}/assets/payload/ps5-signal.elf')==signal
               assert f'{title}/assets/motionbgs/catalog.tsv' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.15-PPSA99891
+          name: ThemeChanger-v0.3.16-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -245,5 +266,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.15 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.15 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.15" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.16 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.16 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.16" --notes-file homebrew/themechanger/RELEASE_NOTES.md

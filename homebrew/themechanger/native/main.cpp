@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.15 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.16 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -9,6 +9,7 @@
 #include "motion_catalog.hpp"
 #include "theme_log.hpp"
 #include "wallpaper_storage.hpp"
+#include "signal_panel.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -104,12 +105,40 @@ void modal(DrawList& d,const Font& font,unsigned atlas,Overlay overlay,
      " / "+std::to_string(tags.size()),1770,957,20,muted,Align::right);
  }
 }
+void signalScreen(DrawList& d,const Font& f,unsigned a,const companion::Panel& signal){
+ panel(d,{398,18,1458,951},13,Color::rgb(0x030d20),Color::rgb(0x405370));
+ txt(d,f,a,"Signal Companion",432,69,36);
+ txt(d,f,a,"Console light and startup tune | powered by Marice / ps5-signal",434,106,22,muted);
+ const char* tabs[]={"Status","Colour","Startup"};
+ for(int i=0;i<3;i++){
+  const float x=432+i*462.f;
+  panel(d,{x,130,442,58},10,Color::rgb(i==signal.tab()?0x085ef3:0x071b34),Color::rgb(0x1f3857));
+  txt(d,f,a,tabs[i],x+221,169,26,white,Align::center);
+ }
+ txt(d,f,a,f.fit(signal.detail(),22,1380),434,230,22,signal.online()?Color::rgb(0x4affbc):muted);
+ if(signal.tab()==2){
+  txt(d,f,a,signal.light_column()?"Startup light sequence":"Startup beep sequence",434,273,25);
+  txt(d,f,a,"Options: Add   R3: Delete step   Touchpad: Preview   Square: Save",1818,272,18,muted,Align::right);
+ }
+ const auto rows=signal.rows();
+ const int first=(signal.row()/10)*10;
+ for(int i=first;i<(int)rows.size()&&i<first+10;i++){
+  const float y=293+(i-first)*52.f;
+  panel(d,{432,y,1390,45},8,Color::rgb(i==signal.row()?0x0b397a:0x071a34),Color::rgb(i==signal.row()?0x10a6ff:0x2b4667));
+  txt(d,f,a,rows[(size_t)i].first,452,y+30,23);
+  txt(d,f,a,f.fit(rows[(size_t)i].second,22,830),1798,y+30,22,muted,Align::right);
+ }
+ txt(d,f,a,f.fit(signal.message(),23,1380),434,868,23,Color::rgb(0xffce83));
+ txt(d,f,a,f.fit(signal.help(),20,1380),434,912,20,muted);
+ if(signal.tab()==2)txt(d,f,a,"L2/R2: Tabs   |   O: Sidebar   |   24 steps per sequence, 10 seconds maximum",434,946,18,muted);
+ else txt(d,f,a,"Only blue, white and amber LEDs are available on PS5. Changes are saved only when selected.",434,946,18,muted);
+}
 void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,const std::string& status,bool live,bool loading,bool sidebar,const motion::Catalog& catalog,
           const std::vector<int>& filtered,const std::vector<unsigned>& thumbnails,
           int onlineSelected,int onlinePage,int filterIndex,int sideRow,
           const std::vector<int>& installedIds,const std::string& activeFile,const std::string& shellStatus,
           Overlay overlay,const std::string& search,const std::string& tag,
-          const std::vector<std::pair<std::string,int>>& tags,int key,int tagFocus){
+          const std::vector<std::pair<std::string,int>>& tags,int key,int tagFocus,const companion::Panel& signal){
  // All positions are in 1920x1080 virtual pixels, derived from the reference's 1671x941 grid.
  // The third row ends at y=985; the footer begins at y=994 (no clipping).
  d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020a16),Color::rgb(0x010615));
@@ -123,7 +152,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
    titleSize*=(titleRight-titleX-titleGap)/titleWidth;
  txt(d,f,a,"Theme",titleX,73,titleSize);
  txt(d,f,a,"Changer",titleX+f.measure("Theme",titleSize)+titleGap,73,titleSize,Color::rgb(0x0da4ff));
- const std::string credit="by YAHBALLON  v0.3.15";
+ const std::string credit="by YAHBALLON  v0.3.16";
  const float creditSize=std::min(18.f,18.f*(titleRight-titleX)/f.measure(credit,18.f));
  txt(d,f,a,credit,titleX,109,creditSize,muted);
  d.line(2,125,375,125,1,Color::rgb(0x233a57));
@@ -139,13 +168,20 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
  d.bordered_rect({53,254,32,29},5,Color::rgb(0x08254e),2,white);
  d.triangle({63,261,16,17},white,0,1.5708f);
  txt(d,f,a,"Online Wallpapers",119,280,23);
+ const bool signalFocus=sidebar&&sideRow==2;
+ panel(d,{25,322,325,71},10,Color::rgb(page==4?0x085ef3:0x071b34),Color::rgb(signalFocus?0x39c9ff:0x1f3857));
+ d.circle(69,357,16,Color::rgb(0x0da4ff));
+ d.circle(69,357,7,white);
+ txt(d,f,a,"Signal Companion",119,367,23);
  d.line(29,806,346,806,1,Color::rgb(0x20354d));
  for(int i=1;i<3;i++){
    float y=i==1?833.f:907.f;
-   if(page==i||(sidebar&&sideRow==i+1))panel(d,{24,y,328,69},10,Color::rgb(0x0a3470),Color::rgb(sidebar&&sideRow==i+1?0x39c9ff:0x13a0ff));
+   if(page==i||(sidebar&&sideRow==i+2))panel(d,{24,y,328,69},10,Color::rgb(0x0a3470),Color::rgb(sidebar&&sideRow==i+2?0x39c9ff:0x13a0ff));
    d.circle(69,y+33,18,white);txt(d,f,a,i==1?"i":"*",69,y+42,26,Color::rgb(0x041631),Align::center);
    txt(d,f,a,i==1?"About":"Settings",121,y+43,25);
  }
+ if(page==4)signalScreen(d,f,a,signal);
+ else{
  // Align the preview with the wallpaper grid edges (398..1856).
  panel(d,{398,18,1458,375},13,Color::rgb(0x010819),Color::rgb(0x405370));
  unsigned picture=0;
@@ -266,7 +302,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.15",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.16",490,515,38);
   txt(d,f,a,"by YAHBALLON",490,565,28,Color::rgb(0x0da4ff));
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,610,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
@@ -283,13 +319,14 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
    txt(d,f,a,i==0?"X  Toggle":i==1?"LEFT / RIGHT":i==4?"X  Retry":i==5?"X  Clean all":"X  Toggle",1796,y+47,22,muted,Align::right);
   }
  }
+ }
  d.gradient_rect({0,993,1920,87},0,Color::rgb(0x051221,.92f),Color::rgb(0x020816));
  d.line(0,993,1920,993,1,Color::rgb(0x1c3859));
  d.circle(76,1034,16,white);txt(d,f,a,"X",76,1043,24,Color::rgb(0x021329),Align::center);
  txt(d,f,a,"Select",105,1044,22,muted);
  d.circle(225,1034,16,white);txt(d,f,a,"O",225,1043,24,Color::rgb(0x021329),Align::center);
  txt(d,f,a,"Back",256,1044,22,muted);
- txt(d,f,a,page==3?"L1/R1: TABS   Triangle: SEARCH   Options: TAGS   Square: PREV":
+ txt(d,f,a,page==4?"L2/R2: Signal tabs   O: Sidebar":page==3?"L1/R1: TABS   Triangle: SEARCH   Options: TAGS   Square: PREV":
                     "L1/R1: Backgrounds / Online   Square: Retry Engine",403,1045,19,muted);
  txt(d,f,a,loading?"LiveShell starting...":live?("LiveShell API | ShellUI: "+(shellStatus.empty()?std::string("no status"):shellStatus.substr(0,38))):"LiveShell offline",1856,1028,18,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
  txt(d,f,a,((page==3||(page==2&&opt==5))?catalog.status():status).substr(0,99),1856,1057,17,muted,Align::right);
@@ -308,7 +345,9 @@ int main(){
  struct stat catalogStat{};
  if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
    asset="/data/homebrew/PPSA99891/assets";
- tc::log("BOOT","ThemeChanger v0.3.15 starting");
+ hui::signal::set_paths(asset,"/data/ThemeChanger/signal");
+ companion::Panel signal;
+ tc::log("BOOT","ThemeChanger v0.3.16 starting");
  const auto storage=wallpaper_storage::recover_indexed();
  tc::log("LIBRARY_RECOVERY",("restored="+std::to_string(storage.restored)+
   " existing="+std::to_string(storage.live)+
@@ -439,6 +478,7 @@ int main(){
    }else repeats=0;
    previousDirections=directions;
    previous=held;
+   signal.tick(1.f/60.f,page==4);
    if(overlay!=Overlay::none){
      if(overlay==Overlay::cleanup){
        if(pressed&hui::pad_bits::kCircle)overlay=Overlay::none;
@@ -477,12 +517,31 @@ int main(){
    }else{
    if(page==3&&(pressed&hui::pad_bits::kTriangle)){overlay=Overlay::search;keyboardKey=0;}
    else if(page==3&&(pressed&hui::pad_bits::kOptions)){overlay=Overlay::tags;tagFocus=0;}
+   else if(page==4&&!sidebar&&!(pressed&(hui::pad_bits::kL1|hui::pad_bits::kR1))){
+     if(pressed&hui::pad_bits::kCircle){sidebar=true;sideRow=2;}
+     else{
+       unsigned keys=0;
+       if(pressed&hui::pad_bits::kUp)keys|=companion::Up;
+       if(pressed&hui::pad_bits::kDown)keys|=companion::Down;
+       if(pressed&hui::pad_bits::kLeft)keys|=companion::Left;
+       if(pressed&hui::pad_bits::kRight)keys|=companion::Right;
+       if(pressed&hui::pad_bits::kCross)keys|=companion::Confirm;
+       if(pressed&hui::pad_bits::kSquare)keys|=companion::Save;
+       if(pressed&hui::pad_bits::kTriangle)keys|=companion::Column;
+       if(pressed&hui::pad_bits::kOptions)keys|=companion::Add;
+       if(pressed&hui::pad_bits::kL2)keys|=companion::Prev;
+       if(pressed&hui::pad_bits::kR2)keys|=companion::Next;
+       if(pressed&hui::pad_bits::kR3)keys|=companion::Remove;
+       if(pressed&hui::pad_bits::kTouchpad)keys|=companion::Play;
+       signal.input(keys);
+     }
+   }
    else {
    if(pressed&hui::pad_bits::kCircle){
      if(page!=0)page=0;
      else{pad.close();renderer.release();display.close();hui::sys::quit();}
    }
-   if(page!=3&&(pressed&hui::pad_bits::kSquare)){engine::start_if_needed(appRoot,true);status="Restart requested: "+engine::status();}
+   if(page!=3&&page!=4&&!sidebar&&(pressed&hui::pad_bits::kSquare)){engine::start_if_needed(appRoot,true);status="Restart requested: "+engine::status();}
    if(pressed&hui::pad_bits::kL1){page=0;sidebar=false;tc::log("TAB","Backgrounds");}
    if(pressed&hui::pad_bits::kR1){
      page=page==3?0:3;sidebar=false;
@@ -494,15 +553,15 @@ int main(){
      onlinePage=std::max(0,onlinePage-1);
      onlineSelected=onlinePage*12;
    }
-   if(!sidebar&&page==1&&(pressed&hui::pad_bits::kLeft)){sidebar=true;sideRow=2;}
-   if(!sidebar&&page==2&&opt!=1&&(pressed&hui::pad_bits::kLeft)){sidebar=true;sideRow=3;}
+   if(!sidebar&&page==1&&(pressed&hui::pad_bits::kLeft)){sidebar=true;sideRow=3;}
+   if(!sidebar&&page==2&&opt!=1&&(pressed&hui::pad_bits::kLeft)){sidebar=true;sideRow=4;}
    if(sidebar){
        if(pressed&hui::pad_bits::kUp)sideRow=std::max(0,sideRow-1);
-       if(pressed&hui::pad_bits::kDown)sideRow=std::min(3,sideRow+1);
+       if(pressed&hui::pad_bits::kDown)sideRow=std::min(4,sideRow+1);
        if(pressed&hui::pad_bits::kRight)sidebar=false;
        if(pressed&hui::pad_bits::kCross){
-         page=sideRow==0?0:sideRow==1?3:sideRow==2?1:2;sidebar=false;
-         tc::log("TAB",(page==3?"Online Wallpapers":page==0?"Backgrounds":page==1?"About":"Settings"));
+         page=sideRow==0?0:sideRow==1?3:sideRow==2?4:sideRow==3?1:2;sidebar=false;
+         tc::log("TAB",(page==3?"Online Wallpapers":page==0?"Backgrounds":page==1?"About":page==4?"Signal Companion":"Settings"));
        }
    }else if(page==0||page==3){
      if(page==3){
@@ -642,7 +701,7 @@ int main(){
    }
    DrawList ui;draw(ui,font,atlas,selected,page,opt,status,live,engine::busy(),sidebar,
                      online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow,installedIds,activeFile,shellStatus,
-                    overlay,searchText,selectedTag,availableTags,keyboardKey,tagFocus);
+                    overlay,searchText,selectedTag,availableTags,keyboardKey,tagFocus,signal);
    renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
 }
