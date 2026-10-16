@@ -47,6 +47,10 @@ jobs:
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/themechanger/native/* app/src/
+          # v0.3.10/v0.3.11 left an experimental FFmpeg/x264 unit in the
+          # repository. It MUST NOT enter the known-good PS5 executable.
+          rm -f app/src/smooth_video.cpp
+
           curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
           mkdir -p app/assets/motionbgs
           cp homebrew/themechanger/generated/motionbgs/catalog.tsv app/assets/motionbgs/catalog.tsv
@@ -74,6 +78,9 @@ jobs:
           assert 'wallpaper_storage.hpp' not in main
           assert 'wallpaper_storage.hpp' not in catalog
           assert 'smooth_video.hpp' not in main and 'smooth_video.hpp' not in catalog
+          assert not Path('app/src/smooth_video.cpp').exists(), 'Do not ship experimental FFmpeg'
+          assert 'wallpaper_storage::' not in catalog
+
           assert 'rescan_installed()' not in main
           assert 'pthread_attr_setstacksize' not in catalog
           assert 'ThemeChanger v0.3.12 starting' in main
