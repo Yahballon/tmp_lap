@@ -110,6 +110,24 @@ jobs:
           assert 'mp4compat::normalize(' in code
           assert 'MP4_COMPAT' in code and 'MP4_INCOMPATIBLE' in code
           PY
+      - name: Test persistent wallpaper archive and MP4 restore
+        run: |
+          g++ -std=c++20 -O2 -Ihomebrew/themechanger/native \
+            homebrew/themechanger/tests/test_wallpaper_storage.cpp -o /tmp/themechanger-storage-test
+          sudo install -d -m 0777 /data/ThemeChanger /data/LiveShell
+          /tmp/themechanger-storage-test
+      - name: Verify FFmpeg H264 native converter on host
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libx264-dev
+          g++ -std=c++20 -O2 -pthread -Ihomebrew/themechanger/native \
+            homebrew/themechanger/tests/test_native_smooth.cpp \
+            homebrew/themechanger/native/smooth_video.cpp \
+            app/src/motion_download.cpp \
+            $(pkg-config --cflags --libs libavformat libavcodec libavutil libswscale x264 openssl) \
+            -o /tmp/themechanger-smooth-test
+          timeout 200s /tmp/themechanger-smooth-test
       - name: Prepare PS5 graphics SDK
         working-directory: app
         env:
@@ -173,7 +191,7 @@ jobs:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
-        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=openssl APP_ROOT_FILES=liveshell.elf app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='openssl libavformat libavcodec libswscale libavutil x264' APP_ROOT_FILES=liveshell.elf app
       - name: Verify installer and assets
         run: |
           python3 - <<'PY'
@@ -204,7 +222,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.9-PPSA99891
+          name: ThemeChanger-v0.3.10-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -212,5 +230,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.9 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.9 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.9" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.10 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.10 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.10" --notes-file homebrew/themechanger/RELEASE_NOTES.md
