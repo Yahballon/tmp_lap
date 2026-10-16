@@ -44,3 +44,24 @@ jobs:
                       print(title,kind,"=> HTTP",e.code,"type",e.headers.get("Content-Type"),"location",e.headers.get("Location"),"snippet",e.read(240),flush=True)
                   except Exception as e:print(title,kind,type(e).__name__,str(e)[:180],flush=True)
           PY
+
+      - name: Compare libcurl client with native OpenSSL
+        run: |
+          curl --fail --location --show-error --silent --max-time 35 \
+            -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36' \
+            -o /tmp/motionbgs-curl-test.mp4 \
+            -w 'curl HTTP %{http_code} TLS %{ssl_verify_result} size %{size_download}\n' \
+            'https://motionbgs.com/dl/hd/737/'
+          test "$(dd if=/tmp/motionbgs-curl-test.mp4 bs=1 skip=4 count=4 2>/dev/null)" = ftyp
+          mkdir -p /tmp/motion-bgs
+          python3 - <<'PY'
+          from pathlib import Path
+          pem=Path('/etc/ssl/certs/ca-certificates.crt').read_text()
+          Path('/tmp/motion-bgs/ca_bundle.inc').write_text('static constexpr char kCaBundle[] = R"PS5CABUNDLE('+pem+')PS5CABUNDLE";\n')
+          PY
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libssl-dev g++
+          g++ -std=c++20 -O2 -pthread -I/tmp/motion-bgs -Ihomebrew/themechanger/native \
+            homebrew/themechanger/tests/test_native_download.cpp \
+            homebrew/themechanger/native/motion_download.cpp -lssl -lcrypto -o /tmp/motion-bgs/test-native
+          /tmp/motion-bgs/test-native
