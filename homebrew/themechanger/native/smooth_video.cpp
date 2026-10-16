@@ -133,7 +133,7 @@ bool needs_conversion(const std::string& path){
 }
 bool convert(const std::string& filename,std::atomic<int>& progress,std::string& error){
  // Output in the same LiveShell directory for an atomic final rename.
- const std::string output=filename+".smooth.tmp.mp4";
+ const std::string output=filename+".smooth.part"; // LiveShell must never enumerate half-written videos.
  unlink(output.c_str());
  AVFormatContext* input=nullptr;
  AVFormatContext* dst=nullptr;
