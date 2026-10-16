@@ -1,8 +1,10 @@
-# ThemeChanger v0.3.5 – PS5 Home Focus Fix
+# ThemeChanger v0.3.6 – LiveShell Engine Handover
 
-- Fixed the original PS5 background reappearing when users press the PS button to return to Home without fully closing ThemeChanger.
-- Build a modified, auditable LiveShell ShellUI from GPL-3.0 upstream source. Daemon passes a ThemeChanger-only running-app marker, and ShellUI excludes PPSA99891 from its Game-layer video fade.
-- Keep the game-pause and Game-layer fade behavior for other real games intact.
-- Keep v0.3.4 protections: repeated MP4 selection, no redundant LiveShell Engine tile registration, MotionBGS previews/downloads, downloaded backgrounds, logging.
-- Full PS5 reboot is necessary once after upgrading the bundled privileged LiveShell payload.
-- Native CI compilation validates integration. Visible hardware behavior requires on-console testing.
+- Fixes repeated stock background when pressing PS button with ThemeChanger left running by addressing the confirmed root cause: an old LiveShell daemon was still active despite the packaged patch.
+- Changes the integrated source-built LiveShell /api/state response to report a distinct engine version.
+- Automatically upgrades older/incompatible LiveShell instances using LiveShell's own supported handover when elfldr port 9021 is available.
+- Prevents misleading success reports when the app has contacted an old daemon and ShellUI is stopped.
+- Displays handover progress and records diagnostic log entries.
+- Keeps previous focus-layer fix, game pause support for real games, no redundant Media tile, and MotionBGS functionality.
+- Full PS5 reboot may still be necessary if an existing payload does not support handover or if elfldr is unavailable.
+- Native compilation and API tests do not guarantee visible hardware playback; test on console.
