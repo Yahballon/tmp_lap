@@ -92,7 +92,24 @@ jobs:
           mock_pid=$!
           trap 'kill "$mock_pid" 2>/dev/null || true' EXIT
           sleep 1
+          # The client now inspects the selected file's MP4 headers. Give the
+          # REST mock a real short H.264 fixture, not a nonexistent filename.
+          sudo install -d -m 0777 /data/LiveShell/video
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=blue:size=128x128:rate=24 \
+            -t 1 -c:v libx264 -pix_fmt yuv420p -profile:v high -level:v 4.1 \
+            -movflags +faststart /data/LiveShell/video/MotionBGS-neon.mp4
           /tmp/themechanger-live-api-test
+      - name: Test H264 level normalization (black wallpaper compatibility)
+        run: |
+          g++ -std=c++20 -O2 -Ihomebrew/themechanger/native \
+            homebrew/themechanger/tests/test_mp4_compat.cpp -o /tmp/themechanger-mp4-level-test
+          /tmp/themechanger-mp4-level-test
+          python3 - <<'PY'
+          from pathlib import Path
+          code=Path('homebrew/themechanger/native/liveshell_client.cpp').read_text()
+          assert 'mp4compat::normalize(' in code
+          assert 'MP4_COMPAT' in code and 'MP4_INCOMPATIBLE' in code
+          PY
       - name: Prepare PS5 graphics SDK
         working-directory: app
         env:
@@ -187,7 +204,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.8-PPSA99891
+          name: ThemeChanger-v0.3.9-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -195,5 +212,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.8 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.8 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.8" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.9 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.9 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.9" --notes-file homebrew/themechanger/RELEASE_NOTES.md

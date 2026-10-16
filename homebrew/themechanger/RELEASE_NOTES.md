@@ -1,11 +1,9 @@
-# ThemeChanger v0.3.8 – Downloads-Only Backgrounds Library
+# ThemeChanger v0.3.9 – Black Background Fix
 
-- Removed all 12 bundled default wallpaper choices from the Backgrounds tab.
-- Removed the associated 12 JPG/PNG theme previews and 12 sample MP4 clips from the installation ZIP, reducing package size.
-- Backgrounds now lists **only downloaded MotionBGS MP4s**, with the newest downloads displayed first.
-- Added an immediate download-completed event from the catalog worker to the UI: a newly downloaded wallpaper appears in Backgrounds without restarting or waiting for periodic re-scan.
-- Downloaded wallpapers remain stored under `/data/LiveShell/video/MotionBGS-*.mp4` and can be selected/reapplied directly from Backgrounds.
-- Added friendly empty-library instructions pointing to Online Wallpapers.
-- Existing online MotionBGS gallery (~9K+ titles), search, tags, thumbnails, HD video downloads, integrated LiveShell 0.3.6 engine handover and ShellUI fixes remain.
-- Old `ThemeChanger-*.mp4` sample clips from earlier versions are not deleted automatically; they are simply no longer shown in the ThemeChanger UI.
-- The PlayStation 5 hardware UI behavior still requires final on-console verification.
+- Analyzed the video logs and five actual MotionBGS HD downloads. Several files had H.264 High Level 5.0 metadata even at 1920x1080/30 fps; a comparison file uses 4.1.
+- Normalizes a conservatively validated Full HD H.264 Level 5.0 `avcC`/SPS declaration to Level 4.2 **before** asking LiveShell to play it. Does not re-encode or modify actual video frames.
+- Fix also runs when choosing an old downloaded background, so no redownload is needed to test it.
+- Leaves videos already tagged Level 4.1/4.2 unchanged and rejects unsupported codecs/4K samples instead of silently producing a black background.
+- Improved logs: `MP4_COMPAT` and `MP4_INCOMPATIBLE` with original/new level and resolution.
+- Keeps the downloaded-only Backgrounds library, 9K+ searchable MotionBGS catalog, tag filters, gallery auto-refresh, and LiveShell engine integration untouched.
+- MP4-level compatibility validated by GitHub-hosted FFprobe and file-preservation tests. **Visible PS5 playback must be verified on console.**

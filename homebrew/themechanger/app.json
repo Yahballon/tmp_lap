@@ -1,13 +1,14 @@
 {
   "name": "ThemeChanger",
   "slug": "themechanger",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "titleId": "PPSA99891",
   "contentId": "UP9000-PPSA99891_00-THEMECHANGER0000",
-  "contentVersion": "01.000.011",
-  "releaseTag": "themechanger-v0.3.8",
+  "contentVersion": "01.000.012",
+  "releaseTag": "themechanger-v0.3.9",
   "engine": "Integrated LiveShell 0.3.6 engine identification with automatic upstream-supported handover from stale daemon",
   "ui": "blackbearreloaded/ps5-homebrew-ui",
   "dataFolder": "/data/ThemeChanger",
-  "online": "9K+ MotionBGS full catalog, search and tags; download-only Backgrounds library with immediate refresh and newest-first sorting"
+  "online": "9K+ MotionBGS full catalog, search and tags; download-only Backgrounds library with immediate refresh and newest-first sorting",
+  "videoCompatibility": "PS5 FullHD H.264 overdeclared Level 5.0 avcC/SPS header normalization to Level 4.2, on selection of new and previously downloaded MP4s; refuse unsupported codecs"
 }
