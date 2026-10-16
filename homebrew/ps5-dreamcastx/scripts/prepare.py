@@ -73,8 +73,8 @@ def adapt():
         'findDiscSets();\n\tps5::diag::mark("library: scanner=%d media, shown=%d titles", '
         '(int)list.size(), (int)games.size());\n\treturn true;',1)
     # Cached local covers win instantly over network metadata discovery.
-    # TheGamesDB is only queried when artwork is actually missing, or while
-    # reading the game's Details page (descriptions still work there).
+    # TheGamesDB is queried only if no local cover is present.
+    # Offline cover browsing never stalls on online metadata requests.
     old_cover = '''ImTextureID coverTexture(Game& g)
 {
 	ensureArt(g);
@@ -84,7 +84,7 @@ def adapt():
     new_cover = '''ImTextureID coverTexture(Game& g)
 {
 	std::string path = userCover(g);
-	if (path.empty() || lib.details)
+	if (path.empty())
 		ensureArt(g);
 	if (path.empty())
 		path = g.art.boxartPath;'''
