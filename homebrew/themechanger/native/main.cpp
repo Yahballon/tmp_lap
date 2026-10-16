@@ -9,7 +9,6 @@
 #include "motion_catalog.hpp"
 #include "theme_log.hpp"
 #include "wallpaper_storage.hpp"
-#include "smooth_video.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -510,12 +509,7 @@ int main(){
        if((pressed&hui::pad_bits::kCross)&&selected>=0&&selected<total){
          const auto id=installedIds[(size_t)selected];
          const auto name="MotionBGS-"+online.entries()[(size_t)id].slug+".mp4";
-         if(smooth_video::needs_conversion(online.wallpaper_path(id))){
-           if(online.download(id)){
-             status="Optimizing downloaded video for smooth PS5 playback...";
-             tc::log("VIDEO_OPTIMIZE_QUEUED",name.c_str());
-           }else status="Another download or optimization is already running";
-         }else if(theme::activate_file(name,status)){
+         if(theme::activate_file(name,status)){
            activeFile=name;active=-1;
            tc::log("SELECT_DOWNLOADED",name.c_str());
          }else tc::log("SELECT_FAILED",(name+" "+status).c_str());
