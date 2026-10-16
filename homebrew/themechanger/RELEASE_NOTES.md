@@ -1,11 +1,14 @@
-# ThemeChanger v0.3.11 – Download Crash Hotfix
+# ThemeChanger v0.3.12 — Emergency Boot Recovery
 
-- Fixes a regression where the PS5 exited unexpectedly during/just after MotionBGS downloads introduced in v0.3.10.
-- Temporarily disables the **experimental built-in FFmpeg/x264 re-encoding** on PS5. The previous v0.3.9 Level 5.0 H.264 metadata compatibility patch remains for existing wallpaper playback. Some problem videos may still stutter; smooth transcoding will be revisited in a separate, instrumented update.
-- Moves the 65 KB H.264 SPS inspection buffer to the heap (the buffer formerly risked a stack overflow in the smaller PS5 network thread).
-- Explicitly allocates 2 MB native worker-thread stack for safer HTTPS and media tasks.
-- Adds DOWNLOAD tracing: VIDEO_TRANSFER_DONE, VIDEO_TRANSFER_FAILED, VIDEO_NATIVE_CONVERSION_DISABLED and existing DOWNLOAD_COMPLETE to distinguish TLS/download faults from media handling.
-- Fixes empty libraries after reboot by no longer depending on PS5 `opendir/readdir`. Saves a durable filename index at `/data/ThemeChanger/wallpapers.index`, verifies known entries using `stat`, and automatically restores available backed-up MP4s from `/data/ThemeChanger/wallpapers/`.
-- Backgrounds updates immediately for newly downloaded videos. The 9K+ MotionBGS catalog, search, tags, LiveShell engine and wallpapers remain.
-- Existing files are **not deleted**. Downloads interrupted by v0.3.10 can be restarted.
-- CI verifies native compilation, persistent MP4 recovery, HTTPS download and preservation of safe-mode behavior. Console confirmation required.
+**Critical crash regression fix** for PS5 `system_illegal_function_call` when starting ThemeChanger after v0.3.10/v0.3.11.
+
+- Restores the complete **last console-confirmed working v0.3.9** boot, download-catalog and DualSense gallery code.
+- Disables all unverified boot-time file recovery code which invoked PS5-incompatible/unverified filesystem operations, and removes the experimental FFmpeg/x264 converter from the compiled PS5 executable.
+- Keeps the integrated LiveShell controller engine, 9K+ MotionBGS wallpaper index, search, tags, downloaded-only Backgrounds library and H.264 metadata compatibility fix as in v0.3.9.
+- No automatic deletion of downloaded wallpapers. Existing /data/LiveShell/video/ files and backups under /data/ThemeChanger/wallpapers remain untouched. This boot recovery deliberately **does not** attempt the unstable persistent restore introduced in v0.3.10.
+- Adds a CI guard to prevent unsupported startup recovery and experimental transcoding accidentally being linked into the emergency release.
+- PS5 console boot confirmation is still required; successful GitHub compilation cannot prove the device has no illegal function calls.
+
+For users currently unable to start, update to this ZIP, **fully close the old app**, and launch ThemeChanger again. If the app remains unable to launch, collect the earliest crash/loader message and the current `/data/ThemeChanger/themechanger.log` and specify if a new BOOT line was written.
+
+Some previously jerky H.264 streams can still stutter because experimental native re-encoding remains disabled for stability.
