@@ -9,6 +9,7 @@
 #include "motion_catalog.hpp"
 #include "theme_log.hpp"
 #include "wallpaper_storage.hpp"
+#include "smooth_video.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -503,7 +504,12 @@ int main(){
        if((pressed&hui::pad_bits::kCross)&&selected>=0&&selected<total){
          const auto id=installedIds[(size_t)selected];
          const auto name="MotionBGS-"+online.entries()[(size_t)id].slug+".mp4";
-         if(theme::activate_file(name,status)){
+         if(smooth_video::needs_conversion(online.wallpaper_path(id))){
+           if(online.download(id)){
+             status="Optimizing downloaded video for smooth PS5 playback...";
+             tc::log("VIDEO_OPTIMIZE_QUEUED",name.c_str());
+           }else status="Another download or optimization is already running";
+         }else if(theme::activate_file(name,status)){
            activeFile=name;active=-1;
            tc::log("SELECT_DOWNLOADED",name.c_str());
          }else tc::log("SELECT_FAILED",(name+" "+status).c_str());
@@ -550,6 +556,7 @@ int main(){
        if(!engine::busy())status=engine::status();
      }
    }
+   if(page==0&&online.downloading())status=online.status();
    // Download-complete event is emitted immediately by the worker and is
    // independent of whether LiveShell could activate the wallpaper.
    for(int idx:online.consume_installed()){
