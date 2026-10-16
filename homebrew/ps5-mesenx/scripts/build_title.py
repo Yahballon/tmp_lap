@@ -21,24 +21,16 @@ def run(*cmd,env=None):
 def prepare():
     run("python3",ROOT/"scripts/prepare_frontend.py")
     ns=SRC/"snes/src"
-    # The first milestone loads .nes ROMs. Remove ZIP/zlib and optional
-    # NFS/curl link dependencies until native SDK libraries are ported.
+    # NES scanner accepts both plain .nes and safe single-ROM ZIP archives.
+    # Retain upstream's bounded zlib decoder and validate the iNES header
+    # after extraction. zlib for PS5 comes from the Vulkan SDK sysroot.
     games=ns/"games.cpp"
-    txt=games.read_text()
-    txt=replace_once(txt,"#include <zlib.h>","")
-    txt=replace_once(txt,
-       'return RomName(name)||(name.size()>4 && Lower(name.substr(name.size()-4))==".zip");',
-       'return RomName(name);')
-    a=txt.index("static uint16_t U16(")
-    b=txt.index("bool ReadRom(",a)
-    txt=txt[:a]+txt[b:]
-    a=txt.index('    if(path.size()>4&&Lower(path.substr(path.size()-4))==".zip") {')
-    b=txt.index("    // Accept iNES/NES2.0 header only",a)
-    txt=txt[:a]+"    rom=std::move(bytes);\n"+txt[b:]
-    assert "z_stream" not in txt and "crc32" not in txt
-    games.write_text(txt)
+    games_source=games.read_text()
+    assert '#include <zlib.h>' in games_source
+    assert 'return ext==".nes";' in games_source
+    assert 'NES\\x1A' in games_source
     shelf=ns/"shelf_games.cpp"
-    shelf.write_text(shelf.read_text().replace('s==".nes"||s==".zip"','s==".nes"'))
+    assert 's==".nes"||s==".zip"' in shelf.read_text()
     builder=SRC/"snes/tools/build_shelf.py"
     txt=builder.read_text()
     txt=replace_once(txt,"core=nes/'third_party/bsnes-mercury';sdk=",
@@ -80,8 +72,8 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     # Keep a distinct human-readable app name but the correct numeric title ID.
     txt=txt.replace("'title':'"+APP+"'", "'title':'"+TITLE+"'")
     txt=txt.replace("PS5SNES-v6-Repository-Covers-by-YAHBALLON.zip",TITLE+".zip")
-    txt=txt.replace("PS5SNES v6 by YAHBALLON",APP+" v0.1.0")
-    txt=txt.replace("'name':'"+APP+"'", "'name':'"+APP+" v0.1.0'")
+    txt=txt.replace("PS5SNES v6 by YAHBALLON",APP+" v0.1.2")
+    txt=txt.replace("'name':'"+APP+"'", "'name':'"+APP+" v0.1.2'")
     txt=txt.replace("'bsnes-mercury balanced'","'MesenCE-Libretro NES HD'")
     txt=txt.replace("'https://github.com/libretro/bsnes-mercury'",
                     "'https://github.com/FrederickCampbell/MesenCE-Libretro'")

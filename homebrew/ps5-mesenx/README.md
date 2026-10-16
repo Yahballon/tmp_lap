@@ -1,6 +1,6 @@
 # PS5MesenX — MesenCE PS5 port workspace
 
-**Status:** Native PS5 TESTBUILD v0.1.1. Compiles and packages successfully; ROM playback and HD packs still need on-console testing.
+**Status:** Native PS5 TESTBUILD v0.1.2. Compiles and packages successfully; ROM playback and HD packs still need on-console testing.
 
 This independent workspace preserves the existing PS5SNESX application and imports
 the PS5 frontend and Mesen Community Edition sources at pinned revisions.
@@ -22,7 +22,7 @@ Zelda: Remastered is an **NES** HD pack, not an SNES ROM. MesenCE already
 has `Core/NES/HdPacks/HdPackLoader.cpp`, `HdNesPpu`, high-resolution video
 and HD audio facilities, but these are **not yet wired to the PS5 frontend**.
 
-PS5 paths (v0.1.1):
+PS5 paths (v0.1.2):
 
 ```text
 /data/PS5NES/games/The Legend of Zelda.nes
@@ -61,6 +61,12 @@ game art or third-party HD packs are bundled.
 
 Read [PORTING.md](PORTING.md) before changing the emulation backend.
 \n## Native adapter development (October 2026)\n\n`src/core_session.{h,cpp}` implements an **experimental** native C++ MesenCE\nbridge with NES ROM staging, HD pack lookup, HD-safe video frame buffering,\n48 kHz stereo capture, controller input and Mesen-native save states. It is\nnot yet included in a PS5 `eboot.bin`. The `Verify PS5MesenX native bridge`\nworkflow compiles its interface on a Linux host and checks upstream MesenCE\nbuildability; passing Linux tests does not verify PS5 compilation or playback.\n\nA separate native PS5 packaging workflow and hardware verification are the\nnext gates before any app should appear in `version.json`.\n
-## Shared ROM library (v0.1.1)
+## Shared ROM library (v0.1.2)
 
 PS5MesenX scans `/data/PS5NES/games` as its **primary NES ROM directory** and creates it at startup if missing. Game files must be `.nes`. Existing saves, settings, covers, logs, ROM cache and HD packs remain isolated in `/data/PS5MesenX`, and the original PS5SNESX repository is not modified.
+
+## ROM detection and troubleshooting (v0.1.2)
+
+Both `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms` are scanned, along with legacy game folders and USB locations. Supported ROMs are plain `.nes` files or ZIP archives containing exactly one `.nes` file with a valid iNES/NES2.0 header. Subfolders are scanned to depth 5.
+
+If no games show up, check `/data/PS5MesenX/logs/boot.log` for `[romscan] entry`, `[library] scan source`, `[library] ROM FOUND`, or `cannot open` lines, and confirm filesystem elevation succeeded. If root storage is unavailable the fallback log may be under `/download0/PS5MesenX/logs/boot.log`. Existing ROMs and saves are never moved or deleted.

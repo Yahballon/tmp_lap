@@ -52,6 +52,12 @@ def generate():
     }
 '''
     rom.write_text(before[:first] + after + before[last:])
+    # Diagnostics for missing folders, permissions and unexpected extensions.
+    replace_required(rom, 'DIR* dir=opendir(path.c_str());if(!dir){if(errno!=ENOENT)std::printf("[library] cannot open %s: errno=%d (%s)\\n",path.c_str(),errno,std::strerror(errno));return;}',
+                     'DIR* dir=opendir(path.c_str());if(!dir){std::printf("[library] cannot open %s: errno=%d (%s)\\n",path.c_str(),errno,std::strerror(errno));return;}')
+    replace_required(rom, 'auto dot=name.rfind(\'.\');games.push_back({path,name.substr(0,dot),bytes});',
+                     'auto dot=name.rfind(\'.\');games.push_back({path,name.substr(0,dot),bytes}); if(games.size()<=20)std::printf("[library] ROM FOUND %s (%llu bytes)\\n",path.c_str(),(unsigned long long)bytes);')
+
 
     shelf = source / "shelf_games.cpp"
     replace_required(shelf, 's==".sfc"||s==".smc"||s==".swc"||s==".fig"||s==".zip"',
@@ -59,6 +65,10 @@ def generate():
     replace_required(shelf, 'SNES-%08X', 'MESEN-%08X')
     replace_required(shelf, 'SNES ROM (FCEUmm)', 'NES ROM (MesenCE)')
     replace_required(shelf, 'game.badges={"SNES"};', 'game.badges={"NES"};')
+    # Show exactly which directories the PS5 scan is asked to traverse.
+    replace_required(shelf, 'auto dirs=directories;std::string root;',
+        'auto dirs=directories;std::string root;for(const auto& d:dirs)std::printf("[library] scan source: %s\\n",d.c_str());')
+
 
     runtime = source / "shelf_runtime.cpp"
     replace_required(runtime, '''    core.SetOption("bsnes_region",get("SNES/Region","auto"));
@@ -71,10 +81,19 @@ def generate():
     replace_required(runtime, '"SNES audio port failed"', '"MesenCE audio port failed"')
     replace_required(runtime, '"SNES frame upload failed"', '"MesenCE frame upload failed"')
 
+    # Isolated NES cache: the source inherited a SNES-only extension check
+    # and otherwise refuses to read valid .nes entries after the first scan.
+    cache = source / "library_cache.cpp"
+    replace_required(cache, 'PS5SNES4\\0', 'PS5MXN01\\0')
+    replace_required(cache,
+        'if(extension!=".zip"&&extension!=".sfc"&&extension!=".smc"&&extension!=".swc"&&extension!=".fig")return false;',
+        'if(extension!=".zip"&&extension!=".nes")return false;')
+
     # Home directory also owns MesenCE HdPacks/<ROM stem>/hires.txt.
     main = source / "main_shelf.cpp"
     replace_required(main, 'PS5SNES', TITLE)
     replace_required(main, 'PPSA99205', TITLE_ID)
+    replace_required(main, '#include <cerrno>', '#include <cerrno>\\n#include <dirent.h>')
     replace_required(main, '"/SNES"', '"/NES"')
     # Share ONLY the ROM library with PS5NES. Keep saves, cover cache,
     # HD packs and logs in /data/PS5MesenX to avoid clobbering other apps.
@@ -97,6 +116,31 @@ def generate():
     replace_required(main, 'for(const char* dir:{"games","saves","settings","covers","cache","logs"})',
                     'for(const char* dir:{"games","saves","settings","covers","cache","logs","HdPacks","SaveStates","Saves"})')
 
+    # Retain the two user-provided paths and our original ROM folder. The
+    # regular scanner performs path-based deduplication for overlapping roots.
+    replace_required(main,
+        '"/data/PS5MesenX/roms","/data/NES"',
+        '"/data/PS5MesenX/games","/data/PS5MesenX/roms","/data/NES"')
+    replace_required(main, '    orbis_frontend_set_language(root+"/lang");',
+        '''    // Inspect actual filesystem visibility before scanner thread starts.
+    for(const char* folder:{"/data/PS5NES/games","/data/homebrew/PPSA99896/roms",
+                            "/data/homebrew/PPSA99896/games","/data/PS5MesenX/games"}) {
+        DIR* dir=opendir(folder);
+        if(!dir) {
+            std::printf("[romscan] inaccessible %s errno=%d\\n",folder,errno);
+            continue;
+        }
+        int count=0;
+        while(auto* entry=readdir(dir)) {
+            if(entry->d_name[0]=='.')continue;
+            if(count<12)std::printf("[romscan] entry %s/%s\\n",folder,entry->d_name);
+            ++count;
+        }
+        closedir(dir);
+        std::printf("[romscan] %s: %d visible entries\\n",folder,count);
+    }
+    orbis_frontend_set_language(root+"/lang");''')
+
     # The SNES frontend cache paths and per-ROM NFS root must be independent.
     replace_required(shelf, 'PS5SNES', TITLE)
     for name in ("INSTALL.md",):
@@ -110,7 +154,7 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.002"
+    param["contentVersion"] = "01.000.003"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
@@ -120,7 +164,11 @@ def generate():
     compiled_main=main.read_text()
     assert 'paths.games_dir="/data/PS5NES/games";' in compiled_main
     assert 'mkdir("/data/PS5NES/games",0777)' in compiled_main
-    assert '"/data/PS5MesenX/games"' not in compiled_main
+    assert '"/data/homebrew/PPSA99896/roms"' in compiled_main
+    assert '"/data/PS5NES/games"' in compiled_main
+    assert "[romscan]" in compiled_main
+    assert 'extension!=".zip"&&extension!=".nes"' in cache.read_text()
+    assert 'PS5MXN01\\0' in cache.read_text()
     print("Prepared PS5MesenX source under", OUTPUT)
     print("NOTE: Core build/link not implemented in this preparation script.")
 

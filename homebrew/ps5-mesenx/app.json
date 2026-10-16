@@ -1,16 +1,26 @@
 {
   "name": "PS5MesenX",
   "slug": "ps5-mesenx",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "titleId": "PPSA99896",
   "contentId": "UP9000-PPSA99896_00-PS5MESENX0000001",
-  "contentVersion": "01.000.002",
-  "releaseTag": "ps5-mesenx-v0.1.1",
+  "contentVersion": "01.000.003",
+  "releaseTag": "ps5-mesenx-v0.1.2",
   "core": "FrederickCampbell/MesenCE-Libretro",
   "frontend": "PS5SNESX cover-flow PS5 Vulkan port",
   "installFolder": "PS5MesenX",
   "internalGameDirectory": "/data/PS5NES/games",
   "usbGameDirectory": "/mnt/usb0/PS5MesenX/games",
   "hdPacksDirectory": "/data/PS5MesenX/HdPacks",
-  "dataFolder": "/data/PS5MesenX"
+  "dataFolder": "/data/PS5MesenX",
+  "additionalGameDirectories": [
+    "/data/homebrew/PPSA99896/roms",
+    "/data/homebrew/PPSA99896/games",
+    "/data/PS5MesenX/games"
+  ],
+  "supportedRomExtensions": [
+    ".nes",
+    ".zip"
+  ],
+  "scanLog": "/data/PS5MesenX/logs/boot.log"
 }
