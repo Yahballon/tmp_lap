@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.1 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.2 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -7,6 +7,7 @@
 #include "liveshell_client.hpp"
 #include "liveshell_loader.hpp"
 #include "motion_catalog.hpp"
+#include "theme_log.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -42,16 +43,17 @@ void symbol(DrawList& d,float x,float y,float size=58){
 }
 void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pics,int selected,int active,int page,int opt,const std::string& status,bool live,bool loading,bool sidebar,const motion::Catalog& catalog,
           const std::vector<int>& filtered,const std::vector<unsigned>& thumbnails,
-          int onlineSelected,int onlinePage,int filterIndex,int sideRow){
+          int onlineSelected,int onlinePage,int filterIndex,int sideRow,
+          const std::vector<int>& installedIds,const std::string& activeFile){
  // All positions are in 1920x1080 virtual pixels, derived from the reference's 1671x941 grid.
  // The third row ends at y=985; the footer begins at y=994 (no clipping).
  d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020a16),Color::rgb(0x010615));
  d.gradient_rect({0,0,375,994},0,Color::rgb(0x061b35),Color::rgb(0x030a18));
  symbol(d,56,27,68);
- txt(d,f,a,"Theme",149,73,39);txt(d,f,a,"Changer",277,73,39,Color::rgb(0x0da4ff));
+ txt(d,f,a,"Theme",143,73,33);txt(d,f,a,"Changer",242,73,33,Color::rgb(0x0da4ff));
  txt(d,f,a,"PS5 Homebrew App",150,109,21,muted);
  d.line(2,125,375,125,1,Color::rgb(0x233a57));
- bool side=sidebar;
+ bool side=sidebar&&sideRow==0;
  panel(d,{25,148,325,71},10,Color::rgb(page==0?0x085ef3:0x071b34),Color::rgb(side?0x39c9ff:0x095fba));
  d.bordered_rect({53,170,32,27},5,white,2,white);
  d.circle(76,178,3,Color::rgb(0x075fff));
@@ -66,18 +68,29 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  d.line(29,806,346,806,1,Color::rgb(0x20354d));
  for(int i=1;i<3;i++){
    float y=i==1?833.f:907.f;
-   if(page==i)panel(d,{24,y,328,69},10,Color::rgb(0x0a3470),Color::rgb(0x13a0ff));
+   if(page==i||sidebar&&sideRow==i+1)panel(d,{24,y,328,69},10,Color::rgb(0x0a3470),Color::rgb(0x13a0ff));
    d.circle(69,y+33,18,white);txt(d,f,a,i==1?"i":"*",69,y+42,26,Color::rgb(0x041631),Align::center);
    txt(d,f,a,i==1?"About":"Settings",121,y+43,25);
  }
  // The preview is now the same proportions as the user reference (x=440, height=374).
  panel(d,{440,18,1450,375},13,Color::rgb(0x010819),Color::rgb(0x405370));
- unsigned picture=pics[selected];
+ unsigned picture=0;
+ if(page==0){
+   if(selected<12)picture=pics[std::clamp(selected,0,11)];
+   else if(selected-12>=0&&selected-12<(int)installedIds.size()){
+      int id=installedIds[(size_t)(selected-12)];
+      if(id>=0&&id<(int)thumbnails.size())picture=thumbnails[(size_t)id];
+   }
+ }else picture=pics[1];
  if(page==3&&!filtered.empty()&&onlineSelected>=0&&onlineSelected<(int)filtered.size()){
    const auto id=filtered[(size_t)onlineSelected];
    if(id>=0&&id<(int)thumbnails.size()&&thumbnails[(size_t)id])picture=thumbnails[(size_t)id];
  }
  if(picture)d.image(picture,{442,119,1446,271},kFullUv,white,10);
+ else {
+   d.gradient_rect({443,119,1445,270},0,Color::rgb(0x061c42),Color::rgb(0x13447a));
+   txt(d,f,a,"Loading wallpaper preview...",1160,343,23,muted,Align::center);
+ }
  d.gradient_rect({442,120,1446,218},0,Color::rgb(0x03091c,.68f),Color::rgb(0x01091c,.10f));
  d.gradient_rect({443,20,1443,103},0,Color::rgb(0x010918),Color::rgb(0x020817,.90f));
  txt(d,f,a,(page==0||page==3)?"Preview":page==1?"About":"Settings",474,65,34);
@@ -95,20 +108,42 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  }
  txt(d,f,a,"Open Theme",586,282,20);
  if(page==0){
+  const int total=12+(int)installedIds.size();
+  const int start=(selected/12)*12;
   txt(d,f,a,"Available Themes",397,435,30);
-  for(int i=0;i<12;i++){
-   const int row=i/4,col=i%4;
-   const float x=398+col*370.f, y=455+row*187.f;
-   const float w=348, h=159;
-   const bool chosen=selected==i&&!sidebar;
-   if(chosen)d.glow({x,y,w,h},13,13,Color::rgb(0x006eff,.40f));
-   panel(d,{x,y,w,h},9,Color::rgb(0x071329),Color::rgb(chosen?0x0d9fff:0x324359));
-   if(pics[i])d.image(pics[i],{x+2,y+2,w-4,h-4},kFullUv,white,7);
-   d.gradient_rect({x+2,y+h-56,w-4,54},4,Color::rgb(0x000000,.01f),Color::rgb(0x000000,.88f));
-   txt(d,f,a,theme::kNames[i],x+18,y+h-17,22,white);
-   if(i==active){d.circle(x+w-34,y+30,20,Color::rgb(0x0876ff));
-     txt(d,f,a,"X",x+w-34,y+38,24,white,Align::center);}
-   if(chosen)d.bordered_rect({x-2,y-2,w+4,h+4},10,Color::rgb(0x000000,0),3,Color::rgb(0x04a7ff));
+  txt(d,f,a,std::to_string(installedIds.size())+" downloaded   |   Page "+
+    std::to_string(start/12+1)+" / "+std::to_string((total+11)/12),
+    1878,432,18,muted,Align::right);
+  for(int pos=0;pos<12&&start+pos<total;pos++){
+   const int id=start+pos;
+   const bool builtin=id<12;
+   int onlineId=-1;std::string name;
+   unsigned tex=0;
+   if(builtin){name=theme::kNames[id];tex=pics[id];}
+   else {
+     onlineId=installedIds[(size_t)(id-12)];
+     name=catalog.entries()[(size_t)onlineId].title;
+     if(onlineId>=0&&onlineId<(int)thumbnails.size())tex=thumbnails[(size_t)onlineId];
+   }
+   const float x=398+(pos%4)*370.f,y=455+(pos/4)*176.f;
+   const float w=348,h=157;
+   const bool focus=selected==id&&!sidebar;
+   if(focus)d.glow({x,y,w,h},13,13,Color::rgb(0x006eff,.40f));
+   panel(d,{x,y,w,h},9,Color::rgb(0x071329),Color::rgb(focus?0x0d9fff:0x324359));
+   if(tex)d.image(tex,{x+2,y+2,w-4,h-4},kFullUv,white,7);
+   else {
+     d.gradient_rect({x+2,y+2,w-4,h-4},8,Color::rgb(0x051c44),Color::rgb(0x134070));
+     txt(d,f,a,"Downloaded MP4",x+174,y+77,20,muted,Align::center);
+   }
+   d.gradient_rect({x+2,y+h-52,w-4,50},4,Color::rgb(0x000000,.01f),Color::rgb(0x000000,.88f));
+   if(name.size()>28)name=name.substr(0,25)+"...";
+   txt(d,f,a,name,x+15,y+h-17,21,white);
+   const bool applied=builtin?id==active:activeFile=="MotionBGS-"+catalog.entries()[(size_t)onlineId].slug+".mp4";
+   if(applied){
+     d.circle(x+w-33,y+29,20,Color::rgb(0x0876ff));
+     txt(d,f,a,"X",x+w-33,y+37,23,white,Align::center);
+   }
+   if(focus)d.bordered_rect({x-2,y-2,w+4,h+4},10,Color::rgb(0x000000,0),3,Color::rgb(0x04a7ff));
   }
  }else if(page==3){
   const char* categories[]={"All","Featured","Anime","Games","Nature","Cars","Space","Technology","Fantasy"};
@@ -120,7 +155,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   for(int pos=0;pos<12&&begin+pos<(int)filtered.size();pos++){
    int idx=filtered[(size_t)(begin+pos)];
    const auto& item=catalog.entries()[(size_t)idx];
-   float x=398+(pos%4)*370.f,y=455+(pos/4)*187.f;
+   float x=398+(pos%4)*370.f,y=455+(pos/4)*176.f;
    bool focus=onlineSelected==begin+pos&&!sidebar;
    if(focus)d.glow({x,y,348,159},12,15,Color::rgb(0x006dff,.43f));
    panel(d,{x,y,348,159},10,Color::rgb(0x071b37),Color::rgb(focus?0x00afff:0x334e71));
@@ -147,11 +182,11 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.2.0",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.2",490,515,38);
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.0. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
-  txt(d,f,a,"LiveShell logs: /data/LiveShell/liveshell.log",490,775,24,muted);
+  txt(d,f,a,"App log: /data/ThemeChanger/themechanger.log",490,775,24,muted);
  }else{
   panel(d,{437,437,1420,475},13,Color::rgb(0x05132c),Color::rgb(0x264a77));
   const char* fields[]={"Wallpaper engine","Darkness","Pause during games","Hide in system settings","Restart LiveShell engine"};
@@ -168,7 +203,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  txt(d,f,a,"Select",105,1044,22,muted);
  d.circle(225,1034,16,white);txt(d,f,a,"O",225,1043,24,Color::rgb(0x021329),Align::center);
  txt(d,f,a,"Back",256,1044,22,muted);
- txt(d,f,a,"Square  Retry Engine",403,1045,20,muted);
+ txt(d,f,a,"L1/R1: Backgrounds / Online    Square: Retry Engine",403,1045,19,muted);
  txt(d,f,a,loading?"LiveShell starting...":live?"LiveShell connected":"LiveShell offline",1856,1028,19,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
  txt(d,f,a,(page==3?catalog.status():status).substr(0,99),1856,1057,17,muted,Align::right);
 }
