@@ -113,10 +113,12 @@ def generate():
     assert after in scan_text
     scan_text=scan_text.replace(after,
         '    mesen_diag::write("DIR_OPEN path=%s",path.c_str());' + chr(10) + after)
-    entry='        ++scan_progress.entries;'
+    entry='        ++scan_progress.entries;' + chr(10) + '        std::string child=path+"/"+entry->d_name;'
     assert entry in scan_text
     scan_text=scan_text.replace(entry,
-        entry + chr(10) + '        if(scan_progress.entries<=120)mesen_diag::write("DIR_ENTRY parent=%s name=%s type=%u",path.c_str(),entry->d_name,unsigned(entry->d_type));')
+        '        ++scan_progress.entries;' + chr(10) +
+        '        if(scan_progress.entries<=120)mesen_diag::write("DIR_ENTRY parent=%s name=%s type=%u",path.c_str(),entry->d_name,unsigned(entry->d_type));' + chr(10) +
+        '        std::string child=path+"/"+entry->d_name;')
     closing='    closedir(dir);' + chr(10) + '    std::printf("[library] local %s: matched='
     assert closing in scan_text
     scan_text=scan_text.replace(closing,
