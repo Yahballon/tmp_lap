@@ -378,7 +378,7 @@ int main(){
  rebuildFilter();
  hui::ps5::Pad pad;pad.open();
  int selected=0,active=-1,page=0,opt=0,dim=25,frame=0;
- bool sidebar=false;bool pendingRetry=false;
+ bool sidebar=false;bool pendingRetry=false;bool wasDownloadBusy=false;
  const std::string appRoot=asset.substr(0,asset.size()-7);
  engine::start_if_needed(appRoot);
  auto state=theme::playback_state();
@@ -556,7 +556,9 @@ int main(){
        if(!engine::busy())status=engine::status();
      }
    }
-   if(page==0&&online.downloading())status=online.status();
+   const bool downloadBusy=online.downloading();
+   if(page==0&&(downloadBusy||wasDownloadBusy))status=online.status();
+   wasDownloadBusy=downloadBusy;
    // Download-complete event is emitted immediately by the worker and is
    // independent of whether LiveShell could activate the wallpaper.
    for(int idx:online.consume_installed()){
