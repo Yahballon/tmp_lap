@@ -191,3 +191,4 @@ bool ShelfRuntime::Build(fe::Renderer& renderer,fe::FrameDesc& frame,uint32_t ra
               vertex(x,y+height,0,1),vertex(x+width,y,1,0),vertex(x+width,y+height,1,1)};
     return true;
 }
+} // namespace snes
