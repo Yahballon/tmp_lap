@@ -71,11 +71,8 @@ def generate():
     end = original.index('\\n    if(path.size()>4&&Lower(', start)
     original = original[:start] + working_load + original[end:]
     rom.write_text(original)
-    # Diagnostics for missing folders, permissions and unexpected extensions.
-    replace_required(rom, 'DIR* dir=opendir(path.c_str());if(!dir){if(errno!=ENOENT)std::printf("[library] cannot open %s: errno=%d (%s)\\n",path.c_str(),errno,std::strerror(errno));return;}',
-                     'DIR* dir=opendir(path.c_str());if(!dir){std::printf("[library] cannot open %s: errno=%d (%s)\\n",path.c_str(),errno,std::strerror(errno));return;}')
-    replace_required(rom, 'auto dot=name.rfind(\'.\');games.push_back({path,name.substr(0,dot),bytes});',
-                     'auto dot=name.rfind(\'.\');games.push_back({path,name.substr(0,dot),bytes}); if(games.size()<=20)std::printf("[library] ROM FOUND %s (%llu bytes)\\n",path.c_str(),(unsigned long long)bytes);')
+    # PS5NESX reports per-folder discovery counts for the actual native scan.
+    assert "[library] local %s: matched=" in rom.read_text()
 
 
     shelf = source / "shelf_games.cpp"
@@ -189,7 +186,6 @@ def generate():
     assert '#include <cerrno>' + chr(10) + '#include <dirent.h>' in compiled_main
     assert 'extension!=".zip"&&extension!=".nes"' in cache.read_text()
     assert 'PS5MXN01\\0' in cache.read_text()
-    assert 'NES discovered' in rom.read_text()
     assert 'readable_header' in rom.read_text()
     assert 'ROM metadata unavailable; bounded stream read' in rom.read_text()
     print("Prepared PS5MesenX source under", OUTPUT)
