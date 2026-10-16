@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.11 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.12 — HD pack loading fixes
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -93,3 +93,10 @@ Previous ROM scanning, audio, saves and Vulkan renderer are unchanged. Gameplay 
 - Extract `hires.txt` and the pack assets to `/data/PS5MesenX/HdPacks/<ROM basename>/`, matching the ROM filename without `.nes`.
 - Look for `HDPACK_SETTING`, `HDPACK_PROBE`, `HDPACK_APPLY`, `HDPACK_CORE_QUERY` and `MESENCE_CORE` in `/data/PS5MesenX/logs/boot.log`.
 - Rendering with HD packs still needs testing on real PS5 hardware: compare On versus Off on the same game.
+
+### v0.1.12 – HD pack load responsiveness and off toggle
+- Move ROM I/O, core initialization and PNG/HD pack loading onto a dedicated worker so the native pad and Vulkan frame pump remains active while a game opens.
+- Use at most two threads for independent PNG/tile preload stages, with full synchronization before gameplay. Actual loading time depends on pack size and device performance.
+- Honor `HD Packs: Off` at the ROM loading boundary, with an explicit disabled default and diagnostic output of the option passed to MesenCE. Close/reopen the game to apply settings.
+- Log `HDPACK_LOAD_BEGIN`, `HDPACK_LOAD_WAIT`, `HDPACK_LOAD_END` (ms), `HDPACK_LOAD_READY` and the core's HD pack decision into `/data/PS5MesenX/logs/boot.log`.
+- PS5 system menu and screenshot support depends on launcher, jailbreak and native app integration; keeping the render loop active may improve responsiveness but does not guarantee the system overlay/capture APIs work.

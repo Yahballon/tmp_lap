@@ -66,7 +66,7 @@ bool Session::Environment(unsigned cmd, void* data) {
             if (start != std::string::npos)
                 s.m_variables.try_emplace(v->key, text.substr(start, text.find('|', start) - start));
         }
-        s.m_variables.try_emplace("mesen_hdpacks","enabled");
+        s.m_variables.try_emplace("mesen_hdpacks","disabled");
         return true;
     case RETRO_ENVIRONMENT_GET_VARIABLE: {
         auto* v = static_cast<retro_variable*>(data);

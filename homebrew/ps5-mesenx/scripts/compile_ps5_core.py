@@ -80,7 +80,74 @@ s=s.replace(needle, """\t\t// PS5 headless renderer compatibility: if the interm
             }
         }
 """+needle)
+# Force explicit user choice at the actual ROM load boundary, not merely
+# at the earlier init options phase. The core normally defaults to enabled
+# when SET_CORE_OPTIONS_V2 is unsupported by our native Libretro host.
+setting='\t\t_hdPacksEnabled = enabled(MesenHdPacks, true);'
+assert setting in s
+s=s.replace(setting,'\t\t_hdPacksEnabled = enabled(MesenHdPacks, false);',1)
+explicit='\t\t\tNesConfig nesCfg = _emu->GetSettings()->GetNesConfig();\n\t\t\tnesCfg.EnableHdPacks = _hdPacksEnabled;'
+assert s.count(explicit)==1
+s=s.replace(explicit,'''            retro_variable hd_choice{MesenHdPacks, nullptr};
+            const bool hd_allowed =
+                env_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &hd_choice) &&
+                hd_choice.value && std::strcmp(hd_choice.value,"enabled")==0;
+            _hdPacksEnabled=hd_allowed;
+            if(logCallback) logCallback(RETRO_LOG_INFO,
+                "[MesenCE][HDPack] ROM loading: requested=%s enabled=%d\\\\n",
+                hd_choice.value?hd_choice.value:"unset",int(hd_allowed));
+            NesConfig nesCfg = _emu->GetSettings()->GetNesConfig();
+            nesCfg.EnableHdPacks = hd_allowed;'''.replace('\\\\n','\\n'),1)
+
 libretro.write_text(s)
+
+# PS5 HD pack initialization used to decode every PNG and premultiply all
+# tile pixels on the same core-load thread. Divide independent image/tile
+# initialization across two CPU workers; preserve the existing Init locks.
+hd_data=src/"Core/NES/HdPacks/HdData.h"
+hd=hd_data.read_text()
+assert "void PreloadResources()" in hd and "void CancelLoad()" in hd
+hd=hd.replace("#pragma once", "#pragma once\n#include <thread>\n#include <atomic>", 1)
+a=hd.index("\tvoid PreloadResources()")
+b=hd.index("\tvoid CancelLoad()",a)
+hd=hd[:a]+"""    void PreloadResources()
+    {
+        Timer tmr;
+        // Decode independently on two workers. All workers join BEFORE game
+        // execution, so no bitmap/tile references can escape initialization.
+        auto parallel=[&](size_t count, auto work) {
+            std::atomic<size_t> index{0};
+            auto worker=[&]{
+                for(;;) {
+                    const size_t i=index.fetch_add(1,std::memory_order_relaxed);
+                    if(i>=count)break;
+                    if(_cancelLoad)break;
+                    work(i);
+                }
+            };
+            std::thread second(worker);
+            worker();
+            second.join();
+        };
+        parallel(BackgroundFileData.size(), [&](size_t i) {
+            if(BackgroundFileData[i])BackgroundFileData[i]->Init();
+        });
+        if(_cancelLoad)return;
+        parallel(ImageFileData.size(), [&](size_t i) {
+            if(ImageFileData[i])ImageFileData[i]->Init();
+        });
+        if(_cancelLoad)return;
+        parallel(Tiles.size(), [&](size_t i) {
+            if(Tiles[i] && Tiles[i]->NeedInit())Tiles[i]->Init();
+        });
+        MessageManager::Log("[HDPack] PS5 dual-worker preload complete: images=" +
+            std::to_string(ImageFileData.size()) + " tiles=" +
+            std::to_string(Tiles.size()) + " elapsedMs=" +
+            std::to_string(tmr.GetElapsedMS()));
+    }
+
+""" + hd[b:]
+hd_data.write_text(hd)
 
 sources=sorted(set(c+cpp))
 assert len(sources)>100 and all(p.is_file() for p in sources)
