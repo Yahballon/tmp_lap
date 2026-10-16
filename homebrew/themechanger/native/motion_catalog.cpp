@@ -5,7 +5,6 @@
 #include "liveshell_client.hpp"
 #include "theme_log.hpp"
 #include "wallpaper_storage.hpp"
-#include "smooth_video.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -264,27 +263,11 @@ void* Catalog::run(void* p){
   }
   if(ok&&!is_mp4(path)){unlink(path.c_str());ok=false;err="Server did not send a valid MP4";}
  }
- bool optimized=false;
- if(ok){
-  tc::log("VIDEO_PROBE_BEGIN",item.slug.c_str());
- }
- const bool conversionNeeded=ok?smooth_video::needs_conversion(path):false;
- if(ok)tc::log("VIDEO_PROBE_DONE",(item.slug+
-    (conversionNeeded?" needs conversion":" compatible")).c_str());
- if(ok&&conversionNeeded){
-  self.report("Optimizing "+item.title+" for smooth PS5 playback...");
-  tc::log("VIDEO_OPTIMIZE_START",(item.slug+" (8+ reference frames)").c_str());
-  self.percent_=0;
-  if(smooth_video::convert(path,self.percent_,err)){
-    optimized=true;
-    tc::log("VIDEO_OPTIMIZE_DONE",(item.slug+" compatible H264 stream").c_str());
-  }
-  else{
-    tc::log("VIDEO_OPTIMIZE_FAILED",(item.slug+" "+err).c_str());
-    self.report("Video conversion failed: "+err);
-    ok=false;
-  }
- }
+ // Keep the verified v0.3.9 download path: no native FFmpeg work in
+ // the download worker. PS5 frame conversion caused immediate exits in
+ // v0.3.10; it remains experimental and must be separately validated.
+ const bool optimized=false;
+ if(ok)tc::log("VIDEO_NATIVE_CONVERSION_DISABLED","Safe download mode");
  if(ok){
   {std::lock_guard<std::mutex> lock(self.mutex_);
    self.installed_cache_[(size_t)job.index]=true;
