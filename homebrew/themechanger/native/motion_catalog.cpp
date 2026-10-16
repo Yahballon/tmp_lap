@@ -4,6 +4,7 @@
 #include "motion_download.hpp"
 #include "liveshell_client.hpp"
 #include "theme_log.hpp"
+#include "wallpaper_storage.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -245,6 +246,9 @@ void* Catalog::run(void* p){
    self.newly_installed_.push_back(job.index);
   }
   self.percent_=100;
+  if(wallpaper_storage::preserve("MotionBGS-"+item.slug+".mp4"))
+    tc::log("LIBRARY_SAVED",path.c_str());
+  else tc::log("LIBRARY_SAVE_FAILED",(path+" persistent backup failed").c_str());
   tc::log("DOWNLOAD_COMPLETE",path.c_str());
   std::string applied;
   if(theme::activate_file("MotionBGS-"+item.slug+".mp4",applied)){
