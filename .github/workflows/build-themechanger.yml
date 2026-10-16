@@ -50,7 +50,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           elf=Path('app/liveshell.elf').read_bytes()
-          assert len(elf)==903112 and elf[:5]==b'\\x7fELF\\x02'
+          assert len(elf)==903112 and elf[:5]==b'\x7fELF\x02'
           print('Verified LiveShell GPL-3.0 source project distribution:',len(elf),'bytes')
           PY
       - name: Prepare PS5 graphics SDK
