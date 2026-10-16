@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
 namespace motion {
 namespace {
 bool valid_slug(const std::string& slug) {
@@ -56,7 +57,30 @@ bool Catalog::load(const std::string& assets){
   if(item.preview.rfind("https://motionbgs.com/",0)!=0 && item.preview.rfind("https://",0)==0) item.preview="";
   next.push_back(std::move(item));
  }
- fclose(f);records_=std::move(next);
+ fclose(f);
+ // Older downloaded videos must remain visible even if a future online catalog
+ // no longer includes their source page. Only read MP4 files owned by ThemeChanger.
+ if(DIR* dir=opendir("/data/LiveShell/video")){
+   int recovered=0;
+   while(dirent* de=readdir(dir)){
+     const std::string filename=de->d_name;
+     if(filename.rfind("MotionBGS-",0)!=0||filename.size()<15||
+        filename.substr(filename.size()-4)!=".mp4")continue;
+     const std::string slug=filename.substr(10,filename.size()-14);
+     if(!valid_slug(slug))continue;
+     const bool present=std::any_of(next.begin(),next.end(),
+       [&](const Entry& e){return e.slug==slug;});
+     if(present)continue;
+     if(!exists(std::string("/data/LiveShell/video/")+filename,1024))continue;
+     std::string title=slug;
+     std::replace(title.begin(),title.end(),'-',' ');
+     next.push_back(Entry{slug,title,"Downloaded","",""});
+     recovered++;
+   }
+   closedir(dir);
+   if(recovered)tc::log("RESTORED_DOWNLOADS",std::to_string(recovered).c_str());
+ }
+ records_=std::move(next);
  preview_requested_.assign(records_.size(),false);
  installed_cache_.assign(records_.size(),false);
  for(int i=0;i<(int)records_.size();i++)
