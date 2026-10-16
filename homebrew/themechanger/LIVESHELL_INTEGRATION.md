@@ -2,12 +2,12 @@
 
 ThemeChanger is a native PS5 app, and ZiZc3's LiveShell Engine is a separate, privileged `liveshell.elf` payload. They **cannot simply be merged into the same process**, because the engine injects `liveshell_shellui.elf` into the separately running `SceShellUI` process.
 
-To make installation one-step, ThemeChanger v0.2.0 packages the original **LiveShell Engine v1.0** binary into the PS5 app and automatically streams that binary to the jailbreak's existing local **elfldr** on TCP port **9021** when it starts. If the engine is already running, ThemeChanger reuses it. Users can also request a retry by pressing Square.
+To make installation one-step, ThemeChanger v0.2.0 packages the original **LiveShell Engine v1.1** binary into the PS5 app and automatically streams that binary to the jailbreak's existing local **elfldr** on TCP port **9021** when it starts. If the engine is already running, ThemeChanger reuses it. Users can also request a retry by pressing Square.
 
 - Upstream source: https://github.com/ZiZc3/LiveShell
 - Upstream source commit inspected: `2bb061b8fd3d2e4c7ea2e81fbc90281debefaf8e`
-- Distribution: https://github.com/ZiZc3/LiveShell/releases/tag/v1.0
-- Pinned SHA-256: `fb3c686e2318bbb83ccf6e445a7224da00ae9009b14362c308b74ea5d120e577`
+- Distribution: https://github.com/ZiZc3/LiveShell/releases/tag/v1.1
+- Pinned SHA-256: `771abd65fe1dc96d35662eceddbe42dfe40f2c126ae960e6be5f43247627d248`
 - Upstream license: GNU GPL 3.0 (see https://github.com/ZiZc3/LiveShell/blob/main/LICENSE).
 - UI: BlackBearReloaded `ps5-homebrew-ui` / PS5-DevBridge, GPL-3.0-or-later.
 - No special utility on Windows or separate ELF upload required after installing ThemeChanger.
@@ -16,3 +16,7 @@ To make installation one-step, ThemeChanger v0.2.0 packages the original **LiveS
 The packaged LiveShell v1.0 binary is the upstream GitHub Release asset, independently SHA-256 checked by CI. **It is not rebuilt from the upstream LiveShell source by this pipeline.** Once integrated, both payload components are in the single release ZIP, but remain separate processes by design.
 
 Status and troubleshooting: `/data/LiveShell/liveshell.log` and `/data/LiveShell/inject.log`. ShellUI injection carries a risk of UI crash and may vary by firmware and jailbreak environment. Firmware compatibility must be tested on-console.
+
+## Upgrade notice
+
+Version 0.3.3 packages LiveShell 1.1. A previously running daemon will not be overwritten while active: reboot the console and re-enable the jailbreak to load the new bundle. ShellUI and decoder failures require the upstream LiveShell logs, and the frontend does not force kernel-level restarts.
