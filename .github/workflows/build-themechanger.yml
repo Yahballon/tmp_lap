@@ -97,18 +97,6 @@ jobs:
           trap 'kill "$mock_pid" 2>/dev/null || true' EXIT
           sleep 1
           /tmp/themechanger-live-api-test
-      - name: Bundle verified upstream LiveShell v1.1 payload
-        run: |
-          curl --fail --location --retry 3 --silent --show-error \
-            https://github.com/ZiZc3/LiveShell/releases/download/v1.1/liveshell.elf \
-            --output app/liveshell.elf
-          echo '771abd65fe1dc96d35662eceddbe42dfe40f2c126ae960e6be5f43247627d248  app/liveshell.elf' | sha256sum -c -
-          python3 - <<'PY'
-          from pathlib import Path
-          elf=Path('app/liveshell.elf').read_bytes()
-          assert len(elf)==968664 and elf[:5]==b'\x7fELF\x02'
-          print('Verified LiveShell v1.1 upstream distribution:',len(elf),'bytes')
-          PY
       - name: Prepare PS5 graphics SDK
         working-directory: app
         env:
@@ -116,6 +104,40 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: bash tools/prepare-opengl.sh
+      - name: Compile integrated LiveShell from GPL source (no Media tile)
+        timeout-minutes: 35
+        env:
+          PS5_CLANG: clang-18
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/aydencharles/onionHEN.git /tmp/theme-onionhen
+          git clone --depth=1 --branch v1.1 https://github.com/ZiZc3/LiveShell.git /tmp/theme-upstream-liveshell
+          python3 homebrew/themechanger/liveshell_build/patch_liveshell.py /tmp/theme-upstream-liveshell
+          mkdir -p /tmp/theme-onionhen/source/liveshell
+          cp /tmp/theme-upstream-liveshell/src/* /tmp/theme-onionhen/source/liveshell/
+          cp /tmp/theme-upstream-liveshell/assets/icon0.png /tmp/theme-onionhen/source/liveshell/icon0.png
+          printf '\nadd_subdirectory(liveshell)\n' >> /tmp/theme-onionhen/source/CMakeLists.txt
+          bash /tmp/theme-onionhen/scripts/sync_dependencies.sh
+          export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          export PATH="/usr/lib/llvm-18/bin:$PS5_PAYLOAD_SDK/bin:$PATH"
+          export LLVM_CONFIG=/usr/lib/llvm-18/bin/llvm-config
+          "$PS5_PAYLOAD_SDK/bin/prospero-cmake" \
+            -S /tmp/theme-onionhen/source \
+            -B /tmp/theme-onionhen/build \
+            -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DONIONHEN_KSTUFF_ELF=/tmp/theme-onionhen/.cache/dependencies/kstuff.elf \
+            -DPS5_PAYLOAD_SDK="$PS5_PAYLOAD_SDK"
+          cmake --build /tmp/theme-onionhen/build -j 4 --target liveshell
+          cp /tmp/theme-onionhen/build/bin/liveshell.elf app/liveshell.elf
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('/tmp/theme-onionhen/source/liveshell/liveshell_daemon.cpp').read_text()
+          elf=Path('app/liveshell.elf').read_bytes()
+          assert 'strcmp(id, "PPSA99891") != 0' in src
+          assert 'start_thread(after_start_thread);' not in src
+          assert elf.startswith(b'\x7fELF\x02') and len(elf)>100000
+          print('Custom GPL LiveShell, no Media tile, gamepause fix:',len(elf),'bytes')
+          PY
       - name: Prepare POSIX compat
         run: |
           mkdir -p app/build/jb-json
@@ -141,7 +163,7 @@ jobs:
           assert j['titleId']==title
           assert len(list((root/'assets/wallpapers').glob('*.png')))==12
           assert len(list((root/'assets/wallpapers').glob('*.mp4')))==12
-          assert (root/'liveshell.elf').stat().st_size==968664
+          assert (root/'liveshell.elf').stat().st_size>100000
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
           assert len(manifest.splitlines())>=7
           assert 'https://motionbgs.com/dl/hd/' in manifest
@@ -154,7 +176,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.3-PPSA99891
+          name: ThemeChanger-v0.3.4-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -162,5 +184,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.3 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.3 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.3" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.4 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.4 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.4" --notes-file homebrew/themechanger/RELEASE_NOTES.md
