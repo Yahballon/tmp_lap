@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.18 — HD pack memory safety and responsiveness
+# PS5MesenX v0.1.19 — HD pack memory safety and responsiveness
 
 The normal NES renderer was working on PS5, while enabling large HD packs could
 make the console unresponsive and trigger a page fault. This release changes
@@ -34,3 +34,9 @@ Install: `/data/homebrew/PPSA99896/`.
 NES ROMs: `/data/PS5NES/games/`.
 HD packs: `/data/PS5MesenX/HdPacks/<ROM stem>/hires.txt`.
 Log: `/data/PS5MesenX/logs/boot.log`.
+
+### v0.1.19 HD first-frame crash guards
+- Validates HD texture tile bounds, palette/atlas access and overscan before the native HD compositor.
+- Refuses invalid HD output pointers and unsupported pack renderers rather than dereferencing them.
+- Adds persistent `HDPACK_STAGE` markers around the first native core frames, HD VideoFilter and HD pack compositor, so any remaining crash can be localized.
+- No changes to the working NES ROM scanner or normal-mode emulation.

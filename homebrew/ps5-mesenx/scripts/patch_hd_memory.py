@@ -212,3 +212,100 @@ s=s.replace(needle, """                // Refuse invalid/uninitialized HD tiles;
 """,1)
 p.write_text(s)
 print("PASS PS5 HD resource guard: 256MiB atlases, <=64MiB each, 64MiB prewarm, safe lazy tiles")
+
+
+# PS5 HD first-frame crash guard / precise stage markers.
+# These patches do NOT disable successful HD packs. They reject malformed
+# frame/tile pointers that previously reached unchecked native memory accesses.
+edit("Core/NES/HdPacks/HdVideoFilter.cpp",
+     "#include \"NES/HdPacks/HdNesPack.h\"",
+     "#include \"NES/HdPacks/HdNesPack.h\"\n#include <cstdio>\n#include <atomic>")
+
+edit("Core/NES/HdPacks/HdVideoFilter.cpp",
+     """\tuint32_t hdScale = _hdNesPack->GetScale();
+
+\treturn {""",
+     """\t// Some malformed packs advertise an unsupported scale. Do not
+    // dereference a missing HdNesPack instantiated by the switch above.
+    uint32_t hdScale = _hdNesPack ? _hdNesPack->GetScale() : 1;
+    static std::atomic<unsigned> probes{0};
+    if(probes.fetch_add(1,std::memory_order_relaxed)<4) {
+        std::fprintf(stderr,"HDPACK_STAGE frame_info scale=%u renderer=%p\\n",
+                     hdScale,(void*)_hdNesPack.get());
+        std::fflush(stderr);
+    }
+
+\treturn {""")
+
+edit("Core/NES/HdPacks/HdVideoFilter.cpp",
+     """\tOverscanDimensions overscan = GetOverscan();
+\t_hdNesPack->Process((HdScreenInfo*)_frameData, GetOutputBuffer(), overscan);""",
+     """    uint32_t* output=GetOutputBuffer();
+    if(!_hdNesPack || !output) {
+        std::fprintf(stderr,"HDPACK_GUARD renderer_or_output_null pack=%p pixels=%p\\n",
+                     (void*)_hdNesPack.get(),(void*)output);
+        std::fflush(stderr);
+        return;
+    }
+    OverscanDimensions overscan = GetOverscan();
+    if(overscan.Left >= 256 || overscan.Right >= 256 ||
+       overscan.Top >= 240 || overscan.Bottom >= 240 ||
+       uint32_t(overscan.Left)+overscan.Right>=256 ||
+       uint32_t(overscan.Top)+overscan.Bottom>=240) {
+        std::fprintf(stderr,"HDPACK_GUARD invalid_overscan\\n");
+        std::fflush(stderr);
+        return;
+    }
+    static std::atomic<unsigned> hdFrames{0};
+    unsigned frame=hdFrames.fetch_add(1,std::memory_order_relaxed)+1;
+    if(frame<=4) {
+        std::fprintf(stderr,"HDPACK_STAGE filter_begin frame=%u output=%p data=%p\\n",
+                     frame,(void*)output,(void*)_frameData);
+        std::fflush(stderr);
+    }
+    _hdNesPack->Process((HdScreenInfo*)_frameData, output, overscan);
+    if(frame<=4) {
+        std::fprintf(stderr,"HDPACK_STAGE filter_end frame=%u\\n",frame);
+        std::fflush(stderr);
+    }""")
+
+edit("Core/NES/HdPacks/HdNesPack.cpp",
+     """\tuint32_t* bitmapData = hdPackTileInfo.HdTileData.data();
+\tuint32_t tileWidth = 8 * scale;""",
+     """    // A malformed/over-budget atlas must never be sampled as a 64-pixel
+    // tile. Lazy loading can produce an empty vector when PNG is rejected.
+    if(tileInfo.OffsetX>=8 || tileInfo.OffsetY>=8 ||
+       hdPackTileInfo.HdTileData.size()<size_t(64)*scale*scale)
+        return;
+    uint32_t* bitmapData=hdPackTileInfo.HdTileData.data();
+    uint32_t tileWidth = 8 * scale;""")
+
+edit("Core/NES/HdPacks/HdNesPack.cpp",
+     """\tconst HdBgConfig& bgConfig = _bgConfig[(int)priority];
+\tif((int32_t)x >= bgConfig.BgMinX""",
+     """    const HdBgConfig& bgConfig = _bgConfig[(int)priority];
+    if(bgConfig.Background && (!bgConfig.BgPixels ||
+       bgConfig.BgPngWidth<=0 || bgConfig.BgSourceHeightHd<=0 ||
+       bgConfig.BgSourceWidthHd<=0)) return;
+    if((int32_t)x >= bgConfig.BgMinX""")
+
+edit("Core/NES/HdPacks/HdNesPack.cpp",
+     """\t_hdScreenInfo = hdScreenInfo;
+
+\t// HD GAMEPLAY FAST-FORWARD CONTINUITY FIX V111F1""",
+     """    if(!hdScreenInfo || !outputBuffer)return;
+    static std::atomic<unsigned> packFrameCount{0};
+    unsigned packFrame=packFrameCount.fetch_add(1,std::memory_order_relaxed)+1;
+    if(packFrame<=4) {
+        std::fprintf(stderr,"HDPACK_STAGE pack_process_begin frame=%u scale=%u\\n",
+                     packFrame,unsigned(scale));
+        std::fflush(stderr);
+    }
+    _hdScreenInfo = hdScreenInfo;
+
+\t// HD GAMEPLAY FAST-FORWARD CONTINUITY FIX V111F1""")
+# pch.h includes std::atomic but declare explicit in HdNesPack.cpp
+edit("Core/NES/HdPacks/HdNesPack.cpp",
+     "#include \"pch.h\"",
+     "#include \"pch.h\"\n#include <cstdio>\n#include <atomic>")
+print("PASS first-frame HD null/bounds guards and staged crash tracing")

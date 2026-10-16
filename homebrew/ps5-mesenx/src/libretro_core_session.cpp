@@ -206,7 +206,9 @@ bool Session::LoadState() {
 void Session::Run() {
     if (!m_loaded) return;
     audio.clear();
+    if(m_run_count<3) mesen_diag::write("HDPACK_STAGE core_run_begin frame=%u",m_run_count+1);
     retro_run();
+    if(m_run_count<3) mesen_diag::write("HDPACK_STAGE core_run_end frame=%u",m_run_count+1);
     ++m_run_count;
     if (m_run_count == 1 || m_run_count == 120 || m_run_count % 300 == 0) {
         mesen_diag::write("VIDEO_STATUS runs=%u callbacks=%u null=%u pixels=%zu dim=%ux%u format=%d audio_samples=%zu",
