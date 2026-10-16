@@ -28,6 +28,9 @@ jobs:
               except Exception as e: print("Landing page failed:",repr(e))
               for kind, extra in (
                   ("direct no-range", {}),
+                  ("native exact headers", {"Accept":"image/jpeg,video/mp4,application/octet-stream,*/*;q=0.8","Accept-Encoding":"identity","Connection":"close"}),
+                  ("native with referer", {"Accept":"image/jpeg,video/mp4,application/octet-stream,*/*;q=0.8","Accept-Encoding":"identity","Connection":"close","Referer":"https://motionbgs.com/"+slug}),
+                  ("native video accept", {"Accept":"video/mp4,*/*;q=0.8","Accept-Encoding":"identity","Connection":"close"}),
                   ("referer no-range", {"Referer":"https://motionbgs.com/"+slug}),
                   ("browserlike no-range", {"Referer":"https://motionbgs.com/"+slug,"Accept":"video/mp4,video/*;q=0.9,*/*;q=0.8","Sec-Fetch-Mode":"navigate","Sec-Fetch-Site":"same-origin"}),
                   ("referer with range", {"Referer":"https://motionbgs.com/"+slug,"Range":"bytes=0-63"}),
