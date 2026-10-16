@@ -24,3 +24,7 @@ Version 0.3.3 packages LiveShell 1.1. A previously running daemon will not be ov
 ## v0.3.4 modified LiveShell source
 
 Build instructions: `homebrew/themechanger/liveshell_build/patch_liveshell.py` and `.github/workflows/build-themechanger.yml`. Upstream copyright and GNU GPL v3 apply to the patched engine. Previous packaged engine version (v1.1) SHA256 refers to the unmodified release; the newly compiled integrated engine has its own build-dependent checksum.
+
+## v0.3.5 – Separate ShellUI focus exception
+
+Upstream ShellUI hides its video whenever the focus layer remains `Game`. Pressing PS to open Home from PPSA99891 can leave that value unchanged while ThemeChanger remains running. The custom daemon writes `/system_tmp/liveshell/themechanger_active` only when PPSA99891 is the reported running app, and clears it on exit. The custom ShellUI checks the marker periodically and suppresses the Game-layer fade only for that title. Real games still fade normally; no PS5 game or system app is modified. The engine does not install a separate Media tile.

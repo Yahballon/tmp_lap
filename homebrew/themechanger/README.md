@@ -72,3 +72,11 @@ LiveShell's normal `gamepause=1` logic treated ThemeChanger `PPSA99891` as a run
 Upstream LiveShell v1.1 by ZiZc3 is cloned during CI and patched in `liveshell_build/patch_liveshell.py`. Its normal `install_tile()` startup call is disabled: ThemeChanger alone manages the engine, so no *new* `LiveShell Engine` Media tile is registered. **Previously installed** `LVSH00001` may be removed once using the PS5 interface; we do not silently delete a registered PS5 app.
 
 After installing v0.3.4 **fully reboot the PS5, enable the jailbreak and start ThemeChanger** to replace the older running daemon. Logs: `/data/ThemeChanger/themechanger.log` and `/data/LiveShell/liveshell.log`.
+
+## v0.3.5 – Wallpaper stays visible when opening PS5 Home
+
+Fixes a separate ShellUI focus bug: on the PS button, PS5 Home can open while ThemeChanger is still marked as the running application (PPSA99891). Although v0.3.4 exempted this title from LiveShell's game-pause detection, upstream **ShellUI** independently faded video to zero whenever FocusLayer.Game remained selected. Our custom GPL LiveShell source now shares the exact ThemeChanger-running state with the injected ShellUI and exempts this title from that fade, without disabling the hide/pause behavior for real games.
+
+To test: apply a wallpaper, press PS to return to Home **without closing the app** and check that the animated background remains. Then reopen ThemeChanger, choose a second wallpaper and return to Home again. Reboot the console and reactivate the jailbreak after installing, to ensure the previous in-memory LiveShell build is unloaded.
+
+Debug information: `/data/ThemeChanger/themechanger.log`, `/data/LiveShell/liveshell.log` (look for `ThemeChanger running app active/closed`) and LiveShell's ShellUI log if still reproducible.
