@@ -112,6 +112,23 @@ std::string summary(const PlaybackState& p){
   " enabled="+(p.enabled?"1":"0")+" mainvideo="+(p.mainVideo?"1":"0")+
   " gamepause="+(p.gamePause?"1":"0")+" game="+p.game;
 }
+std::string codec_hint(const std::string& filename){
+ // A lightweight MP4 signature probe for the diagnostic log. ffprobe is not
+ // available on the console, so read only the first 512 KB of the container.
+ const std::string path=std::string(kLiveRoot)+"/"+filename;
+ struct stat info{};
+ if(stat(path.c_str(),&info)!=0)return "file missing";
+ FILE* f=fopen(path.c_str(),"rb");
+ if(!f)return "file unreadable";
+ char data[512*1024];
+ const size_t n=fread(data,1,sizeof(data),f);fclose(f);
+ std::string header(data,n);
+ std::string codec="unknown";
+ for(const char* type:{"avc1","avc3","hvc1","hev1","av01","mp4v"}){
+   if(header.find(type)!=std::string::npos){codec=type;break;}
+ }
+ return "bytes="+std::to_string((long long)info.st_size)+" codec_hint="+codec;
+}
 std::mutex g_select_lock;
 bool select_clip(const std::string& filename,std::string& result){
  std::lock_guard<std::mutex> guard(g_select_lock);
@@ -128,6 +145,7 @@ bool select_clip(const std::string& filename,std::string& result){
       result="Unable to enable main background in LiveShell";return false;
    }
  }
+ tc::log("VIDEO_INFO",(filename+" "+codec_hint(filename)).c_str());
  tc::log("SELECT_REQUEST",(filename+" index="+std::to_string(idx)).c_str());
  // LiveShell can take >8s waiting for ShellUI to release the previous video.
  // Original 2s socket timeout truncated slow selections.
