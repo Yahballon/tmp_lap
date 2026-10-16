@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "c6c49fc4a08f70a707f7ced6305fcb717a3e99a8eb256d345e5dda9b4dd65b72",
+  "version": "871b054e054f24a2f5b7d11088fa742bf508a7a1e805858421d50b2bfe72fd04",
   "repository": "Yahballon/tmp_lap",
   "app_count": 13,
   "apps": [
@@ -99,14 +99,14 @@
       "name": "PS5DreamcastX",
       "slug": "ps5-dreamcastx",
       "title_id": "PPSA99765",
-      "version": "0.1.5",
-      "tag": "ps5-dreamcastx-v0.1.5",
+      "version": "0.1.6",
+      "tag": "ps5-dreamcastx-v0.1.6",
       "zip_name": "PPSA99765.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-dreamcastx-v0.1.5/PPSA99765.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-dreamcastx-v0.1.5",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-dreamcastx-v0.1.6/PPSA99765.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-dreamcastx-v0.1.6",
       "source": "homebrew/ps5-dreamcastx",
-      "size_bytes": 16119857,
-      "published_at": "2026-10-16T00:24:38Z"
+      "size_bytes": 16121856,
+      "published_at": "2026-10-16T00:54:41Z"
     },
     {
       "name": "Audiobook Reader",
