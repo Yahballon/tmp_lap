@@ -25,6 +25,25 @@ int main(){
  assert(valid_file(live));
  assert(valid_file(archive));
  assert(preserve(name));
+ // Successful re-encodes must replace an older archive, or every reboot
+ // restores the old 8-reference stream and requires another conversion.
+ const std::string newVersion=live+".new";
+ f=fopen(newVersion.c_str(),"wb");assert(f);
+ assert(fwrite(data,1,sizeof(data),f)==sizeof(data));
+ assert(fwrite(buf,1,sizeof(buf),f)==sizeof(buf));
+ assert(fwrite(buf,1,sizeof(buf),f)==sizeof(buf));
+ fclose(f);
+ assert(rename(newVersion.c_str(),live.c_str())==0);
+ assert(preserve(name,true));
+ struct stat newInfo{},archivedInfo{};
+ assert(stat(live.c_str(),&newInfo)==0);
+ assert(stat(archive.c_str(),&archivedInfo)==0);
+ assert(newInfo.st_size==archivedInfo.st_size);
+ unlink(live.c_str());
+ r=recover();
+ assert(r.restored>=1);
+ assert(stat(live.c_str(),&newInfo)==0);
+ assert(newInfo.st_size==archivedInfo.st_size);
  r=recover();
  assert(r.restored==0);
  assert(!filename_ok("../bad"));
