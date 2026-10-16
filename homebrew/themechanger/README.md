@@ -30,3 +30,17 @@ GPL-3.0-or-later for this frontend, GPL-3.0 compatibility with LiveShell. See up
 ## Integrated engine details
 
 See [LIVESHELL_INTEGRATION.md](LIVESHELL_INTEGRATION.md) for source, license, checksum, installation, requirements, and troubleshooting.
+
+## Online Wallpapers – MotionBGS (v0.3.0)
+
+Browse publicly listed **1920x1080 MP4** wallpapers from [MotionBGS](https://motionbgs.com/) inside the native PS5 ThemeChanger interface. The GitHub Actions build discovers public item pages and official HD download links and packages **only metadata**, not third-party artwork or videos. Users download each video directly from the website to their PS5.
+
+- **R1** cycle into Online Wallpapers; **L2/R2** filter categories (All, Featured, Anime, Games, Nature, Cars, Space, Technology, Fantasy)
+- **Triangle** next page; **D-pad** navigate; **X** download/install (or apply when previously installed)
+- TLS verified against CA roots, official-domain restrictions, 160MB size cap, progress meter, atomic `.part` downloads, MP4 signature validation
+- Stored files: `/data/LiveShell/video/MotionBGS-<slug>.mp4`
+- Thumbnails are fetched on-device to `/data/ThemeChanger/cache/`; if they cannot be decoded, show a placeholder
+- After download, the LiveShell API automatically receives the video selection
+- Built-in original themes and bundled LiveShell v1.0 remain unchanged
+
+**Notes:** The online catalog is a snapshot refreshed during app builds, not an always-live search index. MotionBGS availability, CDN endpoints and copyright permissions may change; users should respect the rights of creators and site terms. LiveShell currently supports 1080p MP4, so 4K links are excluded.

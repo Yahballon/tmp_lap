@@ -94,6 +94,21 @@ bool install_and_select(int index,const std::string& assets,std::string& result)
  if(reply.find("\"ok\":true")==std::string::npos){result="LiveShell rejected wallpaper selection";return false;}
  save_selected(index);result=std::string(kNames[index])+" applied by LiveShell";return true;
 }
+bool activate_file(const std::string& filename,std::string& result){
+ if(filename.empty()||filename.size()>120||filename.find('/')!=std::string::npos||
+   filename.find('\\\\')!=std::string::npos||filename.find("..")!=std::string::npos){
+   result="Invalid wallpaper filename";return false;
+ }
+ const auto state=http_get("/api/state");
+ if(state.empty()){result="LiveShell offline; wallpaper saved";return false;}
+ int idx=find_index(state,filename);
+ if(idx<0){result="LiveShell did not list the new MP4 yet";return false;}
+ const auto reply=http_get("/api/select?i="+std::to_string(idx));
+ if(reply.find("\\\"ok\\\":true")==std::string::npos){
+   result="LiveShell could not activate this video";return false;
+ }
+ result="Wallpaper applied";return true;
+}
 bool send_setting(const std::string& route,std::string& result){
  if(route.empty()||route[0]!='/'||route.find("..")!=std::string::npos){result="Invalid API route";return false;}
  const auto body=http_get(route);
