@@ -60,6 +60,9 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
  if(fd<0){err="Media host unreachable";SSL_CTX_free(ctx);return false;}
  SSL* ssl=SSL_new(ctx);if(!ssl){close(fd);SSL_CTX_free(ctx);err="TLS connection unavailable";return false;}
  SSL_set_fd(ssl,fd);SSL_set_tlsext_host_name(ssl,url.host.c_str());SSL_set1_host(ssl,url.host.c_str());
+ // Match standard HTTPS clients: some CDN frontends expect explicit HTTP/1.1 ALPN.
+ const unsigned char alpn[]={8,'h','t','t','p','/','1','.','1'};
+ SSL_set_alpn_protos(ssl,alpn,sizeof(alpn));
  bool success=false;FILE* file=nullptr;
  do {
   if(SSL_connect(ssl)!=1||SSL_get_verify_result(ssl)!=X509_V_OK){err="Media TLS certificate rejected";break;}
@@ -79,7 +82,16 @@ bool once(const Url& url,const std::string& target,std::atomic<int>& progress,st
    redirect=header(heads,"location:");if(redirect.rfind("https://",0)!=0){err="Unsafe redirect";redirect.clear();}
    break;
   }
-  if(status!=200){err="Media server returned HTTP "+std::to_string(status);break;}
+  if(status!=200){
+    err="Media server returned HTTP "+std::to_string(status);
+    if(status==403){
+      auto start=delim+4;
+      std::string body=response.substr(start,std::min<size_t>(response.size()-start,400));
+      if(body.empty()){int x=SSL_read(ssl,buf,512);if(x>0)body.assign(buf,(size_t)x);}
+      if(body.find("cloudflare")!=std::string::npos)err+=" (Cloudflare denied request)";
+    }
+    break;
+  }
   if(header(heads,"transfer-encoding:").find("chunked")!=std::string::npos){err="Chunked media response not supported";break;}
   const auto content_length=header(heads,"content-length:");
   unsigned long long expected=0;
