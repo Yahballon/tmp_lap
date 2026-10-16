@@ -23,9 +23,9 @@ class Anchors(HTMLParser):
     def handle_starttag(self,tag,attrs):
         attrs=dict(attrs)
         if tag=="a":
-            self.link=[attrs.get("href",""),attrs.get("title",""),""]
+            self.link=[attrs.get("href") or "",attrs.get("title") or "",""]
         if tag=="img" and self.link:
-            self.link[2]+=attrs.get("alt","")+" "
+            self.link[2]+=(attrs.get("alt") or "")+" "
     def handle_data(self,data):
         if self.link:self.link[2]+=data
     def handle_endtag(self,tag):
