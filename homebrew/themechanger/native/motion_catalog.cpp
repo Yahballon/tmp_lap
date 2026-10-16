@@ -202,6 +202,10 @@ std::vector<int> Catalog::consume_ready(){
  std::lock_guard<std::mutex> g(mutex_);
  auto items=ready_;ready_.clear();return items;
 }
+std::vector<int> Catalog::consume_installed(){
+ std::lock_guard<std::mutex> g(mutex_);
+ auto ids=newly_installed_;newly_installed_.clear();return ids;
+}
 void* Catalog::run(void* p){
  Worker job=*static_cast<Worker*>(p);delete static_cast<Worker*>(p);
  Catalog& self=*job.self;
@@ -236,7 +240,10 @@ void* Catalog::run(void* p){
   if(ok&&!is_mp4(path)){unlink(path.c_str());ok=false;err="Server did not send a valid MP4";}
  }
  if(ok){
-  {std::lock_guard<std::mutex> lock(self.mutex_);self.installed_cache_[(size_t)job.index]=true;}
+  {std::lock_guard<std::mutex> lock(self.mutex_);
+   self.installed_cache_[(size_t)job.index]=true;
+   self.newly_installed_.push_back(job.index);
+  }
   self.percent_=100;
   tc::log("DOWNLOAD_COMPLETE",path.c_str());
   std::string applied;
