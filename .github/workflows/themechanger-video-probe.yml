@@ -33,6 +33,21 @@ jobs:
           }
           CPP
           g++ -std=c++20 -O2 -pthread -Ihomebrew/themechanger/native /tmp/media_inspect.cpp homebrew/themechanger/native/motion_download.cpp -lssl -lcrypto -o /tmp/media_inspect
+          g++ -std=c++20 -O2 -Ihomebrew/themechanger/native homebrew/themechanger/tests/test_mp4_compat.cpp -o /tmp/test_mp4_compat
+          /tmp/test_mp4_compat
+          cat >/tmp/normalize.cpp <<'CPP'
+          #include "mp4_compat.hpp"
+          #include <cstdio>
+          int main(int argc,char**argv){
+           for(int i=1;i<argc;i++){
+            auto r=mp4compat::normalize(argv[i]);
+            std::printf("%s compatible=%d changed=%d dimensions=%ux%u before=%u after=%u %s\n",
+                        argv[i],r.ok,r.changed,r.width,r.height,r.original_level,r.new_level,r.message.c_str());
+            if(!r.ok)return 1;
+           }
+          }
+          CPP
+          g++ -std=c++20 -O2 -Ihomebrew/themechanger/native /tmp/normalize.cpp -o /tmp/normalize
       - name: Probe HD videos and decoded frames
         run: |
           for pair in "5411 bmw-m5-in-dark" "4121 full-moon-samurai" "1115 sanji-smoking-one-piece" "1132 thousand-sunny-one-piece" "10118 wandering-samurai"; do
@@ -41,6 +56,8 @@ jobs:
             echo "=== $name ==="
             if timeout 55s /tmp/media_inspect "https://motionbgs.com/dl/hd/$id/" "/tmp/$id.mp4"; then
               ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,profile,level,width,height,pix_fmt,r_frame_rate,nb_frames,color_range,color_space -show_entries format=duration,size -of json "/tmp/$id.mp4"
+              /tmp/normalize "/tmp/$id.mp4"
+              ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,profile,level,width,height,pix_fmt -of compact=p=0 "/tmp/$id.mp4"
               ffmpeg -nostdin -hide_banner -loglevel error -i "/tmp/$id.mp4" -vf "blackdetect=d=0.25:pix_th=0.12" -t 5 -f null - 2>&1 | tail -15
               ls -lh "/tmp/$id.mp4"
             fi
