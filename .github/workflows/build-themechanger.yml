@@ -92,6 +92,12 @@ jobs:
           mock_pid=$!
           trap 'kill "$mock_pid" 2>/dev/null || true' EXIT
           sleep 1
+          # The client now inspects the selected file's MP4 headers. Give the
+          # REST mock a real short H.264 fixture, not a nonexistent filename.
+          sudo install -d -m 0777 /data/LiveShell/video
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=blue:size=128x128:rate=24 \
+            -t 1 -c:v libx264 -pix_fmt yuv420p -profile:v high -level:v 4.1 \
+            -movflags +faststart /data/LiveShell/video/MotionBGS-neon.mp4
           /tmp/themechanger-live-api-test
       - name: Test H264 level normalization (black wallpaper compatibility)
         run: |
