@@ -160,16 +160,18 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: bash tools/prepare-opengl.sh
-      - name: Build bundled ps5-signal (loopback-only release)
+      - name: Bundle verified original Signal Companion service
         run: |
           set -euo pipefail
+          # This exact ELF also ships inside Marice's Signal Companion v00.001.000.
+          # Do not rebuild it with ThemeChanger's older v0.42 SDK.
+          mkdir -p app/assets/payload
+          curl --fail --location --retry 3 --silent --show-error \
+            https://github.com/Marice/ps5-signal/releases/download/v0.1.0/ps5-signal.elf \
+            -o app/assets/payload/ps5-signal.elf
+          echo 'e39199ab216986442dd4ae66df7fe7ec012c50984a27fc8aff9b42834359e9d8  app/assets/payload/ps5-signal.elf' | sha256sum --check --strict
           git clone https://github.com/Marice/ps5-signal.git /tmp/theme-signal
           git -C /tmp/theme-signal checkout --detach 8ed455197a8643302a066b7b0e97972036998304
-          export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
-          export PATH="/usr/lib/llvm-18/bin:$PS5_PAYLOAD_SDK/bin:$PATH"
-          make -C /tmp/theme-signal PS5_PAYLOAD_SDK="$PS5_PAYLOAD_SDK" all
-          mkdir -p app/assets/payload
-          cp /tmp/theme-signal/ps5-signal.elf app/assets/payload/
           cp /tmp/theme-signal/LICENSE app/assets/payload/ps5-signal-LICENSE
       - name: Compile integrated LiveShell from GPL source (no Media tile)
         timeout-minutes: 35
@@ -231,7 +233,7 @@ jobs:
       - name: Verify installer and assets
         run: |
           python3 - <<'PY'
-          import pathlib,zipfile,struct,json
+          import pathlib,zipfile,struct,json,hashlib
           title='PPSA99891'
           root=pathlib.Path('app/dist')/title
           binary=(root/'eboot.bin').read_bytes()
@@ -249,7 +251,8 @@ jobs:
           assert 'consume_installed()' in app_src
           assert (root/'liveshell.elf').stat().st_size>100000
           signal=(root/'assets/payload/ps5-signal.elf').read_bytes()
-          assert signal[:5]==b'\x7fELF\x02' and 64<len(signal)<4194304
+          assert signal[:5]==b'\x7fELF\x02' and len(signal)==147856
+          assert hashlib.sha256(signal).hexdigest()=='e39199ab216986442dd4ae66df7fe7ec012c50984a27fc8aff9b42834359e9d8'
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
           assert len(manifest.splitlines())>8000, 'Full sitemap should contain thousands of desktop wallpaper entries'
           assert any(len(r.split('\t'))>=6 for r in manifest.splitlines()[1:])
@@ -265,7 +268,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.18-PPSA99891
+          name: ThemeChanger-v0.3.19-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -273,5 +276,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.18 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.18 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.18" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.19 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.19 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.19" --notes-file homebrew/themechanger/RELEASE_NOTES.md

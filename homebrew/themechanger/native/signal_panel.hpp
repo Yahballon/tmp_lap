@@ -39,7 +39,7 @@ private:
  bool attemptedStart_=false,loaded_=false,preview_=false,mixDirty_=false,startupDirty_=false,lights_=false;
  float previewAge_=0;
  bool previewDirty_=false;
- std::string message_="Choose Start ps5-signal if the service is offline";
+ std::string message_="After updating ThemeChanger, choose Restart ps5-signal once";
  std::string detail_="Checking ps5-signal...";
 };
 }

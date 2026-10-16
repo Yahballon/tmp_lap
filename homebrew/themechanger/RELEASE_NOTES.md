@@ -1,10 +1,10 @@
-# ThemeChanger v0.3.18 - Signal LED diagnostics
+# ThemeChanger v0.3.19 - Use the original Signal Companion service binary
 
-- Dedicated /data/ThemeChanger/signal.log (plus rotated signal.old.log); Signal events remain in themechanger.log too.
-- Log requested blue/white/amber values, preview state and offline command blocking.
-- Assign a request ID to every service request and log its method, route, JSON body and HTTP response. ELF payload bytes are never logged.
-- After accepted colour commands, read /status back on the same worker before the next colour command runs. Log requested versus reported values, LED availability, colour availability, brightness, active lighting, held colour state and service version.
-- Distinguish matching values, differing values, unavailable colour control and failed readback. Reported service values do not prove a physical LED change.
-- Validate the diagnostic classifications alongside the existing transport and integration tests.
+- Bundle the unmodified ps5-signal.elf shipped by Marice's Signal Companion v00.001.000, rather than rebuilding it with ThemeChanger's older payload SDK.
+- Original ELF: 147856 bytes, SHA-256 e39199ab216986442dd4ae66df7fe7ec012c50984a27fc8aff9b42834359e9d8. Checked both during download and inside the finished installer.
+- The identity was verified against the original Companion ZIP (SHA-256 8404cc3cf05c9e9e12ecdd961f5257f65a730c0c3136663a89ba9f6112548840).
+- Retain detailed Signal request/readback logs under /data/ThemeChanger/signal.log.
 
-To investigate: open Signal Companion, adjust Blue/White/Amber or select a preset, wait a few seconds, then retrieve /data/ThemeChanger/signal.log and signal.old.log if present. Firmware and console model are useful alongside the log. This release adds diagnosis; it does not claim to fix an unconfirmed hardware-level LED fault.
+After installing, open Signal Companion > Status and choose Restart ps5-signal once to replace the old background process. Installing the app alone does not replace a running service.
+
+The supplied console log proves commands arrive and save, but reported channels remain 0/255/0. It does not prove the SDK difference is the cause. This update removes that binary difference; hardware validation remains required. Colour availability and brightness availability are separate capabilities.
