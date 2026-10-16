@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.2 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.3 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -182,9 +182,9 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.2",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.3",490,515,38);
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
-  txt(d,f,a,"Includes LiveShell engine v1.0. Starts automatically via elfldr.",490,650,24);
+  txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
   txt(d,f,a,"App log: /data/ThemeChanger/themechanger.log",490,775,24,muted);
  }else{
@@ -258,15 +258,19 @@ int main(){
                             hui::pad_bits::kLeft|hui::pad_bits::kRight;
  for(;;){
    std::array<hui::PadSample,64> samples{};const size_t n=pad.read(samples);
-   unsigned held=0;
-   for(size_t i=0;i<n;i++){
-     if(!samples[i].connected)continue;
-     held|=samples[i].buttons;
-     // Treat the analog stick exactly like a held D-pad direction.
-     if(samples[i].left_x<60)held|=hui::pad_bits::kLeft;
-     if(samples[i].left_x>195)held|=hui::pad_bits::kRight;
-     if(samples[i].left_y<60)held|=hui::pad_bits::kUp;
-     if(samples[i].left_y>195)held|=hui::pad_bits::kDown;
+   // scePadRead returns a history of samples. OR-ing every sample made a
+   // released Cross button look held again, producing repeated APPLY events.
+   // Keep the newest connected sample, and preserve state on empty reads.
+   unsigned held=previous;
+   if(n>0){
+     for(size_t i=0;i<n;i++){
+       if(!samples[i].connected)continue;
+       held=samples[i].buttons;
+       if(samples[i].left_x<60)held|=hui::pad_bits::kLeft;
+       if(samples[i].left_x>195)held|=hui::pad_bits::kRight;
+       if(samples[i].left_y<60)held|=hui::pad_bits::kUp;
+       if(samples[i].left_y>195)held|=hui::pad_bits::kDown;
+     }
    }
    unsigned pressed=held&~previous;
    const unsigned directions=held&arrows;
