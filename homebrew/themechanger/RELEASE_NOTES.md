@@ -1,10 +1,11 @@
-# ThemeChanger v0.3.6 – LiveShell Engine Handover
+# ThemeChanger v0.3.7 – Full MotionBGS Library
 
-- Fixes repeated stock background when pressing PS button with ThemeChanger left running by addressing the confirmed root cause: an old LiveShell daemon was still active despite the packaged patch.
-- Changes the integrated source-built LiveShell /api/state response to report a distinct engine version.
-- Automatically upgrades older/incompatible LiveShell instances using LiveShell's own supported handover when elfldr port 9021 is available.
-- Prevents misleading success reports when the app has contacted an old daemon and ShellUI is stopped.
-- Displays handover progress and records diagnostic log entries.
-- Keeps previous focus-layer fix, game pause support for real games, no redundant Media tile, and MotionBGS functionality.
-- Full PS5 reboot may still be necessary if an existing payload does not support handover or if elfldr is unavailable.
-- Native compilation and API tests do not guarantee visible hardware playback; test on console.
+- Index all desktop wallpapers from the MotionBGS sitemap (rather than the old 150–200 cap), typically thousands of titles.
+- Search title, slug, category and indexed tags using a custom DualSense on-screen keyboard (Triangle).
+- Browse real indexed tags with Options, L2/R2 pagination and count badges.
+- Expand categories to include Superhero, TV & Movie, Horror, Animal, Japan and more.
+- Download JPG previews and HD MP4s lazily; resolve metadata on demand for sitemap entries.
+- Limit GL thumbnail texture residency to 72 for smooth browsing across thousands of wallpapers.
+- Keep downloaded backgrounds, LiveShell v0.3.6 engine identification/handover, current title ID and settings unchanged.
+- All catalogue content is metadata only; videos remain on the source server until a user selects one.
+- Hardware validation of search/long-browse and new uncached downloads is required.
