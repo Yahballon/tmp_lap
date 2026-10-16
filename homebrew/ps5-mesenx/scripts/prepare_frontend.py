@@ -199,7 +199,7 @@ def generate():
     # Remove SNES-only special-chip switches that cannot affect an NES core.
     options_file = OUTPUT / "ps5/frontend/fe_options.cpp"
     old_choices = '''{"Emulation", {Seg("SNES/Region", "Region", "auto", "", {{"auto","Automatic"},{"ntsc","NTSC"},{"pal","PAL"}}),
-                        Seg("SNES/ChipMode", "Special-chip emulation", "HLE", "", {{"HLE","High-level"},{"LLE","Firmware-based"}})}, kTabSettings},'''
+                       Seg("SNES/ChipMode", "Special-chip emulation", "HLE", "", {{"HLE","High-level"},{"LLE","Firmware-based"}})}, kTabSettings},'''
     assert old_choices in options_file.read_text()
     replace_required(options_file, old_choices,
         '''{"Emulation", {Toggle("NES/HdPacks", "Mesen HD packs", "enabled", "")}, kTabSettings},''')
