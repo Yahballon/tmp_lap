@@ -55,30 +55,22 @@ bool ShelfRuntime::Start(const std::string& path,fe::Renderer& renderer) {
     // The menu frame continues to present while the core loads in this worker.
     loading=true;active=true;load_ok=false;load_done.store(false,std::memory_order_relaxed);
     last_loading_log=0;
-    try {
-        load_thread=std::thread([this,path]{
-            const auto began=std::chrono::steady_clock::now();
-            mesen_diag::write("HDPACK_LOAD_BEGIN game=%s",path.c_str());
-            try {
-                std::vector<uint8_t> rom;
-                std::string read_error;
-                load_ok=ReadRom(path,rom,read_error);
-                if(load_ok)load_ok=core.Load(path,std::move(rom));
-                if(!load_ok)load_error=read_error.empty()?core.error:read_error;
-            } catch(const std::exception& e) {
-                load_ok=false;load_error=e.what();
-            } catch(...) {
-                load_ok=false;load_error="Unknown MesenCE HD load exception";
-            }
-            const auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now()-began).count();
-            mesen_diag::write("HDPACK_LOAD_END ok=%d duration_ms=%lld error=%s",
-                int(load_ok),static_cast<long long>(elapsed),load_error.c_str());
-            load_done.store(true,std::memory_order_release);
-        });
-    } catch(const std::exception& e) {
-        loading=false;active=false;error=e.what();return false;
-    }
+    // The native PS5 frontend is built -fno-exceptions: propagate ordinary
+    // load failures via booleans and error strings, never C++ try/catch.
+    load_thread=std::thread([this,path]{
+        const auto began=std::chrono::steady_clock::now();
+        mesen_diag::write("HDPACK_LOAD_BEGIN game=%s",path.c_str());
+        std::vector<uint8_t> rom;
+        std::string read_error;
+        load_ok=ReadRom(path,rom,read_error);
+        if(load_ok)load_ok=core.Load(path,std::move(rom));
+        if(!load_ok)load_error=read_error.empty()?core.error:read_error;
+        const auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now()-began).count();
+        mesen_diag::write("HDPACK_LOAD_END ok=%d duration_ms=%lld error=%s",
+            int(load_ok),static_cast<long long>(elapsed),load_error.c_str());
+        load_done.store(true,std::memory_order_release);
+    });
     return true;
 }
 ''' +r[end:]
