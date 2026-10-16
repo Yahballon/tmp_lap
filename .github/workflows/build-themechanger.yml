@@ -116,6 +116,10 @@ jobs:
           mkdir -p /tmp/theme-onionhen/source/liveshell
           cp /tmp/theme-upstream-liveshell/src/* /tmp/theme-onionhen/source/liveshell/
           cp /tmp/theme-upstream-liveshell/assets/icon0.png /tmp/theme-onionhen/source/liveshell/icon0.png
+          # Build only payload dependencies required by LiveShell.
+          # The unrelated OnionHEN utility app requires PS5 libcurl/Keystone,
+          # which ThemeChanger neither links nor ships.
+          sed -i '/^add_subdirectory(util)$/d' /tmp/theme-onionhen/source/CMakeLists.txt
           printf '\nadd_subdirectory(liveshell)\n' >> /tmp/theme-onionhen/source/CMakeLists.txt
           bash /tmp/theme-onionhen/scripts/sync_dependencies.sh
           export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
