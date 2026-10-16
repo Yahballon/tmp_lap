@@ -107,7 +107,14 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
  d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020a16),Color::rgb(0x010615));
  d.gradient_rect({0,0,375,994},0,Color::rgb(0x061b35),Color::rgb(0x030a18));
  symbol(d,56,27,68);
- txt(d,f,a,"Theme",143,73,32);txt(d,f,a,"Changer",239,73,31,Color::rgb(0x0da4ff));
+ // Measure both title segments so they cannot overlap or cross the sidebar padding.
+ constexpr float titleX=143.f,titleRight=350.f,titleGap=2.f;
+ float titleSize=32.f;
+ const float titleWidth=f.measure("Theme",titleSize)+f.measure("Changer",titleSize);
+ if(titleWidth>titleRight-titleX-titleGap)
+   titleSize*=(titleRight-titleX-titleGap)/titleWidth;
+ txt(d,f,a,"Theme",titleX,73,titleSize);
+ txt(d,f,a,"Changer",titleX+f.measure("Theme",titleSize)+titleGap,73,titleSize,Color::rgb(0x0da4ff));
  txt(d,f,a,"PS5 Homebrew App",150,109,21,muted);
  d.line(2,125,375,125,1,Color::rgb(0x233a57));
  bool side=sidebar&&sideRow==0;
