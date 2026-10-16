@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.20 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.21 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -116,16 +116,19 @@ void signalScreen(DrawList& d,const Font& f,unsigned a,const companion::Panel& s
   panel(d,{x,130,442,58},10,Color::rgb(i==signal.tab()?0x085ef3:0x071b34),Color::rgb(0x1f3857));
   txt(d,f,a,tabs[i],x+221,169,26,white,Align::center);
  }
- txt(d,f,a,f.fit(signal.detail(),22,1380),434,230,22,signal.online()?Color::rgb(0x4affbc):muted);
+ panel(d,{432,199,1390,61},9,Color::rgb(0x292014),Color::rgb(0x80643b));
+ txt(d,f,a,"Standard support: firmware 9.00+ | Upstream tested on PS5 Pro 13.60",450,223,21,Color::rgb(0xffce83));
+ txt(d,f,a,"Firmware 5.10 compatibility test is experimental and not confirmed.",450,247,19,muted);
+ txt(d,f,a,f.fit(signal.detail(),22,1380),434,291,22,signal.online()?Color::rgb(0x4affbc):muted);
  if(signal.tab()==2){
-  txt(d,f,a,signal.light_column()?"Startup light sequence":"Startup beep sequence",434,273,25);
-  txt(d,f,a,"Options: Add   R3: Delete step   Touchpad: Preview   Square: Save",1818,272,18,muted,Align::right);
+  txt(d,f,a,signal.light_column()?"Startup light sequence":"Startup beep sequence",434,327,25);
+  txt(d,f,a,"Options: Add   R3: Delete step   Touchpad: Preview   Square: Save",1818,326,18,muted,Align::right);
  }
  const auto rows=signal.rows();
  const int first=(signal.row()/10)*10;
  for(int i=first;i<(int)rows.size()&&i<first+10;i++){
-  const float y=293+(i-first)*52.f;
-  panel(d,{432,y,1390,45},8,Color::rgb(i==signal.row()?0x0b397a:0x071a34),Color::rgb(i==signal.row()?0x10a6ff:0x2b4667));
+  const float y=345+(i-first)*47.f;
+  panel(d,{432,y,1390,42},8,Color::rgb(i==signal.row()?0x0b397a:0x071a34),Color::rgb(i==signal.row()?0x10a6ff:0x2b4667));
   txt(d,f,a,rows[(size_t)i].first,452,y+30,23);
   txt(d,f,a,f.fit(rows[(size_t)i].second,22,830),1798,y+30,22,muted,Align::right);
  }
@@ -152,7 +155,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
    titleSize*=(titleRight-titleX-titleGap)/titleWidth;
  txt(d,f,a,"Theme",titleX,73,titleSize);
  txt(d,f,a,"Changer",titleX+f.measure("Theme",titleSize)+titleGap,73,titleSize,Color::rgb(0x0da4ff));
- const std::string credit="by YAHBALLON  v0.3.20";
+ const std::string credit="by YAHBALLON  v0.3.21";
  const float creditSize=std::min(18.f,18.f*(titleRight-titleX)/f.measure(credit,18.f));
  txt(d,f,a,credit,titleX,109,creditSize,muted);
  d.line(2,125,375,125,1,Color::rgb(0x233a57));
@@ -302,7 +305,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.20",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.21",490,515,38);
   txt(d,f,a,"by YAHBALLON",490,565,28,Color::rgb(0x0da4ff));
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,610,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
@@ -347,7 +350,7 @@ int main(){
    asset="/data/homebrew/PPSA99891/assets";
  hui::signal::set_paths(asset,"/data/ThemeChanger/signal");
  companion::Panel signal;
- tc::log("BOOT","ThemeChanger v0.3.20 starting");
+ tc::log("BOOT","ThemeChanger v0.3.21 starting");
  const auto storage=wallpaper_storage::recover_indexed();
  tc::log("LIBRARY_RECOVERY",("restored="+std::to_string(storage.restored)+
   " existing="+std::to_string(storage.live)+
