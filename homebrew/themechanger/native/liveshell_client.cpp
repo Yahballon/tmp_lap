@@ -96,7 +96,7 @@ bool install_and_select(int index,const std::string& assets,std::string& result)
 }
 bool activate_file(const std::string& filename,std::string& result){
  if(filename.empty()||filename.size()>120||filename.find('/')!=std::string::npos||
-   filename.find('\\\\')!=std::string::npos||filename.find("..")!=std::string::npos){
+   filename.find('\\')!=std::string::npos||filename.find("..")!=std::string::npos){
    result="Invalid wallpaper filename";return false;
  }
  const auto state=http_get("/api/state");
@@ -104,7 +104,7 @@ bool activate_file(const std::string& filename,std::string& result){
  int idx=find_index(state,filename);
  if(idx<0){result="LiveShell did not list the new MP4 yet";return false;}
  const auto reply=http_get("/api/select?i="+std::to_string(idx));
- if(reply.find("\\\"ok\\\":true")==std::string::npos){
+ if(reply.find("\"ok\":true")==std::string::npos){
    result="LiveShell could not activate this video";return false;
  }
  result="Wallpaper applied";return true;
