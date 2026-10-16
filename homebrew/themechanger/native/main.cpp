@@ -504,7 +504,6 @@ int main(){
      }
        live=theme::probe();
      }
-     }
    }else if(page==2){
      if(pressed&hui::pad_bits::kUp)opt=std::max(0,opt-1);
      if(pressed&hui::pad_bits::kDown)opt=std::min(4,opt+1);
