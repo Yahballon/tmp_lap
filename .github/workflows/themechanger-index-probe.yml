@@ -16,8 +16,10 @@ jobs:
           for url in roots:
            try:
             r=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125 Safari/537.36'}),timeout=14)
-            b=r.read(140000);s=b.decode('utf8','replace')
+            b=r.read(2500000);s=b.decode('utf8','replace')
             print('URL',url,'STATUS',r.status,'CONTENT',r.headers.get('Content-Type'),'LENGTH',r.headers.get('Content-Length'),'BODY',s[:1100].replace('\\n',' '),flush=True)
+            print('LOCATIONS',len(re.findall('<loc>',s)),re.findall(r'<loc>([^<]+)',s)[:8],re.findall(r'<loc>([^<]+)',s)[-8:],flush=True)
+            print('OTHER_XML',s.count('<image:'),s.count('<video:'),flush=True)
             print('PAGINATION',re.findall(r'page:[0-9]+|/page/[0-9]+|rel=.next.',s)[-14:],flush=True)
            except Exception as e:print('URL',url,'ERROR',repr(e),flush=True)
           PY
