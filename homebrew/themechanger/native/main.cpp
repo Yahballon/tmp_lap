@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <deque>
 #include <cctype>
+#include <ctime>
 #include <GL/glcorearb.h>
 #include <sys/stat.h>
 #include <string>
@@ -312,9 +313,21 @@ int main(){
  };
  std::vector<int> installedIds;
  auto refreshInstalled=[&](){
+   std::vector<std::pair<int,std::time_t>> installed;
+   // Only downloaded MotionBGS-*.mp4 files are listed; newest first.
+   for(int i=0;i<(int)online.entries().size();i++){
+     if(!online.installed(i))continue;
+     struct stat info{};
+     const std::string filename=online.wallpaper_path(i);
+     if(stat(filename.c_str(),&info)!=0||info.st_size<1024)continue;
+     installed.emplace_back(i,info.st_mtime);
+   }
+   std::sort(installed.begin(),installed.end(),[](const auto& a,const auto& b){
+     if(a.second!=b.second)return a.second>b.second;
+     return a.first>b.first;
+   });
    installedIds.clear();
-   for(int i=0;i<(int)online.entries().size();i++)
-     if(online.installed(i)) installedIds.push_back(i);
+   for(const auto& pair:installed)installedIds.push_back(pair.first);
  };
  refreshInstalled();
  tc::log("WALLPAPERS_FOUND",std::to_string(installedIds.size()).c_str());
@@ -356,8 +369,8 @@ int main(){
  };
  rebuildFilter();
  hui::ps5::Pad pad;pad.open();
- int selected=theme::load_selected(),active=-1,page=0,opt=0,dim=25,frame=0;
- bool sidebar=false;int pendingApply=-1;bool pendingRetry=false;
+ int selected=0,active=-1,page=0,opt=0,dim=25,frame=0;
+ bool sidebar=false;bool pendingRetry=false;
  const std::string appRoot=asset.substr(0,asset.size()-7);
  engine::start_if_needed(appRoot);
  auto state=theme::playback_state();
@@ -471,30 +484,24 @@ int main(){
          if(!online.download(filtered[(size_t)onlineSelected]))status="Download already running";
        }
      }else{
-     const int total=12+(int)installedIds.size();
+     const int total=(int)installedIds.size();
      if(pressed&hui::pad_bits::kLeft){
        if(selected%4==0){sidebar=true;sideRow=0;}
        else selected=std::max(0,selected-1);
      }
-     if(pressed&hui::pad_bits::kRight)selected=std::min(total-1,selected+1);
-     if(pressed&hui::pad_bits::kUp)selected=std::max(0,selected-4);
-     if(pressed&hui::pad_bits::kDown)selected=std::min(total-1,selected+4);
-     if(pressed&hui::pad_bits::kCross){
-       if(selected<12){
-         if(theme::install_and_select(selected,asset,status)){
-           active=selected;activeFile=theme::theme_file(selected);
-           tc::log("SELECT_BUILTIN",activeFile.c_str());
-         }else if(!theme::probe()){
-           pendingApply=selected;engine::start_if_needed(appRoot,true);
-           status="Starting LiveShell. Theme queued...";
-         }
-       }else if(selected-12<(int)installedIds.size()){
-         const auto id=installedIds[(size_t)(selected-12)];
+     if(total>0){
+       if(pressed&hui::pad_bits::kRight)selected=std::min(total-1,selected+1);
+       if(pressed&hui::pad_bits::kUp)selected=std::max(0,selected-4);
+       if(pressed&hui::pad_bits::kDown)selected=std::min(total-1,selected+4);
+       if((pressed&hui::pad_bits::kCross)&&selected>=0&&selected<total){
+         const auto id=installedIds[(size_t)selected];
          const auto name="MotionBGS-"+online.entries()[(size_t)id].slug+".mp4";
          if(theme::activate_file(name,status)){
-           activeFile=name;active=-1;tc::log("SELECT_DOWNLOADED",name.c_str());
+           activeFile=name;active=-1;
+           tc::log("SELECT_DOWNLOADED",name.c_str());
          }else tc::log("SELECT_FAILED",(name+" "+status).c_str());
        }
+     }
        live=theme::probe();
      }
      }
@@ -515,7 +522,7 @@ int main(){
    }
    if(++frame%120==0){
      refreshInstalled();
-     selected=std::clamp(selected,0,11+(int)installedIds.size());
+     selected=std::clamp(selected,0,std::max(0,(int)installedIds.size()-1));
      state=theme::playback_state();
      live=state.connected;
      if(live){
@@ -532,12 +539,18 @@ int main(){
         lastStateLog=stateText;
         if(state.engineRevision=="0.3.6"&&engine::busy()==false&&status.find("Upgrading")!=std::string::npos)status="LiveShell engine updated. Select a wallpaper";
       }
-      if(pendingApply>=0){int target=pendingApply;pendingApply=-1;
-       if(theme::install_and_select(target,asset,status))active=target;}
      }else{
        shellStatus.clear();
        if(!engine::busy())status=engine::status();
      }
+   }
+   // Download-complete event is emitted immediately by the worker and is
+   // independent of whether LiveShell could activate the wallpaper.
+   for(int idx:online.consume_installed()){
+     refreshInstalled();
+     if(page==0)selected=0;
+     tc::log("LIBRARY_UPDATED",("Downloaded "+online.entries()[(size_t)idx].slug+
+       " | total="+std::to_string(installedIds.size())).c_str());
    }
    for(int idx:online.consume_ready()){
      if(idx>=0&&idx<(int)onlineTextures.size()&&!onlineTextures[(size_t)idx]){
@@ -580,7 +593,7 @@ int main(){
        }
      }
    }
-   DrawList ui;draw(ui,font,atlas,pictures,selected,active,page,opt,status,live,engine::busy(),sidebar,
+   DrawList ui;draw(ui,font,atlas,selected,page,opt,status,live,engine::busy(),sidebar,
                      online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow,installedIds,activeFile,shellStatus,
                     overlay,searchText,selectedTag,availableTags,keyboardKey,tagFocus);
    renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
