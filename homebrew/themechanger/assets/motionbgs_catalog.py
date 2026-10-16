@@ -82,7 +82,7 @@ def page(item):
                 if urlparse(candidate).scheme=="https" and len(candidate)<420:
                     image=candidate
                 break
-        return (slug,name[:90],category,f"{ORIGIN}/dl/hd/{fid}",image)
+        return (slug,name[:90],category,f"{ORIGIN}/dl/hd/{fid}/",image)
     except Exception as e:
         print("Skip:",slug,type(e).__name__,str(e)[:100],flush=True)
         return None
