@@ -100,6 +100,12 @@ r=once(r,'bool ShelfRuntime::Build(fe::Renderer& renderer,fe::FrameDesc& frame,u
         return true;
     }
 ''')
+# The old SNES runtime tries up to six catch-up emulation frames in one
+# render tick. Heavy HD video makes that starve DualSense, Vulkan presentation
+# and any system-overlay event pumping. Cap work per tick and discard backlog.
+r=once(r,
+    'while(accumulated>=1/core.fps&&runs++<6){core.Run();if(audio)audio->Push(resampler.Process(core.audio));accumulated-=1/core.fps;changed=true;}',
+    'while(accumulated>=1/core.fps&&runs++<2){core.Run();if(audio)audio->Push(resampler.Process(core.audio));accumulated-=1/core.fps;changed=true;}\\n    if(accumulated>2.0/core.fps)accumulated=1.0/core.fps;'.replace('\\n','\n'))
 runtime.write_text(r)
 assert 'HDPACK_LOAD_BEGIN' in r and 'load_done.load(std::memory_order_acquire)' in r
 print("PASS: async PS5 game/HD pack loader and live pad/Vulkan pump")
