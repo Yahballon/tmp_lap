@@ -64,11 +64,11 @@ inline bool durable_copy(const std::string& source,const std::string& dst){
  }
  return true;
 }
-inline bool preserve(const std::string& name){
+inline bool preserve(const std::string& name,bool replace_existing=false){
  if(!filename_ok(name)||!folders())return false;
  const std::string dst=std::string(kArchive)+"/"+name;
- // Do not overwrite an intact backup with a partially modified LiveShell file.
- if(valid_file(dst))return true;
+ // Overwrite the backup only after a completed, validated re-encode.
+ if(!replace_existing&&valid_file(dst))return true;
  return durable_copy(std::string(kLive)+"/"+name,dst);
 }
 inline Report recover(){
