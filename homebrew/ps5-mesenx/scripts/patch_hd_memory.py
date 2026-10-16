@@ -65,9 +65,12 @@ p.write_text(s)
 p=root/"Core/NES/HdPacks/HdData.h"
 s=p.read_text()
 if "#include <atomic>" not in s:s=s.replace("#pragma once","#pragma once\n#include <atomic>",1)
-s=s.replace("uint32_t Width;\n\tuint32_t Height;\n\n\tvoid Init()",
+if s.count("uint32_t Width;\n\tuint32_t Height;\n\tbool IsFullyOpaque = false;\n\n\tvoid Init()")!=1:
+    raise RuntimeError("MesenCE-Libretro HdPackBitmapInfo declaration changed")
+s=s.replace("uint32_t Width;\n\tuint32_t Height;\n\tbool IsFullyOpaque = false;\n\n\tvoid Init()",
 """uint32_t Width=0;
     uint32_t Height=0;
+    bool IsFullyOpaque = false;
     size_t _reservedBytes=0;
     inline static std::atomic<size_t> _totalBytes{0};
     ~HdPackBitmapInfo() {
@@ -132,6 +135,8 @@ start=s.index("\t__noinline void Init()",s.index("struct HdPackTileInfo"))
 end=s.index("\n\tstring ToString",start)
 s=s[:start]+"""    __noinline void Init()
     {
+        if(!_needInit)return;
+        auto tile_lock=_initLock.AcquireSafe();
         if(!_needInit)return;
         _needInit=false;
         // An invalid, oversized or truncated PNG is NOT a valid tile.
