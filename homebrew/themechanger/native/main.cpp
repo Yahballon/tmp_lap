@@ -5,6 +5,7 @@
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "liveshell_client.hpp"
+#include "liveshell_loader.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #include "stb_image.h"
@@ -35,70 +36,89 @@ void symbol(DrawList& d,float x,float y,float size=58){
  d.chamfer_rect({x+size*.18f,y+size*.19f,size*.64f,size*.62f},size*.15f,Color::rgb(0x071931),0,{});
  d.rounded_rect({x+size*.48f,y+size*.4f,size*.47f,size*.14f},2,Color::rgb(0x00b9ff));
 }
-void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pictures,int selected,int active,int page,int opt,const std::string& status,bool live){
- d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020916),Color::rgb(0x00040c));
- d.gradient_rect({0,0,380,1080},0,Color::rgb(0x07172e),Color::rgb(0x030915));
- symbol(d,51,28,69);
- txt(d,f,a,"Theme",145,77,40);txt(d,f,a,"Changer",283,77,40,Color::rgb(0x0799ff));
- txt(d,f,a,"PS5 Homebrew App",149,115,22,muted);
- d.line(0,130,373,130,1,Color::rgb(0x1f3654));
- panel(d,{24,153,328,72},12,Color::rgb(page==0?0x075bf0:0x071b34),Color::rgb(page==0?0x038eff:0x162e50));
- txt(d,f,a,"Backgrounds",112,198,27);
- d.circle(65,188,13,white);d.circle(65,188,6,Color::rgb(0x075bf0));
- d.line(29,844,351,844,1,Color::rgb(0x1b344e));
+void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pics,int selected,int active,int page,int opt,const std::string& status,bool live,bool loading,bool sidebar){
+ // All positions are in 1920x1080 virtual pixels, derived from the reference's 1671x941 grid.
+ // The third row ends at y=985; the footer begins at y=994 (no clipping).
+ d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020a16),Color::rgb(0x010615));
+ d.gradient_rect({0,0,375,994},0,Color::rgb(0x061b35),Color::rgb(0x030a18));
+ symbol(d,56,27,68);
+ txt(d,f,a,"Theme",149,73,39);txt(d,f,a,"Changer",277,73,39,Color::rgb(0x0da4ff));
+ txt(d,f,a,"PS5 Homebrew App",150,109,21,muted);
+ d.line(2,125,375,125,1,Color::rgb(0x233a57));
+ bool side=sidebar&&page==0;
+ panel(d,{25,148,325,71},10,Color::rgb(page==0?0x085ef3:0x071b34),Color::rgb(side?0x39c9ff:0x095fba));
+ d.bordered_rect({53,170,32,27},5,white,2,white);
+ d.circle(76,178,3,Color::rgb(0x075fff));
+ d.line(60,190,67,182,3,Color::rgb(0x075fff));d.line(67,182,79,194,3,Color::rgb(0x075fff));
+ txt(d,f,a,"Backgrounds",119,194,25);
+ d.line(29,806,346,806,1,Color::rgb(0x20354d));
  for(int i=1;i<3;i++){
-  const float y=869+(i-1)*76.f;bool focus=page==i;
-  if(focus)panel(d,{24,y-10,327,67},12,Color::rgb(0x0a3677),Color::rgb(0x148fff));
-  d.circle(69,y+24,15,white);txt(d,f,a,i==1?"i":"*",69,y+32,21,Color::rgb(0x052249),Align::center);
-  txt(d,f,a,i==1?"About":"Settings",119,y+32,25);
+   float y=i==1?833.f:907.f;
+   if(page==i)panel(d,{24,y,328,69},10,Color::rgb(0x0a3470),Color::rgb(0x13a0ff));
+   d.circle(69,y+33,18,white);txt(d,f,a,i==1?"i":"*",69,y+42,26,Color::rgb(0x041631),Align::center);
+   txt(d,f,a,i==1?"About":"Settings",121,y+43,25);
  }
- // Screenshot-scaled preview panel (the mock OS row is intentionally illustrative).
- panel(d,{410,22,1480,405},14,Color::rgb(0x020b1b),Color::rgb(0x3b4a63));
- if(pictures[selected])d.image(pictures[selected],{412,124,1476,300},kFullUv,white,10);
- d.gradient_rect({411,23,1477,106},0,Color::rgb(0x020714,0.99f),Color::rgb(0x020714,0.78f));
- txt(d,f,a,page==0?"Preview":(page==1?"About":"Settings"),447,78,38);
- txt(d,f,a,page==0?"This is how your PS5 menu will look with this theme.":(page==1?"ThemeChanger for PS5 homebrew":"LiveShell wallpaper preferences"),448,110,22,muted);
- // Mock home-screen cards: these are not actual PS5 app tiles.
+ // The preview is now the same proportions as the user reference (x=440, height=374).
+ panel(d,{440,18,1450,375},13,Color::rgb(0x010819),Color::rgb(0x405370));
+ if(pics[selected])d.image(pics[selected],{442,119,1446,271},kFullUv,white,10);
+ d.gradient_rect({442,120,1446,218},0,Color::rgb(0x03091c,.68f),Color::rgb(0x01091c,.10f));
+ d.gradient_rect({443,20,1443,103},0,Color::rgb(0x010918),Color::rgb(0x020817,.90f));
+ txt(d,f,a,page==0?"Preview":page==1?"About":"Settings",474,65,34);
+ txt(d,f,a,page==0?"This is how your PS5 menu will look with this theme.":page==1?"ThemeChanger information":"Configure the integrated LiveShell engine",476,99,21,muted);
+ txt(d,f,a,"16:42",1857,78,27,white,Align::right);
+ // Faux shell tiles are decorative inside the preview and do not pretend to launch installed games.
  for(int i=0;i<9;i++){
-   float x=449+i*100.f;
-   panel(d,{x,161,88,93},10,Color::rgb(i==1?0x010a17:0x071b3d,0.88f),Color::rgb(i==1?0x03b8ff:0x164370));
-   if(i==1)symbol(d,x+18,177,52);
-   else if(i>1&&i<6&&pictures[(selected+i)%12])d.image(pictures[(selected+i)%12],{x+3,164,82,87},kFullUv,white,8);
-   else txt(d,f,a,i==0?"*":(i==6?"[]":(i==7?"O":"#")),x+43,217,36,Color::rgb(0xb1d7f7),Align::center);
+  float x=482+i*104.f,y=153;
+  if(i==1)d.glow({x,y,92,94},10,13,Color::rgb(0x007fff,.38f));
+  panel(d,{x,y,92,91},9,Color::rgb(0x08172e,.95f),Color::rgb(i==1?0x05afff:0x21395b));
+  if(i==1)symbol(d,x+17,y+17,57);
+  else if(i>=2&&i<6&&pics[(selected+i)%12])
+    d.image(pics[(selected+i)%12],{x+3,y+4,86,83},kFullUv,white,8);
+  else txt(d,f,a,i==0?"*":(i==6?"[]":(i==7?"O":"#")),x+46,y+60,35,Color::rgb(0xdbeeff),Align::center);
  }
- txt(d,f,a,"Open Theme",552,290,20);
- txt(d,f,a,"16:42",1858,80,27,white,Align::right);
+ txt(d,f,a,"Open Theme",586,282,20);
  if(page==0){
-  txt(d,f,a,"Available Themes",410,480,30);
+  txt(d,f,a,"Available Themes",397,435,30);
   for(int i=0;i<12;i++){
-    int col=i%4,row=i/4;float x=408+col*377.f,y=500+row*200.f;bool current=selected==i;
-    if(current)d.glow({x,y,357,183},16,17,Color::rgb(0x058cff,.42f));
-    panel(d,{x,y,356,181},12,Color::rgb(0x071224),Color::rgb(current?0x10b4ff:0x384a65));
-    if(pictures[i])d.image(pictures[i],{x+3,y+3,350,174},kFullUv,white,10);
-    d.gradient_rect({x+3,y+127,350,51},8,Color::rgb(0x000000,0.08f),Color::rgb(0x000000,.9f));
-    txt(d,f,a,theme::kNames[i],x+18,y+166,23);
-    if(i==active){d.circle(x+330,y+30,23,Color::rgb(0x006aff));txt(d,f,a,"X",x+330,y+38,23,white,Align::center);}
-    if(current)d.bordered_rect({x-2,y-2,360,185},13,Color::rgb(0x000000,0),3,Color::rgb(0x05a9ff));
+   const int row=i/4,col=i%4;
+   const float x=398+col*370.f, y=455+row*187.f;
+   const float w=348, h=159;
+   const bool chosen=selected==i&&!sidebar;
+   if(chosen)d.glow({x,y,w,h},13,13,Color::rgb(0x006eff,.40f));
+   panel(d,{x,y,w,h},9,Color::rgb(0x071329),Color::rgb(chosen?0x0d9fff:0x324359));
+   if(pics[i])d.image(pics[i],{x+2,y+2,w-4,h-4},kFullUv,white,7);
+   d.gradient_rect({x+2,y+h-56,w-4,54},4,Color::rgb(0x000000,.01f),Color::rgb(0x000000,.88f));
+   txt(d,f,a,theme::kNames[i],x+18,y+h-17,22,white);
+   if(i==active){d.circle(x+w-34,y+30,20,Color::rgb(0x0876ff));
+     txt(d,f,a,"X",x+w-34,y+38,24,white,Align::center);}
+   if(chosen)d.bordered_rect({x-2,y-2,w+4,h+4},10,Color::rgb(0x000000,0),3,Color::rgb(0x04a7ff));
   }
  }else if(page==1){
-  panel(d,{438,501,1420,380});txt(d,f,a,"ThemeChanger v0.1.0",485,571,35);
-  txt(d,f,a,"Native UI: ps5-homebrew-ui by BlackBearReloaded (GPL-3.0-or-later)",485,632,25,muted);
-  txt(d,f,a,"Wallpaper engine: LiveShell by ZiZc3 (GPL-3.0)",485,685,25,muted);
-  txt(d,f,a,"LiveShell payload must be loaded before backgrounds can be applied.",485,738,25,muted);
+  panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
+  txt(d,f,a,"ThemeChanger  v0.2.0",490,515,38);
+  txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
+  txt(d,f,a,"Includes LiveShell engine v1.0. Starts automatically via elfldr.",490,650,24);
+  txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
+  txt(d,f,a,"LiveShell logs: /data/LiveShell/liveshell.log",490,775,24,muted);
  }else{
-  panel(d,{438,496,1420,415});
-  const char* labels[]={"Enable wallpaper","Darkness","Pause during games","Hide in system settings"};
-  for(int i=0;i<4;i++){
-    float y=518+i*87.f;
-    panel(d,{465,y,1365,73},9,Color::rgb(i==opt?0x0c3268:0x07182e),Color::rgb(i==opt?0x169eff:0x213958));
-    txt(d,f,a,labels[i],500,y+46,27);
-    txt(d,f,a,i==0?"X  Toggle":i==1?"LEFT / RIGHT  Adjust":(i==2?"X  Toggle":"X  Toggle"),1789,y+46,22,muted,Align::right);
+  panel(d,{437,437,1420,475},13,Color::rgb(0x05132c),Color::rgb(0x264a77));
+  const char* fields[]={"Wallpaper engine","Darkness","Pause during games","Hide in system settings","Restart LiveShell engine"};
+  for(int i=0;i<5;i++){
+   float y=467+i*88;
+   panel(d,{466,y,1358,76},10,Color::rgb(i==opt?0x0b397a:0x071a34),Color::rgb(i==opt?0x10a6ff:0x2b4667));
+   txt(d,f,a,fields[i],499,y+47,26);
+   txt(d,f,a,i==0?"X  Toggle":i==1?"LEFT / RIGHT":i==4?"X  Retry":"X  Toggle",1796,y+47,22,muted,Align::right);
   }
  }
- d.gradient_rect({0,1017,1920,63},0,Color::rgb(0x020a17),Color::rgb(0x010711));
- txt(d,f,a,"X   Select",63,1056,24);txt(d,f,a,"O   Back",226,1056,24);
- txt(d,f,a,live?"LiveShell connected":"LiveShell offline",1882,1038,18,live?Color::rgb(0x2ce8b6):Color::rgb(0xffb874),Align::right);
- txt(d,f,a,status.substr(0,108),1882,1063,17,muted,Align::right);
+ d.gradient_rect({0,993,1920,87},0,Color::rgb(0x051221,.92f),Color::rgb(0x020816));
+ d.line(0,993,1920,993,1,Color::rgb(0x1c3859));
+ d.circle(76,1034,16,white);txt(d,f,a,"X",76,1043,24,Color::rgb(0x021329),Align::center);
+ txt(d,f,a,"Select",105,1044,22,muted);
+ d.circle(225,1034,16,white);txt(d,f,a,"O",225,1043,24,Color::rgb(0x021329),Align::center);
+ txt(d,f,a,"Back",256,1044,22,muted);
+ txt(d,f,a,"Square  Retry Engine",403,1045,20,muted);
+ txt(d,f,a,loading?"LiveShell starting...":live?"LiveShell connected":"LiveShell offline",1856,1028,19,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
+ txt(d,f,a,status.substr(0,82),1856,1057,17,muted,Align::right);
 }
 }
 int main(){
@@ -116,6 +136,9 @@ int main(){
  for(int i=0;i<12;i++)pictures[i]=texture(renderer,asset+"/wallpapers/ThemeChanger-"+files[i]+".png");
  hui::ps5::Pad pad;pad.open();
  int selected=theme::load_selected(),active=-1,page=0,opt=0,dim=25,frame=0;
+ bool sidebar=false;int pendingApply=-1;bool pendingRetry=false;
+ const std::string appRoot=asset.substr(0,asset.size()-7);
+ engine::start_if_needed(appRoot);
  bool live=theme::probe();if(live)active=theme::current_theme();
  std::string status="Choose a background and press X to apply";
  unsigned previous=0;int repeats=0;
@@ -135,8 +158,9 @@ int main(){
      if(page!=0)page=0;
      else{pad.close();renderer.release();display.close();hui::sys::quit();}
    }
-   if(pressed&hui::pad_bits::kL1)page=0;
-   if(pressed&hui::pad_bits::kR1)page=(page+1)%3;
+   if(pressed&hui::pad_bits::kSquare){engine::start_if_needed(appRoot,true);status="Restart requested: "+engine::status();}
+   if(pressed&hui::pad_bits::kL1){page=0;sidebar=false;}
+   if(pressed&hui::pad_bits::kR1){page=(page+1)%3;sidebar=false;}
    if(page==0){
      if(pressed&hui::pad_bits::kLeft)selected=std::max(0,selected-1);
      if(pressed&hui::pad_bits::kRight)selected=std::min(11,selected+1);
@@ -144,6 +168,7 @@ int main(){
      if(pressed&hui::pad_bits::kDown)selected=std::min(11,selected+4);
      if(pressed&hui::pad_bits::kCross){
        if(theme::install_and_select(selected,asset,status))active=selected;
+       else if(!theme::probe()){pendingApply=selected;engine::start_if_needed(appRoot,true);status="Starting LiveShell. Theme queued...";}
        live=theme::probe();
      }
    }else if(page==2){
@@ -159,8 +184,15 @@ int main(){
        live=theme::probe();
      }
    }
-   if(++frame%360==0){live=theme::probe();if(live)active=theme::current_theme();}
-   DrawList ui;draw(ui,font,atlas,pictures,selected,active,page,opt,status,live);
+   if(++frame%120==0){
+     live=theme::probe();
+     if(live){
+      active=theme::current_theme();
+      if(pendingApply>=0){int target=pendingApply;pendingApply=-1;
+       if(theme::install_and_select(target,asset,status))active=target;}
+     }else if(!engine::busy())status=engine::status();
+   }
+   DrawList ui;draw(ui,font,atlas,pictures,selected,active,page,opt,status,live,engine::busy(),sidebar);
    renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
 }

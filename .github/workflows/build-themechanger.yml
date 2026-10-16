@@ -41,6 +41,18 @@ jobs:
           j['localizedParameters']['en-US']['titleName']=d['name']
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
+      - name: Bundle verified upstream LiveShell v1.0 payload
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            https://github.com/ZiZc3/LiveShell/releases/download/v1.0/liveshell.elf \
+            --output app/liveshell.elf
+          echo 'fb3c686e2318bbb83ccf6e445a7224da00ae9009b14362c308b74ea5d120e577  app/liveshell.elf' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          elf=Path('app/liveshell.elf').read_bytes()
+          assert len(elf)==903112 and elf[:5]==b'\\x7fELF\\x02'
+          print('Verified LiveShell GPL-3.0 source project distribution:',len(elf),'bytes')
+          PY
       - name: Prepare PS5 graphics SDK
         working-directory: app
         env:
@@ -59,7 +71,7 @@ jobs:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
-        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 APP_ROOT_FILES=liveshell.elf app
       - name: Verify installer and assets
         run: |
           python3 - <<'PY'
@@ -73,13 +85,15 @@ jobs:
           assert j['titleId']==title
           assert len(list((root/'assets/wallpapers').glob('*.png')))==12
           assert len(list((root/'assets/wallpapers').glob('*.mp4')))==12
+          assert (root/'liveshell.elf').stat().st_size==903112
           with zipfile.ZipFile(f'app/dist/{title}.zip') as z:
               assert z.testzip() is None
               assert f'{title}/eboot.bin' in z.namelist()
+              assert f'{title}/liveshell.elf' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.1.0-PPSA99891
+          name: ThemeChanger-v0.2.0-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -87,5 +101,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.1.0 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.1.0 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.1.0" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.2.0 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.2.0 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.2.0" --notes-file homebrew/themechanger/RELEASE_NOTES.md
