@@ -2,7 +2,7 @@
 
 **Native Dreamcast emulation on PS5 with white DVD-style CoverFlow cases, angled neighbours and subtle reflections.**
 
-Version **0.1.5** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.1.6** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -24,7 +24,7 @@ then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the build workflow uploads the verified
 `PPSA99765.zip` as an artifact. The independent release publisher uploads
-it to the `ps5-dreamcastx-v0.1.5` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
+it to the `ps5-dreamcastx-v0.1.6` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
 Run locally from the app directory (requires clang 18, CMake/Ninja, PS5 stack):
@@ -136,7 +136,7 @@ files are included.
 
 
 
-### v0.1.5: PS5 hardware renderer hotfix
+### v0.1.6: PS5 hardware renderer hotfix
 
 Replaces the broken custom perspective image quads introduced in v0.1.4
 with the known-working v0.1.3 `rect` + `imageFill` drawing path.
@@ -147,3 +147,17 @@ To prevent images being scattered or blank on PS5, **angled texture quads
 and reflections are temporarily disabled**. Full real-hardware verification
 is still needed; this is not a claim that perspective is supported.
 Saves, games, USB and /data/PS5DreamcastX paths are unchanged.
+
+### v0.1.6: Nonblocking background cover loading
+
+The original Flycast `ImguiFileTexture::getId()` decoded PNG/JPG files
+synchronously inside the display loop, up to ten files in one frame.
+On PS5DreamcastX, cover/boxart files now decode **off the render thread** using
+one dedicated worker. Finished thumbnails are scaled down to max 640 pixels on
+that worker and stored in a bounded in-memory queue (12 ready textures).
+Only the render thread uploads to GPU, limited to two images per frame; GPU
+texture caching still uses the upstream ImGuiDriver. The selected game and its
+two immediate neighbours are requested first. Non-cover image handling stays
+unchanged, and we did not touch the stable case renderer from v0.1.5.
+Local files should no longer stall menu navigation. Initial network cover
+downloads may still take time depending on the source and connection.

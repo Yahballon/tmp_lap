@@ -1,14 +1,15 @@
-# PS5DreamcastX v0.1.5
+# PS5DreamcastX v0.1.6
 
-## Emergency PS5 CoverFlow renderer correction
+## Faster, nonblocking artwork in the game library
 
-- Replaced v0.1.4's white/blank cases and misplaced giant images with
-  v0.1.3's PS5-tested axis-aligned imageFill texture path.
-- Kept larger white Dreamcast-style cases and nearly full-face artwork.
-- Kept centered title and consistent left/right case scaling.
-- Temporarily disabled buggy perspective texture quads and reflections.
-- Added host tests that reject unsafe draw-list primitives and check
-  actual cover placement, bounds and animated focus changes.
-- No emulator, USB, BIOS, save, or configuration changes.
+- Eliminated synchronous cover JPEG/PNG decoding on the PS5 menu thread.
+- One background worker loads and shrinks cover images to a maximum of
+  640 pixels, reducing PS5 GPU texture upload time and memory.
+- Selected game and nearest neighbours are preloaded ahead of distant covers.
+- Finished textures upload from the graphics thread at most twice per frame.
+- Bounded waiting/staging queue avoids large-library RAM spikes.
+- Existing driver texture cache continues to serve already-seen covers.
+- v0.1.5's working DVD-style case artwork renderer is unchanged.
+- No changes to save data, games, BIOS, USB discovery or controls.
 
-Native Title ID `PPSA99765`. Download `PPSA99765.zip`.
+ZIP: `PPSA99765.zip` · Title: `PPSA99765`.
