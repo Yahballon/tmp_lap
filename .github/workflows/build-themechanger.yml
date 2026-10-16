@@ -68,24 +68,30 @@ jobs:
           j['localizedParameters']['en-US']['titleName']=d['name']
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
-      - name: Guard known-good PS5 boot path against unsupported syscalls
+      - name: Verify bounded persistent wallpaper recovery
         run: |
           python3 - <<'PY'
           from pathlib import Path
           main=Path('homebrew/themechanger/native/main.cpp').read_text()
           catalog=Path('homebrew/themechanger/native/motion_catalog.cpp').read_text()
-          assert 'wallpaper_storage::recover(' not in main, 'PS5 startup must not invoke unverified file API'
-          assert 'wallpaper_storage.hpp' not in main
-          assert 'wallpaper_storage.hpp' not in catalog
+          storage=Path('homebrew/themechanger/native/wallpaper_storage.hpp').read_text()
+          assert 'wallpaper_storage::recover_indexed()' in main
+          assert 'online.discover_legacy(12)' in main
+          assert 'wallpaper_storage::kArchive' in catalog
+          assert 'wallpaper_storage::remember(name)' in catalog
+          assert 'WALLPAPER_ARCHIVED' in catalog
+          assert 'saved_names()' in storage
+          assert 'opendir(kArchive)' not in storage
+          assert 'char chunk[8192]' in storage
           assert 'smooth_video.hpp' not in main and 'smooth_video.hpp' not in catalog
-          assert not Path('app/src/smooth_video.cpp').exists(), 'Do not ship experimental FFmpeg'
-          assert 'wallpaper_storage::' not in catalog
-
-          assert 'rescan_installed()' not in main
-          assert 'pthread_attr_setstacksize' not in catalog
-          assert 'ThemeChanger v0.3.12 starting' in main
-          print('Stable v0.3.9 boot and download path retained')
+          assert not Path('app/src/smooth_video.cpp').exists()
+          print('Bounded indexed backup/restore; conservative stable media path')
           PY
+          g++ -std=c++20 -O2 -Ihomebrew/themechanger/native \
+            homebrew/themechanger/tests/test_wallpaper_storage.cpp \
+            -o /tmp/themechanger-storage-test
+          sudo install -d -m 0777 /data/ThemeChanger /data/LiveShell
+          /tmp/themechanger-storage-test
       - name: Verify native MotionBGS HTTPS downloader with real HD MP4
         timeout-minutes: 2
         run: |
@@ -226,7 +232,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.12-PPSA99891
+          name: ThemeChanger-v0.3.13-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -234,5 +240,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.12 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.12 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.12" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.13 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.13 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.13" --notes-file homebrew/themechanger/RELEASE_NOTES.md
