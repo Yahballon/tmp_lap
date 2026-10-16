@@ -64,3 +64,11 @@ Both the D-pad and the left analog stick now use edge-triggered input and contro
 - Select timeout raised from 2 to 20 seconds: LiveShell can wait up to 8 seconds for the old ShellUI video to be released.
 - Detailed diagnostics in `/data/ThemeChanger/themechanger.log`: `SELECT_REQUEST`, `SELECT_RESPONSE`, `PLAYBACK_STATE`, `SHELLUI_MONITOR`, `VIDEO_INFO`, `ENGINE_LEGACY`.
 - If selecting works according to the REST API but the actual home screen stays unchanged, provide **both** the ThemeChanger log and `/data/LiveShell/liveshell.log`; include `/data/LiveShell/shellui.log` if present. Physical PS5 validation is required.
+
+## v0.3.4 – reliable wallpaper switching and no redundant Media tile
+
+LiveShell's normal `gamepause=1` logic treated ThemeChanger `PPSA99891` as a running game. During a wallpaper change it attempted to stop the previously playing video and sometimes timed out with `The home screen did not release the old video`. Our **source-built LiveShell integration** exempts only ThemeChanger from game detection while preserving game pause for actual games. Fast-switch should then work normally with a shared `/data/LiveShell/video/` mount.
+
+Upstream LiveShell v1.1 by ZiZc3 is cloned during CI and patched in `liveshell_build/patch_liveshell.py`. Its normal `install_tile()` startup call is disabled: ThemeChanger alone manages the engine, so no *new* `LiveShell Engine` Media tile is registered. **Previously installed** `LVSH00001` may be removed once using the PS5 interface; we do not silently delete a registered PS5 app.
+
+After installing v0.3.4 **fully reboot the PS5, enable the jailbreak and start ThemeChanger** to replace the older running daemon. Logs: `/data/ThemeChanger/themechanger.log` and `/data/LiveShell/liveshell.log`.
