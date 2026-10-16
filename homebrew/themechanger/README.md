@@ -131,3 +131,9 @@ The v0.3.10 native FFmpeg/x264 change correlated with console crashes before a d
 The download worker now has 2 MB of stack and diagnostic transfer-stage logs. Previously, the video scanner allocated 65 KB on a worker stack and could overflow it. Background persistence no longer relies on native `opendir` returning the expected filenames. Wallpaper backups and a filename index are saved under `/data/ThemeChanger/`; catalog-known MP4s are checked and recovered by their exact paths on startup. This fixes the misleading `WALLPAPERS_FOUND 0` condition after a reboot when directory enumeration fails.
 
 After installing v0.3.11, try any new wallpaper and look for `VIDEO_TRANSFER_DONE`, `LIBRARY_SAVED`, and `DOWNLOAD_COMPLETE`. On the next launch check `LIBRARY_RECOVERY` and `WALLPAPERS_FOUND`. Videos interrupted before the successful download can be downloaded again.
+
+## v0.3.12 – PS5 startup recovery
+
+v0.3.10 and v0.3.11 introduced unverified native FFmpeg and automatic filesystem recovery operations, and users reported `system_illegal_function_call` as soon as the app launched. This emergency update **reverts boot and download code to v0.3.9**, the latest version confirmed to open and operate on the user's PS5, while retaining the full searchable MotionBGS library and integrated LiveShell functionality.
+
+No downloaded videos or stored backups are removed. The experimental persistent-recovery feature is temporarily disabled so that a filesystem API failure cannot prevent the application from opening. Data-persistence and video-transcoding changes will be reintroduced only after isolated PS5 validation.

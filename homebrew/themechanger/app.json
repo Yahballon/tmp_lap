@@ -1,15 +1,15 @@
 {
   "name": "ThemeChanger",
   "slug": "themechanger",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "titleId": "PPSA99891",
   "contentId": "UP9000-PPSA99891_00-THEMECHANGER0000",
-  "contentVersion": "01.000.014",
-  "releaseTag": "themechanger-v0.3.11",
+  "contentVersion": "01.000.015",
+  "releaseTag": "themechanger-v0.3.12",
   "engine": "Integrated LiveShell 0.3.6 engine identification with automatic upstream-supported handover from stale daemon",
   "ui": "blackbearreloaded/ps5-homebrew-ui",
   "dataFolder": "/data/ThemeChanger",
   "online": "9K+ MotionBGS full catalog, search and tags; download-only Backgrounds library with immediate refresh and newest-first sorting",
-  "videoCompatibility": "Stable native MP4 downloader; previous H264 Level 5.0 metadata compatibility patch retained. Experimental on-console FFmpeg/x264 conversion temporarily disabled after PS5 crash reports.",
-  "persistence": "Permanent wallpaper copies and filename index in /data/ThemeChanger/wallpapers; exact-path catalog restoration without native opendir."
+  "videoCompatibility": "Restored PS5-tested v0.3.9 download and H.264 metadata compatibility path, without experimental FFmpeg or unsupported reboot-time storage operations",
+  "persistence": "Existing videos kept untouched; experimental /data/ThemeChanger/wallpapers backups are preserved on disk but not accessed during app startup."
 }

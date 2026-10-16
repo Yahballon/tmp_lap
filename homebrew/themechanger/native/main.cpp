@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.9 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.12 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -8,7 +8,6 @@
 #include "liveshell_loader.hpp"
 #include "motion_catalog.hpp"
 #include "theme_log.hpp"
-#include "wallpaper_storage.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -249,7 +248,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.9",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.12",490,515,38);
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
@@ -289,21 +288,9 @@ int main(){
  struct stat catalogStat{};
  if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
    asset="/data/homebrew/PPSA99891/assets";
- tc::log("BOOT","ThemeChanger v0.3.11 starting");
+ tc::log("BOOT","ThemeChanger v0.3.12 starting");
  motion::Catalog online;
  online.load(asset);
- std::vector<std::string> knownWallpapers;
- knownWallpapers.reserve(online.entries().size());
- for(const auto& entry:online.entries())
-  knownWallpapers.push_back("MotionBGS-"+entry.slug+".mp4");
- const auto archive=wallpaper_storage::recover(knownWallpapers);
- const int restoredCount=online.rescan_installed();
- tc::log("LIBRARY_RECOVERY",("live="+std::to_string(archive.live)+
-   " backups="+std::to_string(archive.backups)+
-   " restored="+std::to_string(archive.restored)+
-   " archived="+std::to_string(archive.archived)+
-   " detected="+std::to_string(restoredCount)+
-   " errors="+std::to_string(archive.errors)).c_str());
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
  std::deque<int> textureAge;
  std::vector<unsigned char> attemptedTexture(online.entries().size(),0);
@@ -383,7 +370,7 @@ int main(){
  rebuildFilter();
  hui::ps5::Pad pad;pad.open();
  int selected=0,active=-1,page=0,opt=0,dim=25,frame=0;
- bool sidebar=false;bool pendingRetry=false;bool wasDownloadBusy=false;
+ bool sidebar=false;bool pendingRetry=false;
  const std::string appRoot=asset.substr(0,asset.size()-7);
  engine::start_if_needed(appRoot);
  auto state=theme::playback_state();
@@ -556,9 +543,6 @@ int main(){
        if(!engine::busy())status=engine::status();
      }
    }
-   const bool downloadBusy=online.downloading();
-   if(page==0&&(downloadBusy||wasDownloadBusy))status=online.status();
-   wasDownloadBusy=downloadBusy;
    // Download-complete event is emitted immediately by the worker and is
    // independent of whether LiveShell could activate the wallpaper.
    for(int idx:online.consume_installed()){

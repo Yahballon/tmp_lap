@@ -11,7 +11,6 @@ struct Entry {
 class Catalog {
 public:
  bool load(const std::string& assets);
- int rescan_installed();
  const std::vector<Entry>& entries() const {return records_;}
  bool download(int index);
  bool request_thumbnail(int index);
