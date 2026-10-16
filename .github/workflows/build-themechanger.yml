@@ -177,7 +177,7 @@ jobs:
           assert (root/'liveshell.elf').stat().st_size>100000
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
           assert len(manifest.splitlines())>8000, 'Full sitemap should contain thousands of desktop wallpaper entries'
-          assert any(len(r.split('\\t'))>=6 for r in manifest.splitlines()[1:])
+          assert any(len(r.split('\t'))>=6 for r in manifest.splitlines()[1:])
           assert 'https://motionbgs.com/dl/hd/' in manifest
           assert '/i/c/960x540/media/' in manifest
           with zipfile.ZipFile(f'app/dist/{title}.zip') as z:
