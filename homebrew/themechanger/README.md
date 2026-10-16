@@ -109,3 +109,11 @@ The Backgrounds tab is now a personal downloaded-wallpaper library. All twelve o
 Any wallpaper downloaded through Online Wallpapers is immediately added to Backgrounds by a completion event, without restarting ThemeChanger or waiting for a timed disk scan. Wallpapers appear **newest first** and can be reapplied with **X**. The library is paginated in groups of twelve. If nothing is downloaded, switch to Online Wallpapers using **R1**.
 
 Existing MotionBGS downloads persist at `/data/LiveShell/video/MotionBGS-<slug>.mp4`. Old `ThemeChanger-*.mp4` sample clips from previous releases are not deleted from the console automatically, but are not part of this library.
+
+## v0.3.9 – Black background / H.264 compatibility fix
+
+Some MotionBGS Full HD MP4 videos report H.264 **Level 5.0** despite actually being 1920x1080@30fps. This differs from known-good 1080p MotionBGS files reporting Level 4.1 and can exceed the profile understood by the PS5 LiveShell ShellUI video player. The app previously only verified the first `ftyp` bytes and a codec signature; LiveShell's `"ok":true` select response never verified decoded frames.
+
+The new `mp4_compat.hpp` checks the MP4 `avc1` sample entry and H.264 `avcC` plus SPS. On selecting a downloaded wallpaper (including one downloaded with a previous ThemeChanger version), it conditionally adjusts **only** a falsely high Level 5.0 declaration on Full HD H.264 streams to Level 4.2. Encoded frame data and image quality are unchanged, so this is quick even for large clips. Valid Level 4.1/4.2 clips stay untouched; unsupported and UHD codecs are not force-modified and selection returns an explicit compatibility error rather than quietly switching to black.
+
+New logs in `/data/ThemeChanger/themechanger.log`: `MP4_COMPAT` and `MP4_INCOMPATIBLE`. Test by choosing any previously black wallpaper in Backgrounds and then returning to PS5 Home. The source-compatible level fix was validated on **four real MotionBGS 1080p30 Level 5.0 files** with FFprobe (which reads Level 4.2 after adjustment) and a separate Level 4.1 no-op case. Real PS5 decoding must still be confirmed by hardware test. For any remaining black wallpaper, report its exact title plus ThemeChanger and `/data/LiveShell/shellui.log` logs.
