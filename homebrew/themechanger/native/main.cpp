@@ -262,7 +262,8 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  txt(d,f,a,"Select",105,1044,22,muted);
  d.circle(225,1034,16,white);txt(d,f,a,"O",225,1043,24,Color::rgb(0x021329),Align::center);
  txt(d,f,a,"Back",256,1044,22,muted);
- txt(d,f,a,"L1/R1: Backgrounds / Online    Square: Retry Engine",403,1045,19,muted);
+ txt(d,f,a,page==3?"L1/R1: TABS   Triangle: SEARCH   Options: TAGS   Square: PREV":
+                    "L1/R1: Backgrounds / Online   Square: Retry Engine",403,1045,19,muted);
  txt(d,f,a,loading?"LiveShell starting...":live?("LiveShell API | ShellUI: "+(shellStatus.empty()?std::string("no status"):shellStatus.substr(0,38))):"LiveShell offline",1856,1028,18,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
  txt(d,f,a,(page==3?catalog.status():status).substr(0,99),1856,1057,17,muted,Align::right);
  modal(d,f,a,overlay,search,tag,tags,key,tagFocus);
@@ -286,8 +287,11 @@ int main(){
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
  std::deque<int> textureAge;
- auto loadTexture=[&](int id){
+ std::vector<unsigned char> attemptedTexture(online.entries().size(),0);
+ auto loadTexture=[&](int id,bool force=false){
    if(id<0||id>=(int)onlineTextures.size()||onlineTextures[(size_t)id])return;
+   if(attemptedTexture[(size_t)id]&&!force)return;
+   attemptedTexture[(size_t)id]=1;
    const unsigned tex=texture(renderer,online.thumbnail_path(id));
    if(!tex)return;
    onlineTextures[(size_t)id]=tex;textureAge.push_back(id);
@@ -298,6 +302,7 @@ int main(){
      GLuint handle=(GLuint)onlineTextures[(size_t)old];
      if(handle)glDeleteTextures(1,&handle);
      onlineTextures[(size_t)old]=0;
+     attemptedTexture[(size_t)old]=0;
    }
  };
  std::vector<int> installedIds;
@@ -531,7 +536,7 @@ int main(){
    }
    for(int idx:online.consume_ready()){
      if(idx>=0&&idx<(int)onlineTextures.size()&&!onlineTextures[(size_t)idx]){
-       loadTexture(idx);
+       loadTexture(idx,true);
        if(!onlineTextures[(size_t)idx])
          tc::log("PREVIEW_DECODE_ERROR",online.entries()[(size_t)idx].slug.c_str());
      }
