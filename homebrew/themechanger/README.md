@@ -44,3 +44,6 @@ Browse publicly listed **1920x1080 MP4** wallpapers from [MotionBGS](https://mot
 - Built-in original themes and bundled LiveShell v1.0 remain unchanged
 
 **Notes:** The online catalog is a snapshot refreshed during app builds, not an always-live search index. MotionBGS availability, CDN endpoints and copyright permissions may change; users should respect the rights of creators and site terms. LiveShell currently supports 1080p MP4, so 4K links are excluded.
+
+## Controller input fix (v0.3.1)
+Both the D-pad and the left analog stick now use edge-triggered input and controlled key repeats instead of treating every analog frame as a fresh press. This prevents unexpected rapid selection jumps when browsing large MotionBGS lists.

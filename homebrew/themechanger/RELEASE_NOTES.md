@@ -1,8 +1,6 @@
-# ThemeChanger v0.3.0 – MotionBGS Online Wallpapers
+# ThemeChanger v0.3.1 – Controller Navigation Fix
 
-- Added integrated MotionBGS online gallery with HD wallpaper discovery, category filters and pagination.
-- Added real native HTTPS MP4 downloader with progress, safe temporary files and format validation.
-- Direct installation to LiveShell video directory, with automatic selection after download.
-- Thumbnails are cached locally on PS5, and third-party videos are never bundled in GitHub releases.
-- 12 built-in backgrounds and bundled LiveShell engine with automatic startup are retained.
-- Download requires working DNS/TLS/network on jailbroken PS5; on-console verification pending.
+- Fixed repeated analog-stick inputs causing fast, unpredictable jumps through the wallpaper grid.
+- Unified left-stick and D-pad edge detection, including held-key repeats after a short delay.
+- Existing MotionBGS HD browser, verified native HTTPS downloads, automatic LiveShell integration and built-in themes remain available.
+- Native PS5 hardware input behavior still requires final console verification.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.1.0 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.1 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -207,19 +207,30 @@ int main(){
  engine::start_if_needed(appRoot);
  bool live=theme::probe();if(live)active=theme::current_theme();
  std::string status="Choose a background and press X to apply";
- unsigned previous=0;int repeats=0;
+ unsigned previous=0,previousDirections=0;int repeats=0;
+ constexpr unsigned arrows=hui::pad_bits::kUp|hui::pad_bits::kDown|
+                            hui::pad_bits::kLeft|hui::pad_bits::kRight;
  for(;;){
-   std::array<hui::PadSample,64> samples{};const size_t n=pad.read(samples);unsigned pressed=0,held=previous;
-   for(size_t i=0;i<n;i++){if(!samples[i].connected)continue;pressed|=samples[i].buttons&~held;held=samples[i].buttons;
-      if(samples[i].left_x<60)pressed|=hui::pad_bits::kLeft;
-      if(samples[i].left_x>195)pressed|=hui::pad_bits::kRight;
-      if(samples[i].left_y<60)pressed|=hui::pad_bits::kUp;
-      if(samples[i].left_y>195)pressed|=hui::pad_bits::kDown;
+   std::array<hui::PadSample,64> samples{};const size_t n=pad.read(samples);
+   unsigned held=0;
+   for(size_t i=0;i<n;i++){
+     if(!samples[i].connected)continue;
+     held|=samples[i].buttons;
+     // Treat the analog stick exactly like a held D-pad direction.
+     if(samples[i].left_x<60)held|=hui::pad_bits::kLeft;
+     if(samples[i].left_x>195)held|=hui::pad_bits::kRight;
+     if(samples[i].left_y<60)held|=hui::pad_bits::kUp;
+     if(samples[i].left_y>195)held|=hui::pad_bits::kDown;
    }
-   previous=held;
-   if(held&(hui::pad_bits::kUp|hui::pad_bits::kDown|hui::pad_bits::kLeft|hui::pad_bits::kRight)){
-     ++repeats;if(repeats>20&&repeats%7==0)pressed|=held&(hui::pad_bits::kUp|hui::pad_bits::kDown|hui::pad_bits::kLeft|hui::pad_bits::kRight);
+   unsigned pressed=held&~previous;
+   const unsigned directions=held&arrows;
+   if(directions!=previousDirections){repeats=0;}
+   else if(directions){
+     ++repeats;
+     if(repeats>=20&&((repeats-20)%7)==0)pressed|=directions;
    }else repeats=0;
+   previousDirections=directions;
+   previous=held;
    if(pressed&hui::pad_bits::kCircle){
      if(page!=0)page=0;
      else{pad.close();renderer.release();display.close();hui::sys::quit();}
