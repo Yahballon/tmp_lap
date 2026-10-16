@@ -4,6 +4,7 @@
 #include "motion_download.hpp"
 #include "liveshell_client.hpp"
 #include "theme_log.hpp"
+#include "wallpaper_storage.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -151,20 +152,50 @@ bool Catalog::load(const std::string& assets){
  records_=std::move(next);
  preview_requested_.assign(records_.size(),false);
  installed_cache_.assign(records_.size(),false);
- std::unordered_set<std::string> downloaded;
- if(DIR* dir=opendir("/data/LiveShell/video")){
-   while(dirent* de=readdir(dir))downloaded.insert(de->d_name);
-   closedir(dir);
- }
+ // Restore only the user's indexed wallpapers; no unbounded directory
+ // enumeration or per-record filesystem scan during boot.
+ int recovered=0;
+ const auto names=wallpaper_storage::saved_names();
+ std::unordered_set<std::string> saved(names.begin(),names.end());
  for(size_t i=0;i<records_.size();i++){
    const std::string name="MotionBGS-"+records_[i].slug+".mp4";
-   // Only hit the disk for files actually found in the directory.
-   if(downloaded.count(name))installed_cache_[i]=is_mp4(wallpaper_path((int)i));
+   if(!saved.count(name))continue;
+   const std::string live=wallpaper_path((int)i);
+   if(wallpaper_storage::valid_file(live)){
+     installed_cache_[i]=true;recovered++;
+   }
  }
+ tc::log("LIBRARY_INDEX_LOADED",(std::to_string(names.size())+
+      " names; "+std::to_string(recovered)+" active files").c_str());
  if(records_.empty()){report("Online catalog empty. Check MotionBGS availability.");return false;}
  report("MotionBGS: "+std::to_string(records_.size())+" indexed (download on demand)");
  tc::log("CATALOG_LOADED",std::to_string(records_.size()).c_str());
  return true;
+}
+int Catalog::discover_legacy(int budget){
+ int imported=0;
+ while(budget-->0 && discovery_cursor_<records_.size()){
+  const int i=(int)discovery_cursor_++;
+  if(installed(i))continue;
+  const std::string path=wallpaper_path(i);
+  const std::string name="MotionBGS-"+records_[(size_t)i].slug+".mp4";
+  const std::string archive=std::string(wallpaper_storage::kArchive)+"/"+name;
+  if(!wallpaper_storage::valid_file(path)){
+    // Legacy v0.3.10/11 archives may predate the filename index.
+    if(!wallpaper_storage::valid_file(archive)||
+       !wallpaper_storage::durable_copy(archive,path))continue;
+    tc::log("LEGACY_ARCHIVE_RESTORED",name.c_str());
+  }
+  // Existing v0.3.12 MP4s may not be present in the durable index.
+  if(wallpaper_storage::preserve(name)){
+   std::lock_guard<std::mutex> lock(mutex_);
+   installed_cache_[(size_t)i]=true;
+   newly_installed_.push_back(i);
+   imported++;
+   tc::log("LEGACY_WALLPAPER_IMPORTED",name.c_str());
+  }else tc::log("LEGACY_IMPORT_FAILED",name.c_str());
+ }
+ return imported;
 }
 std::string Catalog::wallpaper_path(int i)const{
  if(i<0||i>=(int)records_.size())return {};
@@ -227,17 +258,42 @@ void* Catalog::run(void* p){
   if(ok){std::lock_guard<std::mutex> g(self.mutex_);self.ready_.push_back(job.index);}
   self.preview_busy_=false;return nullptr;
  }
- make_directory("/data/LiveShell");make_directory("/data/LiveShell/video");
+ const std::string name="MotionBGS-"+item.slug+".mp4";
+ const std::string archive=std::string(wallpaper_storage::kArchive)+"/"+name;
  const std::string path=self.wallpaper_path(job.index);
- std::string err;bool ok=self.installed(job.index);
- if(!ok){
-  self.report("Downloading "+item.title+" (1080p MP4)...");
-  std::string url,preview;
-  if(resolve(item,url,preview,err)){
-    tc::log("MP4_URL_RESOLVED",(item.slug+" "+url).c_str());
-    ok=fetch_file(url,path,self.percent_,err);
-  }
-  if(ok&&!is_mp4(path)){unlink(path.c_str());ok=false;err="Server did not send a valid MP4";}
+ std::string err;
+ bool ok=wallpaper_storage::folders();
+ if(!ok)err="Cannot create permanent wallpaper storage";
+ if(ok){
+   // Older downloads may still be in LiveShell's working folder.
+   if(wallpaper_storage::valid_file(path) &&
+      !wallpaper_storage::valid_file(archive)){
+     ok=wallpaper_storage::preserve(name);
+     if(!ok)err="Unable to preserve existing wallpaper";
+   }
+ }
+ if(ok&&!wallpaper_storage::valid_file(archive)){
+   self.report("Downloading "+item.title+" to permanent library...");
+   std::string url,preview;
+   if(resolve(item,url,preview,err)){
+     tc::log("MP4_URL_RESOLVED",(item.slug+" "+url).c_str());
+     ok=fetch_file(url,archive,self.percent_,err);
+     if(ok&&!wallpaper_storage::valid_file(archive)){
+       unlink(archive.c_str());ok=false;err="Invalid MP4 from server";
+     }
+   }else ok=false;
+ }
+ if(ok){
+   tc::log("WALLPAPER_ARCHIVED",archive.c_str());
+   if(!wallpaper_storage::valid_file(path)){
+     self.report("Installing downloaded wallpaper to LiveShell...");
+     ok=wallpaper_storage::durable_copy(archive,path);
+     if(!ok)err="LiveShell video installation failed; permanent copy was kept";
+   }
+ }
+ if(ok&&!wallpaper_storage::remember(name)){
+   tc::log("WALLPAPER_INDEX_WARNING",(name+" index write failed, archive kept").c_str());
+   // The permanent MP4 is still present; never discard it for an index error.
  }
  if(ok){
   {std::lock_guard<std::mutex> lock(self.mutex_);
@@ -245,7 +301,7 @@ void* Catalog::run(void* p){
    self.newly_installed_.push_back(job.index);
   }
   self.percent_=100;
-  tc::log("DOWNLOAD_COMPLETE",path.c_str());
+  tc::log("DOWNLOAD_COMPLETE",(path+" archive="+archive).c_str());
   std::string applied;
   if(theme::activate_file("MotionBGS-"+item.slug+".mp4",applied)){
    tc::log("LIVESHELL_SELECTED",(item.slug+" "+applied).c_str());

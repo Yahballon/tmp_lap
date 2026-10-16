@@ -8,6 +8,7 @@
 #include "liveshell_loader.hpp"
 #include "motion_catalog.hpp"
 #include "theme_log.hpp"
+#include "wallpaper_storage.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -288,7 +289,12 @@ int main(){
  struct stat catalogStat{};
  if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
    asset="/data/homebrew/PPSA99891/assets";
- tc::log("BOOT","ThemeChanger v0.3.12 starting");
+ tc::log("BOOT","ThemeChanger v0.3.13 starting");
+ const auto storage=wallpaper_storage::recover_indexed();
+ tc::log("LIBRARY_RECOVERY",("restored="+std::to_string(storage.restored)+
+  " existing="+std::to_string(storage.live)+
+  " backups="+std::to_string(storage.backups)+
+  " errors="+std::to_string(storage.errors)).c_str());
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
@@ -545,6 +551,7 @@ int main(){
    }
    // Download-complete event is emitted immediately by the worker and is
    // independent of whether LiveShell could activate the wallpaper.
+   if(frame%3==0)online.discover_legacy(12);
    for(int idx:online.consume_installed()){
      refreshInstalled();
      if(page==0)selected=0;

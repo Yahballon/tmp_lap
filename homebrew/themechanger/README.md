@@ -137,3 +137,11 @@ After installing v0.3.11, try any new wallpaper and look for `VIDEO_TRANSFER_DON
 v0.3.10 and v0.3.11 introduced unverified native FFmpeg and automatic filesystem recovery operations, and users reported `system_illegal_function_call` as soon as the app launched. This emergency update **reverts boot and download code to v0.3.9**, the latest version confirmed to open and operate on the user's PS5, while retaining the full searchable MotionBGS library and integrated LiveShell functionality.
 
 No downloaded videos or stored backups are removed. The experimental persistent-recovery feature is temporarily disabled so that a filesystem API failure cannot prevent the application from opening. Data-persistence and video-transcoding changes will be reintroduced only after isolated PS5 validation.
+
+## v0.3.13 – Wallpapers now survive restarts
+
+New wallpapers are downloaded first to `/data/ThemeChanger/wallpapers/MotionBGS-<slug>.mp4` and then atomically deployed to `/data/LiveShell/video/`. The ThemeChanger-owned archive is never replaced by a hardlink to a LiveShell file, and filenames are stored in `/data/ThemeChanger/wallpapers.index` so a restart does not rely on native `readdir` working correctly.
+
+Start-up recovery touches only the saved filenames. Existing v0.3.12 files are found incrementally without blocking PS5 boot. If the app launches before migration finishes, give it some time in Backgrounds; previously downloaded files should populate automatically where they still exist.
+
+**Video playback caveat:** a LiveShell response of `playing` reports file selection, not proof that hardware decoder frames are progressing. Many MotionBGS FullHD MP4s are encoded with H.264 eight reference frames; the PS5 ShellUI player may stall or watchdog-restart those streams. Changing the H.264 level header does not change the number of reference frames. We are retaining the stable media pipeline and awaiting `/data/LiveShell/shellui.log` to identify any further player-specific fault. Experimental on-PS5 transcoding stays off after the v0.3.10 crash.
