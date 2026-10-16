@@ -1,0 +1,28 @@
+name: Diagnose ThemeChanger MP4 Streams
+on:
+  push:
+    branches: [fix/themechanger-v0.3.9-black-wallpaper]
+    paths: ['.github/workflows/themechanger-video-probe.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Inspect MotionBGS codec compatibility and black frames
+        run: |
+          set +e
+          for pair in "5411 bmw-m5-in-dark" "4121 full-moon-samurai" "1115 sanji-smoking-one-piece" "1132 thousand-sunny-one-piece" "10118 wandering-samurai"; do
+            set -- $pair
+            id="$1"; name="$2"
+            echo "=== DOWNLOAD $name ==="
+            curl -L --fail --retry 1 --max-time 65 -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125 Safari/537.36" -o "/tmp/${id}.mp4" "https://motionbgs.com/dl/hd/${id}/"
+            ls -l "/tmp/${id}.mp4"
+            echo "=== CODEC $name ==="
+            ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,profile,level,width,height,pix_fmt,r_frame_rate,nb_frames,has_b_frames,color_range,color_space -show_entries format=duration,format_name,size -of json "/tmp/${id}.mp4"
+            echo "=== FIRST FRAME $name ==="
+            ffmpeg -nostdin -hide_banner -loglevel error -i "/tmp/${id}.mp4" -frames:v 1 -vf "signalstats,metadata=print" -f null - 2>&1 | tail -12
+            echo "=== PLAYBACK 8 SECONDS $name ==="
+            ffmpeg -nostdin -hide_banner -loglevel error -ss 1 -i "/tmp/${id}.mp4" -t 8 -f null - 2>&1 | tail -10
+          done
