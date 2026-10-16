@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <initializer_list>
 #include <string>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -120,9 +121,9 @@ std::string codec_hint(const std::string& filename){
  if(stat(path.c_str(),&info)!=0)return "file missing";
  FILE* f=fopen(path.c_str(),"rb");
  if(!f)return "file unreadable";
- char data[512*1024];
- const size_t n=fread(data,1,sizeof(data),f);fclose(f);
- std::string header(data,n);
+ std::string header(512*1024,\x00);
+ const size_t n=fread(header.data(),1,header.size(),f);fclose(f);
+ header.resize(n);
  std::string codec="unknown";
  for(const char* type:{"avc1","avc3","hvc1","hev1","av01","mp4v"}){
    if(header.find(type)!=std::string::npos){codec=type;break;}
