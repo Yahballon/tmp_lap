@@ -70,3 +70,7 @@ PS5MesenX scans `/data/PS5NES/games` as its **primary NES ROM directory** and cr
 Both `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms` are scanned, along with legacy game folders and USB locations. Supported ROMs are plain `.nes` files or ZIP archives containing exactly one `.nes` file with a valid iNES/NES2.0 header. Subfolders are scanned to depth 5.
 
 If no games show up, check `/data/PS5MesenX/logs/boot.log` for `[romscan] entry`, `[library] scan source`, `[library] ROM FOUND`, or `cannot open` lines, and confirm filesystem elevation succeeded. If root storage is unavailable the fallback log may be under `/download0/PS5MesenX/logs/boot.log`. Existing ROMs and saves are never moved or deleted.
+
+## HD Packs (v0.1.11)
+
+Go to **Settings → Emulation → HD Packs** and select On or Off (default Off). The choice is persisted for all games or individually per game and takes effect when launching a game. Place a pack's `hires.txt` and referenced images/audio under `/data/PS5MesenX/HdPacks/<ROM basename>/` (for example, `Zelda.nes` needs `HdPacks/Zelda/hires.txt`). Extract pack files first; do not put the ZIP there. Check `/data/PS5MesenX/logs/boot.log` for `HDPACK_PROBE` and `HDPACK_CORE_QUERY`. Actual PS5 HD-pack display remains experimental until tested.

@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.10 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.11 — Experimental PS5 NES HD Emulator
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -85,3 +85,11 @@ Fixed PS5 filesystem metadata compatibility: try stat and fstatat, then dirent d
 **Fix:** When no palette is configured, initialize the original MesenCE default NES 64-color palette before populating NesConfig.UserPalette. Preserve user-provided palettes when present. Core emits the `[MesenCE][PS5Palette]` diagnostic when this fallback is used.
 
 Previous ROM scanning, audio, saves and Vulkan renderer are unchanged. Gameplay video still requires verification on actual PS5 hardware.
+
+### v0.1.11 – HD Packs On/Off
+
+- Settings → Emulation → **HD Packs**: Off by default, On to load a compatible Mesen HD pack. Global and per-game settings persist, and apply when starting the game again.
+- Fixed UI values: the toggle stores `true`/`false`, while MesenCE requires `enabled`/`disabled`. Existing older values are also supported.
+- Extract `hires.txt` and the pack assets to `/data/PS5MesenX/HdPacks/<ROM basename>/`, matching the ROM filename without `.nes`.
+- Look for `HDPACK_SETTING`, `HDPACK_PROBE`, `HDPACK_APPLY`, `HDPACK_CORE_QUERY` and `MESENCE_CORE` in `/data/PS5MesenX/logs/boot.log`.
+- Rendering with HD packs still needs testing on real PS5 hardware: compare On versus Off on the same game.
