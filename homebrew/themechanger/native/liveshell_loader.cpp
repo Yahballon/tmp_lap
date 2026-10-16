@@ -3,6 +3,7 @@
 // The upstream GPL-3.0 payload is attributed and verified during the build.
 #include "liveshell_loader.hpp"
 #include "liveshell_client.hpp"
+#include "theme_log.hpp"
 #include <atomic>
 #include <cstdio>
 #include <cstring>
@@ -35,7 +36,15 @@ void* run(void* raw) {
   fclose(in);set_status("Bundled payload is not a 64-bit ELF");g_busy=false;return nullptr;
  }
  rewind(in);
- if(theme::probe()){fclose(in);set_status("LiveShell already running");g_busy=false;return nullptr;}
+ auto existing=theme::playback_state();
+ if(existing.connected&&existing.engineRevision=="0.3.6"){
+  fclose(in);set_status("Integrated LiveShell 0.3.6 already running");g_busy=false;return nullptr;
+ }
+ if(existing.connected){
+  set_status("Updating old LiveShell engine via safe handover...");
+  tc::log("ENGINE_HANDOVER",(std::string("old revision=")+existing.engineRevision+
+     " game="+existing.game).c_str());
+ }
  int fd=socket(AF_INET,SOCK_STREAM,0);
  if(fd<0){fclose(in);set_status("Cannot open ELF loader socket");g_busy=false;return nullptr;}
  timeval timeout{5,0};
@@ -68,16 +77,24 @@ void* run(void* raw) {
  close(fd);
  if(!ok||sent!=size){set_status("LiveShell ELF transfer failed");g_busy=false;return nullptr;}
  set_status("Waiting for LiveShell to initialize ShellUI...");
- for(int retry=0;retry<20;retry++){
-  if(theme::probe()){set_status("Integrated LiveShell running");g_busy=false;return nullptr;}
+ for(int retry=0;retry<45;retry++){
+  auto state=theme::playback_state();
+  if(state.connected&&state.engineRevision=="0.3.6"){
+    set_status("Integrated LiveShell 0.3.6 running");
+    tc::log("ENGINE_HANDOVER_OK","Integrated patched engine is active");
+    g_busy=false;return nullptr;
+  }
   sleep(1);
  }
- set_status("LiveShell launch requested; check /data/LiveShell/liveshell.log");
+ tc::log("ENGINE_HANDOVER_FAIL","Engine ID unchanged; check /data/LiveShell/liveshell.log");
+ set_status("Engine handover unconfirmed. Reboot PS5 if selection remains stopped");
  g_busy=false;return nullptr;
 }
 }
 void start_if_needed(const std::string& root,bool force){
- if(theme::probe()){set_status("LiveShell already running");return;}
+ if(theme::playback_state().engineRevision=="0.3.6"){
+  set_status("Integrated LiveShell 0.3.6 already running");return;
+ }
  if(g_busy.load())return;
  if(!force&&g_attempted.exchange(true))return;
  g_attempted=true;
