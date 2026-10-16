@@ -169,7 +169,7 @@ jobs:
           j=json.loads((root/'sce_sys/param.json').read_text())
           assert j['titleId']==title
           assert not (root/'assets/wallpapers').exists(), 'Old bundled wallpapers must not be shipped'
-          app_src=Path('homebrew/themechanger/native/main.cpp').read_text()
+          app_src=pathlib.Path('homebrew/themechanger/native/main.cpp').read_text()
           assert 'ThemeChanger-baseball.png' not in app_src
           assert 'const int total=12+' not in app_src
           assert 'consume_installed()' in app_src
