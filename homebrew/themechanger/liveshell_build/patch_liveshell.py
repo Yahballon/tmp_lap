@@ -65,6 +65,18 @@ replacement='''\t// ThemeChanger is still alive when the user presses PS to open
 '''
 ui=ui.replace(marker,replacement,1)
 shell.write_text(ui)
+# Make the live API identify the precise integrated payload revision.
+# /api/state is also available for older LiveShell, so API availability alone
+# is not evidence that the current daemon contains the ThemeChanger fixes.
+web=Path(sys.argv[1])/"src/liveshell_web.cpp"
+ws=web.read_text()
+old='std::string j  = std::string("{\\"enabled\\":")'
+new='std::string j  = std::string("{\\"themechanger_engine\\":\\"0.3.6\\",\\"enabled\\":")'
+if ws.count(old)!=1:raise SystemExit("LiveShell state JSON layout changed")
+ws=ws.replace(old,new,1)
+web.write_text(ws)
+print("Verified: /api/state advertises ThemeChanger engine 0.3.6")
+
 assert 'tc_app_active=access("/system_tmp/liveshell/themechanger_active",F_OK)==0;' in ui
 assert 'strcmp(id, "PPSA99891") == 0' in s
 print("Verified: ShellUI preserves wallpaper while ThemeChanger is backgrounded in PS5 Home")
