@@ -77,7 +77,7 @@ jobs:
             -o /tmp/themechanger-native-http-test
           preview=$(python3 - <<'PY'
           from pathlib import Path
-          rows=[line.split('\\t') for line in Path('homebrew/themechanger/generated/motionbgs/catalog.tsv').read_text().splitlines() if not line.startswith('#')]
+          rows=[line.split('\t') for line in Path('homebrew/themechanger/generated/motionbgs/catalog.tsv').read_text().splitlines() if not line.startswith('#')]
           urls=[row[4] for row in rows if len(row)>=5 and row[4].startswith('https://motionbgs.com/')]
           print(urls[0] if urls else '')
           PY
