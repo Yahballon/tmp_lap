@@ -44,7 +44,7 @@ void symbol(DrawList& d,float x,float y,float size=58){
 void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pics,int selected,int active,int page,int opt,const std::string& status,bool live,bool loading,bool sidebar,const motion::Catalog& catalog,
           const std::vector<int>& filtered,const std::vector<unsigned>& thumbnails,
           int onlineSelected,int onlinePage,int filterIndex,int sideRow,
-          const std::vector<int>& installedIds,const std::string& activeFile){
+          const std::vector<int>& installedIds,const std::string& activeFile,const std::string& shellStatus){
  // All positions are in 1920x1080 virtual pixels, derived from the reference's 1671x941 grid.
  // The third row ends at y=985; the footer begins at y=994 (no clipping).
  d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020a16),Color::rgb(0x010615));
@@ -204,7 +204,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  d.circle(225,1034,16,white);txt(d,f,a,"O",225,1043,24,Color::rgb(0x021329),Align::center);
  txt(d,f,a,"Back",256,1044,22,muted);
  txt(d,f,a,"L1/R1: Backgrounds / Online    Square: Retry Engine",403,1045,19,muted);
- txt(d,f,a,loading?"LiveShell starting...":live?"LiveShell connected":"LiveShell offline",1856,1028,19,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
+ txt(d,f,a,loading?"LiveShell starting...":live?("LiveShell API | ShellUI: "+(shellStatus.empty()?std::string("no status"):shellStatus.substr(0,38))):"LiveShell offline",1856,1028,18,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
  txt(d,f,a,(page==3?catalog.status():status).substr(0,99),1856,1057,17,muted,Align::right);
 }
 }
@@ -221,7 +221,7 @@ int main(){
  std::array<unsigned,12> pictures{};
  const char* files[]={"baseball","anime","gaming","cyber-city","racing","space","samurai","retro-neon","mountains","forest","beach","snow"};
  for(int i=0;i<12;i++)pictures[i]=texture(renderer,asset+"/wallpapers/ThemeChanger-"+files[i]+".png");
- tc::log("BOOT","ThemeChanger v0.3.2 starting");
+ tc::log("BOOT","ThemeChanger v0.3.3 starting");
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
@@ -249,9 +249,13 @@ int main(){
  bool sidebar=false;int pendingApply=-1;bool pendingRetry=false;
  const std::string appRoot=asset.substr(0,asset.size()-7);
  engine::start_if_needed(appRoot);
- bool live=theme::probe();if(live)active=theme::current_theme();
- std::string activeFile=live?theme::current_file():std::string{};
- tc::log("LIVESHELL_START",live?"Connected":"Waiting for engine");
+ auto state=theme::playback_state();
+ bool live=state.connected;
+ if(live)active=theme::current_theme();
+ std::string activeFile=state.file;
+ std::string shellStatus=state.shellStatus;
+ std::string lastStateLog;
+ tc::log("LIVESHELL_START",live?"API connected (ShellUI status recorded separately)":"Waiting for engine");
  std::string status="Choose a background and press X to apply";
  unsigned previous=0,previousDirections=0;int repeats=0;
  constexpr unsigned arrows=hui::pad_bits::kUp|hui::pad_bits::kDown|
@@ -362,13 +366,27 @@ int main(){
    if(++frame%120==0){
      refreshInstalled();
      selected=std::clamp(selected,0,11+(int)installedIds.size());
-     live=theme::probe();
+     state=theme::playback_state();
+     live=state.connected;
      if(live){
-      active=theme::current_theme();
-      activeFile=theme::current_file();
+      activeFile=state.file;
+      shellStatus=state.shellStatus;
+      active=-1;
+      for(int k=0;k<theme::kCount;k++)if(activeFile==theme::theme_file(k))active=k;
+      const std::string stateText=std::string("file=")+activeFile+
+        " shellui="+shellStatus+" enabled="+(state.enabled?"1":"0")+
+        " mainvideo="+(state.mainVideo?"1":"0")+
+        " gamepause="+(state.gamePause?"1":"0")+" game="+state.game;
+      if(stateText!=lastStateLog){
+        tc::log("SHELLUI_MONITOR",stateText.c_str());
+        lastStateLog=stateText;
+      }
       if(pendingApply>=0){int target=pendingApply;pendingApply=-1;
        if(theme::install_and_select(target,asset,status))active=target;}
-     }else if(!engine::busy())status=engine::status();
+     }else{
+       shellStatus.clear();
+       if(!engine::busy())status=engine::status();
+     }
    }
    for(int idx:online.consume_ready()){
      if(idx>=0&&idx<(int)onlineTextures.size()&&!onlineTextures[(size_t)idx]){
@@ -401,7 +419,7 @@ int main(){
      }
    }
    DrawList ui;draw(ui,font,atlas,pictures,selected,active,page,opt,status,live,engine::busy(),sidebar,
-                     online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow,installedIds,activeFile);
+                     online,filtered,onlineTextures,onlineSelected,onlinePage,filterIndex,sideRow,installedIds,activeFile,shellStatus);
    renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
  }
 }
