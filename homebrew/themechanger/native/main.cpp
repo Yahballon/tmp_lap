@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.7 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.8 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -94,7 +94,7 @@ void modal(DrawList& d,const Font& font,unsigned atlas,Overlay overlay,
      " / "+std::to_string(tags.size()),1770,957,20,muted,Align::right);
  }
 }
-void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pics,int selected,int active,int page,int opt,const std::string& status,bool live,bool loading,bool sidebar,const motion::Catalog& catalog,
+void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,const std::string& status,bool live,bool loading,bool sidebar,const motion::Catalog& catalog,
           const std::vector<int>& filtered,const std::vector<unsigned>& thumbnails,
           int onlineSelected,int onlinePage,int filterIndex,int sideRow,
           const std::vector<int>& installedIds,const std::string& activeFile,const std::string& shellStatus,
@@ -130,13 +130,10 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  // The preview is now the same proportions as the user reference (x=440, height=374).
  panel(d,{440,18,1450,375},13,Color::rgb(0x010819),Color::rgb(0x405370));
  unsigned picture=0;
- if(page==0){
-   if(selected<12)picture=pics[std::clamp(selected,0,11)];
-   else if(selected-12>=0&&selected-12<(int)installedIds.size()){
-      int id=installedIds[(size_t)(selected-12)];
-      if(id>=0&&id<(int)thumbnails.size())picture=thumbnails[(size_t)id];
-   }
- }else if(page!=3)picture=pics[1];
+ if(page==0&&!installedIds.empty()&&selected>=0&&selected<(int)installedIds.size()){
+   const int id=installedIds[(size_t)selected];
+   if(id>=0&&id<(int)thumbnails.size())picture=thumbnails[(size_t)id];
+ }
  if(page==3&&!filtered.empty()&&onlineSelected>=0&&onlineSelected<(int)filtered.size()){
    const auto id=filtered[(size_t)onlineSelected];
    if(id>=0&&id<(int)thumbnails.size()&&thumbnails[(size_t)id])picture=thumbnails[(size_t)id];
@@ -157,32 +154,41 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   if(i==1)d.glow({x,y,92,94},10,13,Color::rgb(0x007fff,.38f));
   panel(d,{x,y,92,91},9,Color::rgb(0x08172e,.95f),Color::rgb(i==1?0x05afff:0x21395b));
   if(i==1)symbol(d,x+17,y+17,57);
-  else if(i>=2&&i<6&&pics[(selected+i)%12])
-    d.image(pics[(selected+i)%12],{x+3,y+4,86,83},kFullUv,white,8);
-  else txt(d,f,a,i==0?"*":(i==6?"[]":(i==7?"O":"#")),x+46,y+60,35,Color::rgb(0xdbeeff),Align::center);
+  else {
+   int id=-1;
+   if(i>=2&&i<6){
+      const int slot=i-2;
+      if(page==0&&slot<(int)installedIds.size())id=installedIds[(size_t)slot];
+      else if(page==3&&slot<(int)filtered.size())id=filtered[(size_t)slot];
+   }
+   if(id>=0&&id<(int)thumbnails.size()&&thumbnails[(size_t)id])
+      d.image(thumbnails[(size_t)id],{x+3,y+4,86,83},kFullUv,white,8);
+   else txt(d,f,a,i==0?"*":(i==6?"[]":(i==7?"O":"#")),x+46,y+60,35,Color::rgb(0xdbeeff),Align::center);
+  }
  }
  txt(d,f,a,"Open Theme",586,282,20);
  if(page==0){
-  const int total=12+(int)installedIds.size();
-  const int start=(selected/12)*12;
-  txt(d,f,a,"Available Themes",397,435,30);
-  txt(d,f,a,std::to_string(installedIds.size())+" downloaded   |   Page "+
-    std::to_string(start/12+1)+" / "+std::to_string((total+11)/12),
+  const int total=(int)installedIds.size();
+  const int start=total>0?(std::clamp(selected,0,total-1)/12)*12:0;
+  txt(d,f,a,"Downloaded Backgrounds",397,435,30);
+  txt(d,f,a,std::to_string(total)+" installed   |   Page "+
+    std::to_string(start/12+1)+" / "+std::to_string(std::max(1,(total+11)/12)),
     1878,432,18,muted,Align::right);
+  if(total==0){
+    txt(d,f,a,"No downloaded wallpapers yet",1105,610,35,white,Align::center);
+    txt(d,f,a,"Press R1 to browse MotionBGS and download your first background",
+        1105,662,23,muted,Align::center);
+  }
   for(int pos=0;pos<12&&start+pos<total;pos++){
-   const int id=start+pos;
-   const bool builtin=id<12;
-   int onlineId=-1;std::string name;
-   unsigned tex=0;
-   if(builtin){name=theme::kNames[id];tex=pics[id];}
-   else {
-     onlineId=installedIds[(size_t)(id-12)];
-     name=catalog.entries()[(size_t)onlineId].title;
-     if(onlineId>=0&&onlineId<(int)thumbnails.size())tex=thumbnails[(size_t)onlineId];
-   }
+   const int selectedIndex=start+pos;
+   const int id=installedIds[(size_t)selectedIndex];
+   if(id<0||id>=(int)catalog.entries().size())continue;
+   const auto& item=catalog.entries()[(size_t)id];
+   std::string name=item.title;
+   unsigned tex=id<(int)thumbnails.size()?thumbnails[(size_t)id]:0;
    const float x=398+(pos%4)*370.f,y=455+(pos/4)*176.f;
    const float w=348,h=157;
-   const bool focus=selected==id&&!sidebar;
+   const bool focus=selected==selectedIndex&&!sidebar;
    if(focus)d.glow({x,y,w,h},13,13,Color::rgb(0x006eff,.40f));
    panel(d,{x,y,w,h},9,Color::rgb(0x071329),Color::rgb(focus?0x0d9fff:0x324359));
    if(tex)d.image(tex,{x+2,y+2,w-4,h-4},kFullUv,white,7);
@@ -193,7 +199,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
    d.gradient_rect({x+2,y+h-52,w-4,50},4,Color::rgb(0x000000,.01f),Color::rgb(0x000000,.88f));
    if(name.size()>28)name=name.substr(0,25)+"...";
    txt(d,f,a,name,x+15,y+h-17,21,white);
-   const bool applied=builtin?id==active:activeFile=="MotionBGS-"+catalog.entries()[(size_t)onlineId].slug+".mp4";
+   const bool applied=activeFile=="MotionBGS-"+item.slug+".mp4";
    if(applied){
      d.circle(x+w-33,y+29,20,Color::rgb(0x0876ff));
      txt(d,f,a,"X",x+w-33,y+37,23,white,Align::center);
@@ -241,7 +247,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.7",490,515,38);
+  txt(d,f,a,"ThemeChanger  v0.3.8",490,515,38);
   txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
@@ -278,11 +284,10 @@ int main(){
  Font font;if(!font.load(fonts))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);
  std::string asset="/app0/assets";
- if(read(asset+"/wallpapers/ThemeChanger-baseball.png").empty())asset="/data/homebrew/PPSA99891/assets";
- std::array<unsigned,12> pictures{};
- const char* files[]={"baseball","anime","gaming","cyber-city","racing","space","samurai","retro-neon","mountains","forest","beach","snow"};
- for(int i=0;i<12;i++)pictures[i]=texture(renderer,asset+"/wallpapers/ThemeChanger-"+files[i]+".png");
- tc::log("BOOT","ThemeChanger v0.3.7 starting");
+ struct stat catalogStat{};
+ if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
+   asset="/data/homebrew/PPSA99891/assets";
+ tc::log("BOOT","ThemeChanger v0.3.8 starting");
  motion::Catalog online;
  online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
