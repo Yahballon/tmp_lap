@@ -207,6 +207,8 @@ def generate():
     replace_required(options_file, 'Toggle("SNES/Sound",', 'Toggle("NES/Sound",')
 
     runtime = source / "shelf_runtime.cpp"
+    replace_required(runtime, '#include "fe_settings.h"',
+                     '#include "fe_settings.h"' + chr(10) + '#include "rom_diagnostics.h"')
     replace_required(runtime, '''    core.SetOption("bsnes_region",get("SNES/Region","auto"));
     core.SetOption("bsnes_violate_accuracy","enabled");
     core.SetOption("bsnes_chip_hle",get("SNES/ChipMode","HLE"));
@@ -220,6 +222,7 @@ def generate():
     replace_required(runtime, '"SNES audio port failed"', '"MesenCE audio port failed"')
     replace_required(runtime, '"SNES frame upload failed"', '"MesenCE frame upload failed"')
     assert 'hd_choice=="true"||hd_choice=="enabled"' in runtime.read_text()
+    assert '#include "rom_diagnostics.h"' in runtime.read_text()
     assert 'hd_on?"enabled":"disabled"' in runtime.read_text()
     assert 'Toggle("NES/HdPacks", "HD Packs", "false"' in options_file.read_text()
 
