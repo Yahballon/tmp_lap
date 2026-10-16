@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <string>
 #include <cstdlib>
+#include <fcntl.h>
+#include <unistd.h>
 #include "rom_diagnostics.h"
 
 namespace snes {
@@ -32,8 +34,16 @@ Session::Session(std::string directory) : m_directory(std::move(directory)) {
     retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
 }
 Session::~Session() { Unload(); retro_deinit(); current = nullptr; }
-void Session::Log(enum retro_log_level, const char* format, ...) {
-    va_list args; va_start(args, format); std::vprintf(format, args); va_end(args);
+void Session::Log(enum retro_log_level level, const char* format, ...) {
+    if (!format) return;
+    char message[1536];
+    va_list args;
+    va_start(args, format);
+    const int n=std::vsnprintf(message,sizeof(message),format,args);
+    va_end(args);
+    if(n<0)return;
+    std::printf("[mesence] %s",message);
+    mesen_diag::write("MESENCE_CORE level=%u %s",unsigned(level),message);
 }
 bool Session::Environment(unsigned cmd, void* data) {
     auto& s = *current;
@@ -62,6 +72,8 @@ bool Session::Environment(unsigned cmd, void* data) {
         auto* v = static_cast<retro_variable*>(data);
         auto found = s.m_variables.find(v->key ? v->key : "");
         v->value = found == s.m_variables.end() ? nullptr : found->second.c_str();
+        if(v->key && std::strcmp(v->key,"mesen_hdpacks")==0)
+            mesen_diag::write("HDPACK_CORE_QUERY value=%s",v->value?v->value:"not-set");
         return v->value != nullptr;
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
@@ -118,11 +130,22 @@ bool Session::Load(const std::string& path, std::vector<uint8_t> rom) {
             error="Unable to create NES cache directory"; return false;
         }
     }
+    // MesenCE searches the system-directory HdPacks/<ROM basename>/hires.txt.
+    const std::string hd_value = m_variables.count("mesen_hdpacks")
+        ? m_variables.at("mesen_hdpacks") : "disabled";
+    const std::string hires=m_system_dir+"/HdPacks/"+m_name+"/hires.txt";
+    const int pack_fd=open(hires.c_str(),O_RDONLY);
+    const bool exists=pack_fd>=0;
+    const int hd_errno=exists?0:errno;
+    if(exists)close(pack_fd);
+    mesen_diag::write("HDPACK_PROBE game=%s setting=%s file=%s found=%d errno=%d",
+                     m_name.c_str(),hd_value.c_str(),hires.c_str(),int(exists),hd_errno);
     m_path = m_system_dir+"/cache/roms/"+m_name+".nes";
     if (!fe::fileio::WriteAtomic(m_path, std::string(reinterpret_cast<const char*>(m_rom.data()),m_rom.size()), error)) return false;
     m_extension="nes";
     m_info.full_path=m_path.c_str();m_info.ext=m_extension.c_str();
     retro_deinit();retro_init(); // Apply MesenCE options before ROM loading.
+    mesen_diag::write("HDPACK_APPLY game=%s option=%s",m_name.c_str(),hd_value.c_str());
     retro_game_info info{m_path.c_str(), m_rom.data(), m_rom.size(), nullptr};
     if (!retro_load_game(&info)) { error = "MesenCE core could not load this NES ROM"; m_rom.clear(); return false; }
     m_loaded = true;
