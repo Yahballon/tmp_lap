@@ -40,6 +40,24 @@ s = s.replace(needle, """uint32_t* VideoDecoder::GetDecodedOutputBuffer()
 """+needle)
 video_cpp.write_text(s)
 s = libretro.read_text()
+# libretro.cpp advertises Core Options V2 exclusively.  Our native frontend
+# intentionally implements the compact Libretro environment, so
+# RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2 is not accepted and mesen_palette
+# remains unset. Upstream then fills NesConfig.UserPalette with BLACK for
+# every NES color (0xff000000); audio works but ALL games render black.
+# Supply the genuine built-in Mesen 64-color default when no palette was
+# received. Respect user choices whenever a palette was actually supplied.
+palette_point = "\t\tif(_userRgbPalette.size() >= 512) {"
+assert s.count(palette_point)==1
+assert "uint32_t defaultPalette[0x40]" in s
+s=s.replace(palette_point, """\t\tif(_userRgbPalette.empty()) {
+            _userRgbPalette.assign(std::begin(defaultPalette), std::end(defaultPalette));
+            if(logCallback)
+                logCallback(RETRO_LOG_INFO,
+                    "[MesenCE][PS5Palette] Missing Core Options V2 palette: installed default 64-color NES palette\\n");
+        }
+""" + palette_point)
+assert "Missing Core Options V2 palette" in s
 needle = "\t\tbool validFrame = frame.FrameBuffer && frame.Width > 0 && frame.Height > 0;"
 assert s.count(needle)==1
 s=s.replace(needle, """\t\t// PS5 headless renderer compatibility: if the intermediate

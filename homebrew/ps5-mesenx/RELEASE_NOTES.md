@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.9 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.10 — Experimental PS5 NES HD Emulator
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -77,3 +77,11 @@ Fixed PS5 filesystem metadata compatibility: try stat and fstatat, then dirent d
 - Recompiled embedded SPIR-V shaders from updated source during every build
 - Logged VIDEO_COLOR stats to distinguish all-black MesenCE frames from GPU texture sampling problems
 - Removed inapplicable SNES special-chip option (LLE/HLE); enabled NES HD pack toggle
+
+### v0.1.10 – NES black screen with working sound
+
+**Cause:** MesenCE registers its palette option only through RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2. This minimal PS5 frontend does not provide that options version. No palette was configured, so upstream mapped all 64 NES colors to 0xFF000000. Audio and 256x240 video callbacks continued normally but pixels were black.
+
+**Fix:** When no palette is configured, initialize the original MesenCE default NES 64-color palette before populating NesConfig.UserPalette. Preserve user-provided palettes when present. Core emits the `[MesenCE][PS5Palette]` diagnostic when this fallback is used.
+
+Previous ROM scanning, audio, saves and Vulkan renderer are unchanged. Gameplay video still requires verification on actual PS5 hardware.
