@@ -105,6 +105,7 @@ bool Session::Environment(unsigned cmd, void* data) {
     }
 }
 bool Session::Load(const std::string& path, std::vector<uint8_t> rom) {
+    mesen_diag::write("CORE_LOAD_ENTRY rom_bytes=%zu",rom.size());
     if (!Unload()) return false;
     error.clear();
     if (rom.size() < 16 || rom.size() > (32u << 20)) { error = "Invalid ROM size"; return false; }
@@ -144,12 +145,21 @@ bool Session::Load(const std::string& path, std::vector<uint8_t> rom) {
     if (!fe::fileio::WriteAtomic(m_path, std::string(reinterpret_cast<const char*>(m_rom.data()),m_rom.size()), error)) return false;
     m_extension="nes";
     m_info.full_path=m_path.c_str();m_info.ext=m_extension.c_str();
-    retro_deinit();retro_init(); // Apply MesenCE options before ROM loading.
+    mesen_diag::write("CORE_REINIT_BEGIN");
+    retro_deinit();
+    mesen_diag::write("CORE_DEINIT_OK");
+    retro_init(); // Apply MesenCE options before ROM loading.
+    mesen_diag::write("CORE_REINIT_OK");
     mesen_diag::write("HDPACK_APPLY game=%s option=%s",m_name.c_str(),hd_value.c_str());
     retro_game_info info{m_path.c_str(), m_rom.data(), m_rom.size(), nullptr};
+    mesen_diag::write("CORE_RETRO_LOAD_GAME_BEGIN bytes=%zu",m_rom.size());
     if (!retro_load_game(&info)) { error = "MesenCE core could not load this NES ROM"; m_rom.clear(); return false; }
+    mesen_diag::write("CORE_RETRO_LOAD_GAME_OK");
     m_loaded = true;
-    retro_system_av_info av{}; retro_get_system_av_info(&av);
+    retro_system_av_info av{};
+    mesen_diag::write("CORE_GET_AV_INFO_BEGIN");
+    retro_get_system_av_info(&av);
+    mesen_diag::write("CORE_GET_AV_INFO_OK fps=%.3f rate=%.0f",av.timing.fps,av.timing.sample_rate);
     fps = av.timing.fps; sample_rate = av.timing.sample_rate;
     if (fps < 40 || fps > 75 || sample_rate < 8000 || sample_rate > 192000) {
         error = "Unsupported core timing or audio rate"; retro_unload_game(); m_loaded = false; return false;

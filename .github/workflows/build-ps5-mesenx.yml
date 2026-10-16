@@ -96,7 +96,7 @@ jobs:
       - name: Upload verified signed native PS5 app
         uses: actions/upload-artifact@v4
         with:
-          name: PS5MesenX-v0.1.12-PPSA99896
+          name: PS5MesenX-v0.1.13-PPSA99896
           path: homebrew/ps5-mesenx/dist/PPSA99896.zip
           if-no-files-found: error
       # A separate workflow_run publisher releases this *verified* artifact.

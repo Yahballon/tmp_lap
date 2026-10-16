@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.12 — HD pack loading fixes
+# PS5MesenX v0.1.13 — game-start crash regression isolation
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -100,3 +100,9 @@ Previous ROM scanning, audio, saves and Vulkan renderer are unchanged. Gameplay 
 - Honor `HD Packs: Off` at the ROM loading boundary, with an explicit disabled default and diagnostic output of the option passed to MesenCE. Close/reopen the game to apply settings.
 - Log `HDPACK_LOAD_BEGIN`, `HDPACK_LOAD_WAIT`, `HDPACK_LOAD_END` (ms), `HDPACK_LOAD_READY` and the core's HD pack decision into `/data/PS5MesenX/logs/boot.log`.
 - PS5 system menu and screenshot support depends on launcher, jailbreak and native app integration; keeping the render loop active may improve responsiveness but does not guarantee the system overlay/capture APIs work.
+
+### v0.1.13 — crash when launching NES games
+- Revert v0.1.12 asynchronous game-loading thread as a regression-isolation step; use the synchronous launch path until safe PS5 thread stack/core affinity is established
+- Record ROM read, core entry, retro_deinit/init, retro_load_game and AV info stages in /data/PS5MesenX/logs/boot.log
+- No ROMs, saves, or HD pack files are modified; loading large HD packs can block UI until the core finishes
+- Actual cause and fix must be verified on real PS5; upload log ending around GAME_* / CORE_* if it still crashes
