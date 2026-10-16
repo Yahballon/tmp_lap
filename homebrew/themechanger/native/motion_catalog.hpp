@@ -20,6 +20,8 @@ public:
  std::string thumbnail_path(int index) const;
  std::string wallpaper_path(int index) const;
  bool installed(int index) const;
+ // Incremental discovery of pre-0.3.13 downloads (avoids 9K blocking stats at boot).
+ int discover_legacy(int budget=12);
  int progress() const {return percent_.load();}
  bool downloading() const {return downloading_.load();}
  bool thumbnail_busy() const {return preview_busy_.load();}
@@ -35,6 +37,7 @@ private:
  std::vector<int> newly_installed_;
  std::vector<bool> preview_requested_;
  std::vector<bool> installed_cache_;
+ size_t discovery_cursor_=0;
  std::atomic<bool> downloading_{false};
  std::atomic<bool> preview_busy_{false};
  std::atomic<int> percent_{0};
