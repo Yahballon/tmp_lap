@@ -1,8 +1,8 @@
-# ThemeChanger v0.3.4 – Reliable Background Switching
+# ThemeChanger v0.3.5 – PS5 Home Focus Fix
 
-- Fixed root cause of 'The home screen did not release the old video': LiveShell game pause treated ThemeChanger PPSA99891 as a game. Exempts this title in the GPL-source-built LiveShell engine while keeping pause enabled for real games.
-- Removed the upstream LiveShell Media tile installation call: ThemeChanger already autostarts the engine. A previously installed LVSH00001 tile may be deleted once through PS5 UI.
-- Compile LiveShell directly from ZiZc3 source within the OnionHEN payload toolchain; include patched sources/build script and preserve GPL attribution.
-- Keep MotionBGS MP4 downloads, JPEG previews, installed gallery and detailed ShellUI monitoring.
-- A full console reboot + jailbreak is required to unload the resident older LiveShell payload.
-- Real console playback testing is still required; GitHub CI confirms source patch and native compilation only.
+- Fixed the original PS5 background reappearing when users press the PS button to return to Home without fully closing ThemeChanger.
+- Build a modified, auditable LiveShell ShellUI from GPL-3.0 upstream source. Daemon passes a ThemeChanger-only running-app marker, and ShellUI excludes PPSA99891 from its Game-layer video fade.
+- Keep the game-pause and Game-layer fade behavior for other real games intact.
+- Keep v0.3.4 protections: repeated MP4 selection, no redundant LiveShell Engine tile registration, MotionBGS previews/downloads, downloaded backgrounds, logging.
+- Full PS5 reboot is necessary once after upgrading the bundled privileged LiveShell payload.
+- Native CI compilation validates integration. Visible hardware behavior requires on-console testing.
