@@ -68,6 +68,14 @@ jobs:
           j['localizedParameters']['en-US']['titleName']=d['name']
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
+      - name: Verify native MotionBGS HTTPS downloader with real HD MP4
+        timeout-minutes: 2
+        run: |
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/themechanger/tests/test_native_download.cpp \
+            app/src/motion_download.cpp -lssl -lcrypto \
+            -o /tmp/themechanger-native-http-test
+          timeout 65s /tmp/themechanger-native-http-test
       - name: Bundle verified upstream LiveShell v1.0 payload
         run: |
           curl --fail --location --retry 3 --silent --show-error \
