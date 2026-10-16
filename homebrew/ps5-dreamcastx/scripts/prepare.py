@@ -72,6 +72,24 @@ def adapt():
     t=t.replace(catalogAnchor,
         'findDiscSets();\n\tps5::diag::mark("library: scanner=%d media, shown=%d titles", '
         '(int)list.size(), (int)games.size());\n\treturn true;',1)
+    # Cached local covers win instantly over network metadata discovery.
+    # TheGamesDB is only queried when artwork is actually missing, or while
+    # reading the game's Details page (descriptions still work there).
+    old_cover = '''ImTextureID coverTexture(Game& g)
+{
+	ensureArt(g);
+	std::string path = userCover(g);
+	if (path.empty())
+		path = g.art.boxartPath;'''
+    new_cover = '''ImTextureID coverTexture(Game& g)
+{
+	std::string path = userCover(g);
+	if (path.empty() || lib.details)
+		ensureArt(g);
+	if (path.empty())
+		path = g.art.boxartPath;'''
+    assert t.count(old_cover) == 1, "Pinned Flycast coverTexture hook changed"
+    t=t.replace(old_cover,new_cover,1)
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
 
@@ -96,6 +114,18 @@ def adapt():
     gui_util.write_text(gu)
     shutil.copy2(ROOT/"src/dreamcastx_cover_async.inc",
                  SOURCE/"core/ui/dreamcastx_cover_async.inc")
+    # TheGamesDB sometimes returns HTTP 503. The original scraper retried
+    # after just ten seconds, stealing network time from useful libretro art.
+    # Back off metadata-only requests; local art and cover downloads continue.
+    boxart_cpp=SOURCE/"core/ui/boxart/boxart.cpp"
+    box=boxart_cpp.read_text()
+    old_backoff='pauseUntil = getTimeMs() + 10 * 1000;'
+    assert box.count(old_backoff)==1, "Pinned Flycast metadata retry hook changed"
+    box=box.replace(old_backoff,
+        'pauseUntil = getTimeMs() + 15 * 60 * 1000;',1)
+    boxart_cpp.write_text(box)
+
+
 
     # Flycast's game scanner is recursive. Normalize uppercase .GDI/.CHD/
     # .CDI/.CUE extensions before format checks, just like lowercase dumps.
