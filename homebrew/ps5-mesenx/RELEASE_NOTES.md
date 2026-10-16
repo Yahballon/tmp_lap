@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.6 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.7 — Experimental PS5 NES HD Emulator
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -58,3 +58,10 @@ Fixed PS5 filesystem metadata compatibility: try stat and fstatat, then dirent d
 - Preserve early BOOT and ELEVATION lines by not truncating boot.log during startup
 - Log DIR_OPEN, DIR_FAIL (errno), DIR_ENTRY and DIR_DONE per directory
 - Distinguish unavailable USB folders from the primary shared NES ROM path
+
+### v0.1.7: Real filesystem permission fix
+- Console reported ELEVATION filesystem=5 (unavailable), with EPERM opening NES ROM directories
+- Restored the original PS5NESX title-bound one-request Lapy helper using the pinned upstream builder and SDK
+- Includes verified lapy.elf, lapy-manifest.json and Lapy-MIT.txt license in installation ZIP
+- Displays filesystem permission errors instead of misleading 0-game success if elevation remains unavailable
+- Logs elevation status plus selected resident/helper path; no ROMs are modified

@@ -38,7 +38,7 @@ jobs:
         run: |
           python3 homebrew/ps5-mesenx/scripts/preflight.py
           python3 -m unittest discover -s homebrew/ps5-mesenx/tests -p 'test_*.py' -v
-          python3 -m py_compile homebrew/ps5-mesenx/scripts/build_title.py homebrew/ps5-mesenx/scripts/compile_ps5_core.py
+          python3 -m py_compile homebrew/ps5-mesenx/scripts/build_title.py homebrew/ps5-mesenx/scripts/compile_ps5_core.py homebrew/ps5-mesenx/vendor/build-lapy-helper.py
           python3 homebrew/ps5-mesenx/scripts/prepare_frontend.py
           python3 homebrew/ps5-mesenx/scripts/build_title.py --prepare-only
       - name: Check out pinned MesenCE Libretro HD NES core
@@ -69,6 +69,19 @@ jobs:
           test -s homebrew/ps5-mesenx/build/deps/PS5_Vulkan/build/driver/ps5/libps5vk.ps5.a
           test -s homebrew/ps5-mesenx/build/deps/PS5_Vulkan/.deps/native/zlib/root/usr/lib/libz.a
           test -s homebrew/ps5-mesenx/build/deps/PS5_Vulkan/runtime/libc.prx
+      - name: Build pinned PS5 Lapy filesystem helper for PPSA99896
+        timeout-minutes: 25
+        run: |
+          python3 homebrew/ps5-mesenx/vendor/build-lapy-helper.py PPSA99896 homebrew/ps5-mesenx/build/lapy-helper
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          out=Path('homebrew/ps5-mesenx/build/lapy-helper')
+          m=json.loads((out/'lapy-manifest.json').read_text())
+          assert m['target_title']=='PPSA99896' and m['mode']=='elf-helper'
+          assert m['max_requests']==1
+          assert hashlib.sha256((out/'lapy.elf').read_bytes()).hexdigest()==m['elf_sha256']
+          PY
       - name: Compile real MesenCE PS5 NES core
         timeout-minutes: 90
         env:
@@ -82,7 +95,7 @@ jobs:
       - name: Upload verified signed native PS5 app
         uses: actions/upload-artifact@v4
         with:
-          name: PS5MesenX-v0.1.6-PPSA99896
+          name: PS5MesenX-v0.1.7-PPSA99896
           path: homebrew/ps5-mesenx/dist/PPSA99896.zip
           if-no-files-found: error
       # A separate workflow_run publisher releases this *verified* artifact.

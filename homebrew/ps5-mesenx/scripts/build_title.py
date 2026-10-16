@@ -65,15 +65,24 @@ print('Linking real PS5 MesenCE core:',core_archive,flush=True)
     txt=replace_once(txt,
         "netlibs=[z/'lib/libz.a']",
         "vklibs.append(Path(os.environ['MESEN_PSBC_GENERATED_ARCHIVE']))\nnetlibs=[z/'lib/libz.a']")
+    # Restore the same title-bound Lapy helper integration as PS5NESX.
     a=txt.index("subprocess.run(['python3',str(deps/'filesystem-helper/tools/build-lapy-helper.py')")
     b=txt.index("licenses=app/'licenses'",a)
-    txt=txt[:a]+txt[b:]
+    txt=txt[:a]+'''lapy=Path(os.environ['MESEN_LAPY_BUILD_OUT'])
+lapy_manifest=json.loads((lapy/'lapy-manifest.json').read_text())
+assert lapy_manifest['target_title']=='PPSA99896'
+assert lapy_manifest['mode']=='elf-helper' and lapy_manifest['max_requests']==1
+assert hashlib.sha256((lapy/'lapy.elf').read_bytes()).hexdigest()==lapy_manifest['elf_sha256']
+for name in ('lapy.elf','lapy-manifest.json'):
+    shutil.copy2(lapy/name,app/name)
+''' + txt[b:]
+    txt=txt.replace("out/'filesystem-helper/Lapy-MIT.txt'", "lapy/'Lapy-MIT.txt'")
     txt=txt.replace("PPSA99205",TITLE)
     # Keep a distinct human-readable app name but the correct numeric title ID.
     txt=txt.replace("'title':'"+APP+"'", "'title':'"+TITLE+"'")
     txt=txt.replace("PS5SNES-v6-Repository-Covers-by-YAHBALLON.zip",TITLE+".zip")
-    txt=txt.replace("PS5SNES v6 by YAHBALLON",APP+" v0.1.2")
-    txt=txt.replace("'name':'"+APP+"'", "'name':'"+APP+" v0.1.2'")
+    txt=txt.replace("PS5SNES v6 by YAHBALLON",APP+" v0.1.7")
+    txt=txt.replace("'name':'"+APP+"'", "'name':'"+APP+" v0.1.7'")
     txt=txt.replace("'bsnes-mercury balanced'","'MesenCE-Libretro NES HD'")
     txt=txt.replace("'https://github.com/libretro/bsnes-mercury'",
                     "'https://github.com/FrederickCampbell/MesenCE-Libretro'")
@@ -112,6 +121,14 @@ def main():
     run("python3", ROOT/"scripts/build_generated_psbc.py", env=env)
     env["AGC_STUB_DIR"] = str(ROOT/"build/ps5-core/agc-imports")
     run("python3", ROOT/"scripts/build_agc_imports.py", env=env)
+    lapy_out=ROOT/"build/lapy-helper"
+    if not (lapy_out/"lapy.elf").is_file():
+        run("python3",ROOT/"vendor/build-lapy-helper.py",TITLE,lapy_out)
+    helper=json.loads((lapy_out/"lapy-manifest.json").read_text())
+    assert helper["target_title"]==TITLE and helper["mode"]=="elf-helper"
+    assert helper["max_requests"]==1
+    assert helper["elf_sha256"]==hashlib.sha256((lapy_out/"lapy.elf").read_bytes()).hexdigest()
+    env["MESEN_LAPY_BUILD_OUT"]=str(lapy_out)
     run("python3",builder,env=env)
     built=SRC/"snes/build-shelf"/(TITLE+".zip")
     assert built.is_file(), "Signed PS5 ZIP not built"
@@ -121,6 +138,14 @@ def main():
         assert len(data)>100000 and data[:4]==struct.pack("<I",0x1D3D154F)
         assert TITLE+"/sce_sys/param.json" in z.namelist()
         assert TITLE+"/sce_module/libc.prx" in z.namelist()
+        assert TITLE+"/lapy.elf" in z.namelist()
+        assert TITLE+"/lapy-manifest.json" in z.namelist()
+        assert TITLE+"/licenses/Lapy-MIT.txt" in z.namelist()
+        lapy=z.read(TITLE+"/lapy.elf")
+        assert lapy[:6]==b"\\x7fELF\\x02\\x01" and len(lapy)>4096
+        helper=json.loads(z.read(TITLE+"/lapy-manifest.json"))
+        assert helper["target_title"]==TITLE and helper["mode"]=="elf-helper"
+        assert helper["max_requests"]==1 and helper["elf_sha256"]==hashlib.sha256(lapy).hexdigest()
     out=ROOT/"dist"
     out.mkdir(exist_ok=True)
     shutil.copy2(built,out/(TITLE+".zip"))

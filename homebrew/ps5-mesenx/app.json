@@ -1,11 +1,11 @@
 {
   "name": "PS5MesenX",
   "slug": "ps5-mesenx",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "titleId": "PPSA99896",
   "contentId": "UP9000-PPSA99896_00-PS5MESENX0000001",
-  "contentVersion": "01.000.007",
-  "releaseTag": "ps5-mesenx-v0.1.6",
+  "contentVersion": "01.000.008",
+  "releaseTag": "ps5-mesenx-v0.1.7",
   "core": "FrederickCampbell/MesenCE-Libretro",
   "frontend": "PS5SNESX cover-flow PS5 Vulkan port",
   "installFolder": "PS5MesenX",
@@ -22,5 +22,6 @@
     ".nes",
     ".zip"
   ],
-  "scanLog": "/data/PS5MesenX/logs/boot.log"
+  "scanLog": "/data/PS5MesenX/logs/boot.log",
+  "filesystemHelper": "lapy.elf"
 }
