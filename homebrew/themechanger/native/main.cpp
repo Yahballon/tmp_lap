@@ -50,7 +50,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
  d.gradient_rect({0,0,1920,1080},0,Color::rgb(0x020a16),Color::rgb(0x010615));
  d.gradient_rect({0,0,375,994},0,Color::rgb(0x061b35),Color::rgb(0x030a18));
  symbol(d,56,27,68);
- txt(d,f,a,"Theme",143,73,33);txt(d,f,a,"Changer",242,73,33,Color::rgb(0x0da4ff));
+ txt(d,f,a,"Theme",143,73,32);txt(d,f,a,"Changer",239,73,31,Color::rgb(0x0da4ff));
  txt(d,f,a,"PS5 Homebrew App",150,109,21,muted);
  d.line(2,125,375,125,1,Color::rgb(0x233a57));
  bool side=sidebar&&sideRow==0;
@@ -81,7 +81,7 @@ void draw(DrawList& d,const Font& f,unsigned a,const std::array<unsigned,12>& pi
       int id=installedIds[(size_t)(selected-12)];
       if(id>=0&&id<(int)thumbnails.size())picture=thumbnails[(size_t)id];
    }
- }else picture=pics[1];
+ }else if(page!=3)picture=pics[1];
  if(page==3&&!filtered.empty()&&onlineSelected>=0&&onlineSelected<(int)filtered.size()){
    const auto id=filtered[(size_t)onlineSelected];
    if(id>=0&&id<(int)thumbnails.size()&&thumbnails[(size_t)id])picture=thumbnails[(size_t)id];
