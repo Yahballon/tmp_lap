@@ -47,6 +47,7 @@ jobs:
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/themechanger/native/* app/src/
+          cp homebrew/themechanger/assets/icon0.png app/sce_sys/icon0.png
           # v0.3.10/v0.3.11 left an experimental FFmpeg/x264 unit in the
           # repository. It MUST NOT enter the known-good PS5 executable.
           rm -f app/src/smooth_video.cpp
@@ -213,6 +214,9 @@ jobs:
           assert struct.unpack('<I',binary[:4])[0]==0x1d3d154f
           j=json.loads((root/'sce_sys/param.json').read_text())
           assert j['titleId']==title
+          icon=(root/'sce_sys/icon0.png').read_bytes()
+          assert icon==pathlib.Path('homebrew/themechanger/assets/icon0.png').read_bytes()
+          assert icon[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',icon[16:24])==(512,512)
           assert not (root/'assets/wallpapers').exists(), 'Old bundled wallpapers must not be shipped'
           app_src=pathlib.Path('homebrew/themechanger/native/main.cpp').read_text()
           assert 'ThemeChanger-baseball.png' not in app_src
@@ -227,12 +231,13 @@ jobs:
           with zipfile.ZipFile(f'app/dist/{title}.zip') as z:
               assert z.testzip() is None
               assert f'{title}/eboot.bin' in z.namelist()
+              assert z.read(f'{title}/sce_sys/icon0.png')==icon
               assert f'{title}/liveshell.elf' in z.namelist()
               assert f'{title}/assets/motionbgs/catalog.tsv' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.14-PPSA99891
+          name: ThemeChanger-v0.3.15-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -240,5 +245,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.14 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.14 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.14" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.15 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.15 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.15" --notes-file homebrew/themechanger/RELEASE_NOTES.md

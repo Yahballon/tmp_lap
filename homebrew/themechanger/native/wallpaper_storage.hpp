@@ -134,6 +134,27 @@ inline Report recover(const std::vector<std::string>& catalogueNames={}){
  }
  return r;
 }
+// Delete only validated ThemeChanger download names, never whole directories.
+struct ClearReport { int files=0,errors=0; };
+inline ClearReport clear_downloads(const std::vector<std::string>& catalogueNames){
+ ClearReport r;
+ auto names=saved_names();
+ names.insert(names.end(),catalogueNames.begin(),catalogueNames.end());
+ std::unordered_set<std::string> seen;
+ for(const auto& name:names){
+  if(!filename_ok(name)||!seen.insert(name).second)continue;
+  for(const auto* root:{kArchive,kLive}){
+   const std::string path=std::string(root)+"/"+name;
+   for(const auto* suffix:{"",".part",".smooth.part"}){
+    if(unlink((path+suffix).c_str())==0)r.files++;
+    else if(errno!=ENOENT)r.errors++;
+   }
+  }
+ }
+ // Retain the index on partial failure so remaining backups remain discoverable.
+ if(r.errors==0&&unlink(kIndex)!=0&&errno!=ENOENT)r.errors++;
+ return r;
+}
 // Recover only explicitly indexed downloads. Never stat the entire 9K+
 // catalog on the UI thread (previous v0.3.11 startup regression).
 inline Report recover_indexed(){

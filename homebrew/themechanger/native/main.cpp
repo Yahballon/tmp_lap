@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// ThemeChanger v0.3.14 - native PS5 Homebrew UI / LiveShell bridge.
+// ThemeChanger v0.3.15 - native PS5 Homebrew UI / LiveShell bridge.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -52,12 +52,20 @@ std::string lower(std::string s){
  return s;
 }
 constexpr const char* kKeyChars="1234567890qwertyuiopasdfghjklzxcvbnm -";
-enum class Overlay {none,search,tags};
+enum class Overlay {none,search,tags,cleanup};
 void modal(DrawList& d,const Font& font,unsigned atlas,Overlay overlay,
            const std::string& query,const std::string& tag,
            const std::vector<std::pair<std::string,int>>& tags,
            int key,int tagFocus){
  if(overlay==Overlay::none)return;
+ if(overlay==Overlay::cleanup){
+  panel(d,{445,420,1350,300},16,Color::rgb(0x07162b),Color::rgb(0x1baaff));
+  txt(d,font,atlas,"Delete all downloaded wallpapers?",490,484,34);
+  txt(d,font,atlas,"Removes downloaded videos, backup copies and unfinished downloads.",490,548,24,muted);
+  txt(d,font,atlas,"This cannot be undone. LiveShell wallpaper playback will be turned off.",490,593,24,muted);
+  txt(d,font,atlas,"X: DELETE ALL     O: CANCEL",490,669,27,Color::rgb(0xffce83));
+  return;
+ }
  d.rounded_rect({371,402,1538,583},18,Color::rgb(0x010916,.98f));
  d.bordered_rect({385,412,1513,565},16,Color::rgb(0x07162b),
                  2.5f,Color::rgb(0x1baaff));
@@ -115,7 +123,9 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
    titleSize*=(titleRight-titleX-titleGap)/titleWidth;
  txt(d,f,a,"Theme",titleX,73,titleSize);
  txt(d,f,a,"Changer",titleX+f.measure("Theme",titleSize)+titleGap,73,titleSize,Color::rgb(0x0da4ff));
- txt(d,f,a,"PS5 Homebrew App",150,109,21,muted);
+ const std::string credit="by YAHBALLON  v0.3.15";
+ const float creditSize=std::min(18.f,18.f*(titleRight-titleX)/f.measure(credit,18.f));
+ txt(d,f,a,credit,titleX,109,creditSize,muted);
  d.line(2,125,375,125,1,Color::rgb(0x233a57));
  bool side=sidebar&&sideRow==0;
  panel(d,{25,148,325,71},10,Color::rgb(page==0?0x085ef3:0x071b34),Color::rgb(side?0x39c9ff:0x095fba));
@@ -123,7 +133,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
  d.circle(76,178,3,Color::rgb(0x075fff));
  d.line(60,190,67,182,3,Color::rgb(0x075fff));d.line(67,182,79,194,3,Color::rgb(0x075fff));
  txt(d,f,a,"Backgrounds",119,194,25);
- bool motionFocus=page==3&&sidebar&&sideRow==1;
+ bool motionFocus=sidebar&&sideRow==1;
  panel(d,{25,235,325,71},10,Color::rgb(page==3?0x085ef3:0x071b34),
        Color::rgb(motionFocus?0x39c9ff:0x1f3857));
  d.bordered_rect({53,254,32,29},5,Color::rgb(0x08254e),2,white);
@@ -132,12 +142,12 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
  d.line(29,806,346,806,1,Color::rgb(0x20354d));
  for(int i=1;i<3;i++){
    float y=i==1?833.f:907.f;
-   if(page==i||sidebar&&sideRow==i+1)panel(d,{24,y,328,69},10,Color::rgb(0x0a3470),Color::rgb(0x13a0ff));
+   if(page==i||(sidebar&&sideRow==i+1))panel(d,{24,y,328,69},10,Color::rgb(0x0a3470),Color::rgb(sidebar&&sideRow==i+1?0x39c9ff:0x13a0ff));
    d.circle(69,y+33,18,white);txt(d,f,a,i==1?"i":"*",69,y+42,26,Color::rgb(0x041631),Align::center);
    txt(d,f,a,i==1?"About":"Settings",121,y+43,25);
  }
- // The preview is now the same proportions as the user reference (x=440, height=374).
- panel(d,{440,18,1450,375},13,Color::rgb(0x010819),Color::rgb(0x405370));
+ // Align the preview with the wallpaper grid edges (398..1856).
+ panel(d,{398,18,1458,375},13,Color::rgb(0x010819),Color::rgb(0x405370));
  unsigned picture=0;
  if(page==0&&!installedIds.empty()&&selected>=0&&selected<(int)installedIds.size()){
    const int id=installedIds[(size_t)selected];
@@ -147,19 +157,19 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
    const auto id=filtered[(size_t)onlineSelected];
    if(id>=0&&id<(int)thumbnails.size()&&thumbnails[(size_t)id])picture=thumbnails[(size_t)id];
  }
- if(picture)d.image(picture,{442,119,1446,271},kFullUv,white,10);
+ if(picture)d.image(picture,{400,119,1454,271},kFullUv,white,10);
  else {
-   d.gradient_rect({443,119,1445,270},0,Color::rgb(0x061c42),Color::rgb(0x13447a));
-   txt(d,f,a,"Loading wallpaper preview...",1160,343,23,muted,Align::center);
+   d.gradient_rect({401,119,1453,270},0,Color::rgb(0x061c42),Color::rgb(0x13447a));
+   txt(d,f,a,"Loading wallpaper preview...",1127,343,23,muted,Align::center);
  }
- d.gradient_rect({442,120,1446,218},0,Color::rgb(0x03091c,.68f),Color::rgb(0x01091c,.10f));
- d.gradient_rect({443,20,1443,103},0,Color::rgb(0x010918),Color::rgb(0x020817,.90f));
- txt(d,f,a,(page==0||page==3)?"Preview":page==1?"About":"Settings",474,65,34);
- txt(d,f,a,page==0?"This is how your PS5 menu will look with this theme.":page==3?"MotionBGS: select HD wallpaper and download to LiveShell.":page==1?"ThemeChanger information":"Configure the integrated LiveShell engine",476,99,21,muted);
- txt(d,f,a,"16:42",1857,78,27,white,Align::right);
+ d.gradient_rect({400,120,1454,218},0,Color::rgb(0x03091c,.68f),Color::rgb(0x01091c,.10f));
+ d.gradient_rect({401,20,1451,103},0,Color::rgb(0x010918),Color::rgb(0x020817,.90f));
+ txt(d,f,a,(page==0||page==3)?"Preview":page==1?"About":"Settings",432,65,34);
+ txt(d,f,a,page==0?"This is how your PS5 menu will look with this theme.":page==3?"MotionBGS: select HD wallpaper and download to LiveShell.":page==1?"ThemeChanger information":"Configure the integrated LiveShell engine",434,99,21,muted);
+ txt(d,f,a,"16:42",1823,78,27,white,Align::right);
  // Faux shell tiles are decorative inside the preview and do not pretend to launch installed games.
  for(int i=0;i<9;i++){
-  float x=482+i*104.f,y=153;
+  float x=440+i*104.f,y=153;
   if(i==1)d.glow({x,y,92,94},10,13,Color::rgb(0x007fff,.38f));
   panel(d,{x,y,92,91},9,Color::rgb(0x08172e,.95f),Color::rgb(i==1?0x05afff:0x21395b));
   if(i==1)symbol(d,x+17,y+17,57);
@@ -175,7 +185,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
    else txt(d,f,a,i==0?"*":(i==6?"[]":(i==7?"O":"#")),x+46,y+60,35,Color::rgb(0xdbeeff),Align::center);
   }
  }
- txt(d,f,a,"Open Theme",586,282,20);
+ txt(d,f,a,"Open Theme",544,282,20);
  if(page==0){
   const int total=(int)installedIds.size();
   const int start=total>0?(std::clamp(selected,0,total-1)/12)*12:0;
@@ -256,19 +266,21 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
   }
  }else if(page==1){
   panel(d,{437,437,1420,470},13,Color::rgb(0x05132c),Color::rgb(0x254970));
-  txt(d,f,a,"ThemeChanger  v0.3.14",490,515,38);
-  txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,586,24,muted);
+  txt(d,f,a,"ThemeChanger  v0.3.15",490,515,38);
+  txt(d,f,a,"by YAHBALLON",490,565,28,Color::rgb(0x0da4ff));
+  txt(d,f,a,"Native UI: ps5-homebrew-ui  |  Wallpaper engine: ZiZc3 LiveShell",490,610,24,muted);
   txt(d,f,a,"Includes LiveShell engine v1.1. Starts automatically via elfldr.",490,650,24);
   txt(d,f,a,"Autostart needs jailbreak elfldr on 127.0.0.1:9021.",490,708,24,muted);
   txt(d,f,a,"App log: /data/ThemeChanger/themechanger.log",490,775,24,muted);
+  txt(d,f,a,"LEFT: Open menu   |   O: Back to Backgrounds",490,848,23,muted);
  }else{
   panel(d,{437,437,1420,475},13,Color::rgb(0x05132c),Color::rgb(0x264a77));
-  const char* fields[]={"Wallpaper engine","Darkness","Pause during games","Hide in system settings","Restart LiveShell engine"};
-  for(int i=0;i<5;i++){
-   float y=467+i*88;
-   panel(d,{466,y,1358,76},10,Color::rgb(i==opt?0x0b397a:0x071a34),Color::rgb(i==opt?0x10a6ff:0x2b4667));
+  const char* fields[]={"Wallpaper engine","Darkness","Pause during games","Hide in system settings","Restart LiveShell engine","Clean all downloaded wallpapers"};
+  for(int i=0;i<6;i++){
+   float y=454+i*74;
+   panel(d,{466,y,1358,66},10,Color::rgb(i==opt?0x0b397a:0x071a34),Color::rgb(i==opt?0x10a6ff:0x2b4667));
    txt(d,f,a,fields[i],499,y+47,26);
-   txt(d,f,a,i==0?"X  Toggle":i==1?"LEFT / RIGHT":i==4?"X  Retry":"X  Toggle",1796,y+47,22,muted,Align::right);
+   txt(d,f,a,i==0?"X  Toggle":i==1?"LEFT / RIGHT":i==4?"X  Retry":i==5?"X  Clean all":"X  Toggle",1796,y+47,22,muted,Align::right);
   }
  }
  d.gradient_rect({0,993,1920,87},0,Color::rgb(0x051221,.92f),Color::rgb(0x020816));
@@ -280,7 +292,7 @@ void draw(DrawList& d,const Font& f,unsigned a,int selected,int page,int opt,con
  txt(d,f,a,page==3?"L1/R1: TABS   Triangle: SEARCH   Options: TAGS   Square: PREV":
                     "L1/R1: Backgrounds / Online   Square: Retry Engine",403,1045,19,muted);
  txt(d,f,a,loading?"LiveShell starting...":live?("LiveShell API | ShellUI: "+(shellStatus.empty()?std::string("no status"):shellStatus.substr(0,38))):"LiveShell offline",1856,1028,18,live?Color::rgb(0x4affbc):Color::rgb(0xffce83),Align::right);
- txt(d,f,a,(page==3?catalog.status():status).substr(0,99),1856,1057,17,muted,Align::right);
+ txt(d,f,a,((page==3||(page==2&&opt==5))?catalog.status():status).substr(0,99),1856,1057,17,muted,Align::right);
  modal(d,f,a,overlay,search,tag,tags,key,tagFocus);
 }
 }
@@ -296,7 +308,7 @@ int main(){
  struct stat catalogStat{};
  if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
    asset="/data/homebrew/PPSA99891/assets";
- tc::log("BOOT","ThemeChanger v0.3.14 starting");
+ tc::log("BOOT","ThemeChanger v0.3.15 starting");
  const auto storage=wallpaper_storage::recover_indexed();
  tc::log("LIBRARY_RECOVERY",("restored="+std::to_string(storage.restored)+
   " existing="+std::to_string(storage.live)+
@@ -428,7 +440,14 @@ int main(){
    previousDirections=directions;
    previous=held;
    if(overlay!=Overlay::none){
-     if(overlay==Overlay::search){
+     if(overlay==Overlay::cleanup){
+       if(pressed&hui::pad_bits::kCircle)overlay=Overlay::none;
+       else if(pressed&hui::pad_bits::kCross){
+         if(online.clear_downloads())status="Cleaning downloaded wallpapers...";
+         else status="Wait for the current download or cleanup to finish";
+         overlay=Overlay::none;
+       }
+     }else if(overlay==Overlay::search){
        const int total=(int)std::string(kKeyChars).size();
        if(pressed&hui::pad_bits::kLeft)keyboardKey=std::max(0,keyboardKey-1);
        if(pressed&hui::pad_bits::kRight)keyboardKey=std::min(total-1,keyboardKey+1);
@@ -475,8 +494,9 @@ int main(){
      onlinePage=std::max(0,onlinePage-1);
      onlineSelected=onlinePage*12;
    }
-   if(page==0||page==3){
-     if(sidebar){
+   if(!sidebar&&page==1&&(pressed&hui::pad_bits::kLeft)){sidebar=true;sideRow=2;}
+   if(!sidebar&&page==2&&opt!=1&&(pressed&hui::pad_bits::kLeft)){sidebar=true;sideRow=3;}
+   if(sidebar){
        if(pressed&hui::pad_bits::kUp)sideRow=std::max(0,sideRow-1);
        if(pressed&hui::pad_bits::kDown)sideRow=std::min(3,sideRow+1);
        if(pressed&hui::pad_bits::kRight)sidebar=false;
@@ -484,7 +504,8 @@ int main(){
          page=sideRow==0?0:sideRow==1?3:sideRow==2?1:2;sidebar=false;
          tc::log("TAB",(page==3?"Online Wallpapers":page==0?"Backgrounds":page==1?"About":"Settings"));
        }
-     }else if(page==3){
+   }else if(page==0||page==3){
+     if(page==3){
        if(pressed&hui::pad_bits::kLeft){
          if(onlineSelected%4==0){sidebar=true;sideRow=1;}
          else onlineSelected=std::max(0,onlineSelected-1);
@@ -509,7 +530,8 @@ int main(){
        if((pressed&hui::pad_bits::kCross)&&selected>=0&&selected<total){
          const auto id=installedIds[(size_t)selected];
          const auto name="MotionBGS-"+online.entries()[(size_t)id].slug+".mp4";
-         if(theme::activate_file(name,status)){
+         if(online.cleaning()){status="Wait for wallpaper cleanup to finish";}
+         else if(theme::activate_file(name,status)){
            activeFile=name;active=-1;
            tc::log("SELECT_DOWNLOADED",name.c_str());
          }else tc::log("SELECT_FAILED",(name+" "+status).c_str());
@@ -519,19 +541,31 @@ int main(){
      }
    }else if(page==2){
      if(pressed&hui::pad_bits::kUp)opt=std::max(0,opt-1);
-     if(pressed&hui::pad_bits::kDown)opt=std::min(4,opt+1);
+     if(pressed&hui::pad_bits::kDown)opt=std::min(5,opt+1);
      if(opt==1&&(pressed&(hui::pad_bits::kLeft|hui::pad_bits::kRight))){
        dim=std::clamp(dim+((pressed&hui::pad_bits::kRight)?5:-5),0,80);
        theme::send_setting("/api/dim?v="+std::to_string(dim),status);
      }
      if(pressed&hui::pad_bits::kCross){
        const char* routes[]={"/api/on","", "/api/set?k=gamepause&v=1","/api/set?k=menuhide&v=1"};
-       if(opt!=1)theme::send_setting(routes[opt],status);
+       if(opt==5){
+         if(online.downloading()||engine::busy())status="Wait for the current download or engine startup to finish";
+         else overlay=Overlay::cleanup;
+       }else if(opt==4){engine::start_if_needed(appRoot,true);status="Restart requested: "+engine::status();}
+       else if(opt!=1){
+         if(opt==0)theme::send_setting(theme::playback_state().enabled?"/api/off":"/api/on",status);
+         else if(opt==2)theme::send_setting(std::string("/api/set?k=gamepause&v=")+(theme::playback_state().gamePause?"0":"1"),status);
+         else theme::send_setting(routes[opt],status);
+       }
        live=theme::probe();
      }
    }
    }
    }
+   static bool wasCleaning=false;
+   const bool cleaning=online.cleaning();
+   if(wasCleaning&&!cleaning){refreshInstalled();selected=0;activeFile.clear();active=-1;status=online.status();}
+   wasCleaning=cleaning;
    if(++frame%120==0){
      refreshInstalled();
      selected=std::clamp(selected,0,std::max(0,(int)installedIds.size()-1));

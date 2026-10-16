@@ -173,6 +173,7 @@ bool Catalog::load(const std::string& assets){
  return true;
 }
 int Catalog::discover_legacy(int budget){
+ if(downloading_)return 0;
  int imported=0;
  while(budget-->0 && discovery_cursor_<records_.size()){
   const int i=(int)discovery_cursor_++;
@@ -228,6 +229,15 @@ bool Catalog::start(int i,bool preview){
  pthread_detach(thread);return true;
 }
 bool Catalog::download(int i){return start(i,false);}
+bool Catalog::clear_downloads(){
+ if(downloading_.exchange(true))return false;
+ cleaning_=true;percent_=0;report("Removing downloaded wallpapers and backups...");
+ auto* w=new Worker{this,-1,false};pthread_t thread{};
+ if(pthread_create(&thread,nullptr,Catalog::run,w)!=0){
+  delete w;cleaning_=false;downloading_=false;report("Unable to start cleanup");return false;
+ }
+ pthread_detach(thread);return true;
+}
 bool Catalog::request_thumbnail(int i){return start(i,true);}
 std::vector<int> Catalog::consume_ready(){
  std::lock_guard<std::mutex> g(mutex_);
@@ -240,6 +250,28 @@ std::vector<int> Catalog::consume_installed(){
 void* Catalog::run(void* p){
  Worker job=*static_cast<Worker*>(p);delete static_cast<Worker*>(p);
  Catalog& self=*job.self;
+ if(job.index==-1){
+  // The download reservation also blocks new MP4s and incremental recovery.
+  const auto state=theme::playback_state();std::string result;
+  if(state.connected&&!theme::send_setting("/api/off",result)){
+   self.report("Cleanup cancelled: could not stop LiveShell playback");
+   self.cleaning_=false;self.downloading_=false;return nullptr;
+  }
+  std::vector<std::string> names;
+  for(const auto& entry:self.records_)names.push_back("MotionBGS-"+entry.slug+".mp4");
+  const auto cleared=wallpaper_storage::clear_downloads(names);
+  std::vector<bool> remaining(self.records_.size(),false);
+  if(cleared.errors)for(size_t i=0;i<remaining.size();i++)
+    remaining[i]=wallpaper_storage::valid_file(self.wallpaper_path((int)i));
+  {
+   std::lock_guard<std::mutex> lock(self.mutex_);
+   self.installed_cache_=std::move(remaining);self.newly_installed_.clear();
+  }
+  self.report(cleared.errors?"Cleanup incomplete: "+std::to_string(cleared.errors)+" file errors. Retry Clean all wallpapers.":
+                            "All downloaded wallpapers and backups deleted");
+  tc::log("WALLPAPER_CLEANUP",("files="+std::to_string(cleared.files)+" errors="+std::to_string(cleared.errors)).c_str());
+  self.percent_=100;self.cleaning_=false;self.downloading_=false;return nullptr;
+ }
  const auto& item=self.records_[(size_t)job.index];
  if(job.preview){
   make_directory("/data/ThemeChanger");make_directory("/data/ThemeChanger/cache");

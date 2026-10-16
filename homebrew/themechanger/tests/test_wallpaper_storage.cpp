@@ -48,6 +48,24 @@ int main(){
  assert(r.restored==0);
  assert(!filename_ok("../bad"));
  assert(!filename_ok("MotionBGS-../../evil.mp4"));
- unlink(live.c_str());unlink(archive.c_str());
+ // Cleanup must remove live files, backups and interrupted downloads while
+ // preserving unrelated LiveShell content and rejecting traversal paths.
+ const std::string unrelated=std::string(kLive)+"/keep-user-video.mp4";
+ f=fopen(unrelated.c_str(),"wb");assert(f);fputs("keep",f);fclose(f);
+ f=fopen((archive+".part").c_str(),"wb");assert(f);fputs("partial",f);fclose(f);
+ const auto cleared=clear_downloads({name,"../keep-user-video.mp4","keep-user-video.mp4"});
+ assert(cleared.errors==0&&cleared.files>=3);
+ assert(access(live.c_str(),F_OK)!=0&&access(archive.c_str(),F_OK)!=0);
+ assert(access((archive+".part").c_str(),F_OK)!=0);
+ assert(access(unrelated.c_str(),F_OK)==0);
+ assert(saved_names().empty());
+ r=recover_indexed();assert(r.restored==0); // Deleted wallpapers cannot return after restart.
+ assert(clear_downloads({name}).errors==0); // Repeating cleanup is harmless.
+ // Failure must be reported and must keep the index for a subsequent retry.
+ assert(remember(name));assert(mkdir(archive.c_str(),0755)==0);
+ const auto failed=clear_downloads({name});assert(failed.errors>0);
+ assert(!saved_names().empty());
+ assert(rmdir(archive.c_str())==0);assert(clear_downloads({name}).errors==0);
+ unlink(unrelated.c_str());
  printf("Persistence test OK: backup, restart restore, idempotence, name checks\n");
 }

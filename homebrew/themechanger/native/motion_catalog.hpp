@@ -13,6 +13,8 @@ public:
  bool load(const std::string& assets);
  const std::vector<Entry>& entries() const {return records_;}
  bool download(int index);
+ bool clear_downloads();
+ bool cleaning() const {return cleaning_.load();}
  bool request_thumbnail(int index);
  std::vector<int> consume_ready();
  // Completed MP4s are emitted immediately so Backgrounds never waits for a polling tick.
@@ -39,6 +41,7 @@ private:
  std::vector<bool> installed_cache_;
  size_t discovery_cursor_=0;
  std::atomic<bool> downloading_{false};
+ std::atomic<bool> cleaning_{false};
  std::atomic<bool> preview_busy_{false};
  std::atomic<int> percent_{0};
  std::string status_="Choose wallpaper and press X to download / install";
