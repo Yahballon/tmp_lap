@@ -13,10 +13,14 @@ To make installation one-step, ThemeChanger v0.2.0 packages the original **LiveS
 - No special utility on Windows or separate ELF upload required after installing ThemeChanger.
 - A jailbreak with a running localhost ELF loader at `127.0.0.1:9021` **is still required**. The app does not bypass kernel protection or jailbreak the console.
 
-The packaged LiveShell v1.0 binary is the upstream GitHub Release asset, independently SHA-256 checked by CI. **It is not rebuilt from the upstream LiveShell source by this pipeline.** Once integrated, both payload components are in the single release ZIP, but remain separate processes by design.
+Starting v0.3.4, LiveShell is **compiled from upstream GPL-3.0 sources during CI** with a small, published PS5 ThemeChanger integration patch. The patch exempts PPSA99891 from game-pause detection and suppresses the redundant Media tile registration; ShellUI injection and video playback remain upstream implementations. LiveShell is still a privileged standalone payload automatically launched by ThemeChanger.
 
 Status and troubleshooting: `/data/LiveShell/liveshell.log` and `/data/LiveShell/inject.log`. ShellUI injection carries a risk of UI crash and may vary by firmware and jailbreak environment. Firmware compatibility must be tested on-console.
 
 ## Upgrade notice
 
 Version 0.3.3 packages LiveShell 1.1. A previously running daemon will not be overwritten while active: reboot the console and re-enable the jailbreak to load the new bundle. ShellUI and decoder failures require the upstream LiveShell logs, and the frontend does not force kernel-level restarts.
+
+## v0.3.4 modified LiveShell source
+
+Build instructions: `homebrew/themechanger/liveshell_build/patch_liveshell.py` and `.github/workflows/build-themechanger.yml`. Upstream copyright and GNU GPL v3 apply to the patched engine. Previous packaged engine version (v1.1) SHA256 refers to the unmodified release; the newly compiled integrated engine has its own build-dependent checksum.
