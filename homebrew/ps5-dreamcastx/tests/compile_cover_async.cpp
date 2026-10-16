@@ -151,4 +151,3 @@ int main(){
     assert(changed && decoded==before+2); // original modified: invalidate
     std::filesystem::remove_all(base);
 }
-}
