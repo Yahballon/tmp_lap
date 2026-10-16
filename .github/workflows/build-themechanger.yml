@@ -144,6 +144,8 @@ jobs:
           elf=Path('app/liveshell.elf').read_bytes()
           assert 'strcmp(id, "PPSA99891") != 0' in src
           assert 'start_thread(after_start_thread);' not in src
+          web=Path('/tmp/theme-onionhen/source/liveshell/liveshell_web.cpp').read_text()
+          assert 'themechanger_engine' in web and '0.3.6' in web
           assert elf.startswith(b'\x7fELF\x02') and len(elf)>100000
           print('Custom GPL LiveShell, no Media tile, gamepause fix:',len(elf),'bytes')
           PY
@@ -185,7 +187,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.5-PPSA99891
+          name: ThemeChanger-v0.3.6-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -193,5 +195,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.5 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.5 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.5" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.6 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.6 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.6" --notes-file homebrew/themechanger/RELEASE_NOTES.md
