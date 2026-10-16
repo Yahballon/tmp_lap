@@ -84,16 +84,16 @@ def page(item):
                 break
         # Some item pages omit og:image. Read the real wallpaper <img> instead.
         if not image:
-            for tag in re.findall(r'<(?:img|source)\\b[^>]*>',raw,re.I):
+            for tag in re.findall(r'<(?:img|source)\b[^>]*>',raw,re.I):
                 attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(
-                    r'([\\w-]+)\\s*=\\s*["\\']([^"\\']+)["\\']',tag))
+                    r'([\w-]+)\s*=\s*["\x27]([^"\x27]+)["\x27]',tag))
                 for key in ("data-src","data-original","src","poster","srcset"):
                     candidate=attrs.get(key,"").split(",")[0].split(" ")[0]
                     if not candidate or candidate.startswith("data:"):continue
                     full=urljoin(ORIGIN+"/",candidate)
                     host=urlparse(full).hostname or ""
                     if host=="motionbgs.com" or host.endswith(".motionbgs.com"):
-                        if re.search(r'\\.(?:jpg|jpeg|png)(?:\\?|$)',urlparse(full).path,re.I):
+                        if re.search(r'\.(?:jpg|jpeg|png)(?:\?|$)',urlparse(full).path,re.I):
                             image=full;break
                 if image:break
         return (slug,name[:90],category,f"{ORIGIN}/dl/hd/{fid}/",image)
