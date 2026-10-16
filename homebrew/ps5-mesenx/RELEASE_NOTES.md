@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.5 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.6 — Experimental PS5 NES HD Emulator
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -32,24 +32,29 @@ and `PPSA99896.zip` passes integrity and content checks.
 Credits: MesenCE/MesenCE-Libretro, PS5SNESX, original PS5SX2 frontend,
 public PS5 Payload SDK and Vulkan contributors. GPL-3.0 sources and notices.
 
-### v0.1.5 fixes
+### v0.1.6 fixes
 
 - Scans `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms`.
 - Accepts `.nes` and `.zip` files containing exactly one valid NES ROM.
 - Uses a NES-only library cache rather than the old SNES extension validator.
 - Writes directory visibility, scan sources, ROM counts and permission errors to boot.log.
 
-### v0.1.5 scanner fix
+### v0.1.6 scanner fix
 
 Fixed PS5 filesystem metadata compatibility: try stat and fstatat, then dirent d_type fallback for NES games visible to PS5NES. Log every discovered NES file. Saves and ROMs are untouched.
 
-### v0.1.5: PS5NESX proven scanner integration
+### v0.1.6: PS5NESX proven scanner integration
 - Reused PS5NESX filesystem ROM scanning with DT_REG/DT_UNKNOWN and descriptor metadata fallbacks
 - Direct ROM header checks when path metadata is denied
 - Bounded stream reads without requiring fstat to work
 - Retains shared /data/PS5NES/games and /data/homebrew/PPSA99896/roms
 
-### v0.1.5: Never silently use an empty cache
+### v0.1.6: Never silently use an empty cache
 - Force a fresh PS5NESX ROM directory scan every app startup, preserving its live progress.
-- Change hardcoded loading header to PS5MesenX and v0.1.5.
+- Change hardcoded loading header to PS5MesenX and v0.1.6.
 - Low-level scan diagnostics append to /data/PS5MesenX/logs/boot.log, with fallback at /download0/PS5MesenX/logs/boot.log and /data/homebrew/PPSA99896/mesenx-debug.log.
+
+### v0.1.6 diagnostics
+- Preserve early BOOT and ELEVATION lines by not truncating boot.log during startup
+- Log DIR_OPEN, DIR_FAIL (errno), DIR_ENTRY and DIR_DONE per directory
+- Distinguish unavailable USB folders from the primary shared NES ROM path

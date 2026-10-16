@@ -38,7 +38,7 @@ jobs:
           from pathlib import Path
           app=json.loads(Path('homebrew/ps5-mesenx/app.json').read_text())
           assert app['titleId']=='PPSA99896'
-          assert app['version']=='0.1.5'
+          assert app['version']=='0.1.6'
           assert app['internalGameDirectory']=='/data/PS5NES/games'
           assert '/data/homebrew/PPSA99896/roms' in app['additionalGameDirectories']
           assert '.zip' in app['supportedRomExtensions']
@@ -80,7 +80,7 @@ jobs:
               assert 'PPSA99896/sce_module/libc.prx' in z.namelist()
               m=json.loads(z.read('PPSA99896/sce_sys/param.json'))
               assert m['titleId']=='PPSA99896'
-              assert m['contentVersion']=='01.000.006'
+              assert m['contentVersion']=='01.000.007'
               e=z.read('PPSA99896/eboot.bin')
               assert len(e)>10_000_000 and e[:4]==struct.pack('<I',0x1D3D154F)
           print('Verified PS5 signed release',zpath.stat().st_size,
@@ -98,5 +98,5 @@ jobs:
           fi
           gh release create "$TAG" dist/PPSA99896.zip \
             --repo "$GITHUB_REPOSITORY" --target main \
-            --title 'PS5MesenX v0.1.5 - Shared NES ROM directory' \
+            --title 'PS5MesenX v0.1.6 - Shared NES ROM directory' \
             --notes-file homebrew/ps5-mesenx/RELEASE_NOTES.md
