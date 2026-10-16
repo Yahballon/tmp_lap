@@ -11,7 +11,7 @@ constexpr const char* presetNames[]={"Blue","White","Amber","Ice","Violet mix","
 std::string channels(const Mix& m){return std::to_string(m.blue)+" / "+std::to_string(m.white)+" / "+std::to_string(m.amber);}
 }
 int Panel::count() const {
- if(tab_==0)return autoload_.found?6:5;
+ if(tab_==0)return autoload_.found?8:7;
  if(tab_==1)return 10;
  return (int)(lights_?draft_.leds.size():draft_.beeps.size())+4;
 }
@@ -44,7 +44,9 @@ void Panel::tick(float dt,bool visible){
   if(outcome.serial==seen_[i])continue;seen_[i]=outcome.serial;
   if(call==Call::launch||call==Call::quit)continue;
   if(outcome.reply.status>=200&&outcome.reply.status<300){
-   message_=call==Call::save_config?"Saved to ps5-signal. Applies on its next start.":"Signal command accepted";
+   if(call==Call::compat_enable){compatActive_=true;message_="LED test enabled. Adjust Colour; use Restore LED state to undo.";}
+   else if(call==Call::compat_restore){compatActive_=false;message_="Original LED state restored; test mode disabled";}
+   else message_=call==Call::save_config?"Saved to ps5-signal. Applies on its next start.":"Signal command accepted";
   }else{
    const auto error=error_text(outcome.reply.body);
    message_=error.empty()?"Command failed: ps5-signal unavailable or request rejected":error;
@@ -60,6 +62,7 @@ void Panel::send(Call call,std::string body){
  link_->service().send(call,std::move(body));message_="Sending...";
 }
 void Panel::save(bool startup,bool system){
+ if(compatActive_){message_="Test mode: preview only. Restore LED state before saving configuration.";return;}
  if(!online()||!link_->has_config()){message_="Wait for the service configuration before saving";return;}
  if(link_->service().pending(Call::save_config)){message_="A save is already in progress";return;}
  // Keep the other section exactly as last fetched from the service.
@@ -119,6 +122,12 @@ void Panel::input(unsigned keys){
    case 3:{LedStep step;step.name=LedName::blue;step.ms=500;send(Call::led,led_request({step}));break;}
    case 4:preview_=false;send(Call::stop);break;
    case 5:
+    if(link_->status().version.find("tc-compat1")==std::string::npos){message_="Choose Restart ps5-signal to load the test service first";break;}
+    preview_=false;send(Call::compat_enable);break;
+   case 6:
+    if(link_->status().version.find("tc-compat1")==std::string::npos){message_="Restart ps5-signal first";break;}
+    preview_=false;previewDirty_=false;send(Call::compat_restore);break;
+   case 7:
     if(!autoload_.found){message_="ps5-autoloader list unavailable. Allow /data in the sandbox.";break;}
     {const auto error=autoload_.listed?autoload_remove():autoload_add();
      message_=error.empty()?"Autoloader updated":error;autoload_=autoload_state();}break;
@@ -182,7 +191,8 @@ void Panel::input(unsigned keys){
 std::vector<std::pair<std::string,std::string>> Panel::rows() const {
  if(tab_==0){
   std::vector<std::pair<std::string,std::string>> out={{online()?"Restart ps5-signal":"Start ps5-signal",link_&&link_->starting()?"Starting...":"X"},
-   {"Refresh status","X"},{"Test beeper","X"},{"Test blue light","X"},{"Stop previews","X"}};
+   {"Refresh status","X"},{"Test beeper","X"},{"Test blue light","X"},{"Stop previews","X"},
+   {"Enable 5.10 LED test (experimental)",compatActive_?"Enabled":"X"},{"Restore LED state","X"}};
   if(autoload_.found)out.push_back({"Start with ps5-autoloader",autoload_.listed?"On":"Off"});
   return out;
  }

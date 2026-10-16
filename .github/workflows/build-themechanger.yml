@@ -69,6 +69,20 @@ jobs:
           j['localizedParameters']['en-US']['titleName']=d['name']
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
+      - name: Prepare pinned experimental Signal sources
+        run: |
+          git clone https://github.com/Marice/ps5-signal.git /tmp/theme-signal
+          git -C /tmp/theme-signal checkout --detach 8ed455197a8643302a066b7b0e97972036998304
+          python3 homebrew/themechanger/signal_build/patch_signal.py /tmp/theme-signal
+          gcc -std=c11 -D_DEFAULT_SOURCE -pthread -I/tmp/theme-signal/tests/include -I/tmp/theme-signal/src \
+            -fsyntax-only /tmp/theme-signal/src/indicator.c /tmp/theme-signal/src/player.c \
+            /tmp/theme-signal/src/http.c /tmp/theme-signal/src/tc_indicator_compat.c
+          gcc -std=c11 -D_DEFAULT_SOURCE -O2 -pthread -I/tmp/theme-signal/src \
+            -DTC_BACKUP_PATH='"/tmp/tc-led-test-backup.bin"' \
+            -DTC_HW_LOG_PATH='"/tmp/tc-led-test-hardware.log"' \
+            homebrew/themechanger/tests/test_signal_compat.c \
+            /tmp/theme-signal/src/tc_indicator_compat.c -o /tmp/tc-led-compat-test
+          /tmp/tc-led-compat-test
       - name: Test integrated Signal Companion
         run: |
           g++ -std=c++20 -O2 -Iapp/src homebrew/themechanger/tests/test_navigation.cpp -o /tmp/themechanger-navigation-test
@@ -160,19 +174,30 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: bash tools/prepare-opengl.sh
-      - name: Bundle verified original Signal Companion service
+      - name: Build opt-in Signal compatibility service with upstream SDK v0.43
         run: |
           set -euo pipefail
-          # This exact ELF also ships inside Marice's Signal Companion v00.001.000.
-          # Do not rebuild it with ThemeChanger's older v0.42 SDK.
-          mkdir -p app/assets/payload
           curl --fail --location --retry 3 --silent --show-error \
-            https://github.com/Marice/ps5-signal/releases/download/v0.1.0/ps5-signal.elf \
-            -o app/assets/payload/ps5-signal.elf
-          echo 'e39199ab216986442dd4ae66df7fe7ec012c50984a27fc8aff9b42834359e9d8  app/assets/payload/ps5-signal.elf' | sha256sum --check --strict
-          git clone https://github.com/Marice/ps5-signal.git /tmp/theme-signal
-          git -C /tmp/theme-signal checkout --detach 8ed455197a8643302a066b7b0e97972036998304
+            https://github.com/ps5-payload-dev/sdk/releases/download/v0.43/ps5-payload-sdk.zip \
+            -o /tmp/theme-signal-sdk.zip
+          echo 'a9cc9929f21b2b2c5d5b309f3bab4997067c45281c0622cf4838b1aecba66fcb  /tmp/theme-signal-sdk.zip' | sha256sum --check --strict
+          mkdir -p /tmp/theme-signal-sdk app/assets/payload
+          unzip -q /tmp/theme-signal-sdk.zip -d /tmp/theme-signal-sdk
+          sdk_mk=$(find /tmp/theme-signal-sdk -path '*/toolchain/prospero.mk' -print -quit)
+          test -n "$sdk_mk"
+          signal_sdk="${sdk_mk%/toolchain/prospero.mk}"
+          export PATH="/usr/lib/llvm-18/bin:$signal_sdk/bin:$PATH"
+          export PS5_CLANG=clang-18
+          make -C /tmp/theme-signal PS5_PAYLOAD_SDK="$signal_sdk" all
+          cp /tmp/theme-signal/ps5-signal.elf app/assets/payload/
           cp /tmp/theme-signal/LICENSE app/assets/payload/ps5-signal-LICENSE
+          python3 - <<'PY'
+          import pathlib,json,hashlib
+          root=pathlib.Path('app/assets/payload')
+          blob=(root/'ps5-signal.elf').read_bytes()
+          assert b'0.1.0-tc-compat1' in blob
+          (root/'signal-build.json').write_text(json.dumps({'build':'0.1.0-tc-compat1','sdk':'v0.43','source':'8ed455197a8643302a066b7b0e97972036998304','sha256':hashlib.sha256(blob).hexdigest(),'experimental':True,'default_mode':'original; compatibility requires explicit user selection'},indent=2)+'\n')
+          PY
       - name: Compile integrated LiveShell from GPL source (no Media tile)
         timeout-minutes: 35
         env:
@@ -251,8 +276,10 @@ jobs:
           assert 'consume_installed()' in app_src
           assert (root/'liveshell.elf').stat().st_size>100000
           signal=(root/'assets/payload/ps5-signal.elf').read_bytes()
-          assert signal[:5]==b'\x7fELF\x02' and len(signal)==147856
-          assert hashlib.sha256(signal).hexdigest()=='e39199ab216986442dd4ae66df7fe7ec012c50984a27fc8aff9b42834359e9d8'
+          assert signal[:5]==b'\x7fELF\x02' and 64<len(signal)<4194304
+          assert b'0.1.0-tc-compat1' in signal
+          signal_build=json.loads((root/'assets/payload/signal-build.json').read_text())
+          assert hashlib.sha256(signal).hexdigest()==signal_build['sha256'] and signal_build['experimental']
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
           assert len(manifest.splitlines())>8000, 'Full sitemap should contain thousands of desktop wallpaper entries'
           assert any(len(r.split('\t'))>=6 for r in manifest.splitlines()[1:])
@@ -268,7 +295,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.19-PPSA99891
+          name: ThemeChanger-v0.3.20-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -276,5 +303,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.19 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.19 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.19" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.20 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.20 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.20" --notes-file homebrew/themechanger/RELEASE_NOTES.md

@@ -65,6 +65,8 @@ enum class Call : unsigned char
     stop,        // POST /stop
     launch,      // ps5-signal.elf to the ELF loader (kLoaderPort)
     quit,        // POST /quit
+    compat_enable, // POST /compat/enable (explicit experimental mode)
+    compat_restore, // POST /compat/restore
     count,
 };
 

@@ -23,3 +23,8 @@ The build bundles the unmodified loopback-only release ELF from https://github.c
 **After updating:** choose Status > Restart ps5-signal once. An app install cannot replace the already-running background service. Optional autoloader controls are hidden if the autoloader is unavailable; this does not block colour control. LED brightness availability is separate from colour availability.
 
 CI checks section-preserving config saves, sequence bounds, offline protection, palette persistence and non-destructive autoload edits against the upstream in-memory service. The native PS5 build and installer asset checks run before publication. Actual console LEDs, beeper, payload handover and firmware compatibility still require a hardware test.
+
+
+## v0.3.20 experimental compatibility path
+
+This release replaces the bundled service with a modified GPL build, version 0.1.0-tc-compat1, compiled using upstream SDK v0.43. The previous unmodified-release description above applies to v0.3.19. The modifications are reviewable under signal_build/ and opt in only through Status > Enable 5.10 LED test. Read RELEASE_NOTES.md for test and restoration steps. It is not a claim of firmware 5.10+ compatibility.

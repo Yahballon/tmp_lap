@@ -1,10 +1,18 @@
-# ThemeChanger v0.3.19 - Use the original Signal Companion service binary
+# ThemeChanger v0.3.20 - Experimental PS5 LED compatibility test
 
-- Bundle the unmodified ps5-signal.elf shipped by Marice's Signal Companion v00.001.000, rather than rebuilding it with ThemeChanger's older payload SDK.
-- Original ELF: 147856 bytes, SHA-256 e39199ab216986442dd4ae66df7fe7ec012c50984a27fc8aff9b42834359e9d8. Checked both during download and inside the finished installer.
-- The identity was verified against the original Companion ZIP (SHA-256 8404cc3cf05c9e9e12ecdd961f5257f65a730c0c3136663a89ba9f6112548840).
-- Retain detailed Signal request/readback logs under /data/ThemeChanger/signal.log.
+This is an opt-in hardware test, not confirmed firmware 5.10 support.
 
-After installing, open Signal Companion > Status and choose Restart ps5-signal once to replace the old background process. Installing the app alone does not replace a running service.
+1. Open Signal Companion > Status > Restart ps5-signal. The service should report 0.1.0-tc-compat1.
+2. Choose Enable 5.10 LED test (experimental). This stops light effects and saves the current 130-byte LED state before any test colour write.
+3. Open Colour and select Blue (255/0/0). Look at the console. The compatibility path changes only existing program level bytes and sends SET directly, without requiring ENABLE first.
+4. Return to Status > Restore LED state to restore the saved state and disable the test path.
 
-The supplied console log proves commands arrive and save, but reported channels remain 0/255/0. It does not prove the SDK difference is the cause. This update removes that binary difference; hardware validation remains required. Colour availability and brightness availability are separate capabilities.
+- The test path requires a recognized three-channel state layout and a durable backup; unknown layouts are rejected.
+- On a write or readback failure it attempts to put the immediately previous state back, disables further compatibility writes and returns a failure to the app.
+- Saving Colour/Startup configuration is blocked while the UI's test mode is active.
+- Hardware IOCTL results/errno and raw before/request/after states: /data/ThemeChanger/signal-hardware.log. Rotation: signal-hardware.log.old.
+- Existing command log: /data/ThemeChanger/signal.log. Backup: /data/ThemeChanger/signal-led.before.bin.
+- The original path remains the default. No arbitrary IOCTL probing, new kernel offsets, NVS flush or firmware changes are used.
+- The custom GPL Signal service is built from pinned upstream sources with SDK v0.43; its build/hash provenance is packaged with the ELF.
+
+The decisive test requires the user's physical console. Matching readback values alone do not prove visible light output. If it fails, send both signal.log and signal-hardware.log; retain the backup file.
