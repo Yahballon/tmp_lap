@@ -290,15 +290,21 @@ int main(){
  struct stat catalogStat{};
  if(stat((asset+"/motionbgs/catalog.tsv").c_str(),&catalogStat)!=0)
    asset="/data/homebrew/PPSA99891/assets";
- tc::log("BOOT","ThemeChanger v0.3.10 starting");
- const auto archive=wallpaper_storage::recover();
+ tc::log("BOOT","ThemeChanger v0.3.11 starting");
+ motion::Catalog online;
+ online.load(asset);
+ std::vector<std::string> knownWallpapers;
+ knownWallpapers.reserve(online.entries().size());
+ for(const auto& entry:online.entries())
+  knownWallpapers.push_back("MotionBGS-"+entry.slug+".mp4");
+ const auto archive=wallpaper_storage::recover(knownWallpapers);
+ const int restoredCount=online.rescan_installed();
  tc::log("LIBRARY_RECOVERY",("live="+std::to_string(archive.live)+
    " backups="+std::to_string(archive.backups)+
    " restored="+std::to_string(archive.restored)+
    " archived="+std::to_string(archive.archived)+
+   " detected="+std::to_string(restoredCount)+
    " errors="+std::to_string(archive.errors)).c_str());
- motion::Catalog online;
- online.load(asset);
  std::vector<unsigned> onlineTextures(online.entries().size(),0);
  std::deque<int> textureAge;
  std::vector<unsigned char> attemptedTexture(online.entries().size(),0);
