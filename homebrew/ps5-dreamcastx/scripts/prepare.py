@@ -42,6 +42,11 @@ def adapt():
             f.write_text(t,encoding="utf-8")
 
     t=ui.read_text()
+    diagInclude='#include "ps5_diag.h"'
+    assert '#include "ps5_frontend.h"' in t
+    if diagInclude not in t:
+        t=t.replace('#include "ps5_frontend.h"',
+                    '#include "ps5_frontend.h"\n'+diagInclude,1)
     anchor="\t\tdrawShelves(dl, focused, selectDisk);"
     include='// ---- the grid view: every game\'s cover'
     if anchor in t:

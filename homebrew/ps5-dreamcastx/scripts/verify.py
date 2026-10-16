@@ -20,6 +20,7 @@ assert 'bool usb = true;' in (src/"ps5_frontend.h").read_text()
 assert '"PS5DreamcastX/"' in (src/"ps5_update.cpp").read_text()
 assert "recursive scan root(s)" in (src/"ps5_main.cpp").read_text()
 assert "library: scanner=%d media, shown=%d titles" in ui
+assert '#include "ps5_diag.h"' in ui
 assert "string_tolower(extension);" in (root/"build/flycast/core/ui/game_scanner.cpp").read_text()
 usb=(src/"dreamcastx_usb.inc").read_text()
 assert "const std::string base=mount+\"/\"+folder;" in usb
