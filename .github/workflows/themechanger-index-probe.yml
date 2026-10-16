@@ -1,0 +1,23 @@
+name: Probe MotionBGS Index Layout
+on:
+  push:
+    branches: [feat/themechanger-v0.3.7-full-catalog-search]
+    paths: ['.github/workflows/themechanger-index-probe.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,re,xml.etree.ElementTree as ET
+          roots=['https://motionbgs.com/robots.txt','https://motionbgs.com/sitemap.xml','https://motionbgs.com/sitemap_index.xml','https://motionbgs.com/tag:anime/2/','https://motionbgs.com/tag:anime/page:2/']
+          for url in roots:
+           try:
+            r=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125 Safari/537.36'}),timeout=14)
+            b=r.read(140000);s=b.decode('utf8','replace')
+            print('URL',url,'STATUS',r.status,'CONTENT',r.headers.get('Content-Type'),'LENGTH',r.headers.get('Content-Length'),'BODY',s[:1100].replace('\\n',' '),flush=True)
+            print('LINKS',re.findall(r'href=["\\']([^"\\']+)["\\']',s)[-12:],flush=True)
+           except Exception as e:print('URL',url,'ERROR',repr(e),flush=True)
+          PY
