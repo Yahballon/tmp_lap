@@ -2,6 +2,7 @@
 // Bridge to ZiZc3/LiveShell v1.1.  LiveShell and this app are GPL-3.0 licensed.
 #include "liveshell_client.hpp"
 #include "theme_log.hpp"
+#include "mp4_compat.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -134,6 +135,14 @@ std::string codec_hint(const std::string& filename){
 std::mutex g_select_lock;
 bool select_clip(const std::string& filename,std::string& result){
  std::lock_guard<std::mutex> guard(g_select_lock);
+ const auto fix=mp4compat::normalize(std::string(kLiveRoot)+"/"+filename);
+ tc::log(fix.ok?"MP4_COMPAT":"MP4_INCOMPATIBLE",
+    (filename+" "+fix.message).c_str());
+ if(!fix.ok){
+   result="This wallpaper is not PS5-compatible: "+fix.message+
+     ". The previous background has been kept.";
+   return false;
+ }
  const auto state=http_get("/api/state");
  if(state.empty()){result="LiveShell offline, clip saved";tc::log("SELECT_OFFLINE",filename.c_str());return false;}
  const auto current=decode_playback(state);
