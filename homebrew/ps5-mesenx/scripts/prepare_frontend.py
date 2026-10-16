@@ -92,7 +92,7 @@ def generate():
     # Also replace the old games folder in the supplemental scan list,
     # or the frontend could show duplicate ROM entries.
     replace_required(main, '"/data/PS5MesenX/games","/data/PS5MesenX/roms"',
-                     '"/data/PS5NES/games","/data/PS5MesenX/roms"')
+                     '"/data/PS5MesenX/roms"')
 
     replace_required(main, 'for(const char* dir:{"games","saves","settings","covers","cache","logs"})',
                     'for(const char* dir:{"games","saves","settings","covers","cache","logs","HdPacks","SaveStates","Saves"})')
