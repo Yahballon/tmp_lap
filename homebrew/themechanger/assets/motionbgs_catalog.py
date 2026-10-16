@@ -33,6 +33,21 @@ class Anchors(HTMLParser):
             self.found.append(self.link)
             self.link=None
 
+class Artwork(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.poster=""
+        self.preload=""
+        self.og_image=""
+    def handle_starttag(self,tag,attrs):
+        values=dict(attrs)
+        if tag=="video" and values.get("poster"):
+            self.poster=values["poster"]
+        if tag=="link" and values.get("as")=="image" and values.get("href"):
+            self.preload=values["href"]
+        if tag=="meta" and values.get("property")=="og:image":
+            self.og_image=values.get("content") or ""
+
 def request(url,limit=3*1024*1024):
     req=Request(url,headers={"User-Agent":UA,"Accept":"text/html,*/*;q=0.8","Accept-Encoding":"identity"})
     with urlopen(req,timeout=18) as res:
@@ -70,32 +85,18 @@ def page(item):
         if title:
             better=clean(title.group(1)).removesuffix(" Live Wallpaper")
             if 3<len(better)<90:name=better
+        art=Artwork()
+        art.feed(raw)
         image=""
-        for rex in [
-            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)',
-            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image',
-            r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)',
-        ]:
-            m=re.search(rex,raw,re.I)
-            if m:
-                candidate=urljoin(ORIGIN,html.unescape(m.group(1)))
-                if urlparse(candidate).scheme=="https" and len(candidate)<420:
-                    image=candidate
-                break
-        # Some item pages omit og:image. Read the real wallpaper <img> instead.
-        if not image:
-            for tag in re.findall(r'<(?:img|source)\b[^>]*>',raw,re.I):
-                attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(
-                    r'([\w-]+)\s*=\s*["\x27]([^"\x27]+)["\x27]',tag))
-                for key in ("data-src","data-original","src","poster","srcset"):
-                    candidate=attrs.get(key,"").split(",")[0].split(" ")[0]
-                    if not candidate or candidate.startswith("data:"):continue
-                    full=urljoin(ORIGIN+"/",candidate)
-                    host=urlparse(full).hostname or ""
-                    if host=="motionbgs.com" or host.endswith(".motionbgs.com"):
-                        if re.search(r'\.(?:jpg|jpeg|png)(?:\?|$)',urlparse(full).path,re.I):
-                            image=full;break
-                if image:break
+        # Prefer the site's 960x540 JPEG video poster, not the original 4K OG image.
+        for candidate in (art.poster,art.preload,art.og_image):
+            if not candidate:continue
+            full=urljoin(ORIGIN+"/",html.unescape(candidate))
+            host=urlparse(full).hostname or ""
+            if host=="motionbgs.com" or host.endswith(".motionbgs.com"):
+                if re.search(r'\.(?:jpg|jpeg|png)$',urlparse(full).path,re.I):
+                    image=full
+                    break
         return (slug,name[:90],category,f"{ORIGIN}/dl/hd/{fid}/",image)
     except Exception as e:
         print("Skip:",slug,type(e).__name__,str(e)[:100],flush=True)
