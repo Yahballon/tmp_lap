@@ -99,6 +99,7 @@ PlaybackState decode_playback(const std::string& json){
  if(json.empty())return out;
  out.connected=true;
  out.enabled=field_bool(json,"enabled");
+ out.mainVideoSupported=json.find("\\\"mainvideo\\\":")!=std::string::npos;
  out.mainVideo=field_bool(json,"mainvideo",true);
  out.gamePause=field_bool(json,"gamepause",false);
  out.file=display_file(json_field(json,"current"));
