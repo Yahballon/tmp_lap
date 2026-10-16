@@ -101,56 +101,8 @@ s=s.replace(explicit,'''            retro_variable hd_choice{MesenHdPacks, nullp
 
 libretro.write_text(s)
 
-# PS5 HD pack initialization used to decode every PNG and premultiply all
-# tile pixels on the same core-load thread. Divide independent image/tile
-# initialization across two CPU workers; preserve the existing Init locks.
-hd_data=src/"Core/NES/HdPacks/HdData.h"
-hd=hd_data.read_text()
-assert "void PreloadResources()" in hd and "void CancelLoad()" in hd
-hd=hd.replace("#pragma once", "#pragma once\n#include <thread>\n#include <atomic>", 1)
-a=hd.index("\tvoid PreloadResources()")
-b=hd.index("\tvoid CancelLoad()",a)
-hd=hd[:a]+"""    void PreloadResources()
-    {
-        Timer tmr;
-        // Decode independently on two workers. All workers join BEFORE game
-        // execution, so no bitmap/tile references can escape initialization.
-        auto parallel=[&](size_t count, auto work) {
-            std::atomic<size_t> index{0};
-            auto worker=[&]{
-                for(;;) {
-                    const size_t i=index.fetch_add(1,std::memory_order_relaxed);
-                    if(i>=count)break;
-                    if(_cancelLoad)break;
-                    work(i);
-                }
-            };
-            std::thread second(worker);
-            worker();
-            second.join();
-        };
-        parallel(BackgroundFileData.size(), [&](size_t i) {
-            if(BackgroundFileData[i])BackgroundFileData[i]->Init();
-        });
-        if(_cancelLoad)return;
-        parallel(ImageFileData.size(), [&](size_t i) {
-            if(ImageFileData[i])ImageFileData[i]->Init();
-        });
-        if(_cancelLoad)return;
-        // HD tile pixels are a duplicate of the already-decoded PNG atlas.
-        // Init() allocates a fresh Width*Height RGBA buffer for EACH tile.
-        // For large Zelda packs that duplicates entire texture sheets and
-        // increases working-set pressure. HdNesPack::GetMatchingTile()
-        // already calls tile->Init() on first actual use, so preserve lazy
-        // initialization and do not expand all unused tiles at ROM load.
-        MessageManager::Log("[HDPack] PS5 atlas preload complete: images=" +
-            std::to_string(ImageFileData.size()) + " deferredTiles=" +
-            std::to_string(Tiles.size()) + " elapsedMs=" +
-            std::to_string(tmr.GetElapsedMS()));
-    }
-
-""" + hd[b:]
-hd_data.write_text(hd)
+# Explicit native safety/performance patch; fail the build if upstream shifts.
+subprocess.run(["python3",str(root/"scripts/patch_hd_memory.py"),str(src)],check=True)
 
 sources=sorted(set(c+cpp))
 assert len(sources)>100 and all(p.is_file() for p in sources)

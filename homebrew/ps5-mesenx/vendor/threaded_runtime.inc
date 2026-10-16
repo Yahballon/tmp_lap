@@ -124,11 +124,37 @@ void ShelfRuntime::RunWorker(std::string path,bool hd_enabled,std::vector<uint8_
                         mesen_diag::write("PERF_FRAME_SLOW frame=%u core_ms=%lld size=%ux%u",
                             runs,static_cast<long long>(cost),core.width,core.height);
                     }
-                    if(!core.pixels.empty()){
-                        std::lock_guard<std::mutex> lock(snapshot_mutex);
-                        snapshot_pixels=core.pixels;
-                        snapshot_width=core.width;snapshot_height=core.height;
-                        ++produced;
+                    // HD renders 4-10x NES resolution. Feeding the PS5 Vulkan
+                    // renderer a new huge image 60 times/sec forces gigabytes
+                    // of staging and VRAM churn. Keep 60Hz emulation/audio,
+                    // but present HD at 30fps with <=1280x1200 CPU snapshot.
+                    if(!core.pixels.empty() && (!hd_enabled || (runs%2u)==0u)){
+                        const unsigned srcw=core.width,srch=core.height;
+                        const unsigned step=hd_enabled?
+                            std::max({1u,(srcw+1279u)/1280u,(srch+1199u)/1200u}):1u;
+                        const unsigned outw=(srcw+step-1u)/step;
+                        const unsigned outh=(srch+step-1u)/step;
+                        if(srcw && srch && srcw<=4096 && srch<=4096 &&
+                           uint64_t(srcw)*srch==core.pixels.size() &&
+                           uint64_t(outw)*outh<=1280ull*1200ull){
+                            std::lock_guard<std::mutex> lock(snapshot_mutex);
+                            if(step==1u) snapshot_pixels=core.pixels;
+                            else {
+                                snapshot_pixels.resize(size_t(outw)*outh);
+                                for(unsigned y=0;y<outh;++y)
+                                    for(unsigned x=0;x<outw;++x)
+                                        snapshot_pixels[size_t(y)*outw+x]=
+                                            core.pixels[size_t(y*step)*srcw+x*step];
+                            }
+                            snapshot_width=outw;snapshot_height=outh;
+                            ++produced;
+                            if(hd_enabled&&(runs==2u || runs%600u==0u))
+                                mesen_diag::write("HDPACK_PRESENT frame=%u native=%ux%u upload=%ux%u step=%u",
+                                    runs,srcw,srch,outw,outh,step);
+                        } else if(hd_enabled && (runs<6 || runs%600u==0u)) {
+                            mesen_diag::write("HDPACK_FRAME_INVALID src=%ux%u pixels=%zu",
+                                             srcw,srch,core.pixels.size());
+                        }
                     }
                     if(game_audio)game_audio->Push(resampler.Process(core.audio));
                     now=Clock::now();
