@@ -14,6 +14,7 @@ bool send_setting(const std::string& route,std::string& result);
 bool probe();
 bool activate_file(const std::string& filename,std::string& status);
 int current_theme();
+std::string current_file();
 int load_selected();
 void save_selected(int index);
 }

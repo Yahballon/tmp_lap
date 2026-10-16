@@ -3,6 +3,7 @@
 #include "motion_catalog.hpp"
 #include "motion_download.hpp"
 #include "liveshell_client.hpp"
+#include "theme_log.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -10,6 +11,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
 namespace motion {
 namespace {
 bool valid_slug(const std::string& slug) {
@@ -38,7 +40,7 @@ std::string clean_label(std::string s){
 }
 bool Catalog::load(const std::string& assets){
  std::string path=assets+"/motionbgs/catalog.tsv";
- FILE* f=fopen(path.c_str(),"rb");if(!f){report("MotionBGS catalog missing");return false;}
+ FILE* f=fopen(path.c_str(),"rb");if(!f){report("MotionBGS catalog missing");tc::log("CATALOG_ERROR",path.c_str());return false;}
  char line[2048];std::vector<Entry> next;
  while(fgets(line,sizeof(line),f)&&next.size()<200){
   std::string s(line);if(s.empty()||s[0]=='#')continue;
@@ -55,13 +57,37 @@ bool Catalog::load(const std::string& assets){
   if(item.preview.rfind("https://motionbgs.com/",0)!=0 && item.preview.rfind("https://",0)==0) item.preview="";
   next.push_back(std::move(item));
  }
- fclose(f);records_=std::move(next);
+ fclose(f);
+ // Older downloaded videos must remain visible even if a future online catalog
+ // no longer includes their source page. Only read MP4 files owned by ThemeChanger.
+ if(DIR* dir=opendir("/data/LiveShell/video")){
+   int recovered=0;
+   while(dirent* de=readdir(dir)){
+     const std::string filename=de->d_name;
+     if(filename.rfind("MotionBGS-",0)!=0||filename.size()<15||
+        filename.substr(filename.size()-4)!=".mp4")continue;
+     const std::string slug=filename.substr(10,filename.size()-14);
+     if(!valid_slug(slug))continue;
+     const bool present=std::any_of(next.begin(),next.end(),
+       [&](const Entry& e){return e.slug==slug;});
+     if(present)continue;
+     if(!exists(std::string("/data/LiveShell/video/")+filename,1024))continue;
+     std::string title=slug;
+     std::replace(title.begin(),title.end(),'-',' ');
+     next.push_back(Entry{slug,title,"Downloaded","",""});
+     recovered++;
+   }
+   closedir(dir);
+   if(recovered)tc::log("RESTORED_DOWNLOADS",std::to_string(recovered).c_str());
+ }
+ records_=std::move(next);
  preview_requested_.assign(records_.size(),false);
  installed_cache_.assign(records_.size(),false);
  for(int i=0;i<(int)records_.size();i++)
    installed_cache_[(size_t)i]=exists(wallpaper_path(i),1024)&&is_mp4(wallpaper_path(i));
  if(records_.empty()){report("Online catalog empty. Check MotionBGS availability.");return false;}
  report("MotionBGS catalog: "+std::to_string(records_.size())+" HD wallpapers");
+ tc::log("CATALOG_LOADED",std::to_string(records_.size()).c_str());
  return true;
 }
 std::string Catalog::wallpaper_path(int i)const{
@@ -88,7 +114,7 @@ bool Catalog::start(int i,bool preview){
   std::lock_guard<std::mutex> g(mutex_);
   if(preview_requested_[(size_t)i]){active=false;return false;}
   preview_requested_[(size_t)i]=true;
- }else{percent_=0;report("Connecting to MotionBGS...");}
+ }else{percent_=0;report("Connecting to MotionBGS...");tc::log("DOWNLOAD_REQUEST",records_[(size_t)i].slug.c_str());}
  auto* w=new Worker{this,i,preview};pthread_t thread{};
  if(pthread_create(&thread,nullptr,Catalog::run,w)!=0){
   delete w;active=false;report("Unable to start network thread");return false;
@@ -111,8 +137,10 @@ void* Catalog::run(void* p){
   bool ok=is_image(path);
   if(!ok){
    std::atomic<int> prog{0};std::string err;
+   tc::log("PREVIEW_REQUEST",(item.slug+" "+item.preview).c_str());
    ok=fetch_file(item.preview,path,prog,err);
-   if(ok&&!is_image(path)){unlink(path.c_str());ok=false;}
+   if(ok&&!is_image(path)){unlink(path.c_str());ok=false;err="Invalid JPEG/PNG format";}
+   tc::log(ok?"PREVIEW_SAVED":"PREVIEW_ERROR",(item.slug+" "+err).c_str());
   }
   if(ok){std::lock_guard<std::mutex> g(self.mutex_);self.ready_.push_back(job.index);}
   self.preview_busy_=false;return nullptr;
@@ -128,11 +156,16 @@ void* Catalog::run(void* p){
  if(ok){
   {std::lock_guard<std::mutex> lock(self.mutex_);self.installed_cache_[(size_t)job.index]=true;}
   self.percent_=100;
+  tc::log("DOWNLOAD_COMPLETE",path.c_str());
   std::string applied;
-  if(theme::activate_file("MotionBGS-"+item.slug+".mp4",applied))
-   self.report(item.title+": downloaded, installed and applied");
-  else self.report(item.title+": installed. "+applied);
- }else self.report("Download failed: "+err);
+  if(theme::activate_file("MotionBGS-"+item.slug+".mp4",applied)){
+   tc::log("LIVESHELL_APPLIED",item.slug.c_str());
+   self.report(item.title+": installed and applied");
+  }else{
+   tc::log("LIVESHELL_PENDING",(item.slug+" "+applied).c_str());
+   self.report(item.title+": installed. "+applied);
+  }
+ }else{tc::log("DOWNLOAD_ERROR",(item.slug+" "+err).c_str());self.report("Download failed: "+err);}
  self.downloading_=false;return nullptr;
 }
 }

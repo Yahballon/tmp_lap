@@ -75,7 +75,15 @@ jobs:
             homebrew/themechanger/tests/test_native_download.cpp \
             app/src/motion_download.cpp -lssl -lcrypto \
             -o /tmp/themechanger-native-http-test
-          timeout 65s /tmp/themechanger-native-http-test
+          preview=$(python3 - <<'PY'
+          from pathlib import Path
+          rows=[line.split('\t') for line in Path('homebrew/themechanger/generated/motionbgs/catalog.tsv').read_text().splitlines() if not line.startswith('#')]
+          urls=[row[4] for row in rows if len(row)>=5 and row[4].startswith('https://motionbgs.com/')]
+          print(urls[0] if urls else '')
+          PY
+          )
+          test -n "$preview"
+          timeout 65s /tmp/themechanger-native-http-test "$preview"
       - name: Bundle verified upstream LiveShell v1.0 payload
         run: |
           curl --fail --location --retry 3 --silent --show-error \
@@ -124,6 +132,7 @@ jobs:
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
           assert len(manifest.splitlines())>=7
           assert 'https://motionbgs.com/dl/hd/' in manifest
+          assert '/i/c/960x540/media/' in manifest
           with zipfile.ZipFile(f'app/dist/{title}.zip') as z:
               assert z.testzip() is None
               assert f'{title}/eboot.bin' in z.namelist()
@@ -132,7 +141,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.1-PPSA99891
+          name: ThemeChanger-v0.3.2-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -140,5 +149,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.1 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.1 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.1" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.2 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.2 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.2" --notes-file homebrew/themechanger/RELEASE_NOTES.md

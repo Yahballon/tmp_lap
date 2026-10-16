@@ -5,7 +5,7 @@
 #include <atomic>
 #include <cstdio>
 #include <string>
-int main(){
+int main(int argc,char** argv){
  const char* url="https://motionbgs.com/dl/hd/737/";
  const std::string path="/tmp/themechanger-motionbgs-probe.mp4";
  std::atomic<int> percent{0};std::string error;
@@ -16,5 +16,19 @@ int main(){
  std::fclose(f);std::remove(path.c_str());
  good=good&&header[4]=='f'&&header[5]=='t'&&header[6]=='y'&&header[7]=='p';
  std::printf("MotionBGS native HTTPS: %s, progress=%d\n",good?"MP4 OK":"invalid",percent.load());
- return good&&percent==100?0:3;
+ if(!good||percent!=100)return 3;
+ if(argc>1){
+   percent=0;error.clear();
+   const std::string image="/tmp/themechanger-motionbgs-preview.img";
+   if(!motion::fetch_file(argv[1],image,percent,error)){
+     std::fprintf(stderr,"HTTPS preview download failed: %s\n",error.c_str());return 4;
+   }
+   FILE* g=std::fopen(image.c_str(),"rb");if(!g)return 5;
+   unsigned char h[8]{};const bool imageRead=std::fread(h,1,8,g)==8;
+   std::fclose(g);std::remove(image.c_str());
+   const bool jpeg=imageRead&&h[0]==0xff&&h[1]==0xd8;
+   std::printf("MotionBGS native preview: %s, progress=%d\n",jpeg?"JPEG OK":"INVALID",percent.load());
+   if(!jpeg||percent!=100)return 6;
+ }
+ return 0;
 }

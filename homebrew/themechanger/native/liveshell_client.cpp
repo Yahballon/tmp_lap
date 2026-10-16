@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Bridge to ZiZc3/LiveShell v1.0.  LiveShell and this app are GPL-3.0 licensed.
 #include "liveshell_client.hpp"
+#include "theme_log.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -69,6 +70,17 @@ std::string theme_file(int index){
  return std::string("ThemeChanger-")+kFiles[index]+".mp4";
 }
 bool probe(){return !http_get("/api/state").empty();}
+std::string current_file(){
+ const std::string state=http_get("/api/state");
+ const auto key=state.find("\"current\":\"");
+ if(key==std::string::npos)return {};
+ const auto first=key+11;
+ const auto end=state.find('"',first);
+ if(end==std::string::npos)return {};
+ const std::string full=state.substr(first,end-first);
+ const auto slash=full.find_last_of('/');
+ return slash==std::string::npos?full:full.substr(slash+1);
+}
 int current_theme(){
  const auto state=http_get("/api/state");const auto key=state.find("\"current\":\"");
  if(key==std::string::npos)return -1;
@@ -92,7 +104,7 @@ bool install_and_select(int index,const std::string& assets,std::string& result)
  if(found<0){result="Wallpaper copied. Restart LiveShell to refresh its library.";return false;}
  const auto reply=http_get("/api/select?i="+std::to_string(found));
  if(reply.find("\"ok\":true")==std::string::npos){result="LiveShell rejected wallpaper selection";return false;}
- save_selected(index);result=std::string(kNames[index])+" applied by LiveShell";return true;
+ save_selected(index);result=std::string(kNames[index])+" applied by LiveShell";tc::log("APPLY_BUILTIN",filename.c_str());return true;
 }
 bool activate_file(const std::string& filename,std::string& result){
  if(filename.empty()||filename.size()>120||filename.find('/')!=std::string::npos||
@@ -107,7 +119,7 @@ bool activate_file(const std::string& filename,std::string& result){
  if(reply.find("\"ok\":true")==std::string::npos){
    result="LiveShell could not activate this video";return false;
  }
- result="Wallpaper applied";return true;
+ result="Wallpaper applied";tc::log("APPLY_ONLINE",filename.c_str());return true;
 }
 bool send_setting(const std::string& route,std::string& result){
  if(route.empty()||route[0]!='/'||route.find("..")!=std::string::npos){result="Invalid API route";return false;}
