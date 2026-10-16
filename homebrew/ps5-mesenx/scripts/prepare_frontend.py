@@ -143,7 +143,7 @@ def generate():
     assert 'fonts.AddText(ui,"SNES",' in loading_src
     assert 'v2 modded by YAHBALLON' in loading_src
     loading_src=loading_src.replace('fonts.AddText(ui,"SNES",','fonts.AddText(ui,"MesenX",')
-    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.16 by YAHBALLON')
+    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.17 by YAHBALLON')
     # Do not claim the games are ready while the console denies /data access.
     loading_src=loading_src.replace('#include <cmath>',
         '#include <cmath>' + chr(10) + '#include <dirent.h>' + chr(10) + '#include <cerrno>')
@@ -371,7 +371,7 @@ def generate():
     replace_required(main, '#include <dirent.h>',
                      '#include <dirent.h>' + chr(10) + '#include "rom_diagnostics.h"')
     replace_required(main, '    sceNetInit();',
-                     '    mesen_diag::write("BOOT version=0.1.7 title=PPSA99896");' +
+                     '    mesen_diag::write("BOOT version=0.1.17 title=PPSA99896");' +
                      chr(10) + '    sceNetInit();')
     replace_required(main, '    std::string root="/data/PS5MesenX";',
                      '    mesen_diag::write("ELEVATION filesystem=%u path=%s",unsigned(access),elevation::path());' +
@@ -402,13 +402,13 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.017"
+    param["contentVersion"] = "01.000.018"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
             raise RuntimeError(f"Legacy SNES app or core identifier in {file}")
     assert "NES\\x1A" in rom.read_text()
-    assert 'v0.1.16 by YAHBALLON' in loading.read_text()
+    assert 'v0.1.17 by YAHBALLON' in loading.read_text()
     assert 'SCAN_COMPLETE' in shelf.read_text()
     assert 'Filesystem access denied' in loading.read_text()
     assert 'elevation::path()' in main.read_text()

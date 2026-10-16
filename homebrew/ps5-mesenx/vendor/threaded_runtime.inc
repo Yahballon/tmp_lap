@@ -33,6 +33,18 @@ bool ShelfRuntime::Start(const std::string& path,fe::Renderer& renderer){
     const bool hd_enabled=hd_request&&!safe;
     aspect=get("NES/Aspect","4:3");bindings.Load(options);
     sound=get("NES/Sound","true")=="true";
+    // PS5 sandbox filesystem permissions are validated on the frontend
+    // thread; native open/read on a fresh pthread caused a fatal launch
+    // regression despite successful ROM scans. Read before spawning worker.
+    std::vector<uint8_t> rom;std::string read_error;
+    mesen_diag::write("GAME_READ_MAIN_BEGIN game=%s",path.c_str());
+    if(!ReadRom(path,rom,read_error)){
+        error=read_error.empty()?"Unable to read NES ROM":read_error;
+        mesen_diag::write("GAME_READ_MAIN_FAIL error=%s",error.c_str());
+        return false;
+    }
+    if(rom.empty()){error="NES ROM is empty";mesen_diag::write("GAME_READ_MAIN_FAIL empty");return false;}
+    mesen_diag::write("GAME_READ_MAIN_OK bytes=%zu",rom.size());
     mesen_diag::write("WORKER_START hd_requested=%d safe=%d hd_enabled=%d game=%s",
         int(hd_request),int(safe),int(hd_enabled),path.c_str());
     menu_atlas=renderer.Atlas();game_texture=nullptr;
@@ -45,10 +57,12 @@ bool ShelfRuntime::Start(const std::string& path,fe::Renderer& renderer){
         shown_width=256;shown_height=240;
     }
     active=true;
-    worker=std::thread([this,path,hd_enabled]{RunWorker(path,hd_enabled);});
+    worker=std::thread([this,path,hd_enabled,rom=std::move(rom)]() mutable {
+        RunWorker(path,hd_enabled,std::move(rom));
+    });
     return true;
 }
-void ShelfRuntime::RunWorker(std::string path,bool hd_enabled){
+void ShelfRuntime::RunWorker(std::string path,bool hd_enabled,std::vector<uint8_t> rom){
     using Clock=std::chrono::steady_clock;
     const auto begun=Clock::now();
     auto fail=[&](const std::string& msg){
@@ -60,11 +74,8 @@ void ShelfRuntime::RunWorker(std::string path,bool hd_enabled){
         // Construct and destroy Session here: no libretro call on frontend.
         Session core(root+"/saves");
         core.SetOption("mesen_hdpacks",hd_enabled?"enabled":"disabled");
-        std::vector<uint8_t> rom;std::string read_error;
-        mesen_diag::write("GAME_READ_BEGIN");
-        if(!ReadRom(path,rom,read_error))fail(read_error);
-        else {
-            mesen_diag::write("GAME_READ_OK bytes=%zu",rom.size());
+        mesen_diag::write("WORKER_INPUT_READY bytes=%zu",rom.size());
+        {
             mesen_diag::write("GAME_CORE_LOAD_BEGIN");
             if(!core.Load(path,std::move(rom)))fail(core.error);
             else {

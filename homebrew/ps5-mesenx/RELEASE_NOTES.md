@@ -1,30 +1,18 @@
-# PS5MesenX v0.1.16 – HD texture memory and CPU optimization
+# PS5MesenX v0.1.17 – Fix crash when starting a NES game
 
-Experimental PS5 HD-pack performance build; requires physical-console verification.
+## Regression found from PS5 boot log
 
-## What changed
-- Preserve full HD pack effects and the original NES emulation logic.
-- Decode the pack PNG atlases using the existing bounded two-worker preload.
-- Avoid eagerly allocating and copying **every HD tile** from the decoded PNG sheets.
-  MesenCE's existing GetMatchingTile() initializes the tile on first actual use.
-  This is intended to reduce memory spikes and launch time for large packs.
-- Cross-compile the core with -O2 instead of -O1; build HD rendering hot paths
-  (HdNesPack, HdVideoFilter, HdNesPpu, VideoDecoder, Libretro) with -O3.
-- Leave Safe mode ON by default, preserving the verified smooth non-HD mode.
-- Existing bounded catch-up loop and performance logging remain enabled.
+The v0.1.16 app scanned all ROMs correctly but crashed on every launch immediately after `WORKER_START` and `GAME_READ_BEGIN`. The previous successful build read the ROM on the main thread. The new worker-based build had moved `ReadRom` into a background thread; PS5 homebrew filesystem access may not behave equivalently on that thread.
 
-## What to measure
-Turn off Safe mode for the specific Zelda ROM, enable HD Packs, restart the game.
-Record PERF_LOAD_DURATION_MS, PERF_FRAME_SLOW and actual perceived FPS. Large
-texture sheets can still be expensive on PS5; this update is not yet
-hardware-verified. If the console becomes unresponsive, use Safe mode.
+## Fix
 
-ROMs: /data/PS5NES/games and /data/homebrew/PPSA99896/roms
-HD packs: /data/PS5MesenX/HdPacks
-Logs: /data/PS5MesenX/logs/boot.log
+- Read and validate the complete NES ROM on the PS5 frontend thread before creating the emulation worker.
+- Move the already-loaded ROM bytes into the worker; libretro core init/load/run/unload/deinit stay on one dedicated worker.
+- Log `GAME_READ_MAIN_BEGIN`, `GAME_READ_MAIN_OK`, and `WORKER_INPUT_READY` to distinguish file access failures from core startup failures.
+- Return a visible error instead of launching a worker if ROM reading fails.
+- Keep the existing Safe mode and optional HD-pack behavior, Vulkan rendering and settings unchanged.
+- Add build-time checks ensuring the worker no longer invokes `ReadRom`.
 
-### v0.1.16 experimental HD responsiveness
-- Core constructor, ROM loading, frame execution and destructor remain exclusively on one worker thread; PS5 Pad and Vulkan remain on main thread.
-- Keeping the main event loop alive during expensive HD texture decoding is intended to improve PS button and screenshot responsiveness.
-- No catch-up bursts; periodic CPU yielding. HD pack PNG decoding and emulation can still be slow; hardware validation is needed.
-- Suppress continuous frame traces, scan only mounted USB roots and skip recursive shader cache scanning.
+**Status:** Native build checks are automated, but the crash fix needs verification on an actual PS5. If it still crashes, send the end of `/data/PS5MesenX/logs/boot.log`.
+
+ROMs: `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms`.

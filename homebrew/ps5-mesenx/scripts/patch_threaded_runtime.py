@@ -21,7 +21,7 @@ h=header.read_text()
 h=h.replace("#include <memory>","#include <memory>\n#include <atomic>\n#include <mutex>\n#include <thread>\n#include <vector>")
 h=h.replace("    bool Active()const{return active;}",
     "    bool Active()const{return active;}\n    bool Loading()const{return active&&!worker_ready.load(std::memory_order_acquire);}")
-h=h.replace("    Session core;", """    void RunWorker(std::string path,bool hd_enabled);
+h=h.replace("    Session core;", """    void RunWorker(std::string path,bool hd_enabled,std::vector<uint8_t> rom);
     std::thread worker;
     std::atomic<bool> request_stop{false},worker_done{true},worker_ready{false},worker_failed{false};
     std::atomic<uint16_t> pending_buttons{0};
@@ -36,4 +36,9 @@ h=h.replace("    double previous=0,accumulated=0,last_save=0;","")
 header.write_text(h)
 assert "Session core;" not in h and "WORKER_READY" in r
 assert "game_audio->Push" in r and "request_stop.store" in r
+assert "GAME_READ_MAIN_BEGIN" in r and "GAME_READ_MAIN_OK" in r
+assert r.index('GAME_READ_MAIN_BEGIN') < r.index('worker=std::thread(')
+assert "RunWorker(path,hd_enabled,std::move(rom))" in r
+worker_code=r.split("void ShelfRuntime::RunWorker(",1)[1]
+assert "ReadRom(" not in worker_code, "ROM file access must happen before worker launch"
 print("PASS: MesenCE worker owns init/load/run/unload/deinit; PS5 pad and Vulkan stay on UI thread")
