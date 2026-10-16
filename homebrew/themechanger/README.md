@@ -54,3 +54,13 @@ Both the D-pad and the left analog stick now use edge-triggered input and contro
 - Downloaded MotionBGS MP4s appear after the built-in themes in **Backgrounds**, including additional 12-item pages. Select with **X** to reapply through LiveShell.
 - App diagnostics are written to `/data/ThemeChanger/themechanger.log` (rotates at 2MB to `themechanger.old.log`). Events include catalog, preview URL, download, image-decode, selection and LiveShell states. Send this log when thumbnails remain blank.
 - Online previews use still artwork from the source webpage where offered. The build-time catalog adds a fallback for normal JPEG/PNG poster images when metadata is absent; no copyrighted preview files are bundled.
+
+## v0.3.3 – Reliable wallpaper selection and ShellUI diagnostics
+
+- PS5 controller: Uses newest scePadRead sample, preserves held state when the API returns zero samples, avoiding repeated Cross / theme activation after long LiveShell API calls.
+- Official bundled LiveShell **v1.1** ELF (SHA-256 pinned). Important: if a previous v1.0 daemon is still running, **restart the PS5, re-enable your jailbreak and start ThemeChanger again** to use the new engine. No forced ShellUI restart is attempted.
+- The application verifies LiveShell's `current`, `enabled`, `mainvideo`, and ShellUI `status` fields before reporting selection confirmed. Successful API response is **not** proof that the OS is visually drawing the video.
+- Explicit global theme selection enables LiveShell's `mainvideo` when disabled (v1.1 API).
+- Select timeout raised from 2 to 20 seconds: LiveShell can wait up to 8 seconds for the old ShellUI video to be released.
+- Detailed diagnostics in `/data/ThemeChanger/themechanger.log`: `SELECT_REQUEST`, `SELECT_RESPONSE`, `PLAYBACK_STATE`, `SHELLUI_MONITOR`, `VIDEO_INFO`, `ENGINE_LEGACY`.
+- If selecting works according to the REST API but the actual home screen stays unchanged, provide **both** the ThemeChanger log and `/data/LiveShell/liveshell.log`; include `/data/LiveShell/shellui.log` if present. Physical PS5 validation is required.
