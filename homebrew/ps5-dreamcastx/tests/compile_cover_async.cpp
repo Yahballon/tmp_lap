@@ -12,6 +12,9 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <filesystem>
+#include <cstdio>
+#include <unistd.h>
 using u8=uint8_t;
 using ImTextureID=void*;
 static std::thread::id uiThread;
@@ -50,6 +53,7 @@ struct MockDriver {
 static MockDriver realDriver;
 static MockDriver* imguiDriver=&realDriver;
 #define USE_PS5 1
+#define DREAMCASTX_COVER_CACHE_TEST 1
 #include "../src/dreamcastx_cover_async.inc"
 int main(){
     uiThread=std::this_thread::get_id();
@@ -91,4 +95,60 @@ int main(){
     assert(texture(third,false,budget)!=nullptr);
     assert(budget==1);
     assert(!wronglyUploadedOffUI&&!wronglyDecodedOnUI);
+    // On-disk thumbnails survive GPU-cache flush without re-decoding.
+    char temp[]="/tmp/dreamcastx-cache-XXXXXX";
+    const char* base=mkdtemp(temp);
+    assert(base);
+    const std::string coverDir=std::string(base)+"/covers";
+    const std::string thumbDir=std::string(base)+"/thumbnail-cache";
+    std::filesystem::create_directories(coverDir);
+    std::filesystem::create_directories(thumbDir);
+    assert(setenv("DREAMCASTX_COVER_CACHE_DIR",thumbDir.c_str(),1)==0);
+    const std::string picture=coverDir+"/Sonic.png";
+    {
+        FILE* fp=std::fopen(picture.c_str(),"wb");
+        assert(fp);
+        assert(std::fwrite("original-cover",1,14,fp)==14);
+        assert(std::fclose(fp)==0);
+    }
+    const int before=decoded.load();
+    budget=0;
+    assert(texture(picture,false,budget)==nullptr);
+    ImTextureID fresh=nullptr;
+    for(int i=0;i<300 && !fresh;i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        fresh=texture(picture,false,budget);
+    }
+    assert(fresh && decoded==before+1);
+    assert(std::filesystem::exists(diskName(picture)));
+    {
+        std::lock_guard<std::mutex> lock(realDriver.mutex);
+        realDriver.resident.erase(picture);
+    }
+    budget=0;
+    ImTextureID reloaded=nullptr;
+    for(int i=0;i<300 && !reloaded;i++) {
+        reloaded=texture(picture,false,budget);
+        if(!reloaded) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(reloaded && decoded==before+1); // cache hit: no image decode
+    {
+        FILE* fp=std::fopen(picture.c_str(),"ab");
+        assert(fp);
+        assert(std::fwrite("changed",1,7,fp)==7);
+        assert(std::fclose(fp)==0);
+    }
+    {
+        std::lock_guard<std::mutex> lock(realDriver.mutex);
+        realDriver.resident.erase(picture);
+    }
+    budget=0;
+    ImTextureID changed=nullptr;
+    for(int i=0;i<300 && !changed;i++) {
+        changed=texture(picture,false,budget);
+        if(!changed) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(changed && decoded==before+2); // original modified: invalidate
+    std::filesystem::remove_all(base);
+}
 }

@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.1.7"
+VERSION="0.1.8"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -61,10 +61,10 @@ def adapt():
         t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
                     '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
     marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.1.7"' not in t:
+    if marker in t and '"v0.1.8"' not in t:
         t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.1.7");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.7");',1)
+            'const ImVec2 vs = textSize(regular(), 17, "v0.1.8");\n\t'
+            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.8");',1)
     # Log scanner totals when the async catalog grows or shrinks. A scan
     # root count is NOT a game count; record both for PS5 diagnostics.
     catalogAnchor='findDiscSets();\n\treturn true;'
@@ -72,6 +72,24 @@ def adapt():
     t=t.replace(catalogAnchor,
         'findDiscSets();\n\tps5::diag::mark("library: scanner=%d media, shown=%d titles", '
         '(int)list.size(), (int)games.size());\n\treturn true;',1)
+    # Cached local covers win instantly over network metadata discovery.
+    # TheGamesDB is only queried when artwork is actually missing, or while
+    # reading the game's Details page (descriptions still work there).
+    old_cover = '''ImTextureID coverTexture(Game& g)
+{
+	ensureArt(g);
+	std::string path = userCover(g);
+	if (path.empty())
+		path = g.art.boxartPath;'''
+    new_cover = '''ImTextureID coverTexture(Game& g)
+{
+	std::string path = userCover(g);
+	if (path.empty() || lib.details)
+		ensureArt(g);
+	if (path.empty())
+		path = g.art.boxartPath;'''
+    assert t.count(old_cover) == 1, "Pinned Flycast coverTexture hook changed"
+    t=t.replace(old_cover,new_cover,1)
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
 
@@ -96,6 +114,18 @@ def adapt():
     gui_util.write_text(gu)
     shutil.copy2(ROOT/"src/dreamcastx_cover_async.inc",
                  SOURCE/"core/ui/dreamcastx_cover_async.inc")
+    # TheGamesDB sometimes returns HTTP 503. The original scraper retried
+    # after just ten seconds, stealing network time from useful libretro art.
+    # Back off metadata-only requests; local art and cover downloads continue.
+    boxart_cpp=SOURCE/"core/ui/boxart/boxart.cpp"
+    box=boxart_cpp.read_text()
+    old_backoff='pauseUntil = getTimeMs() + 10 * 1000;'
+    assert box.count(old_backoff)==1, "Pinned Flycast metadata retry hook changed"
+    box=box.replace(old_backoff,
+        'pauseUntil = getTimeMs() + 15 * 60 * 1000;',1)
+    boxart_cpp.write_text(box)
+
+
 
     # Flycast's game scanner is recursive. Normalize uppercase .GDI/.CHD/
     # .CDI/.CUE extensions before format checks, just like lowercase dumps.
@@ -249,9 +279,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 8',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 9',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.7"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.8"',v)
     assert n==1
     ver.write_text(v)
 
@@ -260,7 +290,7 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.007"
+    data["contentVersion"]="01.000.008"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
     meta.write_text(json.dumps(data,indent=2)+"\n")
