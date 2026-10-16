@@ -10,9 +10,9 @@ constexpr const char* presetNames[]={"Blue","White","Amber","Ice","Violet mix","
 std::string channels(const Mix& m){return std::to_string(m.blue)+" / "+std::to_string(m.white)+" / "+std::to_string(m.amber);}
 }
 int Panel::count() const {
- if(tab_==0)return 6;
+ if(tab_==0)return autoload_.found?6:5;
  if(tab_==1)return 10;
- return std::max(1,(int)(lights_?draft_.leds.size():draft_.beeps.size()));
+ return (int)(lights_?draft_.leds.size():draft_.beeps.size())+4;
 }
 void Panel::tick(float dt,bool visible){
  if(!link_){if(!visible)return;link_=&link();}
@@ -21,6 +21,8 @@ void Panel::tick(float dt,bool visible){
   palette_=load_palette();autoload_=autoload_state();loaded_=true;
  }
  link_->update(dt);
+ if(visible&&!attemptedStart_&&link_->state()==LinkState::offline){attemptedStart_=true;start();}
+
  if(link_->config_serial()!=configSeen_){
   configSeen_=link_->config_serial();
   if(!startupDirty_){draft_.beeps=link_->config().beeps;draft_.leds=link_->config().leds;}
@@ -70,10 +72,11 @@ void Panel::edit(int direction){
  if(tab_==1){
   if(row_<3){
    int* value=row_==0?&mix_.blue:row_==1?&mix_.white:&mix_.amber;
-   *value=std::clamp(*value+direction*5,0,255);mixDirty_=true;previewDirty_=true;
-  }else if(row_==6){preset_=(preset_+direction+7)%7;mix_=presets[preset_];mixDirty_=true;previewDirty_=true;}
+   *value=std::clamp(*value+direction*5,0,255);mixDirty_=true;previewDirty_=true;preview_=true;
+  }else if(row_==6){preset_=(preset_+direction+7)%7;mix_=presets[preset_];mixDirty_=true;previewDirty_=true;preview_=true;}
   else if(row_==7)slot_=(slot_+direction+kPaletteSlots)%kPaletteSlots;
  }else if(tab_==2){
+  if(row_>=(int)(lights_?draft_.leds.size():draft_.beeps.size()))return;
   Config candidate=draft_;
   if(lights_&&!candidate.leds.empty()){
    auto& s=candidate.leds[(size_t)row_];
@@ -101,8 +104,8 @@ void Panel::edit(int direction){
 void Panel::input(unsigned keys){
  if(!link_)return;
  if(keys&(Prev|Next)){if(preview_){preview_=false;previewDirty_=false;if(online())send(Call::stop);}tab_=(tab_+((keys&Next)?1:2))%3;row_=field_=0;return;}
- if(keys&Up)row_=std::max(0,row_-1);
- if(keys&Down)row_=std::min(count()-1,row_+1);
+ if(keys&Up){row_=std::max(0,row_-1);field_=0;}
+ if(keys&Down){row_=std::min(count()-1,row_+1);field_=0;}
  if(tab_==0){
   if(!(keys&Confirm))return;
   switch(row_){
@@ -128,7 +131,7 @@ void Panel::input(unsigned keys){
    else if(row_==5){preview_=false;save(false,true);}
    else if(row_==6)edit(1);
    else if(row_==8){
-    if(palette_.slots[(size_t)slot_]){mix_=*palette_.slots[(size_t)slot_];mixDirty_=true;previewDirty_=true;}
+    if(palette_.slots[(size_t)slot_]){mix_=*palette_.slots[(size_t)slot_];mixDirty_=true;previewDirty_=true;preview_=true;}
     else message_="This colour slot is empty";
    }else if(row_==9){
     palette_.slots[(size_t)slot_]=mix_;const auto error=save_palette(palette_);
@@ -136,8 +139,17 @@ void Panel::input(unsigned keys){
    }
   }
  }else{
+  if(!link_->has_config()){message_="Connecting: wait for the startup configuration";return;}
   if(keys&Column){lights_=!lights_;row_=field_=0;}
-  if(keys&Confirm)field_=(field_+1)%(lights_?5:2);
+  const int steps=(int)(lights_?draft_.leds.size():draft_.beeps.size());
+  if((keys&Confirm)&&row_>=steps){
+   const int action=row_-steps;keys&=~Confirm;
+   if(action==0)keys|=Add;
+   else if(action==1)keys|=Play;
+   else if(action==2)keys|=Save;
+   else{if(lights_)draft_.leds.clear();else draft_.beeps.clear();startupDirty_=true;row_=0;return;}
+  }
+  if(keys&Confirm)field_=(field_+1)%(lights_?(!draft_.leds.empty()&&draft_.leds[(size_t)row_].kind==LedKind::mix?5:3):2);
   if(keys&Left)edit(-1);if(keys&Right)edit(1);
   if(keys&Add){
    if(lights_){
@@ -151,9 +163,9 @@ void Panel::input(unsigned keys){
    startupDirty_=true;
   }
   if(keys&Remove){
-   if(lights_&&!draft_.leds.empty())draft_.leds.erase(draft_.leds.begin()+row_);
-   else if(!lights_&&!draft_.beeps.empty())draft_.beeps.erase(draft_.beeps.begin()+row_);
-   row_=std::clamp(row_,0,count()-1);startupDirty_=true;
+   if(lights_&&row_<(int)draft_.leds.size())draft_.leds.erase(draft_.leds.begin()+row_);
+   else if(!lights_&&row_<(int)draft_.beeps.size())draft_.beeps.erase(draft_.beeps.begin()+row_);
+   row_=std::clamp(row_,0,std::max(0,(int)(lights_?draft_.leds.size():draft_.beeps.size())-1));startupDirty_=true;
   }
   if(keys&Save)save(true);
   if(keys&Play){
@@ -164,9 +176,12 @@ void Panel::input(unsigned keys){
  }
 }
 std::vector<std::pair<std::string,std::string>> Panel::rows() const {
- if(tab_==0)return {{online()?"Restart ps5-signal":"Start ps5-signal",link_&&link_->starting()?"Starting...":"X"},
-  {"Refresh status","X"},{"Test beeper","X"},{"Test blue light","X"},{"Stop previews","X"},
-  {"Start with ps5-autoloader",!autoload_.found?"Unavailable":autoload_.listed?"On":"Off"}};
+ if(tab_==0){
+  std::vector<std::pair<std::string,std::string>> out={{online()?"Restart ps5-signal":"Start ps5-signal",link_&&link_->starting()?"Starting...":"X"},
+   {"Refresh status","X"},{"Test beeper","X"},{"Test blue light","X"},{"Stop previews","X"}};
+  if(autoload_.found)out.push_back({"Start with ps5-autoloader",autoload_.listed?"On":"Off"});
+  return out;
+ }
  if(tab_==1)return {{"Blue",std::to_string(mix_.blue)},{"White",std::to_string(mix_.white)},{"Amber",std::to_string(mix_.amber)},
   {"Show colour on console",preview_?"On":"Off"},{"Keep this colour","X / Square"},{"Use system colour","X"},
   {"Colour preset",presetNames[preset_]},{"My colour slot",std::to_string(slot_+1)+" / 6"},{"Load my colour","X"},{"Save to my colour slot","X"}};
@@ -176,12 +191,15 @@ std::vector<std::pair<std::string,std::string>> Panel::rows() const {
  }else for(size_t i=0;i<draft_.beeps.size();i++){
   const auto& s=draft_.beeps[i];out.push_back({"Beep "+std::to_string(i+1),std::string(tone_name(s.tone))+" | "+std::to_string(s.pause_ms)+" ms"});
  }
- if(out.empty())out.push_back({"No steps","Options: add a step"});
+ out.push_back({"Add step","X / Options"});
+ out.push_back({"Preview sequence","X / Touchpad"});
+ out.push_back({"Save startup","X / Square"});
+ out.push_back({"Clear sequence (save to apply)","X"});
  return out;
 }
 std::string Panel::help() const {
- if(tab_==0)return "X: Select   |   L2/R2: Tabs   |   O: Sidebar";
- if(tab_==1)return "Left/Right: Adjust   X: Select   Square: Keep colour   L2/R2: Tabs   O: Sidebar";
+ if(tab_==0)return "X: Select   |   L1/R1: Tabs   |   O: Sidebar";
+ if(tab_==1)return "Left/Right: Adjust   X: Select   Square: Keep colour   L1/R1: Tabs   O: Sidebar";
  const char* field=lights_?(field_==0?"Kind":field_==1?"Colour / Blue / Level":field_==2?"Duration":field_==3?"White":"Amber"):(field_==0?"Tone":"Pause");
  return std::string("Editing: ")+field+" | X: Field  Left/Right: Adjust  Triangle: Beeps/Lights";
 }

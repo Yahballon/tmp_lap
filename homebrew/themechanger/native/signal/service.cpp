@@ -4,6 +4,8 @@
 #include "signal/service.hpp"
 
 #include "core/save_file.hpp"
+#include "theme_log.hpp"
+#include <cerrno>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -30,11 +32,7 @@ constexpr float kStartAskEvery = 1.0f;
 constexpr float kQuitSettle = 1.0f; // seconds for the old service to give up its port
 constexpr std::size_t kMaxPayload = 4u << 20;
 
-#ifdef MSG_NOSIGNAL
-constexpr int kSendFlags = MSG_NOSIGNAL;
-#else
-constexpr int kSendFlags = 0;
-#endif
+constexpr int kSendFlags = 0; // Match the native, hardware-tested LiveShell transport.
 
 struct Endpoint
 {
@@ -101,7 +99,13 @@ class HttpTransport final : public Transport
 
         // "HTTP/1.1 200 OK\r\n...\r\n\r\n{body}"; the service closes after one answer.
         int status = 0;
-        if (std::sscanf(answer.c_str(), "HTTP/1.%*d %d", &status) != 1 || status < 100)
+        const auto space=answer.find(' ');
+        if(answer.rfind("HTTP/1.",0)==0&&space!=std::string::npos&&space+4<=answer.size()){
+            const auto code=answer.substr(space+1,3);
+            if(code[0]>='1'&&code[0]<='5'&&code[1]>='0'&&code[1]<='9'&&code[2]>='0'&&code[2]<='9')
+                status=(code[0]-'0')*100+(code[1]-'0')*10+code[2]-'0';
+        }
+        if (status < 100)
             return reply;
         const std::size_t head = answer.find("\r\n\r\n");
         reply.status = status;
@@ -118,6 +122,8 @@ class HttpTransport final : public Transport
             return reply;
         if (send_all(fd, data))
             reply.status = 200;
+        shutdown(fd,SHUT_WR);
+        char receipt[256];(void)recv(fd,receipt,sizeof(receipt),0);
         close(fd);
         return reply;
     }
@@ -144,6 +150,7 @@ class HttpTransport final : public Transport
         address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         if (connect(fd, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) != 0)
         {
+            tc::log("SIGNAL_CONNECT",("port="+std::to_string(port)+" errno="+std::to_string(errno)).c_str());
             close(fd);
             return -1;
         }
@@ -178,7 +185,10 @@ std::unique_ptr<Transport> make_http_transport(int port)
 Service::Service(std::unique_ptr<Transport> transport) : transport_(std::move(transport))
 {
     // Never name threads: pthread_setname_np hangs on the console.
-    started_ = pthread_create(&thread_, nullptr, &Service::thread_main, this) == 0;
+    pthread_attr_t attr;pthread_attr_init(&attr);pthread_attr_setstacksize(&attr,2*1024*1024);
+    const int rc=pthread_create(&thread_, &attr, &Service::thread_main, this);
+    pthread_attr_destroy(&attr);started_=rc==0;
+    tc::log("SIGNAL_WORKER",("create="+std::to_string(rc)).c_str());
 }
 
 Service::~Service()
@@ -196,6 +206,7 @@ void Service::send(Call call, std::string body)
 {
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        if(!started_){auto& out=outcomes_[index(call)];out.reply={503,"{\"error\":\"Signal worker could not start\"}"};++out.serial;return;}
         std::optional<std::string> &slot = queued_[index(call)];
         if (!slot.has_value())
             order_.push_back(call);
@@ -255,6 +266,7 @@ void Service::run()
         Reply reply = call == Call::launch ? transport_->push(kLoaderPort, body)
                                            : transport_->send(endpoint.method, endpoint.path, body);
 
+        tc::log("SIGNAL_HTTP",(std::string(endpoint.method)+" "+endpoint.path+" status="+std::to_string(reply.status)+" "+reply.body.substr(0,300)).c_str());
         lock.lock();
         Outcome &outcome = outcomes_[index(call)];
         outcome.reply = std::move(reply);
@@ -356,12 +368,11 @@ bool Link::can_start() const
     if (payload_ < 0)
     {
         std::string data;
-        const bool found =
-            save::read_file(assets_path() + "/payload/ps5-signal.elf", &data, kMaxPayload) &&
-            data.size() > 64 &&
-            data.compare(0, 4,
-                         "\x7f"
-                         "ELF") == 0;
+        const auto path=assets_path()+"/payload/ps5-signal.elf";
+        FILE* file=fopen(path.c_str(),"rb");
+        if(file){char block[8192];size_t n;while((n=fread(block,1,sizeof(block),file))>0&&data.size()+n<=kMaxPayload)data.append(block,n);if(ferror(file))data.clear();fclose(file);}
+        const bool found=data.size()>64&&data.compare(0,5,std::string("\x7f" "ELF\x02",5))==0;
+        tc::log("SIGNAL_PAYLOAD",(path+" bytes="+std::to_string(data.size())+" valid="+std::to_string(found)).c_str());
         payload_ = found ? 1 : 0;
         if (found)
             elf_ = std::move(data);
@@ -379,6 +390,7 @@ void Link::start_service()
         start_error_ = "This build does not include ps5-signal.elf";
         return;
     }
+    tc::log("SIGNAL_START","Sending bundled service to 127.0.0.1:9021");
     launch_seen_ = service_.serial(Call::launch);
     service_.send(Call::launch, elf_);
     start_state_ = StartState::sending;

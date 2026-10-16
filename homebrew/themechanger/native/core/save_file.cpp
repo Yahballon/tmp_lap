@@ -5,6 +5,7 @@
 #include "core/save_file.hpp"
 
 #include <cerrno>
+#include <cstdio>
 #include <dirent.h>
 #include <cstring>
 #include <fcntl.h>
@@ -157,33 +158,15 @@ std::string write_atomic(const std::string &path, std::string_view data)
 
 bool read_file(const std::string &path, std::string *data, std::size_t max_bytes)
 {
-    const int fd = ::open(path.c_str(), O_RDONLY);
-    if (fd < 0)
-        return false;
-    std::string buffer;
-    char chunk[4096];
-    for (;;)
-    {
-        const ssize_t result = ::read(fd, chunk, sizeof(chunk));
-        if (result < 0)
-        {
-            if (errno == EINTR)
-                continue;
-            ::close(fd);
-            return false;
-        }
-        if (result == 0)
-            break;
-        buffer.append(chunk, static_cast<std::size_t>(result));
-        if (buffer.size() > max_bytes)
-        {
-            ::close(fd);
-            return false;
-        }
+    FILE* file=std::fopen(path.c_str(),"rb");if(!file)return false;
+    std::string buffer;char block[4096];size_t n;
+    while((n=std::fread(block,1,sizeof(block),file))>0){
+        if(buffer.size()+n>max_bytes){std::fclose(file);return false;}
+        buffer.append(block,n);
     }
-    ::close(fd);
-    *data = std::move(buffer);
-    return true;
+    const bool ok=!std::ferror(file);std::fclose(file);
+    if(ok)*data=std::move(buffer);
+    return ok;
 }
 
 bool ensure_directory(const std::string &path)

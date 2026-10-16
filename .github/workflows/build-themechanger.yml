@@ -71,11 +71,18 @@ jobs:
           PY
       - name: Test integrated Signal Companion
         run: |
+          g++ -std=c++20 -O2 -Iapp/src homebrew/themechanger/tests/test_navigation.cpp -o /tmp/themechanger-navigation-test
+          /tmp/themechanger-navigation-test
           g++ -std=c++20 -O2 -pthread -Iapp/src -Ihomebrew/themechanger/tests \
             homebrew/themechanger/tests/test_signal_panel.cpp \
-            app/src/signal_panel.cpp app/src/signal/*.cpp app/src/core/save_file.cpp \
+            app/src/signal_panel.cpp app/src/signal/*.cpp app/src/core/save_file.cpp app/src/theme_log.cpp \
             -o /tmp/themechanger-signal-test
           /tmp/themechanger-signal-test
+          g++ -std=c++20 -O2 -pthread -Iapp/src \
+            homebrew/themechanger/tests/test_signal_transport.cpp \
+            app/src/signal/service.cpp app/src/signal/model.cpp app/src/signal/json.cpp \
+            app/src/core/save_file.cpp app/src/theme_log.cpp -o /tmp/themechanger-signal-transport-test
+          /tmp/themechanger-signal-transport-test
       - name: Verify bounded persistent wallpaper recovery
         run: |
           python3 - <<'PY'
@@ -258,7 +265,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.16-PPSA99891
+          name: ThemeChanger-v0.3.17-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -266,5 +273,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.16 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.16 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.16" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.17 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.17 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.17" --notes-file homebrew/themechanger/RELEASE_NOTES.md

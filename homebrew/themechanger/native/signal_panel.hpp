@@ -12,6 +12,7 @@ public:
  explicit Panel(hui::signal::Link* link=nullptr):link_(link){}
  void tick(float dt,bool visible);
  void input(unsigned keys);
+ void start(){if(link_&&!link_->online()&&!link_->starting())link_->start_service();}
  std::vector<std::pair<std::string,std::string>> rows() const;
  int tab() const{return tab_;}
  int row() const{return row_;}
@@ -35,7 +36,7 @@ private:
  std::array<unsigned,(size_t)hui::signal::Call::count> seen_{};
  unsigned configSeen_=0;
  int tab_=0,row_=0,field_=0,preset_=0,slot_=0;
- bool loaded_=false,preview_=false,mixDirty_=false,startupDirty_=false,lights_=false;
+ bool attemptedStart_=false,loaded_=false,preview_=false,mixDirty_=false,startupDirty_=false,lights_=false;
  float previewAge_=0;
  bool previewDirty_=false;
  std::string message_="Choose Start ps5-signal if the service is offline";
