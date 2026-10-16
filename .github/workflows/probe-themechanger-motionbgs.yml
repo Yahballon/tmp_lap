@@ -1,0 +1,43 @@
+name: Probe ThemeChanger MotionBGS direct MP4
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/probe-themechanger-motionbgs.yml'
+permissions:
+  contents: read
+jobs:
+  test-download:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Diagnose real HD GET response and source HTTP controls
+        run: |
+          python3 - <<'PY'
+          import urllib.request, urllib.error, http.cookiejar
+          urls=[("Color Bridge","color-bridge","737"),("Anime","after-icey","10303")]
+          ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+          for title,slug,id in urls:
+              cookiejar=http.cookiejar.CookieJar()
+              opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookiejar))
+              try:
+                  with opener.open(urllib.request.Request("https://motionbgs.com/"+slug,headers={"User-Agent":ua}),timeout=10) as page:
+                      print(title,"page",page.status,"cookies",len(cookiejar))
+                      page.read(100)
+              except Exception as e: print("Landing page failed:",repr(e))
+              for kind, extra in (
+                  ("direct no-range", {}),
+                  ("referer no-range", {"Referer":"https://motionbgs.com/"+slug}),
+                  ("browserlike no-range", {"Referer":"https://motionbgs.com/"+slug,"Accept":"video/mp4,video/*;q=0.9,*/*;q=0.8","Sec-Fetch-Mode":"navigate","Sec-Fetch-Site":"same-origin"}),
+                  ("referer with range", {"Referer":"https://motionbgs.com/"+slug,"Range":"bytes=0-63"}),
+              ):
+                  req=urllib.request.Request("https://motionbgs.com/dl/hd/"+id,headers={"User-Agent":ua,**extra})
+                  try:
+                      with opener.open(req,timeout=12) as result:
+                          first=result.read(32)
+                          print(title,kind,"=>",result.status,"type",result.headers.get("Content-Type"),"size",result.headers.get("Content-Length"),"magic",first[:16], "url",result.geturl(),flush=True)
+                  except urllib.error.HTTPError as e:
+                      print(title,kind,"=> HTTP",e.code,"type",e.headers.get("Content-Type"),"location",e.headers.get("Location"),"snippet",e.read(240),flush=True)
+                  except Exception as e:print(title,kind,type(e).__name__,str(e)[:180],flush=True)
+          PY
