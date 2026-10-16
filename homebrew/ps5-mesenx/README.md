@@ -1,11 +1,10 @@
 # PS5MesenX — MesenCE PS5 port workspace
 
-**Status (2026-10-15): source-import / HD-pack preparation, NOT a playable PS5 build.**
+**Status:** Native PS5 TESTBUILD v0.1.1. Compiles and packages successfully; ROM playback and HD packs still need on-console testing.
 
 This independent workspace preserves the existing PS5SNESX application and imports
 the PS5 frontend and Mesen Community Edition sources at pinned revisions.
-It intentionally does not publish an `eboot.bin` or add itself to TESTBUILDS
-until a real native PS5 MesenCE core has been linked and tested.
+The native PS5 core and frontend are compiled into a signed SELF, but actual PS5 compatibility requires testing.
 
 ## Upstreams
 
@@ -23,10 +22,10 @@ Zelda: Remastered is an **NES** HD pack, not an SNES ROM. MesenCE already
 has `Core/NES/HdPacks/HdPackLoader.cpp`, `HdNesPpu`, high-resolution video
 and HD audio facilities, but these are **not yet wired to the PS5 frontend**.
 
-Target PS5 paths (planned, not yet active):
+PS5 paths (v0.1.1):
 
 ```text
-/data/PS5MesenX/games/nes/The Legend of Zelda.nes
+/data/PS5NES/games/The Legend of Zelda.nes
 /data/PS5MesenX/HdPacks/The Legend of Zelda/hires.txt
 /data/PS5MesenX/HdPacks/The Legend of Zelda/<graphics-and-audio-assets>
 /mnt/usb0/PS5MesenX/games/nes/
@@ -54,11 +53,14 @@ game art or third-party HD packs are bundled.
 
 1. [x] Define isolated project and pinned upstream source-import workflow.
 2. [x] Provide safe HD pack staging and automated tests.
-3. [ ] Compile the MesenCE native C++ core for PS5 using the SDK.
-4. [ ] Implement the MesenCE-to-PS5 session adapter, callbacks and storage.
+3. [x] Compile the MesenCE native C++ core for PS5 using the SDK.
+4. [x] Implement the MesenCE-to-PS5 session adapter, callbacks and storage.
 5. [ ] Wire video frames above 512x576, OGG audio, DualSense and SRAM/states.
 6. [ ] Load verified NES HD packs on an actual PS5.
-7. [ ] Produce signed app ZIP, release and TESTBUILDS version.json entry.
+7. [x] Produce signed app ZIP, release and TESTBUILDS version.json entry.
 
 Read [PORTING.md](PORTING.md) before changing the emulation backend.
 \n## Native adapter development (October 2026)\n\n`src/core_session.{h,cpp}` implements an **experimental** native C++ MesenCE\nbridge with NES ROM staging, HD pack lookup, HD-safe video frame buffering,\n48 kHz stereo capture, controller input and Mesen-native save states. It is\nnot yet included in a PS5 `eboot.bin`. The `Verify PS5MesenX native bridge`\nworkflow compiles its interface on a Linux host and checks upstream MesenCE\nbuildability; passing Linux tests does not verify PS5 compilation or playback.\n\nA separate native PS5 packaging workflow and hardware verification are the\nnext gates before any app should appear in `version.json`.\n
+## Shared ROM library (v0.1.1)
+
+PS5MesenX scans `/data/PS5NES/games` as its **primary NES ROM directory** and creates it at startup if missing. Game files must be `.nes`. Existing saves, settings, covers, logs, ROM cache and HD packs remain isolated in `/data/PS5MesenX`, and the original PS5SNESX repository is not modified.

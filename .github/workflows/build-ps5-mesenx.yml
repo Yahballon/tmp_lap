@@ -11,6 +11,7 @@ on:
       - 'homebrew/ps5-mesenx/src/libretro_core_session.cpp'
       - 'homebrew/ps5-mesenx/src/libretro_core_session.h'
       - 'homebrew/ps5-mesenx/RELEASE_NOTES.md'
+      - 'homebrew/ps5-mesenx/app.json'
       - '.github/workflows/build-ps5-mesenx.yml'
   pull_request:
     paths:
@@ -81,16 +82,9 @@ jobs:
       - name: Upload verified signed native PS5 app
         uses: actions/upload-artifact@v4
         with:
-          name: PS5MesenX-v0.1.0-PPSA99896
+          name: PS5MesenX-v0.1.1-PPSA99896
           path: homebrew/ps5-mesenx/dist/PPSA99896.zip
           if-no-files-found: error
-      - name: Release only after native linker and SELF package verification
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if gh release view ps5-mesenx-v0.1.0 -R "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "Verified v0.1.0 already released"
-            exit 0
-          fi
-          gh release create ps5-mesenx-v0.1.0 homebrew/ps5-mesenx/dist/PPSA99896.zip             --repo "${{ github.repository }}" --target "${{ github.sha }}"             --title 'PS5MesenX v0.1.0 — Experimental PS5 HD NES'             --notes-file homebrew/ps5-mesenx/RELEASE_NOTES.md
+      # A separate workflow_run publisher releases this *verified* artifact.
+      # Keeping publishing outside the native build avoids the GITHUB_TOKEN
+      # release-permission failure marking a valid compile as failed.

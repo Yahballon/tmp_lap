@@ -1,66 +1,100 @@
 name: Publish PS5MesenX TESTBUILD
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/publish-ps5-mesenx.yml'
+    inputs:
+      run_id:
+        description: Successful PS5MesenX build run to publish
+        required: true
+        type: string
+  workflow_run:
+    workflows:
+      - Build PS5MesenX (native MesenCE)
+    types: [completed]
 
 permissions:
   actions: read
   contents: write
 
 concurrency:
-  group: publish-ps5-mesenx-v0.1.0
+  group: publish-ps5-mesenx
   cancel-in-progress: false
 
 jobs:
   publish:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch proven signed PS5MesenX build artifact (no rebuild)
-        uses: actions/download-artifact@v4
         with:
-          name: PS5MesenX-v0.1.0-PPSA99896
-          run-id: 38825183737
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: dist
-      - name: Verify signed native PS5 installation ZIP
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import zipfile,hashlib,struct,json
-          f=Path('dist/PPSA99896.zip')
-          assert f.is_file() and f.stat().st_size>1_000_000, 'Native PS5 package missing'
-          with zipfile.ZipFile(f) as z:
-              assert z.testzip() is None, 'Corrupt ZIP'
-              assert 'PPSA99896/sce_sys/param.json' in z.namelist()
-              assert 'PPSA99896/sce_module/libc.prx' in z.namelist()
-              p=json.loads(z.read('PPSA99896/sce_sys/param.json'))
-              assert p['titleId']=='PPSA99896'
-              eboot=z.read('PPSA99896/eboot.bin')
-              assert len(eboot)>10_000_000
-              assert eboot[:4]==struct.pack('<I',0x1D3D154F)
-              assert hashlib.sha256(eboot).hexdigest()=='820f9a685b7979d7af84ec69c3320cbb292670eb31c00bb9e3336991e742ee59'
-          print('Verified signed PS5MesenX v0.1.0 package',f.stat().st_size,'bytes')
-          PY
-      - name: Publish official GitHub Release for TESTBUILD manifest
+          ref: main
+      - name: Validate source run and release metadata
+        id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_RUN: ${{ github.event.workflow_run.id || inputs.run_id }}
         run: |
-          TAG=ps5-mesenx-v0.1.0
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          app=json.loads(Path('homebrew/ps5-mesenx/app.json').read_text())
+          assert app['titleId']=='PPSA99896'
+          assert app['version']=='0.1.1'
+          assert app['internalGameDirectory']=='/data/PS5NES/games'
+          assert app['releaseTag']==f"ps5-mesenx-v{app['version']}"
+          rid=os.environ['REQUESTED_RUN']
+          assert re.fullmatch(r'[0-9]+',rid)
+          run=json.loads(subprocess.check_output([
+              'gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{rid}"]))
+          assert run['name']=='Build PS5MesenX (native MesenCE)'
+          assert run['conclusion']=='success' and run['head_branch']=='main'
+          artifacts=json.loads(subprocess.check_output([
+              'gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{rid}/artifacts"]))
+          label=f"PS5MesenX-v{app['version']}-PPSA99896"
+          assert any(a['name']==label and not a['expired']
+                     for a in artifacts['artifacts']),"Verified artifact missing"
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write(f"version={app['version']}\n")
+              f.write(f"tag={app['releaseTag']}\n")
+              f.write(f"run_id={rid}\n")
+          print("Publishing verified build",rid,label)
+          PY
+      - name: Download original signed PS5 title
+        uses: actions/download-artifact@v4
+        with:
+          name: PS5MesenX-v${{ steps.version.outputs.version }}-PPSA99896
+          run-id: ${{ steps.version.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+      - name: Verify ZIP, PS5 SELF and unique app version
+        run: |
+          python3 - <<'PY'
+          import zipfile,json,struct,hashlib
+          from pathlib import Path
+          zpath=Path('dist/PPSA99896.zip')
+          assert zpath.is_file() and zpath.stat().st_size>1_000_000
+          with zipfile.ZipFile(zpath) as z:
+              assert z.testzip() is None
+              assert 'PPSA99896/eboot.bin' in z.namelist()
+              assert 'PPSA99896/sce_module/libc.prx' in z.namelist()
+              m=json.loads(z.read('PPSA99896/sce_sys/param.json'))
+              assert m['titleId']=='PPSA99896'
+              assert m['contentVersion']=='01.000.002'
+              e=z.read('PPSA99896/eboot.bin')
+              assert len(e)>10_000_000 and e[:4]==struct.pack('<I',0x1D3D154F)
+          print('Verified PS5 signed release',zpath.stat().st_size,
+                hashlib.sha256(zpath.read_bytes()).hexdigest())
+          PY
+      - name: Publish new version without touching v0.1.0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release exists; validating asset"
             gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
               --jq '.assets[].name' | grep -Fxq PPSA99896.zip
             exit 0
           fi
-          # Important: target the current DEFAULT branch. GITHUB_TOKEN cannot
-          # create a release targeting an older commit that changes workflows.
           gh release create "$TAG" dist/PPSA99896.zip \
             --repo "$GITHUB_REPOSITORY" --target main \
-            --title 'PS5MesenX v0.1.0 - Experimental PS5 HD NES' \
+            --title 'PS5MesenX v0.1.1 - Shared NES ROM directory' \
             --notes-file homebrew/ps5-mesenx/RELEASE_NOTES.md
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
-            --jq '.assets[].name' | grep -Fxq PPSA99896.zip

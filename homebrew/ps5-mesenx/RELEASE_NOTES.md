@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.0 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.1 — Experimental PS5 NES HD Emulator
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -11,9 +11,11 @@ packs. These are intended behaviors, not guarantees of console compatibility.
 
 **Install folder:** `/data/homebrew/PS5MesenX/` (from `PPSA99896.zip`).
 **Title ID:** `PPSA99896`. Copy the full directory and keep its `sce_module`.
-**ROMs:** `/data/PS5MesenX/games/*.nes` or
+**ROMs:** `/data/PS5NES/games/*.nes` (shared NES library) or
 `/mnt/usb0/PS5MesenX/games/*.nes`. Only uncompressed NES ROMs are enabled
 in this first test (ZIP disabled; NFS disabled).
+**Saves, covers, settings, logs and HD packs stay separate under** `/data/PS5MesenX/`.
+
 **HD packs:** `/data/PS5MesenX/HdPacks/<ROM filename without .nes>/hires.txt`.
 HD pack assets must meet the pack author's ROM hash/revision requirements.
 

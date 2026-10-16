@@ -76,6 +76,24 @@ def generate():
     replace_required(main, 'PS5SNES', TITLE)
     replace_required(main, 'PPSA99205', TITLE_ID)
     replace_required(main, '"/SNES"', '"/NES"')
+    # Share ONLY the ROM library with PS5NES. Keep saves, cover cache,
+    # HD packs and logs in /data/PS5MesenX to avoid clobbering other apps.
+    replace_required(main, 'paths.games_dir=root+"/games";',
+                     'paths.games_dir="/data/PS5NES/games";')
+    replace_required(main,
+                     '    OrbisFrontendPaths paths;paths.top_dir=root;',
+                     '''    // A shared ROM directory must exist even when PS5NES is not installed.
+    if (mkdir("/data/PS5NES",0777)!=0 && errno!=EEXIST)
+        std::printf("[games] could not create /data/PS5NES (errno=%d)\\n",errno);
+    if (mkdir("/data/PS5NES/games",0777)!=0 && errno!=EEXIST)
+        std::printf("[games] could not create /data/PS5NES/games (errno=%d)\\n",errno);
+    std::printf("[games] shared NES ROM directory: /data/PS5NES/games\\n");
+    OrbisFrontendPaths paths;paths.top_dir=root;''')
+    # Also replace the old games folder in the supplemental scan list,
+    # or the frontend could show duplicate ROM entries.
+    replace_required(main, '"/data/PS5MesenX/games","/data/PS5MesenX/roms"',
+                     '"/data/PS5NES/games","/data/PS5MesenX/roms"')
+
     replace_required(main, 'for(const char* dir:{"games","saves","settings","covers","cache","logs"})',
                     'for(const char* dir:{"games","saves","settings","covers","cache","logs","HdPacks","SaveStates","Saves"})')
 
@@ -92,12 +110,17 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.001"
+    param["contentVersion"] = "01.000.002"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
             raise RuntimeError(f"Legacy SNES app or core identifier in {file}")
     assert "NES\\x1A" in rom.read_text()
+    # Fail the build early if the shared NES path is not actually wired.
+    compiled_main=main.read_text()
+    assert 'paths.games_dir="/data/PS5NES/games";' in compiled_main
+    assert 'mkdir("/data/PS5NES/games",0777)' in compiled_main
+    assert '"/data/PS5MesenX/games"' not in compiled_main
     print("Prepared PS5MesenX source under", OUTPUT)
     print("NOTE: Core build/link not implemented in this preparation script.")
 
