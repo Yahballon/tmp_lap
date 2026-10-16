@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.3 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.4 — Experimental PS5 NES HD Emulator
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -32,13 +32,19 @@ and `PPSA99896.zip` passes integrity and content checks.
 Credits: MesenCE/MesenCE-Libretro, PS5SNESX, original PS5SX2 frontend,
 public PS5 Payload SDK and Vulkan contributors. GPL-3.0 sources and notices.
 
-### v0.1.3 fixes
+### v0.1.4 fixes
 
 - Scans `/data/PS5NES/games` and `/data/homebrew/PPSA99896/roms`.
 - Accepts `.nes` and `.zip` files containing exactly one valid NES ROM.
 - Uses a NES-only library cache rather than the old SNES extension validator.
 - Writes directory visibility, scan sources, ROM counts and permission errors to boot.log.
 
-### v0.1.3 scanner fix
+### v0.1.4 scanner fix
 
 Fixed PS5 filesystem metadata compatibility: try stat and fstatat, then dirent d_type fallback for NES games visible to PS5NES. Log every discovered NES file. Saves and ROMs are untouched.
+
+### v0.1.4: PS5NESX proven scanner integration
+- Reused PS5NESX filesystem ROM scanning with DT_REG/DT_UNKNOWN and descriptor metadata fallbacks
+- Direct ROM header checks when path metadata is denied
+- Bounded stream reads without requiring fstat to work
+- Retains shared /data/PS5NES/games and /data/homebrew/PPSA99896/roms

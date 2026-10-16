@@ -52,29 +52,25 @@ def generate():
     }
 '''
     rom.write_text(before[:first] + after + before[last:])
-    # PS5 libc can reject lstat() even when opendir/readdir works for a
-    # regular ROM. Use stat() as primary, and fstatat() as a fallback.
-    # For filesystem variants without working metadata calls, d_type
-    # tells us whether an entry is a regular file or directory.
-    replace_required(rom, '''        if(lstat(child.c_str(),&info)!=0)continue;
-        if(S_ISDIR(info.st_mode))Walk(child,depth+1,games);
-        else if(S_ISREG(info.st_mode)&&GameName(entry->d_name))Add(games,child,entry->d_name,info.st_size);''',
-    '''        bool is_dir=false,is_file=false;
-        bool metadata=(stat(child.c_str(),&info)==0);
-        if(!metadata)metadata=(fstatat(dirfd(dir),entry->d_name,&info,0)==0);
-        if(metadata){is_dir=S_ISDIR(info.st_mode);is_file=S_ISREG(info.st_mode);}
-        else {
-            is_dir=entry->d_type==DT_DIR;
-            is_file=entry->d_type==DT_REG || (entry->d_type==DT_UNKNOWN&&GameName(entry->d_name));
-            if(GameName(entry->d_name))
-                std::printf("[romscan] stat fallback %s errno=%d d_type=%u\\n",
-                            child.c_str(),errno,unsigned(entry->d_type));
-        }
-        if(is_dir)Walk(child,depth+1,games);
-        else if(is_file&&GameName(entry->d_name)){
-            Add(games,child,entry->d_name,metadata?info.st_size:0);
-            std::printf("[romscan] NES discovered %s\\n",child.c_str());
-        }''')
+    # Reuse the battle-tested PS5NESX local file scanning and loading paths.
+    # They support DT_REG, DT_UNKNOWN, fd/fstat and readable NES headers when
+    # Sony PS5 mounts reject path metadata syscalls.
+    reference = ROOT / "vendor/ps5nesx_games_reference.cpp"
+    expected = reference.read_text()
+    first = expected.index('    DIR* dir=opendir(path.c_str());')
+    last = expected.index('\\n}\\nstd::vector<Game> Scan(', first)
+    working_scan = expected[first:last]
+    first = expected.index('    } else {\\n        const int fd=open(path.c_str(),O_RDONLY);', expected.index('bool ReadRom('))
+    last = expected.index('\\n    if(path.size()>4&&Lower(', first)
+    working_load = expected[first:last]
+    original = rom.read_text()
+    start = original.index('    DIR* dir=opendir(path.c_str());')
+    end = original.index('\\n}\\nstd::vector<Game> Scan(', start)
+    original = original[:start] + working_scan + original[end:]
+    start = original.index('    } else {\\n        const int fd=open(path.c_str(),O_RDONLY);', original.index('bool ReadRom('))
+    end = original.index('\\n    if(path.size()>4&&Lower(', start)
+    original = original[:start] + working_load + original[end:]
+    rom.write_text(original)
     # Diagnostics for missing folders, permissions and unexpected extensions.
     replace_required(rom, 'DIR* dir=opendir(path.c_str());if(!dir){if(errno!=ENOENT)std::printf("[library] cannot open %s: errno=%d (%s)\\n",path.c_str(),errno,std::strerror(errno));return;}',
                      'DIR* dir=opendir(path.c_str());if(!dir){std::printf("[library] cannot open %s: errno=%d (%s)\\n",path.c_str(),errno,std::strerror(errno));return;}')
@@ -177,7 +173,7 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.004"
+    param["contentVersion"] = "01.000.005"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
@@ -194,7 +190,8 @@ def generate():
     assert 'extension!=".zip"&&extension!=".nes"' in cache.read_text()
     assert 'PS5MXN01\\0' in cache.read_text()
     assert 'NES discovered' in rom.read_text()
-    assert 'fstatat(dirfd(dir)' in rom.read_text()
+    assert 'readable_header' in rom.read_text()
+    assert 'ROM metadata unavailable; bounded stream read' in rom.read_text()
     print("Prepared PS5MesenX source under", OUTPUT)
     print("NOTE: Core build/link not implemented in this preparation script.")
 
