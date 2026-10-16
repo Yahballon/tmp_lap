@@ -2,6 +2,7 @@
 // ThemeChanger presentation/controller for Marice's GPL Signal Companion backend.
 #include "signal_panel.hpp"
 #include <algorithm>
+#include "theme_log.hpp"
 namespace companion {
 using namespace hui::signal;
 namespace {
@@ -19,12 +20,14 @@ void Panel::tick(float dt,bool visible){
  if(!visible&&preview_){preview_=false;previewDirty_=false;if(online())send(Call::stop);}
  if(!loaded_){
   palette_=load_palette();autoload_=autoload_state();loaded_=true;
+  tc::log("SIGNAL_SESSION","LED diagnostics enabled; log=/data/ThemeChanger/signal.log");
  }
  link_->update(dt);
  if(visible&&!attemptedStart_&&link_->state()==LinkState::offline){attemptedStart_=true;start();}
 
  if(link_->config_serial()!=configSeen_){
   configSeen_=link_->config_serial();
+  tc::log("SIGNAL_CONFIG",("hold="+std::to_string(link_->config().hold)+" held="+channels(link_->config().held)+" beeps="+std::to_string(link_->config().beeps.size())+" lights="+std::to_string(link_->config().leds.size())).c_str());
   if(!startupDirty_){draft_.beeps=link_->config().beeps;draft_.leds=link_->config().leds;}
   if(!mixDirty_)mix_=link_->config().hold?link_->config().held:Mix{255,0,0};
  }
@@ -53,7 +56,7 @@ void Panel::tick(float dt,bool visible){
  }
 }
 void Panel::send(Call call,std::string body){
- if(!online()){message_="Start ps5-signal on the Status tab first";return;}
+ if(!online()){tc::log("SIGNAL_BLOCKED",("call="+std::to_string((int)call)+" offline desired="+channels(mix_)).c_str());message_="Start ps5-signal on the Status tab first";return;}
  link_->service().send(call,std::move(body));message_="Sending...";
 }
 void Panel::save(bool startup,bool system){
@@ -75,6 +78,7 @@ void Panel::edit(int direction){
    *value=std::clamp(*value+direction*5,0,255);mixDirty_=true;previewDirty_=true;preview_=true;
   }else if(row_==6){preset_=(preset_+direction+7)%7;mix_=presets[preset_];mixDirty_=true;previewDirty_=true;preview_=true;}
   else if(row_==7)slot_=(slot_+direction+kPaletteSlots)%kPaletteSlots;
+  tc::log("SIGNAL_COLOUR_EDIT",("row="+std::to_string(row_)+" blue/white/amber="+channels(mix_)+" preview="+std::to_string(preview_)+" online="+std::to_string(online())).c_str());
  }else if(tab_==2){
   if(row_>=(int)(lights_?draft_.leds.size():draft_.beeps.size()))return;
   Config candidate=draft_;

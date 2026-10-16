@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "signal/service.hpp"
+#include "signal/diagnostics.hpp"
+#include "fake_signal.hpp"
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -14,6 +16,14 @@ int listener(int& port){
  socklen_t len=sizeof(addr);assert(getsockname(fd,(sockaddr*)&addr,&len)==0);port=ntohs(addr.sin_port);return fd;
 }
 int main(){
+ const auto body=hui::testing::FakeSignal::status_json(true,{12,34,56});
+ assert(hui::signal::colour_diagnostic("{\"blue\":12,\"white\":34,\"amber\":56}",{200,body}).find("reported_values_match")!=std::string::npos);
+ assert(hui::signal::colour_diagnostic("{\"blue\":255,\"white\":0,\"amber\":0}",{200,body}).find("reported_values_differ")!=std::string::npos);
+ assert(hui::signal::colour_diagnostic("{}",{-1,{}}).find("readback_failed")!=std::string::npos);
+ auto unavailable=body;const auto at=unavailable.find("\"color\":{\"available\":true");assert(at!=std::string::npos);
+ unavailable.replace(at,25,"\"color\":{\"available\":false");
+ assert(hui::signal::colour_diagnostic("{}",{200,unavailable}).find("colour_control_unavailable")!=std::string::npos);
+
  int port;int server=listener(port);
  std::thread http([&]{
   const char* codes[]={"200 OK","202 Accepted","400 Bad Request"};

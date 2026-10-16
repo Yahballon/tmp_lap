@@ -5,6 +5,7 @@
 
 #include "core/save_file.hpp"
 #include "theme_log.hpp"
+#include "signal/diagnostics.hpp"
 #include <cerrno>
 
 #include <arpa/inet.h>
@@ -249,6 +250,7 @@ void *Service::thread_main(void *self)
 
 void Service::run()
 {
+    unsigned requestId=0;
     std::unique_lock<std::mutex> lock(mutex_);
     while (true)
     {
@@ -263,10 +265,18 @@ void Service::run()
         lock.unlock();
 
         const Endpoint &endpoint = kEndpoints[index(call)];
+        const auto id=++requestId;
+        tc::log("SIGNAL_REQUEST",("id="+std::to_string(id)+" "+endpoint.method+" "+endpoint.path+
+          (call==Call::launch?" payload_bytes="+std::to_string(body.size()):" body="+body.substr(0,8192))).c_str());
         Reply reply = call == Call::launch ? transport_->push(kLoaderPort, body)
                                            : transport_->send(endpoint.method, endpoint.path, body);
 
-        tc::log("SIGNAL_HTTP",(std::string(endpoint.method)+" "+endpoint.path+" status="+std::to_string(reply.status)+" "+reply.body.substr(0,300)).c_str());
+        tc::log("SIGNAL_HTTP",("id="+std::to_string(id)+" "+std::string(endpoint.method)+" "+endpoint.path+" status="+std::to_string(reply.status)+" "+reply.body.substr(0,8192)).c_str());
+        if(call==Call::color&&reply.status>=200&&reply.status<300){
+          // Read back on the same worker before the next colour command can run.
+          const auto actual=transport_->send("GET","/status",{});
+          tc::log("SIGNAL_LED_RESULT",("id="+std::to_string(id)+" "+colour_diagnostic(body,actual)).c_str());
+        }
         lock.lock();
         Outcome &outcome = outcomes_[index(call)];
         outcome.reply = std::move(reply);
