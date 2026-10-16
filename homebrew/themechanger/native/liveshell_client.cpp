@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bridge to ZiZc3/LiveShell v1.0.  LiveShell and this app are GPL-3.0 licensed.
+// Bridge to ZiZc3/LiveShell v1.1.  LiveShell and this app are GPL-3.0 licensed.
 #include "liveshell_client.hpp"
 #include "theme_log.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -17,9 +18,9 @@ const char* const kNames[kCount]={"Baseball","Anime","Gaming","Cyber City","Raci
 namespace {
 const char* const kFiles[kCount]={"baseball","anime","gaming","cyber-city","racing","space","samurai","retro-neon","mountains","forest","beach","snow"};
 bool ensure_dir(const std::string& path){return mkdir(path.c_str(),0755)==0||errno==EEXIST;}
-std::string http_get(const std::string& route){
+std::string http_get(const std::string& route,int timeout_seconds=3){
  int fd=socket(AF_INET,SOCK_STREAM,0);if(fd<0)return {};
- timeval tv{};tv.tv_sec=2;setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
+ timeval tv{};tv.tv_sec=timeout_seconds;setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
  setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
  sockaddr_in addr{};addr.sin_family=AF_INET;addr.sin_port=htons(9050);addr.sin_addr.s_addr=htonl(0x7f000001);
  if(connect(fd,reinterpret_cast<sockaddr*>(&addr),sizeof(addr))!=0){close(fd);return {};}
@@ -64,30 +65,106 @@ int find_index(const std::string& json,const std::string& name){
  }
  return -1;
 }
+
+// The LiveShell REST JSON has stable flat fields; parse only the known keys.
+std::string json_field(const std::string& json,const std::string& key){
+ const auto at=json.find("\""+key+"\":");
+ if(at==std::string::npos)return {};
+ auto pos=at+key.size()+3;
+ if(pos>=json.size())return {};
+ if(json[pos]!='"'){
+  const auto end=json.find_first_of(",}",pos);
+  return json.substr(pos,end==std::string::npos?std::string::npos:end-pos);
+ }
+ ++pos;
+ std::string value;
+ while(pos<json.size()){
+  const char ch=json[pos++];
+  if(ch=='"')break;
+  if(ch=='\\'&&pos<json.size()){value.push_back(json[pos++]);continue;}
+  value.push_back(ch);
+ }
+ return value;
+}
+bool field_bool(const std::string& json,const std::string& key,bool fallback=false){
+ const std::string s=json_field(json,key);
+ return s.empty()?fallback:s=="true";
+}
+std::string display_file(const std::string& path){
+ const auto slash=path.find_last_of('/');
+ return slash==std::string::npos?path:path.substr(slash+1);
+}
+PlaybackState decode_playback(const std::string& json){
+ PlaybackState out;
+ if(json.empty())return out;
+ out.connected=true;
+ out.enabled=field_bool(json,"enabled");
+ out.mainVideo=field_bool(json,"mainvideo",true);
+ out.gamePause=field_bool(json,"gamepause",false);
+ out.file=display_file(json_field(json,"current"));
+ out.shellStatus=json_field(json,"status");
+ out.game=json_field(json,"game");
+ return out;
+}
+std::string summary(const PlaybackState& p){
+ return std::string("selected=")+p.file+" shellui="+p.shellStatus+
+  " enabled="+(p.enabled?"1":"0")+" mainvideo="+(p.mainVideo?"1":"0")+
+  " gamepause="+(p.gamePause?"1":"0")+" game="+p.game;
+}
+std::mutex g_select_lock;
+bool select_clip(const std::string& filename,std::string& result){
+ std::lock_guard<std::mutex> guard(g_select_lock);
+ const auto state=http_get("/api/state");
+ if(state.empty()){result="LiveShell offline, clip saved";tc::log("SELECT_OFFLINE",filename.c_str());return false;}
+ const int idx=find_index(state,filename);
+ if(idx<0){result="Video not yet listed by LiveShell";tc::log("SELECT_NOT_FOUND",filename.c_str());return false;}
+ // Selecting a global wallpaper must also enable the global video option.
+ // v1.0 has no mainvideo setting; v1.1 supports this.
+ if(json_field(state,"mainvideo")=="false"){
+   const auto setting=http_get("/api/set?k=mainvideo&v=1",12);
+   tc::log("MAINVIDEO_ENABLE",setting.c_str());
+   if(setting.find("\"ok\":true")==std::string::npos){
+      result="Unable to enable main background in LiveShell";return false;
+   }
+ }
+ tc::log("SELECT_REQUEST",(filename+" index="+std::to_string(idx)).c_str());
+ // LiveShell can take >8s waiting for ShellUI to release the previous video.
+ // Original 2s socket timeout truncated slow selections.
+ const auto response=http_get("/api/select?i="+std::to_string(idx),20);
+ tc::log("SELECT_RESPONSE",(filename+" "+response).c_str());
+ if(response.find("\"ok\":true")==std::string::npos){
+   result=response.empty()?"LiveShell timed out after 20s":"LiveShell rejected video: "+response.substr(0,110);
+   tc::log("SELECT_FAILURE",result.c_str());return false;
+ }
+ const auto after=decode_playback(http_get("/api/state",4));
+ tc::log("PLAYBACK_STATE",summary(after).c_str());
+ if(!after.connected||after.file!=filename||!after.enabled){
+   result="LiveShell did not confirm selected wallpaper";
+   tc::log("SELECT_UNCONFIRMED",result.c_str());return false;
+ }
+ if(!after.mainVideo){
+   result="Selected, but Main Video is disabled in LiveShell";
+ }else if(!after.game.empty()&&after.gamePause){
+   result="Selected. Return to PS5 Home (paused while game runs)";
+ }else if(after.shellStatus.rfind("playing",0)==0){
+   result="Selected; ShellUI reports playing";
+ }else{
+   result="Selected; ShellUI: "+(after.shellStatus.empty()?std::string("not reporting"):after.shellStatus.substr(0,70));
+ }
+ tc::log("SELECT_CONFIRMED",result.c_str());
+ return true;
+}
 }
 std::string theme_file(int index){
  if(index<0||index>=kCount)return {};
  return std::string("ThemeChanger-")+kFiles[index]+".mp4";
 }
-bool probe(){return !http_get("/api/state").empty();}
-std::string current_file(){
- const std::string state=http_get("/api/state");
- const auto key=state.find("\"current\":\"");
- if(key==std::string::npos)return {};
- const auto first=key+11;
- const auto end=state.find('"',first);
- if(end==std::string::npos)return {};
- const std::string full=state.substr(first,end-first);
- const auto slash=full.find_last_of('/');
- return slash==std::string::npos?full:full.substr(slash+1);
-}
+PlaybackState playback_state(){return decode_playback(http_get("/api/state"));}
+bool probe(){return playback_state().connected;}
+std::string current_file(){return playback_state().file;}
 int current_theme(){
- const auto state=http_get("/api/state");const auto key=state.find("\"current\":\"");
- if(key==std::string::npos)return -1;
- const auto last=state.find('"',key+11);
- if(last==std::string::npos)return -1;
- const auto selected=state.substr(key+11,last-key-11);
- for(int i=0;i<kCount;i++)if(selected.find(theme_file(i))!=std::string::npos)return i;
+ const std::string selected=current_file();
+ for(int i=0;i<kCount;i++)if(selected==theme_file(i))return i;
  return -1;
 }
 bool install_and_select(int index,const std::string& assets,std::string& result){
@@ -98,28 +175,18 @@ bool install_and_select(int index,const std::string& assets,std::string& result)
  if(stat(output.c_str(),&st)!=0||st.st_size<1024){
    if(!copy_clip(assets+"/wallpapers/"+filename,output,result))return false;
  }
- std::string state=http_get("/api/state");
- if(state.empty()){result="Wallpaper installed. Start LiveShell payload, then press X again.";return false;}
- int found=find_index(state,filename);
- if(found<0){result="Wallpaper copied. Restart LiveShell to refresh its library.";return false;}
- const auto reply=http_get("/api/select?i="+std::to_string(found));
- if(reply.find("\"ok\":true")==std::string::npos){result="LiveShell rejected wallpaper selection";return false;}
- save_selected(index);result=std::string(kNames[index])+" applied by LiveShell";tc::log("APPLY_BUILTIN",filename.c_str());return true;
+ const bool ok=select_clip(filename,result);
+ if(ok){save_selected(index);tc::log("SELECT_BUILTIN",filename.c_str());}
+ return ok;
 }
 bool activate_file(const std::string& filename,std::string& result){
  if(filename.empty()||filename.size()>120||filename.find('/')!=std::string::npos||
    filename.find('\\')!=std::string::npos||filename.find("..")!=std::string::npos){
    result="Invalid wallpaper filename";return false;
  }
- const auto state=http_get("/api/state");
- if(state.empty()){result="LiveShell offline; wallpaper saved";return false;}
- int idx=find_index(state,filename);
- if(idx<0){result="LiveShell did not list the new MP4 yet";return false;}
- const auto reply=http_get("/api/select?i="+std::to_string(idx));
- if(reply.find("\"ok\":true")==std::string::npos){
-   result="LiveShell could not activate this video";return false;
- }
- result="Wallpaper applied";tc::log("APPLY_ONLINE",filename.c_str());return true;
+ const bool ok=select_clip(filename,result);
+ if(ok)tc::log("SELECT_ONLINE",filename.c_str());
+ return ok;
 }
 bool send_setting(const std::string& route,std::string& result){
  if(route.empty()||route[0]!='/'||route.find("..")!=std::string::npos){result="Invalid API route";return false;}
