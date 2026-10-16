@@ -1,4 +1,4 @@
-# PS5MesenX v0.1.8 — Experimental PS5 NES HD Emulator
+# PS5MesenX v0.1.9 — Experimental PS5 NES HD Emulator
 
 First **native PS5 port experiment** using MesenCE Libretro (based on Mesen
 Community Edition) and the PS5SNESX-derived Vulkan game shelf. This version
@@ -59,15 +59,21 @@ Fixed PS5 filesystem metadata compatibility: try stat and fstatat, then dirent d
 - Log DIR_OPEN, DIR_FAIL (errno), DIR_ENTRY and DIR_DONE per directory
 - Distinguish unavailable USB folders from the primary shared NES ROM path
 
-### v0.1.8: Real filesystem permission fix
+### v0.1.9: Real filesystem permission fix
 - Console reported ELEVATION filesystem=5 (unavailable), with EPERM opening NES ROM directories
 - Restored the original PS5NESX title-bound one-request Lapy helper using the pinned upstream builder and SDK
 - Includes verified lapy.elf, lapy-manifest.json and Lapy-MIT.txt license in installation ZIP
 - Displays filesystem permission errors instead of misleading 0-game success if elevation remains unavailable
 - Logs elevation status plus selected resident/helper path; no ROMs are modified
 
-### v0.1.8 Video output compatibility
+### v0.1.9 Video output compatibility
 - MesenCE decoded-frame fallback if the headless renderer fails to publish the video frame.
 - Disable video frame duplication to ensure real frames arrive at the PS5 host.
 - Enable MesenCE FrameProbe and log VIDEO_CALLBACK, VIDEO_NULL_FRAME, and VIDEO_STATUS to boot.log.
 - Audio and ROM scanner remain unchanged.
+
+### v0.1.9 – Black-screen rendering pipeline
+- Added separate PS5 Vulkan RGBA NES video shader, independent from the SDF text/shape UI shader
+- Recompiled embedded SPIR-V shaders from updated source during every build
+- Logged VIDEO_COLOR stats to distinguish all-black MesenCE frames from GPU texture sampling problems
+- Removed inapplicable SNES special-chip option (LLE/HLE); enabled NES HD pack toggle

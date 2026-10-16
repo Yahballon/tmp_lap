@@ -6,6 +6,7 @@ Only source preparation: does NOT produce a signed PS5 executable.
 from pathlib import Path
 import json
 import shutil
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ORIGINAL = ROOT / "upstream/PS5SNESX"
@@ -142,7 +143,7 @@ def generate():
     assert 'fonts.AddText(ui,"SNES",' in loading_src
     assert 'v2 modded by YAHBALLON' in loading_src
     loading_src=loading_src.replace('fonts.AddText(ui,"SNES",','fonts.AddText(ui,"MesenX",')
-    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.8 by YAHBALLON')
+    loading_src=loading_src.replace('v2 modded by YAHBALLON','v0.1.9 by YAHBALLON')
     # Do not claim the games are ready while the console denies /data access.
     loading_src=loading_src.replace('#include <cmath>',
         '#include <cmath>' + chr(10) + '#include <dirent.h>' + chr(10) + '#include <cerrno>')
@@ -159,12 +160,58 @@ def generate():
     fonts.AddText(ui,location.c_str(),''')
     loading.write_text(loading_src)
 
+    # Dedicated game-image shader: the generic signed-distance-field UI
+    # shader uses dynamic branches that are unreliable for RGBA video textures
+    # on the PS5 shader backend. Fonts still use their original R8 shader.
+    shader = OUTPUT / "ps5/frontend/shaders/game.frag"
+    shutil.copy2(ROOT / "vendor/mesen_game.frag", shader)
+    renderer = OUTPUT / "ps5/frontend/fe_renderer.cpp"
+    renderer_h = OUTPUT / "ps5/frontend/fe_renderer.h"
+    replace_required(renderer_h, 'uint32_t width = 0, height = 0;',
+        'uint32_t width = 0, height = 0;' + chr(10) +
+        '    VkFormat format = VK_FORMAT_UNDEFINED;')
+    replace_required(renderer_h, 'VkPipeline m_ui = VK_NULL_HANDLE;',
+        'VkPipeline m_ui = VK_NULL_HANDLE;' + chr(10) +
+        '    VkPipeline m_game_ui = VK_NULL_HANDLE;')
+    replace_required(renderer,
+        'const PipelineDesc ui = {fe_spv_ui_vert, sizeof(fe_spv_ui_vert), fe_spv_ui_frag, sizeof(fe_spv_ui_frag),',
+        'const PipelineDesc game_ui = {fe_spv_ui_vert, sizeof(fe_spv_ui_vert), fe_spv_game_frag, sizeof(fe_spv_game_frag),' +
+        chr(10) + '        &ui_binding, 1, ui_attrs, 4, PipelineDesc::Alpha, false, false, m_final_pass};' + chr(10) +
+        '    const PipelineDesc ui = {fe_spv_ui_vert, sizeof(fe_spv_ui_vert), fe_spv_ui_frag, sizeof(fe_spv_ui_frag),')
+    replace_required(renderer, 'make(post, m_post) && make(ui, m_ui);',
+        'make(post, m_post) && make(ui, m_ui) && make(game_ui, m_game_ui);')
+    replace_required(renderer, 'Texture* t = new Texture();',
+        'Texture* t = new Texture();' + chr(10) + '    t->format = format;')
+    replace_required(renderer,
+        'm_vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ui);',
+        '''// RGBA game video bypasses the SDF/text branch entirely.
+            const bool is_game = m_atlas && m_atlas->format == VK_FORMAT_R8G8B8A8_UNORM;
+            m_vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                is_game ? m_game_ui : m_ui);''')
+    replace_required(renderer, '&m_post, &m_ui})','&m_post, &m_ui, &m_game_ui})')
+    # Always regenerate SPIR-V after installing game.frag. The pinned
+    # frontend's checked-in fe_shaders.inc would otherwise stay stale.
+    subprocess.run(["bash", str(OUTPUT / "ps5/frontend/build_shaders.sh")],
+        cwd=OUTPUT / "ps5/frontend", check=True)
+    assert 'fe_spv_game_frag' in (OUTPUT / "ps5/frontend/fe_shaders.inc").read_text()
+    assert 'is_game ? m_game_ui : m_ui' in renderer.read_text()
+
+    # Remove SNES-only special-chip switches that cannot affect an NES core.
+    options_file = OUTPUT / "ps5/frontend/fe_options.cpp"
+    old_choices = '''{"Emulation", {Seg("SNES/Region", "Region", "auto", "", {{"auto","Automatic"},{"ntsc","NTSC"},{"pal","PAL"}}),
+                        Seg("SNES/ChipMode", "Special-chip emulation", "HLE", "", {{"HLE","High-level"},{"LLE","Firmware-based"}})}, kTabSettings},'''
+    assert old_choices in options_file.read_text()
+    replace_required(options_file, old_choices,
+        '''{"Emulation", {Toggle("NES/HdPacks", "Mesen HD packs", "enabled", "")}, kTabSettings},''')
+    replace_required(options_file, 'Seg("SNES/Aspect",', 'Seg("NES/Aspect",')
+    replace_required(options_file, 'Toggle("SNES/Sound",', 'Toggle("NES/Sound",')
+
     runtime = source / "shelf_runtime.cpp"
     replace_required(runtime, '''    core.SetOption("bsnes_region",get("SNES/Region","auto"));
     core.SetOption("bsnes_violate_accuracy","enabled");
     core.SetOption("bsnes_chip_hle",get("SNES/ChipMode","HLE"));
     core.SetOption("bsnes_gamma_ramp",get("SNES/Gamma","disabled"));''',
-        '''    core.SetOption("mesen_hd_packs",get("NES/HdPacks","enabled"));''')
+        '''    core.SetOption("mesen_hdpacks",get("NES/HdPacks","enabled"));''')
     replace_required(runtime, 'get("SNES/Aspect","4:3")', 'get("NES/Aspect","4:3")')
     replace_required(runtime, 'get("SNES/Sound","true")', 'get("NES/Sound","true")')
     replace_required(runtime, '"SNES audio port failed"', '"MesenCE audio port failed"')
@@ -266,13 +313,13 @@ def generate():
     param["conceptId"] = TITLE_ID.replace("PPSA", "")
     param["contentId"] = f"UP9000-{TITLE_ID}_00-PS5MESENX0000001"
     param["localizedParameters"]["en-US"]["titleName"] = TITLE
-    param["contentVersion"] = "01.000.009"
+    param["contentVersion"] = "01.000.010"
     param_path.write_text(json.dumps(param, indent=2) + "\n")
     for file in (rom, shelf, runtime, main):
         if "PS5SNES" in file.read_text() or "bsnes_" in file.read_text():
             raise RuntimeError(f"Legacy SNES app or core identifier in {file}")
     assert "NES\\x1A" in rom.read_text()
-    assert 'v0.1.8 by YAHBALLON' in loading.read_text()
+    assert 'v0.1.9 by YAHBALLON' in loading.read_text()
     assert 'SCAN_COMPLETE' in shelf.read_text()
     assert 'Filesystem access denied' in loading.read_text()
     assert 'elevation::path()' in main.read_text()

@@ -217,5 +217,20 @@ void Session::Video(const void* data, unsigned w, unsigned h, size_t pitch) {
             r=((p>>(rgb565?11:10))&31)*255/31;g=((p>>5)&(rgb565?63:31))*255/(rgb565?63:31);b=(p&31)*255/31; }
         s.pixels[y*w+x] = 0xff000000u | r | (g<<8) | (b<<16);
     }
+    // Log a 16x16 grid, not just pixel (0,0) which is usually black
+    // in normal NES titles. Distinguishes an all-black core output from
+    // a Vulkan sampling / shader issue without exposing ROM contents.
+    if (s.m_video_callbacks==120 || s.m_video_callbacks%300==0) {
+        uint32_t nonblack=0, bright=0;
+        uint32_t hash=2166136261u;
+        for (unsigned sy=0;sy<16;++sy) for (unsigned sx=0;sx<16;++sx) {
+            uint32_t pixel=s.pixels[((sy*h)/16)*w+((sx*w)/16)];
+            hash=(hash^pixel)*16777619u;
+            if ((pixel&0x00ffffffu)!=0) ++nonblack;
+            if (((pixel&255u)+((pixel>>8)&255u)+((pixel>>16)&255u))>384u) ++bright;
+        }
+        mesen_diag::write("VIDEO_COLOR callbacks=%u nonblack_256=%u bright_256=%u hash=%08x center=%08x",
+            s.m_video_callbacks,nonblack,bright,hash,s.pixels[(h/2)*w+w/2]);
+    }
 }
 }
