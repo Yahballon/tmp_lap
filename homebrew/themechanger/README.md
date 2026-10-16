@@ -80,3 +80,11 @@ Fixes a separate ShellUI focus bug: on the PS button, PS5 Home can open while Th
 To test: apply a wallpaper, press PS to return to Home **without closing the app** and check that the animated background remains. Then reopen ThemeChanger, choose a second wallpaper and return to Home again. Reboot the console and reactivate the jailbreak after installing, to ensure the previous in-memory LiveShell build is unloaded.
 
 Debug information: `/data/ThemeChanger/themechanger.log`, `/data/LiveShell/liveshell.log` (look for `ThemeChanger running app active/closed`) and LiveShell's ShellUI log if still reproducible.
+
+## v0.3.6 – Auto-replace outdated LiveShell runtime
+
+The on-console v0.3.5 logs showed `game=PPSA99891`, `shellui=stopped`, despite a source patch that excludes PPSA99891 from game handling. Root cause: the app previously accepted **any** existing LiveShell instance on port 9050 and never launched its bundled custom engine. The original game-pause logic remained resident, sometimes because another homebrew payload autostarted LiveShell before ThemeChanger.
+
+Our source-built engine now includes `"themechanger_engine":"0.3.6"` in its `/api/state` response. On app start, ThemeChanger checks that exact revision. If an old/foreign daemon is active, the native loader sends our patched `liveshell.elf` to elfldr:9021 even while the old daemon is still online. LiveShell's supported `handover` mechanism stops the old engine and initializes the new version. No silent configuration changes to `gamepause` or force-terminate are used. Once the API confirms version 0.3.6, wallpapers can be selected again. If handover is unavailable or fails, the UI reports it rather than claiming an update.
+
+If this still doesn't work, send `/data/ThemeChanger/themechanger.log`, `/data/LiveShell/liveshell.log`, and `/data/LiveShell/shellui.log`. Check especially `ENGINE_HANDOVER`, `ENGINE_HANDOVER_OK`, and `SHELLUI_MONITOR`.
