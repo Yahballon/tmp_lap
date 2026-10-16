@@ -12,7 +12,7 @@ std::string theme_file(int index);
 bool install_and_select(int index,const std::string& assets,std::string& result);
 bool send_setting(const std::string& route,std::string& result);
 struct PlaybackState {
- bool connected=false,enabled=false,mainVideo=true,gamePause=false;
+ bool connected=false,enabled=false,mainVideo=true,gamePause=false,mainVideoSupported=false;
  std::string file, shellStatus, game;
 };
 PlaybackState playback_state();
