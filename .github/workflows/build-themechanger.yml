@@ -24,8 +24,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates ffmpeg g++ libssl-dev
       - name: Generate original wallpapers
         run: python3 homebrew/themechanger/assets/generate.py
-      - name: Discover live MotionBGS HD catalog
-        timeout-minutes: 4
+      - name: Discover complete MotionBGS sitemap and tag catalog
+        timeout-minutes: 15
         run: python3 homebrew/themechanger/assets/motionbgs_catalog.py
       - name: Probe MotionBGS HD MP4 response
         continue-on-error: true
@@ -35,7 +35,7 @@ jobs:
           from pathlib import Path
           from urllib.request import Request,urlopen
           rows=[l.split('\t') for l in Path('homebrew/themechanger/generated/motionbgs/catalog.tsv').read_text().splitlines() if l and not l.startswith('#')]
-          for row in rows[:3]:
+          for row in [r for r in rows if r[3].startswith("https://motionbgs.com/dl/hd/")][:3]:
               url=row[3]
               assert url.startswith('https://motionbgs.com/dl/hd/')
               req=Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'video/mp4,*/*','Range':'bytes=0-63'})
@@ -176,7 +176,8 @@ jobs:
           assert len(list((root/'assets/wallpapers').glob('*.mp4')))==12
           assert (root/'liveshell.elf').stat().st_size>100000
           manifest=(root/'assets/motionbgs/catalog.tsv').read_text()
-          assert len(manifest.splitlines())>=7
+          assert len(manifest.splitlines())>8000, 'Full sitemap should contain thousands of desktop wallpaper entries'
+          assert any(len(r.split('\\t'))>=6 for r in manifest.splitlines()[1:])
           assert 'https://motionbgs.com/dl/hd/' in manifest
           assert '/i/c/960x540/media/' in manifest
           with zipfile.ZipFile(f'app/dist/{title}.zip') as z:
@@ -187,7 +188,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: ThemeChanger-v0.3.6-PPSA99891
+          name: ThemeChanger-v0.3.7-PPSA99891
           path: app/dist/PPSA99891.zip
           if-no-files-found: error
       - name: Publish TESTBUILD-compatible release
@@ -195,5 +196,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view themechanger-v0.3.6 >/dev/null 2>&1; then exit 0; fi
-          gh release create themechanger-v0.3.6 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.6" --notes-file homebrew/themechanger/RELEASE_NOTES.md
+          if gh release view themechanger-v0.3.7 >/dev/null 2>&1; then exit 0; fi
+          gh release create themechanger-v0.3.7 app/dist/PPSA99891.zip --target "$GITHUB_SHA" --title "ThemeChanger v0.3.7" --notes-file homebrew/themechanger/RELEASE_NOTES.md
