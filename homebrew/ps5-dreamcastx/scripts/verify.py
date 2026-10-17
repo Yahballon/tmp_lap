@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """Fail-fast integration verification; no PS5 hardware claims."""
 from pathlib import Path
-import json,sys
+import hashlib,json,sys
+
 root=Path(__file__).resolve().parents[1]
 src=root/"build/flycast/shell/ps5"
+app=json.loads((root/"app.json").read_text(encoding="utf-8"))
+version=app["version"]
+assert app["releaseTag"]==f"ps5-dreamcastx-v{version}"
 assert src.is_dir(), "Flycast source has not been prepared"
 ui=(src/"bigpicture.cpp").read_text()
 assert ui.count('drawDreamcastXShelf(dl, focused, selectDisk);')==1
 assert ui.count('#include "dreamcastx_shelf.inc"')==1
 assert 'col::text, "DreamXcast");' in ui
-assert 'col::dim, "by YAHBALLON  v0.2.1");' in ui
+assert f'col::dim, "by YAHBALLON  v{version}");' in ui
 assert 'W - 48 - vs.x' not in ui
 assert 'static const char name[] = "DreamXcast";' in ui
 assert 'void drawDreamcastXShelf(' in (src/"dreamcastx_shelf.inc").read_text()
 meta=json.loads((src/"sce_sys/param.json").read_text())
-assert meta["titleId"]=="PPSA99765"
+assert meta["titleId"]==app["titleId"]
+assert meta["contentVersion"]==app["contentVersion"]
 assert meta["localizedParameters"]["en-US"]["titleName"]=="DreamXcast"
 assert "title=PS5DreamcastX" in (src/"build.sh").read_text()
 assert "/data/homebrew/PS5DreamcastX/" in (src/"ps5_main.cpp").read_text()
@@ -63,7 +68,7 @@ assert "imageFill(dl,image,art.x,art.y,art.w,art.h" in shelf
 for forbidden in ("AddImageQuad(", "AddQuadFilled(", "PrimReserve(", "dreamcastXReflection(", "softDisc("):
     assert forbidden not in shelf, "Unsafe PS5 renderer reintroduced: "+forbidden
 assert "ps5-dreamcastx-v" in (src/"ps5_update.cpp").read_text()
-assert "PS5_VERSION \"0.2.1\"" in (src/"ps5_build.h").read_text()
+assert f'PS5_VERSION "{version}"' in (src/"ps5_build.h").read_text()
 async_ui=(root/"build/flycast/core/ui/gui_util.cpp").read_text()
 assert '#include "dreamcastx_cover_async.inc"' in async_ui
 assert 'dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount)' in async_ui
@@ -76,5 +81,8 @@ assert "for(int radius=0;radius<=2;radius++)" in shelf
 feed=(src/"ps5_update.cpp").read_text()
 assert "Yahballon/tmp_lap/releases" in feed
 assert "ps5-dreamcastx-v" in feed
-assert (src/"sce_sys/icon0.png").stat().st_size>1000
-print("PASS: DreamXcast v0.2.1 menu/version, launcher branding, legacy storage and updater")
+icon=(src/"sce_sys/icon0.png").read_bytes()
+source=(root/"build/icon0.png").read_bytes()
+assert len(icon)>1000 and icon.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+assert hashlib.sha256(icon).digest()==hashlib.sha256(source).digest(), "PS5 launcher icon does not match generated neon icon"
+print(f"PASS: DreamXcast v{version} menu/version, exact neon launcher icon, storage and updater")
