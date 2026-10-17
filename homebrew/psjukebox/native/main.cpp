@@ -429,6 +429,7 @@ int main(){
   }else if(pressed&hui::pad_bits::kCircle){
    if(screen==0){exitDialog=true;exitChoice=false;}
    else if(screen==4)screen=settingsReturnScreen;
+   else if(screen==1&&havePlayingSong){screen=2;headerIndex=0;}
    else activate_tab(0);
   }else if(screen==0){
    if(!library.artists.empty()){
