@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.3
+// PSJukebox by YAHBALLON v0.1.4
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -8,6 +8,7 @@
 #include "audio_player.hpp"
 #include "remote_bridge.hpp"
 #include "stick_nav.hpp"
+#include "cover_motion.hpp"
 #include "favorites.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -18,6 +19,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <ctime>
 #include <map>
@@ -29,7 +31,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.3";
+constexpr const char* version="v0.1.4";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -56,12 +58,12 @@ Texture load_texture(Renderer& renderer,const std::string& path){
  result.id=renderer.batch().create_texture(w,h,rgba);
  result.w=w;result.h=h;stbi_image_free(rgba);return result;
 }
-void image_fill(DrawList& d,const Texture& t,float x,float y,float w,float h){
+void image_fill(DrawList& d,const Texture& t,float x,float y,float w,float h,float opacity=1.f){
  if(!t.id||!t.w||!t.h)return;
  const float src=(float)t.w/t.h,dst=w/h;
  float u=0,v=0,uw=1,vh=1;
  if(src>dst){uw=dst/src;u=(1-uw)/2;}else{vh=src/dst;v=(1-vh)/2;}
- d.image(t.id,{x,y,w,h},{u,v,uw,vh},white,0);
+ d.image(t.id,{x,y,w,h},{u,v,uw,vh},Color::rgb(0xffffff,opacity),0);
 }
 void image_fit(DrawList& d,const Texture& t,float x,float y,float w,float h){
  if(!t.id||!t.w||!t.h)return;
@@ -174,33 +176,36 @@ void footer_chip(DrawList& d,const Font& font,unsigned atlas,float x,float y,
    d.triangle({cx-6,cy+6,12,9},ink,0,3.14159f);break;
   case 'L':label(d,font,atlas,"L1",cx,cy+7,16,ink,Align::center);break;
   case 'R':label(d,font,atlas,"R1",cx,cy+7,16,ink,Align::center);break;
+  case '2':label(d,font,atlas,"L2",cx,cy+7,16,ink,Align::center);break;
+  case '3':label(d,font,atlas,"R2",cx,cy+7,16,ink,Align::center);break;
  }
  label(d,font,atlas,action,x+49,y+31,19,white);
 }
 void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
  const float y=1015;
  if(screen==0||screen==2){
-  footer_chip(d,font,atlas,82,y,'B',"Browse",0xbdbfc7,190);
-  footer_chip(d,font,atlas,286,y,'L',"Artist",0xc5c7ce,165);
-  footer_chip(d,font,atlas,465,y,'R',"Artist",0xc5c7ce,165);
-  footer_chip(d,font,atlas,644,y,'X',"Play/Pause",0x78adff,206);
-  footer_chip(d,font,atlas,864,y,'T',"Favorite",0x67e6a7,185);
-  footer_chip(d,font,atlas,1063,y,'S',"Options",0xf69abe,190);
-  footer_chip(d,font,atlas,1267,y,'O',"Back",0xfd8696,165);
-  footer_chip(d,font,atlas,1446,y,'M',"Tabs",0xbdb3fb,178);
+  footer_chip(d,font,atlas,38,y,'L',"Artist",0xc5c7ce,165);
+  footer_chip(d,font,atlas,216,y,'R',"Artist",0xc5c7ce,165);
+  footer_chip(d,font,atlas,394,y,'2',"Album -",0xffd06a,184);
+  footer_chip(d,font,atlas,591,y,'3',"Album +",0xffd06a,184);
+  footer_chip(d,font,atlas,788,y,'X',screen==2?"Tracklist":"Play",0x78adff,204);
+  footer_chip(d,font,atlas,1004,y,'S',"Pause",0xf69abe,168);
+  footer_chip(d,font,atlas,1185,y,'T',"Favorite",0x67e6a7,190);
+  footer_chip(d,font,atlas,1388,y,'M',"Settings",0xbdb3fb,205);
+  footer_chip(d,font,atlas,1606,y,'O',"Back",0xfd8696,180);
  }else if(screen==4){
   footer_chip(d,font,atlas,720,y,'X',"Select",0x78adff,215);
   footer_chip(d,font,atlas,950,y,'O',"Back",0xfd8696,200);
  }else{
   footer_chip(d,font,atlas,470,y,'U',"Browse",0xbdbfc7,235);
-  footer_chip(d,font,atlas,719,y,'X',"Play/Open",0x78adff,230);
+  footer_chip(d,font,atlas,719,y,'X',"Play Track",0x78adff,230);
   footer_chip(d,font,atlas,963,y,'T',"Favorite",0x67e6a7,215);
-  footer_chip(d,font,atlas,1192,y,'O',"Back",0xfd8696,210);
+  footer_chip(d,font,atlas,1192,y,'M',"Settings",0xbdb3fb,210);
  }
 }
 }
 int main(){
- log("BOOT v0.1.3");
+ log("BOOT v0.1.4");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -247,6 +252,11 @@ int main(){
  // screen 0: album carousel; 1: track list; 2: now playing; 3: artist chooser; 4: settings
  bool exitDialog=false,exitChoice=false;
  unsigned held=0,frame=0;int hold=0;
+ jukebox::CoverMotion coverMotion;
+ std::string previousBackground;
+ bool analogCoverArmed=true;
+ int settingsReturnScreen=0;
+ std::chrono::steady_clock::time_point lastFrame=std::chrono::steady_clock::now();
  jukebox::StickNavigator analogNavigator;
  hui::PadSample analogSample{};
  auto currentArtist=[&]()->jukebox::Artist*{
@@ -266,6 +276,7 @@ int main(){
   for(auto& it:images)destroy(it.second);images.clear();
   library={};
   artistIndex=0;albumIndex=0;trackIndex=0;screen=0;
+  coverMotion.reset();previousBackground.clear();
   if(begin_scan()){message="Scanning music via read-only USB helper...";log("SCAN_BEGIN");}
   else {message="Cannot launch music scanner";log("SCAN_THREAD_FAIL");}
  };
@@ -318,14 +329,27 @@ int main(){
   for(size_t i=0;i<n;i++){pressed|=events[i].buttons&~now;now=events[i].buttons;}
   held=now;
   if(n)analogSample=events[n-1];
+  const auto currentFrame=std::chrono::steady_clock::now();
+  const float frameDt=std::clamp(std::chrono::duration<float>(currentFrame-lastFrame).count(),0.f,0.05f);
+  lastFrame=currentFrame;
+  coverMotion.tick(frameDt);
+  int analogCoverDirection=0;
+  if(screen==0&&!headerFocus&&analogSample.connected&&
+     !(analogSample.buttons&hui::pad_bits::kIntercepted)){
+   const int x=analogSample.left_x<60||analogSample.right_x<60?-1:
+               (analogSample.left_x>195||analogSample.right_x>195?1:0);
+   if(x==0)analogCoverArmed=true;
+   else if(analogCoverArmed){analogCoverDirection=x;analogCoverArmed=false;}
+  }else analogCoverArmed=true;
   if(--hold<=0){
-   if(now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;
-   if(now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
+   // Never synthesize repeated left/right cover presses.
+   if(screen!=0&&now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;
+   if(screen!=0&&now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
    if(now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;
    if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;
    hold=11;
   }
-  if(analogSample.connected&&!(analogSample.buttons&hui::pad_bits::kIntercepted)){
+  if(screen!=0&&analogSample.connected&&!(analogSample.buttons&hui::pad_bits::kIntercepted)){
    switch(analogNavigator.tick(analogSample.left_x,analogSample.left_y,
                                analogSample.right_x,analogSample.right_y)){
     case -1: pressed|=hui::pad_bits::kLeft;break;
@@ -342,6 +366,7 @@ int main(){
    jukebox::merge(library,std::move(item.remote.library));
    library.report+=" | "+item.remote.status;
    artistIndex=albumIndex=trackIndex=0;havePlayingSong=false;playingPath.clear();
+   coverMotion.reset();previousBackground.clear();
    message=library.artists.empty()?
       ("No music. "+cut(item.remote.status,94)):("Loaded "+std::to_string(library.artists.size())+
         " artists / "+std::to_string(library.trackCount)+" tracks");
@@ -367,8 +392,13 @@ int main(){
   if(transferBusy.load()&&(pressed&hui::pad_bits::kCircle)){
    transferCancel.store(true);message="Cancelling USB song transfer...";pressed=0;
   }
-  // Press UP from the album view to focus the header tabs.
-  // L2/R2 can also switch tabs without using a mouse or touchscreen.
+  // Tabs use UP + LEFT/RIGHT + X. L2/R2 are reserved for albums.
+  // Square never opens settings; Options is the sole Settings shortcut.
+  if(!exitDialog&&pressed&hui::pad_bits::kOptions){
+   if(screen==4){screen=settingsReturnScreen;}
+   else{settingsReturnScreen=screen;screen=4;}
+   headerFocus=false;pressed=0;
+  }
   if(!exitDialog&&screen!=2&&screen!=4){
    if(headerFocus){
     if(pressed&hui::pad_bits::kLeft)headerIndex=(headerIndex+4)%5;
@@ -378,11 +408,6 @@ int main(){
     pressed=0;
    }else{
     if(screen==0&&(pressed&hui::pad_bits::kUp)){headerFocus=true;pressed=0;}
-    else if(pressed&hui::pad_bits::kL2){
-     activate_tab((headerIndex+4)%5);pressed=0;
-    }else if(pressed&hui::pad_bits::kR2){
-     activate_tab((headerIndex+1)%5);pressed=0;
-    }
    }
   }
   auto favSongs=current_queue();
@@ -403,26 +428,41 @@ int main(){
    }
   }else if(pressed&hui::pad_bits::kCircle){
    if(screen==0){exitDialog=true;exitChoice=false;}
-   else if(screen==2)activate_tab(0);
+   else if(screen==4)screen=settingsReturnScreen;
    else activate_tab(0);
   }else if(screen==0){
-   if(artist&&!artist->albums.empty()){
-    const int count=(int)artist->albums.size();
-    if(pressed&hui::pad_bits::kLeft)albumIndex=(albumIndex+count-1)%count;
-    if(pressed&hui::pad_bits::kRight)albumIndex=(albumIndex+1)%count;
-   }
    if(!library.artists.empty()){
-    if(pressed&hui::pad_bits::kL1){artistIndex=(artistIndex+(int)library.artists.size()-1)%(int)library.artists.size();albumIndex=0;trackIndex=0;}
-    if(pressed&hui::pad_bits::kR1){artistIndex=(artistIndex+1)%(int)library.artists.size();albumIndex=0;trackIndex=0;}
+    if(pressed&hui::pad_bits::kL1){
+     artistIndex=(artistIndex+(int)library.artists.size()-1)%(int)library.artists.size();
+     albumIndex=trackIndex=0;coverMotion.reset();previousBackground.clear();
+    }
+    if(pressed&hui::pad_bits::kR1){
+     artistIndex=(artistIndex+1)%(int)library.artists.size();
+     albumIndex=trackIndex=0;coverMotion.reset();previousBackground.clear();
+    }
    }
-   if(pressed&hui::pad_bits::kCross&&album&&!album->tracks.empty())play_track();
+   // Triggers select exactly one jacket per press; while sliding, skip input.
+   const int step=(pressed&hui::pad_bits::kL2)?-1:
+                  (pressed&hui::pad_bits::kR2)?1:
+                  (pressed&hui::pad_bits::kLeft)?-1:
+                  (pressed&hui::pad_bits::kRight)?1:analogCoverDirection;
+   artist=currentArtist();album=currentAlbum();
+   if(artist&&artist->albums.size()>1&&step&&coverMotion.begin(step)){
+    previousBackground=album?jukebox::album_background(*artist,*album):std::string{};
+    const int count=(int)artist->albums.size();
+    albumIndex=(albumIndex+step+count)%count;
+    trackIndex=0;
+   }
+   if(pressed&hui::pad_bits::kCross&&album&&!album->tracks.empty()){trackIndex=0;play_track();}
    if(pressed&hui::pad_bits::kTriangle){
-    if(const auto* now=active_track())toggle_favorite(now->path);
+    if(const auto* song=active_track())toggle_favorite(song->path);
     else if(album&&!album->tracks.empty())toggle_favorite(album->tracks[0].path);
     else message="Album has no songs to favorite";
    }
-   if(pressed&hui::pad_bits::kSquare)screen=4;
-   if(pressed&hui::pad_bits::kOptions)screen=4;
+   if(pressed&hui::pad_bits::kSquare){
+    if(havePlayingSong)player.toggle_pause();
+    else message="Select an album with X to play";
+   }
   }else if(screen==1||screen==5){
    if(album&&!album->tracks.empty()){
     if(pressed&hui::pad_bits::kUp)trackIndex=std::max(0,trackIndex-1);
@@ -430,17 +470,17 @@ int main(){
     if(pressed&hui::pad_bits::kCross)play_track();
     if(pressed&hui::pad_bits::kTriangle)toggle_favorite(album->tracks[(size_t)trackIndex].path);
    }
-   if(pressed&hui::pad_bits::kSquare)screen=4;
+   if(pressed&hui::pad_bits::kSquare&&havePlayingSong)player.toggle_pause();
   }else if(screen==2){
-   if(pressed&hui::pad_bits::kCross)player.toggle_pause();
+   if(pressed&hui::pad_bits::kCross){screen=1;headerIndex=2;}
+   if(pressed&hui::pad_bits::kSquare)player.toggle_pause();
    if(pressed&hui::pad_bits::kLeft)player.skip(-10);
    if(pressed&hui::pad_bits::kRight)player.skip(10);
-   if(pressed&(hui::pad_bits::kL2|hui::pad_bits::kL1))next_track(-1);
-   if(pressed&(hui::pad_bits::kR2|hui::pad_bits::kR1))next_track(1);
+   if(pressed&hui::pad_bits::kL1)next_track(-1);
+   if(pressed&hui::pad_bits::kR1)next_track(1);
    if(pressed&hui::pad_bits::kTriangle){
     const auto* track=active_track();toggle_favorite(track?track->path:std::string{});
    }
-   if(pressed&hui::pad_bits::kSquare)screen=4;
   }else if(screen==3){
    if(!library.artists.empty()){
     if(pressed&hui::pad_bits::kUp)artistListIndex=std::max(0,artistListIndex-1);
@@ -465,7 +505,7 @@ int main(){
    if(pressed&hui::pad_bits::kUp)settingsIndex=std::max(0,settingsIndex-1);
    if(pressed&hui::pad_bits::kDown)settingsIndex=std::min(1,settingsIndex+1);
    if(pressed&hui::pad_bits::kCross){
-    if(settingsIndex==0)rescan();else activate_tab(0);
+    if(settingsIndex==0)rescan();else screen=settingsReturnScreen;
    }
   }
   artist=currentArtist();album=currentAlbum();
@@ -480,6 +520,7 @@ int main(){
    if(!path.empty()&&images.find(path)==images.end()&&!imageBusy.load())request_image(path);
   };
   if(artist)queue(artist->logo);
+  if(coverMotion.active()&&!previousBackground.empty())queue(previousBackground);
  if(havePlayingSong&&playingSong.artist<library.artists.size()){
   const auto& activeArtist=library.artists[playingSong.artist];
   if(playingSong.album<activeArtist.albums.size())queue(activeArtist.albums[playingSong.album].cover);
@@ -487,7 +528,7 @@ int main(){
   if(album)queue(jukebox::album_background(*artist,*album));
   if(artist&&album){
    const int total=(int)artist->albums.size();
-   for(int delta=-2;delta<=2;delta++){
+   for(int delta=-3;delta<=3;delta++){
     if(total<5&&std::abs(delta)>total/2)continue;
     const int j=(albumIndex+delta+total)%total;
     queue(artist->albums[(size_t)j].cover);
@@ -495,7 +536,8 @@ int main(){
   }
   if(images.size()>24){
    for(auto it=images.begin();it!=images.end()&&images.size()>16;){
-    const bool keep=artist&&(it->first==artist->logo||it->first==artist->background)||
+    const bool keep=(coverMotion.active()&&it->first==previousBackground)||
+      (artist&&(it->first==artist->logo||it->first==artist->background))||
       (album&&(it->first==album->cover||it->first==album->background));
     if(keep){++it;continue;}destroy(it->second);it=images.erase(it);
    }
@@ -503,8 +545,11 @@ int main(){
   DrawList d;
   d.gradient_rect({0,0,1920,1080},0,color(secondary),color(0x030409));
   if(artist&&album){
+   if(coverMotion.active()&&!previousBackground.empty())
+    image_fill(d,cached(previousBackground),0,0,1920,1080);
    const auto bg=cached(jukebox::album_background(*artist,*album));
-   image_fill(d,bg,0,0,1920,1080);
+   const float p=coverMotion.progress(),blend=p*p*(3.f-2.f*p);
+   image_fill(d,bg,0,0,1920,1080,coverMotion.active()?blend:1.f);
   }
   // Cinematic menu chrome inspired by the supplied concept image.
   d.gradient_rect({0,0,1920,160},0,color(0x000000,.75f),color(0x000000,.04f));
@@ -562,8 +607,10 @@ int main(){
   if(showCoverflow&&album&&artist){
    label(d,font,atlas,cut(album->name,36),960,343,36,white,Align::center);
    label(d,font,atlas,std::to_string(albumIndex+1)+" / "+std::to_string(artist->albums.size()),1820,186,21,white,Align::right);
-   // Center-locked, cyclic covers. Selected cover always at x=960.
+   // 480ms smoothstep: every sleeve moves into its neighbor's position.
+   // Draw farther sleeves first so the foreground jacket stays on top.
    const int total=(int)artist->albums.size();
+   std::vector<int> offsets;
    for(int delta=-2;delta<=2;delta++){
     if(total<5){
      if(total==1&&delta!=0)continue;
@@ -571,23 +618,31 @@ int main(){
      if(total==3&&(delta==-2||delta==2))continue;
      if(total==4&&delta==-2)continue;
     }
-    const int i=(albumIndex+delta+total)%total;
-    const auto& item=artist->albums[(size_t)i];
-    const bool selected=delta==0;
-    const float w=selected?395.f:318.f,h=selected?416.f:320.f;
-    const float x=960+delta*350.f-w/2,y=selected?373.f:424.f;
-    if(selected)d.glow({x-9,y-9,w+18,h+18},15,10,color(accent));
+    offsets.push_back(delta);
+   }
+   const float slide=coverMotion.offset();
+   std::sort(offsets.begin(),offsets.end(),[&](int a,int b){
+    return std::fabs((float)a+slide)>std::fabs((float)b+slide);
+   });
+   for(const int delta:offsets){
+    const int index=(albumIndex+delta+total)%total;
+    const auto& item=artist->albums[(size_t)index];
+    const float position=(float)delta+slide;
+    if(std::fabs(position)>2.7f)continue;
+    const float focus=std::clamp(1.f-std::fabs(position),0.f,1.f);
+    const float w=318.f+77.f*focus,h=320.f+96.f*focus;
+    const float x=960.f+position*350.f-w*.5f,y=424.f-51.f*focus;
+    if(focus>.1f)d.glow({x-8,y-8,w+16,h+16},15,9,color(accent,.5f+focus*.5f));
     d.shadow({x,y,w,h},8,17,color(0x000000,.82f));
-    d.bordered_rect({x,y,w,h},5,color(0x060913),selected?5.f:2.f,selected?color(accent):color(0xd4d8e2));
+    d.bordered_rect({x,y,w,h},5,color(0x060913),2.f+3.f*focus,
+      focus>.5f?color(accent):color(0xd4d8e2));
     const auto cover=cached(item.cover);
     if(cover.id){
      image_fill(d,cover,x+4,y+4,w-8,h-8);
-     // Subtle reflected sleeve fades beneath the shelf line.
      const float reflectionHeight=std::min(76.f,970.f-(y+h+8));
-     if(reflectionHeight>10){
+     if(reflectionHeight>10.f)
       d.image_gradient(cover.id,{x+4,y+h+6,w-8,reflectionHeight},
         {0,1,1,-.22f},color(0xffffff,.22f),color(0xffffff,0),2);
-     }
     }else{
      d.gradient_rect({x+5,y+5,w-10,h-10},0,color(secondary),color(0x0c0e17));
      label(d,font,atlas,cut(item.name,19),x+w/2,y+h/2,24,white,Align::center);
@@ -612,7 +667,7 @@ int main(){
      }
     }
    }else{
-    label(d,font,atlas,"X  Play Album      TRIANGLE  Favorite Song",960,902,19,muted,Align::center);
+    label(d,font,atlas,"L2 / R2  Albums     X  Play     Triangle  Favorite",960,902,19,muted,Align::center);
    }
   }else if((screen==1||screen==5)&&album){
    d.rounded_rect({142,245,1636,680},13,color(0x050810,.88f));
@@ -668,7 +723,7 @@ int main(){
     label(d,font,atlas,options[i],960,430+i*85.f,27,white,Align::center);
    }
    label(d,font,atlas,"Favorites: /data/PSJukebox/favorites.json",960,721,21,muted,Align::center);
-   label(d,font,atlas,"Hold UP in albums to select header tabs",960,765,19,muted,Align::center);
+   label(d,font,atlas,"L1/R1 Artist  |  L2/R2 Albums  |  X Play / Tracklist",960,765,19,muted,Align::center);
   }else{
    label(d,font,atlas,"NO ALBUMS FOUND",960,485,34,color(accent),Align::center);
    label(d,font,atlas,"Music/Artist/Album/cover.jpg + song.mp3",960,534,23,white,Align::center);
