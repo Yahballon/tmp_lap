@@ -15,5 +15,5 @@ CatalogResult scan();
 bool is_remote(const std::string& path);
 bool image_bytes(const std::string& path,std::string& data,std::string& error);
 bool stage_track(const std::string& path,uint64_t expected,std::atomic<bool>& cancelled,
-                 std::string& local,std::string& error);
+                 std::string& local,std::string& error,std::atomic<uint64_t>* copied=nullptr);
 }
