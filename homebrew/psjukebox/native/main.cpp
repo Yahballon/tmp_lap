@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.8
+// PSJukebox by YAHBALLON v0.1.9
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -33,7 +33,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.8";
+constexpr const char* version="v0.1.9";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -266,7 +266,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.8");
+ log("BOOT v0.1.9");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -671,7 +671,7 @@ int main(){
   }
   const bool showCoverflow=(screen==0||screen==2);
   if(showCoverflow&&album&&artist){
-   label(d,font,atlas,cut(album->name,36),960,343,36,white,Align::center);
+   // Album folder names are not drawn above artwork in coverflow.
    label(d,font,atlas,std::to_string(albumIndex+1)+" / "+std::to_string(artist->albums.size()),1820,186,21,white,Align::right);
    // 480ms smoothstep: every sleeve moves into its neighbor's position.
    // Draw farther sleeves first so the foreground jacket stays on top.

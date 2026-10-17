@@ -118,30 +118,32 @@ bool write_entry(FILE* zip,const Entry& e,const std::string& destination,
  bool okay=true;
  uint64_t bytesLeft=e.compressed,plain=0;
  uLong crc=crc32(0L,Z_NULL,0);
- unsigned char input[32768],output[32768];
+ // Heap-owned scratch avoids 64 KiB of local buffers overflowing the
+ // limited default stack of a native PS5 library scan worker.
+ std::vector<unsigned char> input(32768),output(32768);
  z_stream z{};
  bool deflate=e.method==8,finished=false;
  if(deflate&&inflateInit2(&z,-MAX_WBITS)!=Z_OK)okay=false;
  while(okay&&bytesLeft){
-  const size_t n=(size_t)std::min<uint64_t>(bytesLeft,sizeof(input));
-  if(!exact(zip,input,n)){okay=false;error="Truncated album member";break;}
+  const size_t n=(size_t)std::min<uint64_t>(bytesLeft,input.size());
+  if(!exact(zip,input.data(),n)){okay=false;error="Truncated album member";break;}
   bytesLeft-=n;
   if(!deflate){
    plain+=n;
-   if(plain>limit||fwrite(input,1,n,out)!=n){okay=false;error="Album file size/write limit";break;}
-   crc=crc32(crc,input,(uInt)n);
+   if(plain>limit||fwrite(input.data(),1,n,out)!=n){okay=false;error="Album file size/write limit";break;}
+   crc=crc32(crc,input.data(),(uInt)n);
    continue;
   }
-  z.next_in=input;z.avail_in=(uInt)n;
+  z.next_in=input.data();z.avail_in=(uInt)n;
   while(z.avail_in&&okay){
-   z.next_out=output;z.avail_out=sizeof(output);
+   z.next_out=output.data();z.avail_out=(uInt)output.size();
    const int rc=inflate(&z,Z_NO_FLUSH);
-   const size_t got=sizeof(output)-z.avail_out;
+   const size_t got=output.size()-z.avail_out;
    plain+=got;
-   if(plain>limit||(got&&fwrite(output,1,got,out)!=got)){
+   if(plain>limit||(got&&fwrite(output.data(),1,got,out)!=got)){
     okay=false;error="Album inflate size/write limit";break;
    }
-   if(got)crc=crc32(crc,output,(uInt)got);
+   if(got)crc=crc32(crc,output.data(),(uInt)got);
    if(rc==Z_STREAM_END){finished=true;break;}
    if(rc!=Z_OK||(got==0&&z.avail_in==0&&bytesLeft==0)){
     okay=false;error="Invalid deflate stream";break;
