@@ -1,0 +1,112 @@
+name: Build WebKit Autoloader GAME with Menu Music
+on:
+  workflow_dispatch:
+    inputs:
+      soundtrack_url:
+        description: 'Optional HTTPS URL to an MP3 you may redistribute (or commit soundtrack.mp3)'
+        type: string
+        required: false
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-webkit-autoloader-game/soundtrack.mp3'
+permissions:
+  contents: read
+jobs:
+  build-game-with-menu-music:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      MUSIC_URL: ${{ inputs.soundtrack_url || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get soundtrack
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wkal-audio
+          if [ -f 'homebrew/ps5-webkit-autoloader-game/soundtrack.mp3' ]; then
+            cp 'homebrew/ps5-webkit-autoloader-game/soundtrack.mp3' /tmp/wkal-audio/song.mp3
+          elif [ -n "$MUSIC_URL" ]; then
+            [[ "$MUSIC_URL" == https://* ]] || { echo 'HTTPS URL required'; exit 1; }
+            curl --fail --location --retry 3 --max-time 120 --max-filesize 20000000 "$MUSIC_URL" -o /tmp/wkal-audio/song.mp3
+          else
+            echo 'Missing soundtrack.mp3. Upload it to homebrew/ps5-webkit-autoloader-game/ or provide an HTTPS URL when dispatching.'
+            exit 1
+          fi
+          test -s /tmp/wkal-audio/song.mp3
+      - name: Fetch pinned WebKit v0.4.0 and PS5 AT9 encoder
+        run: |
+          set -euo pipefail
+          git clone https://github.com/itsPLK/ps5-webkit-autoloader.git upstream-wkal
+          git -C upstream-wkal checkout --detach 137f065d2ba8022ba8e796895e7cb05c204f2ce9
+          git -C upstream-wkal submodule update --init --recursive
+          git clone --depth 1 --branch v0.1.0 https://github.com/blackbearreloaded/ps5-at9-converter.git /tmp/ps5-at9-converter
+      - name: Encode 60-second looping PS5 selection music
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/wkal-at9-venv
+          /tmp/wkal-at9-venv/bin/pip install 'numpy>=1.20,<3'
+          /tmp/wkal-at9-venv/bin/python /tmp/ps5-at9-converter/ps5_at9.py \
+            --input /tmp/wkal-audio/song.mp3 \
+            --output upstream-wkal/assets/snd0.at9 \
+            --start 0 --duration 60 --bitrate 192 --workers 4 \
+            --param-json upstream-wkal/assets/param.json.template
+      - name: Patch game identity and embed menu soundtrack
+        run: |
+          set -euo pipefail
+          python3 homebrew/ps5-webkit-autoloader-game/patch_game.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_music.py upstream-wkal
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('upstream-wkal')
+          j=json.loads((root/'assets/param.json.template').read_text())
+          song=(root/'assets/snd0.at9').read_bytes()
+          assert j['titleId']=='WKAG00001' and j['applicationCategoryType']==0
+          assert j['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
+          assert j['pubtools']['loudnessSnd0']
+          assert song.startswith(b'RIFF') and song[8:12]==b'WAVE'
+          assert len(song)<=2097152
+          print(f'PS5 Game selection music ready ({len(song)} bytes)')
+          PY
+      - name: Build PS5 SDK image
+        working-directory: upstream-wkal
+        run: docker build --pull -t ps5-webkit-autoloader-sdk -f Dockerfile.sdk .
+      - name: Compile WebKit installer and PC host
+        working-directory: upstream-wkal
+        env:
+          BUILD_TYPE: stable
+        run: |
+          set -euo pipefail
+          ./build_release.sh
+          test -s webkit-autoloader-installer_v0.4.0.elf
+          test -s webkit-autoloader-host_v0.4.0.py
+      - name: Verify music embedded in native ELF and stage test files
+        working-directory: upstream-wkal
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('assets/param.json').read_text())
+          assert p['titleId']=='WKAG00001'
+          assert p['applicationCategoryType']==0 and p['pubtools']['loudnessSnd0']
+          elf=Path('webkit-autoloader-installer_v0.4.0.elf').read_bytes()
+          sound=Path('assets/snd0.at9').read_bytes()
+          assert b'WKAG00001' in elf
+          assert sound[:64] in elf
+          assert b'http://127.0.0.1:18181/app/index.html' in elf
+          print('ELF embeds Game category and ATRAC9 selection music')
+          PY
+          mkdir -p ../game-build-with-music
+          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/webkit-autoloader-GAME-MUSIC-installer_v0.4.0.elf
+          cp webkit-autoloader-host_v0.4.0.py ../game-build-with-music/webkit-autoloader-GAME-MUSIC-host_v0.4.0.py
+          cp assets/snd0.at9 ../game-build-with-music/snd0.at9
+          cp assets/param.json ../game-build-with-music/param.json
+          (cd ../game-build-with-music && sha256sum * > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PS5-WebKit-Autoloader-GAME-with-Music-v0.4.0
+          path: game-build-with-music/
+          if-no-files-found: error
+          retention-days: 30
