@@ -193,19 +193,15 @@ void chooseSource()
                 'const char *scanHint = "Rescan all";')
     t=t.replace('if (lib.source == Network && !empty)','if (!empty)')
     # Show the true origin on each game's subtitle in the unified shelf.
-    sourceMeta='''\treturn meta;
-}
-
-void buildShelves(bool selectDisk)'''
-    assert t.count(sourceMeta)==1
-    t=t.replace(sourceMeta,'''    const char *origin = g.source == Network ? "SMB" :
-                         g.source == Usb ? "USB" : "Internal";
-    meta += (meta.empty() ? "" : "   ·   ");
-    meta += origin;
-    return meta;
-}
-
-void buildShelves(bool selectDisk)''',1)
+    metaBegin=t.index("std::string metaText(Game& g)")
+    metaReturn=t.index(chr(9)+"return meta;",metaBegin)
+    newMeta=chr(10).join([
+        "    const char *origin = g.source == Network ? \"SMB\" :",
+        "                         g.source == Usb ? \"USB\" : \"Internal\";",
+        "    meta += (meta.empty() ? \"\" : \"  /  \");",
+        "    meta += origin;",
+        ""])
+    t=t[:metaReturn]+newMeta+t[metaReturn:]
     # Drop stale network-specific empty-library copy; one consistent help.
     noGameHelp='''\t\tbody = "Copy your games to\\n" + root + "games/\\n\\n"'''
     assert t.count(noGameHelp)==1
