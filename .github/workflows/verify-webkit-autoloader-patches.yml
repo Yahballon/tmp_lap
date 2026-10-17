@@ -122,11 +122,13 @@ jobs:
           page=Path('frontend/dist/index.html').read_text()
           assert 'AUTO-INSTALL SEQUENCE' in page
           assert '/index.html' in registry and '/background.png' in registry
-          app_index=list(Path('frontend/dist/app').glob('v*/index.html'))
+          app_index=list(Path('frontend/dist/app').glob('*/index.html'))
           assert len(app_index)==1 and 'JAILBREAK ME' in app_index[0].read_text()
-          staged_js=list(Path('frontend/dist/app').glob('v*/app.js'))
+          staged_js=list(Path('frontend/dist/app').glob('*/app.js'))
           assert len(staged_js)==1 and 'MAX_LOG_LINES = 48' in staged_js[0].read_text()
-          assert b'/app/v0.4.0/index.html' in elf and b'/app/v0.4.0/app.js' in elf
+          version_dir=app_index[0].parent.name if 'app_index' in locals() else staged_app[0].parent.name
+          assert ('/app/'+version_dir+'/index.html').encode() in elf
+          assert ('/app/'+version_dir+'/app.js').encode() in elf
           assert b'/index.html' in elf and b'/background.png' in elf
           import json
           param=json.loads(Path('assets/param.json').read_text())
