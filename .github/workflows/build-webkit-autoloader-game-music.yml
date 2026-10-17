@@ -75,6 +75,7 @@ jobs:
           cp homebrew/ps5-webkit-autoloader-game/icon.png upstream-wkal/assets/icon-custom.png
           cp homebrew/ps5-webkit-autoloader-game/background.png upstream-wkal/frontend/installer-page/background.png
           python3 homebrew/ps5-webkit-autoloader-game/patch_cyber_ui.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_exploit_ui.py upstream-wkal
       - name: Encode 60-second looping PS5 selection music
         run: |
           set -euo pipefail
@@ -128,6 +129,15 @@ jobs:
           assert 'clear-webkit-data' in themed and '/install' in themed
           assert (root/'frontend/installer-page/background.png').is_file()
           assert 'ui=cyberpirate1' in (root/'src/main.c').read_text()
+          exploit=(root/'frontend/autoloader/index.html').read_text()
+          exploit_js=(root/'frontend/autoloader/app.js').read_text()
+          exploit_css=(root/'frontend/autoloader/style.css').read_text()
+          assert 'JAILBREAK ME' in exploit and 'jailbreakHeader' in exploit
+          assert 'jailbreakFirmware' in exploit and 'jailbreakChain' in exploit
+          assert 'MAX_LOG_LINES = 48' in exploit_js
+          assert "exploitEl.src = EXPLOIT_URL" in exploit_js
+          assert 'JAILBREAK ME Cyber Pirate' in exploit_css
+          assert 'background.png' not in exploit_css
           assert j['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
           assert j['pubtools']['loudnessSnd0']
           assert song.startswith(b'RIFF') and song[8:12]==b'WAVE'
@@ -179,6 +189,10 @@ jobs:
           page=Path('frontend/dist/index.html').read_text()
           assert 'AUTO-INSTALL SEQUENCE' in page
           assert '/index.html' in registry and '/background.png' in registry
+          staged_app=list(Path('frontend/dist/app').glob('v*/index.html'))
+          assert len(staged_app)==1 and 'JAILBREAK ME' in staged_app[0].read_text()
+          assert b'jailbreakHeader' in elf and b'jailbreakFirmware' in elf
+          assert b'WebKit Autoloader v0.4.0' in elf or b'JAILBREAK ME' in elf
           assert b'/index.html' in elf and b'/background.png' in elf
           assert Path('frontend/dist/background.png').read_bytes()==Path('frontend/installer-page/background.png').read_bytes()
           assert sound in elf, 'ERROR: soundtrack not embedded in installer'
@@ -187,10 +201,10 @@ jobs:
           assert background in elf, 'ERROR: user-provided 4K Game background not embedded in installer'
           assert b'BACKGROUND_DB_REGISTER' in elf
           assert b'http://127.0.0.1:18181/app/index.html' in elf
-          print('ELF contains live cyber-pirate WebKit installer UI + icon + music + BC7 Game Hub background')
+          print('ELF contains themed INSTALLER and offline EXPLOIT UI + icon + music + BC7 Game Hub background')
           PY
           mkdir -p ../game-build-with-music
-          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/JAILBREAK-ME-CYBER-INSTALLER_v0.4.0.elf
+          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/JAILBREAK-ME-CYBER-FULL_v0.4.0.elf
           cp webkit-autoloader-host_v0.4.0.py ../game-build-with-music/JAILBREAK-ME-host_v0.4.0.py
           cp assets/snd0.at9 ../game-build-with-music/snd0.at9
           cp assets/icon0.png ../game-build-with-music/icon0.png
@@ -200,7 +214,7 @@ jobs:
           (cd ../game-build-with-music && sha256sum * > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-JAILBREAK-ME-CYBER-UI-v0.4.0
+          name: PS5-JAILBREAK-ME-CYBER-FULL-v0.4.0
           path: game-build-with-music/
           if-no-files-found: error
           retention-days: 30
