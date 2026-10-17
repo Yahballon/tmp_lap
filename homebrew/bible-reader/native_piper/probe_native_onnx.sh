@@ -32,12 +32,17 @@ clang++-18 --target=x86_64-sie-ps5 --sysroot="$sdk" \
   -std=c++17 -fno-rtti -fvisibility-nodllstorageclass=default \
   -fno-stack-protector -fno-plt -femulated-tls -fsyntax-only \
   "$source_root/homebrew/bible-reader/native_piper/piper_onnx.cpp"
+echo "[PROBE] Use Linux host protoc and disable target-side flatc generator"
+test -x /usr/bin/protoc
+/usr/bin/protoc --version
 echo "[PROBE] Configure with PS5 FreeBSD SDK, statically linked CPU backend"
 cmake -S cmake -B "$root/build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="$source_root/homebrew/bible-reader/native_piper/ps5-onnx-toolchain.cmake" \
   -DPS5_HOME="$sdk" \
   -Donnxruntime_CROSS_COMPILING=ON \
+  -DFLATBUFFERS_BUILD_FLATC=OFF \
+  -DONNX_CUSTOM_PROTOC_EXECUTABLE=/usr/bin/protoc \
   -DIconv_IS_BUILT_IN=TRUE \
   -DIconv_INCLUDE_DIR="$sdk/target/include" \
   -Donnxruntime_BUILD_SHARED_LIB=OFF \
