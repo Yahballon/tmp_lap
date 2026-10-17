@@ -78,3 +78,12 @@ The existing USB layout stays **PSJukebox/Music/<Artist>/<Album>** (or **Music/<
 The helper is included inside the installable PSJukebox ZIP. No separate computer-side tool is needed. Songs are staged to `/data/PSJukebox/Cache/` on first playback (with progress and cancel), reused on future plays. USB originals are not modified. Artist-themed artwork is transferred as needed.
 
 **Important:** You need a compatible jailbreak environment with `elfldr` already running on port 9021. Whether the helper can reach your particular USB mount is still firmware/loader dependent and requires PS5 hardware testing. A running app without that service cannot overcome filesystem permissions. App log: `/data/PSJukebox/psjukebox.log`.
+
+## v0.1.2 — Multi-artist navigation and controller footer
+
+- Artist folders appear even if there are no readable tracks or album folders yet (look for `ARTIST=... ALBUMS=... TRACKS=...` in `psjukebox.log`). Empty albums also remain in the list, so you can diagnose missing songs.
+- Tracks directly under `Music/Artist/` appear as a virtual **Singles** album. The standard `Music/Artist/Album/track.mp3` layout remains recommended.
+- Combine directly scanned and helper-scanned artists without duplicate artist cards.
+- Both DualSense sticks and D-pad navigate covers. D-pad L1/R1 cycles artists. The selected album always stays centered while neighboring covers rotate around it and wrap at the ends.
+- Footer uses geometrically drawn, colored PlayStation-style input symbols; removed the `Multi Album Player` subtitle from the header.
+- Rebuilt release `psjukebox-v0.1.2` is auto-discovered by TESTBUILDS `version.json` after the main workflow passes.
