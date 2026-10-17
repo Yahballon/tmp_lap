@@ -23,12 +23,38 @@ bool safe_name(const std::string& s) {
    s.find('/')==std::string::npos&&s.find('\\')==std::string::npos;
 }
 bool is_dir(const std::string& path) {
- struct stat st{};return lstat(path.c_str(),&st)==0&&S_ISDIR(st.st_mode);
+ struct stat st{};
+ if(lstat(path.c_str(),&st)==0)return S_ISDIR(st.st_mode);
+ if(errno!=EPERM&&errno!=ENOSYS)return false;
+ DIR* d=opendir(path.c_str());
+ if(!d)return false;
+ closedir(d);
+ return true;
 }
 bool is_file(const std::string& path,uint64_t* size=nullptr) {
  struct stat st{};
- if(lstat(path.c_str(),&st)!=0||!S_ISREG(st.st_mode))return false;
- if(size)*size=(uint64_t)st.st_size;
+ if(lstat(path.c_str(),&st)==0){
+  if(!S_ISREG(st.st_mode))return false;
+  if(size)*size=(uint64_t)st.st_size;
+  return true;
+ }
+ if(errno!=EPERM&&errno!=ENOSYS)return false;
+ // The PS5 app sandbox may block lstat on its own imported music,
+ // even though the file can be opened for playback.
+ FILE* f=fopen(path.c_str(),"rb");
+ if(!f)return false;
+ uint64_t len=0;
+ if(fstat(fileno(f),&st)==0){
+  if(!S_ISREG(st.st_mode)){fclose(f);return false;}
+  len=(uint64_t)st.st_size;
+ }else{
+  if(fseek(f,0,SEEK_END)!=0){fclose(f);return false;}
+  const long end=ftell(f);
+  if(end<0){fclose(f);return false;}
+  len=(uint64_t)end;
+ }
+ fclose(f);
+ if(size)*size=len;
  return true;
 }
 std::vector<std::string> directories(const std::string& path) {
