@@ -1,11 +1,11 @@
 {
   "name": "Bible Reader",
   "slug": "bible-reader",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "titleId": "PPSA99793",
   "contentId": "UP9000-PPSA99793_00-BIBLEREADER00001",
-  "contentVersion": "01.000.004",
-  "releaseTag": "bible-reader-v0.1.3",
+  "contentVersion": "01.000.005",
+  "releaseTag": "bible-reader-v0.1.4",
   "developer": "YAHBALLON",
   "bibleTranslation": "World English Bible British Edition (WEBPB)",
   "offline": true,
@@ -14,5 +14,7 @@
     "Lutherbibel 1912",
     "Louis Segond 1910",
     "Reina-Valera 1909"
-  ]
+  ],
+  "ttsEngine": "eSpeak NG 1.52.0 / SDL2",
+  "ttsOffline": true
 }
