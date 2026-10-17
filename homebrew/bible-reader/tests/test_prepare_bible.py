@@ -28,7 +28,7 @@ class BibleConverterTests(unittest.TestCase):
         self.assertEqual(bible.normalize_display_text("‘test’ “quote”"), """'test' "quote" """.strip())
     def test_invalid_utf8_is_not_silently_replaced(self):
         with self.assertRaises(UnicodeDecodeError):
-            b"\\xff".decode("utf-8-sig", errors="strict")
+            bytes([0xff]).decode("utf-8-sig", errors="strict")
     def test_rejects_partial_corpus(self):
         stream=io.BytesIO()
         with zipfile.ZipFile(stream,"w") as z:
