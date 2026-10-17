@@ -180,3 +180,18 @@ New games appear on the selected shelf during the incremental USB scan.
 The disc-selection popup retains its existing preferred disc-set shelf.
 This fixes library selection, **not** the unrelated temporary TheGamesDB
 HTTP 503 metadata warning. No games, covers or save data are changed.
+
+### v0.2.0: All games together, SMB in Settings
+
+Internal, USB, and SMB games now share the same CoverFlow, Grid, List,
+search, Favourites, Recently played and disc selection views. No source tabs
+are shown. Square rescans all configured sources. The source is displayed
+under each game title, but the existing game launch and SMB streaming code
+still uses the original file path.
+
+In **Settings > Library**, edit SMB share 1–6, username, password and domain
+with the PS5 keyboard. Existing additional share paths remain in network.cfg.
+Settings are saved automatically to `/data/PS5DreamcastX/network.cfg`
+with mode 0600. Password is masked. Restart the app after editing SMB
+settings so that new credentials are used safely (never swap active SMB
+credentials while the background scanner or a game is running).

@@ -66,6 +66,9 @@ jobs:
           clang++-18 -std=c++20 -Wall -Wextra \
             -o /tmp/dreamcastx-order-test tests/shelf_order_test.cpp
           /tmp/dreamcastx-order-test
+          clang++-18 -std=c++20 -Wall -Wextra -pthread \
+            -o /tmp/dreamcastx-smb-settings-test tests/smb_settings_test.cpp
+          /tmp/dreamcastx-smb-settings-test
           clang++-18 -std=c++20 -O1 -pthread -Wall -Wextra \
             -o /tmp/dreamcastx-cover-async-test tests/compile_cover_async.cpp
           /tmp/dreamcastx-cover-async-test
@@ -95,6 +98,6 @@ jobs:
       - name: Upload PS5 test build
         uses: actions/upload-artifact@v4
         with:
-          name: PS5DreamcastX-v0.1.9
+          name: PS5DreamcastX-v0.2.0
           path: homebrew/ps5-dreamcastx/dist/PPSA99765.zip
           if-no-files-found: error
