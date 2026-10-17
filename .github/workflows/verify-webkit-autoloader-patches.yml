@@ -82,6 +82,7 @@ jobs:
           for needed in ('/logs?pos=', '/install', '/version', 'applicationCache', '/clear-webkit-data', 'setCacheCorrupted', 'goToAutoloader', 'window.wkalCyberStage'):
               assert needed in page, needed
           assert '<aside class="rail"' in page and 'AUTO-INSTALL SEQUENCE' in page
+          assert 'ui=cyberpirate1' in Path('upstream-wkal/src/main.c').read_text()
           assert 'Launch Exploit' not in page and 'Open Payloads' not in page
           print('Original installer logic and buttonless live UI both preserved')
           PY
