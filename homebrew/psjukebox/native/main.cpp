@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.2
+// PSJukebox by YAHBALLON v0.1.3
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -8,6 +8,7 @@
 #include "audio_player.hpp"
 #include "remote_bridge.hpp"
 #include "stick_nav.hpp"
+#include "favorites.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -18,6 +19,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 #include <map>
 #include <mutex>
 #include <pthread.h>
@@ -27,7 +29,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.2";
+constexpr const char* version="v0.1.3";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -204,7 +206,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.2");
+ log("BOOT v0.1.3");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -215,9 +217,39 @@ int main(){
  jukebox::Library library;
  begin_scan();log("SCAN_START helper discovery, local + USB");
  audio::Player player;
+ jukebox::Favorites favorites;
+ std::string favoritesError;
+ if(!favorites.load(favoritesError))log("FAVORITES_LOAD_ERROR "+favoritesError);
  std::map<std::string,Texture> images;
  std::string playingPath,message="Scanning music (USB helper via elfldr :9021)...";
  int artistIndex=0,albumIndex=0,trackIndex=0,screen=0,settingsIndex=0;
+ int headerIndex=0,artistListIndex=0,favoritesIndex=0,playlistIndex=0;
+ bool headerFocus=false;
+ struct SongLocation {size_t artist=0,album=0,track=0;};
+ SongLocation playingSong{},queuedSong{};
+ bool havePlayingSong=false;
+ auto isCurrentPlaying=[&](size_t a,size_t b,size_t t){
+  return havePlayingSong&&playingSong.artist==a&&playingSong.album==b&&playingSong.track==t;
+ };
+ auto active_track=[&]()->const jukebox::Track*{
+  if(!havePlayingSong||playingSong.artist>=library.artists.size())return nullptr;
+  const auto& artist=library.artists[playingSong.artist];
+  if(playingSong.album>=artist.albums.size())return nullptr;
+  const auto& album=artist.albums[playingSong.album];
+  if(playingSong.track>=album.tracks.size())return nullptr;
+  return &album.tracks[playingSong.track];
+ };
+ auto current_queue=[&]()->std::vector<SongLocation>{
+  std::vector<SongLocation> result;
+  for(size_t a=0;a<library.artists.size();a++){
+   for(size_t b=0;b<library.artists[a].albums.size();b++){
+    const auto& album=library.artists[a].albums[b];
+    for(size_t t=0;t<album.tracks.size();t++)
+     if(favorites.contains(album.tracks[t].path))result.push_back({a,b,t});
+   }
+  }
+  return result;
+ };
  // screen 0: album carousel; 1: track list; 2: now playing; 3: artist chooser; 4: settings
  bool exitDialog=false,exitChoice=false;
  unsigned held=0,frame=0;int hold=0;
@@ -236,7 +268,7 @@ int main(){
  auto rescan=[&](){
   if(scanBusy.load()){message="Music library scan already running";return;}
   if(transferBusy.load()){message="Wait until song transfer finishes";return;}
-  player.stop();playingPath.clear();
+  player.stop();playingPath.clear();havePlayingSong=false;
   for(auto& it:images)destroy(it.second);images.clear();
   library={};
   artistIndex=0;albumIndex=0;trackIndex=0;screen=0;
@@ -247,18 +279,44 @@ int main(){
   auto* a=currentAlbum();if(!a||a->tracks.empty())return;
   trackIndex=std::clamp(trackIndex,0,(int)a->tracks.size()-1);
   const auto& t=a->tracks[(size_t)trackIndex];
+  queuedSong={static_cast<size_t>(artistIndex),static_cast<size_t>(albumIndex),static_cast<size_t>(trackIndex)};
   if(jbx::is_remote(t.path)){
    if(begin_transfer(t.path,t.size)){
     message="Loading "+cut(t.name,45)+" from USB...";screen=2;
     log("TRANSFER_BEGIN "+t.name+" bytes="+std::to_string(t.size));
    }else message="Song transfer already running or unavailable";
-  }else if(player.start(t.path)){playingPath=t.path;screen=2;message="";}
+  }else if(player.start(t.path)){playingPath=t.path;playingSong=queuedSong;havePlayingSong=true;screen=2;message="";}
   else{message="Audio file inaccessible: "+cut(t.name,36);log(message);}
  };
  auto next_track=[&](int delta){
+  if(havePlayingSong){
+   artistIndex=static_cast<int>(playingSong.artist);
+   albumIndex=static_cast<int>(playingSong.album);
+   trackIndex=static_cast<int>(playingSong.track);
+  }
   auto* a=currentAlbum();if(!a||a->tracks.empty())return;
   trackIndex=(trackIndex+delta+(int)a->tracks.size())%(int)a->tracks.size();
   play_track();
+ };
+ auto toggle_favorite=[&](const std::string& path){
+  if(path.empty()){message="Select a track first";return;}
+  bool added=false;std::string error;
+  if(favorites.toggle(path,added,error)){
+   message=added?"Added to Favorites":"Removed from Favorites";
+   log(std::string("FAVORITE ")+(added?"ADD ":"REMOVE ")+jukebox::favorite_key(path));
+  }else{
+   message=error;log("FAVORITES_SAVE_ERROR "+error);
+  }
+ };
+ auto activate_tab=[&](int tab){
+  headerIndex=tab;headerFocus=false;
+  switch(tab){
+   case 0:screen=0;break;
+   case 1:screen=3;artistListIndex=artistIndex;break;
+   case 2:screen=1;break;
+   case 3:screen=5;playlistIndex=0;break;
+   case 4:screen=6;favoritesIndex=0;break;
+  }
  };
  for(;;){
   std::array<hui::PadSample,64> events{};auto n=pad.read(events);
@@ -289,7 +347,7 @@ int main(){
    library=std::move(item.local);
    jukebox::merge(library,std::move(item.remote.library));
    library.report+=" | "+item.remote.status;
-   artistIndex=albumIndex=trackIndex=0;
+   artistIndex=albumIndex=trackIndex=0;havePlayingSong=false;playingPath.clear();
    message=library.artists.empty()?
       ("No music. "+cut(item.remote.status,94)):("Loaded "+std::to_string(library.artists.size())+
         " artists / "+std::to_string(library.trackCount)+" tracks");
@@ -300,7 +358,7 @@ int main(){
   for(auto& item:transfers){
    if(!item.ok){message="USB transfer failed: "+item.error;log("TRANSFER_ERROR "+item.error);}
    else if(!transferCancel.load()&&player.start(item.local)){
-    playingPath=item.path;screen=2;message="";
+    playingPath=item.path;playingSong=queuedSong;havePlayingSong=true;screen=2;message="";
     log("TRANSFER_OK "+item.path);
    }else {message="Cannot play cached audio";log("PLAYBACK_ERROR "+item.path);}
   }
@@ -315,6 +373,25 @@ int main(){
   if(transferBusy.load()&&(pressed&hui::pad_bits::kCircle)){
    transferCancel.store(true);message="Cancelling USB song transfer...";pressed=0;
   }
+  // Press UP from the album view to focus the header tabs.
+  // L2/R2 can also switch tabs without using a mouse or touchscreen.
+  if(!exitDialog&&screen!=2&&screen!=4){
+   if(headerFocus){
+    if(pressed&hui::pad_bits::kLeft)headerIndex=(headerIndex+4)%5;
+    if(pressed&hui::pad_bits::kRight)headerIndex=(headerIndex+1)%5;
+    if(pressed&hui::pad_bits::kCross)activate_tab(headerIndex);
+    if(pressed&(hui::pad_bits::kDown|hui::pad_bits::kCircle))headerFocus=false;
+    pressed=0;
+   }else{
+    if(screen==0&&(pressed&hui::pad_bits::kUp)){headerFocus=true;pressed=0;}
+    else if(pressed&hui::pad_bits::kL2){
+     activate_tab((headerIndex+4)%5);pressed=0;
+    }else if(pressed&hui::pad_bits::kR2){
+     activate_tab((headerIndex+1)%5);pressed=0;
+    }
+   }
+  }
+  auto favSongs=current_queue();
   if(exitDialog){
    if(pressed&hui::pad_bits::kLeft)exitChoice=true;
    if(pressed&hui::pad_bits::kRight)exitChoice=false;
@@ -332,43 +409,69 @@ int main(){
    }
   }else if(pressed&hui::pad_bits::kCircle){
    if(screen==0){exitDialog=true;exitChoice=false;}
-   else if(screen==2)screen=1;
-   else screen=0;
+   else if(screen==2)activate_tab(0);
+   else activate_tab(0);
   }else if(screen==0){
    if(artist&&!artist->albums.empty()){
-    const int albumCount=(int)artist->albums.size();
-    if(pressed&hui::pad_bits::kLeft)albumIndex=(albumIndex+albumCount-1)%albumCount;
-    if(pressed&hui::pad_bits::kRight)albumIndex=(albumIndex+1)%albumCount;
+    const int count=(int)artist->albums.size();
+    if(pressed&hui::pad_bits::kLeft)albumIndex=(albumIndex+count-1)%count;
+    if(pressed&hui::pad_bits::kRight)albumIndex=(albumIndex+1)%count;
    }
    if(!library.artists.empty()){
-    if(pressed&hui::pad_bits::kL1){artistIndex=(artistIndex+(int)library.artists.size()-1)%(int)library.artists.size();albumIndex=0;}
-    if(pressed&hui::pad_bits::kR1){artistIndex=(artistIndex+1)%(int)library.artists.size();albumIndex=0;}
+    if(pressed&hui::pad_bits::kL1){artistIndex=(artistIndex+(int)library.artists.size()-1)%(int)library.artists.size();albumIndex=0;trackIndex=0;}
+    if(pressed&hui::pad_bits::kR1){artistIndex=(artistIndex+1)%(int)library.artists.size();albumIndex=0;trackIndex=0;}
    }
-   if(pressed&hui::pad_bits::kCross&&album){screen=1;trackIndex=0;}
-   if(pressed&hui::pad_bits::kTriangle&&album){screen=1;trackIndex=0;}
-   if(pressed&hui::pad_bits::kSquare)rescan();
+   if(pressed&hui::pad_bits::kCross&&album&&!album->tracks.empty())play_track();
+   if(pressed&hui::pad_bits::kTriangle){
+    if(const auto* now=active_track())toggle_favorite(now->path);
+    else if(album&&!album->tracks.empty())toggle_favorite(album->tracks[0].path);
+    else message="Album has no songs to favorite";
+   }
+   if(pressed&hui::pad_bits::kSquare)screen=4;
    if(pressed&hui::pad_bits::kOptions)screen=4;
-  }else if(screen==1){
+  }else if(screen==1||screen==5){
    if(album&&!album->tracks.empty()){
     if(pressed&hui::pad_bits::kUp)trackIndex=std::max(0,trackIndex-1);
     if(pressed&hui::pad_bits::kDown)trackIndex=std::min((int)album->tracks.size()-1,trackIndex+1);
     if(pressed&hui::pad_bits::kCross)play_track();
+    if(pressed&hui::pad_bits::kTriangle)toggle_favorite(album->tracks[(size_t)trackIndex].path);
    }
-   if(pressed&hui::pad_bits::kL1)screen=0;
-   if(pressed&hui::pad_bits::kR1&&album&&!album->tracks.empty())play_track();
+   if(pressed&hui::pad_bits::kSquare)screen=4;
   }else if(screen==2){
    if(pressed&hui::pad_bits::kCross)player.toggle_pause();
    if(pressed&hui::pad_bits::kLeft)player.skip(-10);
    if(pressed&hui::pad_bits::kRight)player.skip(10);
-   if(pressed&hui::pad_bits::kL1)next_track(-1);
-   if(pressed&hui::pad_bits::kR1)next_track(1);
-   if(pressed&hui::pad_bits::kTriangle)screen=1;
+   if(pressed&(hui::pad_bits::kL2|hui::pad_bits::kL1))next_track(-1);
+   if(pressed&(hui::pad_bits::kR2|hui::pad_bits::kR1))next_track(1);
+   if(pressed&hui::pad_bits::kTriangle){
+    const auto* track=active_track();toggle_favorite(track?track->path:std::string{});
+   }
+   if(pressed&hui::pad_bits::kSquare)screen=4;
+  }else if(screen==3){
+   if(!library.artists.empty()){
+    if(pressed&hui::pad_bits::kUp)artistListIndex=std::max(0,artistListIndex-1);
+    if(pressed&hui::pad_bits::kDown)artistListIndex=std::min((int)library.artists.size()-1,artistListIndex+1);
+    if(pressed&hui::pad_bits::kCross){
+     artistIndex=artistListIndex;albumIndex=trackIndex=0;activate_tab(0);
+    }
+   }
+  }else if(screen==6){
+   if(!favSongs.empty()){
+    if(pressed&hui::pad_bits::kUp)favoritesIndex=std::max(0,favoritesIndex-1);
+    if(pressed&hui::pad_bits::kDown)favoritesIndex=std::min((int)favSongs.size()-1,favoritesIndex+1);
+    favoritesIndex=std::clamp(favoritesIndex,0,(int)favSongs.size()-1);
+    auto loc=favSongs[(size_t)favoritesIndex];
+    const auto& track=library.artists[loc.artist].albums[loc.album].tracks[loc.track];
+    if(pressed&hui::pad_bits::kTriangle)toggle_favorite(track.path);
+    if(pressed&hui::pad_bits::kCross){
+     artistIndex=(int)loc.artist;albumIndex=(int)loc.album;trackIndex=(int)loc.track;play_track();
+    }
+   }
   }else if(screen==4){
    if(pressed&hui::pad_bits::kUp)settingsIndex=std::max(0,settingsIndex-1);
    if(pressed&hui::pad_bits::kDown)settingsIndex=std::min(1,settingsIndex+1);
    if(pressed&hui::pad_bits::kCross){
-    if(settingsIndex==0)rescan();
-    else screen=0;
+    if(settingsIndex==0)rescan();else activate_tab(0);
    }
   }
   artist=currentArtist();album=currentAlbum();
