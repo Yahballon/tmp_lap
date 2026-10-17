@@ -143,7 +143,7 @@ void Speaker::run(){
   while(!cancelled_){
    const bible::Verse* verse=library_->verse(ref);if(!verse)break;
    phrase_=verse->text;pcm_.clear();marks_.clear();
-   if(verse->number==1||ref.book==from_.book&&ref.chapter==from_.chapter&&ref.verse==from_.verse)
+   if(verse->number==1||(ref.book==from_.book&&ref.chapter==from_.chapter&&ref.verse==from_.verse))
     bible_log::write("TTS_VERSE","book=%d chapter=%d verse=%d",ref.book,ref.chapter,ref.verse);
    Snapshot st{};st.active=true;st.ref=ref;status(st);
    auto result=espeak_Synth(phrase_.c_str(),phrase_.size()+1,0,POS_CHARACTER,0,
