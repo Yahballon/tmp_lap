@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "e3a3941b08f11d0b5672941496203a9d50d2a082c779fddf28f1fa2e24a7cb74",
+  "version": "3c7d832b3a4b6f735911d178690223b7194b2ef3967cb826b135e58233aedafa",
   "repository": "Yahballon/tmp_lap",
   "app_count": 13,
   "apps": [
@@ -96,7 +96,7 @@
       "published_at": "2026-10-15T18:21:03Z"
     },
     {
-      "name": "PS5DreamcastX",
+      "name": "DreamXcast",
       "slug": "ps5-dreamcastx",
       "title_id": "PPSA99765",
       "version": "0.2.0",
