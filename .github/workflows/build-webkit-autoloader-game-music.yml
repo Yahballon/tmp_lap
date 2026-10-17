@@ -1,4 +1,4 @@
-name: Build JAILBREAK ME - PS5 Game
+name: Build JAILBREAK ME - Cyber Pirate Installer
 on:
   workflow_dispatch:
     inputs:
@@ -73,6 +73,8 @@ jobs:
           git -C upstream-wkal submodule update --init --recursive
           git clone --depth 1 --branch v0.1.0 https://github.com/blackbearreloaded/ps5-at9-converter.git /tmp/ps5-at9-converter
           cp homebrew/ps5-webkit-autoloader-game/icon.png upstream-wkal/assets/icon-custom.png
+          cp homebrew/ps5-webkit-autoloader-game/background.png upstream-wkal/frontend/installer-page/background.png
+          python3 homebrew/ps5-webkit-autoloader-game/patch_cyber_ui.py upstream-wkal
       - name: Encode 60-second looping PS5 selection music
         run: |
           set -euo pipefail
@@ -120,6 +122,11 @@ jobs:
           assert j['titleId']=='WKAG00001' and j['applicationCategoryType']==0
           assert j['localizedParameters']['en-US']['titleName']=='JAILBREAK ME'
           assert j['contentVersion']=='01.000.003'
+          themed=(root/'frontend/installer-page/index.html').read_text()
+          assert 'JAILBREAK ME' in themed and 'AUTO-INSTALL SEQUENCE' in themed
+          assert 'wkalCyberStage' in themed
+          assert 'clear-webkit-data' in themed and '/install' in themed
+          assert (root/'frontend/installer-page/background.png').is_file()
           assert j['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
           assert j['pubtools']['loudnessSnd0']
           assert song.startswith(b'RIFF') and song[8:12]==b'WAVE'
@@ -167,16 +174,18 @@ jobs:
           assert b'WKAG00001' in elf
           assert b'JAILBREAK ME' in elf
           assert b'TITLE_DB_REGISTER' in elf
+          assert b'AUTO-INSTALL SEQUENCE' in elf
+          assert (Path('frontend/installer-page/background.png').read_bytes()) in elf
           assert sound in elf, 'ERROR: soundtrack not embedded in installer'
           background=Path('assets/pic0.dds').read_bytes()
           assert background==Path('assets/pic1.dds').read_bytes()
           assert background in elf, 'ERROR: user-provided 4K Game background not embedded in installer'
           assert b'BACKGROUND_DB_REGISTER' in elf
           assert b'http://127.0.0.1:18181/app/index.html' in elf
-          print('ELF contains custom JAILBREAK ME icon + snd0.at9 + 4K BC7 background + Game category')
+          print('ELF contains live cyber-pirate WebKit installer UI + icon + music + BC7 Game Hub background')
           PY
           mkdir -p ../game-build-with-music
-          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/JAILBREAK-ME-installer_v0.4.0.elf
+          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/JAILBREAK-ME-CYBER-INSTALLER_v0.4.0.elf
           cp webkit-autoloader-host_v0.4.0.py ../game-build-with-music/JAILBREAK-ME-host_v0.4.0.py
           cp assets/snd0.at9 ../game-build-with-music/snd0.at9
           cp assets/icon0.png ../game-build-with-music/icon0.png
@@ -186,7 +195,7 @@ jobs:
           (cd ../game-build-with-music && sha256sum * > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-JAILBREAK-ME-v0.4.0
+          name: PS5-JAILBREAK-ME-CYBER-UI-v0.4.0
           path: game-build-with-music/
           if-no-files-found: error
           retention-days: 30
