@@ -7,12 +7,12 @@
 int main() {
  auto found=jbx::scan();
  assert(found.helperRunning);
- assert(found.library.artists.size()==1);
+ assert(found.library.artists.size()==3);
  auto& artist=found.library.artists[0];
  assert(artist.name=="Bob Marley");
  assert(artist.theme.accent==0x44cc77);
  assert(artist.albums.size()==2);
- assert(found.library.trackCount==2);
+ assert(found.library.trackCount==3);
  const jukebox::Album* album=nullptr;
  for(const auto& a:artist.albums)if(a.name=="Legend")album=&a;
  assert(album&&album->tracks.size()==1);
@@ -25,5 +25,13 @@ int main() {
  struct stat st{};
  assert(stat(local.c_str(),&st)==0);
  assert((uint64_t)st.st_size==album->tracks[0].size);
+ auto tupac=found.library.artists[1];
+ assert(tupac.name=="Tupac");
+ assert(tupac.albums.size()==1);
+ assert(tupac.albums[0].tracks.empty());
+ assert(tupac.albums[0].name=="All Eyez on Me");
+ assert(found.library.artists[2].name=="wu-tang");
+ assert(found.library.artists[2].albums[0].name=="Singles");
+ assert(found.library.artists[2].albums[0].tracks.size()==1);
  std::puts("PASS PSJukebox USB music helper integration");
 }

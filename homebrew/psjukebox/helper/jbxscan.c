@@ -37,7 +37,7 @@ static const char *roots[]={JUKEBOX_TEST_ROOT};
 #define MAX_REL 512
 #define MAX_MEDIA (8ULL*1024*1024*1024)
 #define MAX_ART (12ULL*1024*1024)
-static unsigned catalog_files=0,catalog_dirs=0;
+static unsigned catalog_files=0,catalog_dirs=0,catalog_artists=0;
 static int send_all(int fd,const void *p,size_t n){
  const char *s=(const char*)p;
  while(n){ssize_t w=send(fd,s,n,0);if(w<=0)return 0;n-=(size_t)w;s+=w;}return 1;
@@ -94,7 +94,7 @@ static int secure_file(unsigned root,const char *relative,uint64_t *size){
  if(depth<2||depth>3||!S_ISREG(st.st_mode)||st.st_size<1)return 0;
  const char *name=strrchr(relative,'/');name=name?name+1:relative;
  int t=kind(name);
- if(!t||(t==2&&depth!=3)||(t==3&&depth!=2))return 0;
+ if(!t||(t==2&&depth!=2&&depth!=3)||(t==3&&depth!=2))return 0;
  uint64_t limit=t==2?MAX_MEDIA:(t==1?MAX_ART:4096);
  if((uint64_t)st.st_size>limit)return 0;
  *size=(uint64_t)st.st_size;return 1;
@@ -110,7 +110,17 @@ static void enumerate(int fd,unsigned root,const char *dir,const char *rel,unsig
   int q=snprintf(next,sizeof(next),"%s%s%s",rel,*rel?"/":"",e->d_name);
   if(n<=0||n>=(int)sizeof(path)||q<=0||q>=(int)sizeof(next))continue;
   struct stat st;if(lstat(path,&st)!=0||S_ISLNK(st.st_mode))continue;
-  if(S_ISDIR(st.st_mode)&&depth<2){enumerate(fd,root,path,next,depth+1);continue;}
+  if(S_ISDIR(st.st_mode)&&depth<2){
+   char marker[700];
+   // Enumerate directories separately: never hide an artist with no tracks.
+   int sz=snprintf(marker,sizeof(marker),"%c %u %s\n",depth==0?'A':'D',root,next);
+   if(sz>0&&sz<(int)sizeof(marker)){
+    send_all(fd,marker,(size_t)sz);
+    if(depth==0)catalog_artists++;
+   }
+   enumerate(fd,root,path,next,depth+1);
+   continue;
+  }
   if(!S_ISREG(st.st_mode))continue;
   uint64_t size=0;
   if(!secure_file(root,next,&size))continue;
@@ -121,14 +131,14 @@ static void enumerate(int fd,unsigned root,const char *dir,const char *rel,unsig
  closedir(d);
 }
 static void listing(int fd){
- catalog_files=catalog_dirs=0;print_all(fd,"JBOX1\n");
+ catalog_files=catalog_dirs=catalog_artists=0;print_all(fd,"JBOX1\n");
  for(unsigned i=0;i<ROOTS;i++){
   struct stat st;if(lstat(roots[i],&st)!=0||!S_ISDIR(st.st_mode))continue;
   char line[700];int n=snprintf(line,sizeof(line),"R %u %s\n",i,roots[i]);
   if(n>0&&n<(int)sizeof(line))send_all(fd,line,(size_t)n);
   enumerate(fd,i,roots[i],"",0);
  }
- if(!catalog_files)print_all(fd,"ERROR No accessible supported music found\n");
+ if(!catalog_artists)print_all(fd,"ERROR No accessible artist folders found\n");
  print_all(fd,"DONE\n");
 }
 static void transmit(int fd,unsigned root,const char *relative,uint64_t offset){

@@ -187,7 +187,7 @@ bool read_small(const std::string& path,size_t limit,std::string& data,std::stri
  if(offset!=data.size()){data.clear();error="Incomplete image/metadata transfer";return false;}
  return true;
 }
-struct Entry{unsigned root;uint64_t size;std::string relative;};
+struct Entry{unsigned root;uint64_t size;std::string relative;bool directory=false;};
 int picture_rank(const std::string& p,const std::string& base){
  const std::string name=lower(p);
  return name==base+".png"?0:name==base+".jpg"?1:name==base+".jpeg"?2:99;
@@ -223,18 +223,25 @@ CatalogResult scan(){
   if(row.rfind("R ",0)==0||row.rfind("ERROR ",0)==0){
    result.status+=row+"; ";continue;
   }
-  if(row.rfind("F ",0)!=0)continue;
-  size_t start=row.find(' ',2);
-  if(start==std::string::npos)continue;
-  size_t startPath=row.find(' ',start+1);
-  if(startPath==std::string::npos)continue;
-  const auto id=row.substr(2,start-2),sz=row.substr(start+1,startPath-start-1),rel=row.substr(startPath+1);
+  const bool directory=row.rfind("A ",0)==0||row.rfind("D ",0)==0;
+  const bool media=row.rfind("F ",0)==0;
+  if(!directory&&!media)continue;
+  size_t begin=row.find(' ',2);
+  if(begin==std::string::npos)continue;
+  size_t pathAt=media?row.find(' ',begin+1):begin;
+  if(pathAt==std::string::npos)continue;
+  const auto id=row.substr(2,begin-2);
+  const auto rel=row.substr(pathAt+1);
+  const auto sz=media?row.substr(begin+1,pathAt-begin-1):std::string("0");
   if(id.empty()||id.size()>2||sz.empty()||sz.size()>20||!relative_ok(rel))continue;
   unsigned rid=0;uint64_t n=0;bool valid=true;
   for(char ch:id){if(ch<'0'||ch>'9'){valid=false;break;}rid=rid*10+(ch-'0');}
   for(char ch:sz){if(ch<'0'||ch>'9'||n>kMaxAudio/10){valid=false;break;}n=n*10+(ch-'0');}
-  if(!valid||rid>=32||n==0||n>kMaxAudio)continue;
-  files.push_back({rid,n,rel});
+  const auto pieces=segments(rel);
+  if(!valid||rid>=32||n>kMaxAudio||(!directory&&n==0))continue;
+  if(directory&&((row[0]=='A'&&pieces.size()!=1)||
+                 (row[0]=='D'&&pieces.size()!=2)))continue;
+  files.push_back({rid,n,rel,directory});
  }
  std::map<std::string,size_t> artistIndices;
  std::vector<std::string> themeFiles;
@@ -242,7 +249,7 @@ CatalogResult scan(){
  std::vector<std::vector<int>> coverRanks,albumBgRanks;
  for(const auto& entry:files){
   const auto p=segments(entry.relative);
-  if(p.size()!=2&&p.size()!=3)continue;
+  if(p.empty()||p.size()>3)continue;
   const std::string key=std::to_string(entry.root)+":"+lower(p[0]);
   size_t a=0;auto it=artistIndices.find(key);
   if(it==artistIndices.end()){
@@ -255,36 +262,61 @@ CatalogResult scan(){
    coverRanks.emplace_back();albumBgRanks.emplace_back();
   }else a=it->second;
   auto& artist=result.library.artists[a];
-  if(p.size()==2){
-   update_picture(artist.logo,logoRank[a],entry,p[1],"logo");
-   update_picture(artist.background,bgRank[a],entry,p[1],"background");
-   if(lower(p[1])=="theme.ini"&&entry.size<=4096)
-    themeFiles[a]=virtual_path(entry.root,entry.relative);
-  }else{
-   const std::string extension=lower(p[2]);
-   const bool musical=jukebox::is_music(extension);
-   const bool picture=picture_rank(extension,"cover")<99||picture_rank(extension,"background")<99;
-   if(!musical&&!picture)continue;
-   size_t albumIndex=artist.albums.size();
-   for(size_t i=0;i<artist.albums.size();i++)if(lower(artist.albums[i].name)==lower(p[1])){
-    albumIndex=i;break;
-   }
-   if(albumIndex==artist.albums.size()){
-    if(albumIndex>=128)continue;
-    jukebox::Album album;album.name=p[1];album.path=virtual_path(entry.root,p[0]+"/"+p[1]);
+  if(p.size()==1)continue; // Artist directory marker.
+  auto album_index=[&](const std::string& name)->size_t{
+   size_t index=artist.albums.size();
+   for(size_t i=0;i<artist.albums.size();i++)
+    if(lower(artist.albums[i].name)==lower(name)){index=i;break;}
+   if(index==artist.albums.size()&&index<128){
+    jukebox::Album album;album.name=name;
+    album.path=virtual_path(entry.root,p[0]+(name=="Singles"?"":"/"+name));
     artist.albums.push_back(std::move(album));
     coverRanks[a].push_back(99);albumBgRanks[a].push_back(99);
    }
-   auto& album=artist.albums[albumIndex];
+   return index;
+  };
+  if(entry.directory){
+   if(p.size()==2)album_index(p[1]); // Retain even album with zero media.
+   continue;
+  }
+  if(p.size()==2){
+   if(jukebox::is_music(p[1])&&entry.size>=1024){
+    const size_t index=album_index("Singles");
+    if(index>=artist.albums.size()||artist.albums[index].tracks.size()>=400)continue;
+    auto title=p[1];auto dot=title.find_last_of('.');
+    if(dot!=std::string::npos)title.resize(dot);
+    for(auto& ch:title)if(ch=='_')ch=' ';
+    artist.albums[index].tracks.push_back({title,virtual_path(entry.root,entry.relative),entry.size});
+    result.library.trackCount++;
+   }else{
+    update_picture(artist.logo,logoRank[a],entry,p[1],"logo");
+    update_picture(artist.background,bgRank[a],entry,p[1],"background");
+    if(lower(p[1])=="theme.ini"&&entry.size<=4096)
+     themeFiles[a]=virtual_path(entry.root,entry.relative);
+    // 'cover.jpg' at artist root is the cover for loose Singles.
+    if(picture_rank(p[1],"cover")<99){
+     const size_t index=album_index("Singles");
+     if(index<artist.albums.size())
+      update_picture(artist.albums[index].cover,coverRanks[a][index],entry,p[1],"cover");
+    }
+   }
+  }else{
+   const bool musical=jukebox::is_music(p[2])&&entry.size>=1024;
+   const bool picture=picture_rank(p[2],"cover")<99||picture_rank(p[2],"background")<99;
+   if(!musical&&!picture)continue;
+   const size_t index=album_index(p[1]);
+   if(index>=artist.albums.size())continue;
+   auto& album=artist.albums[index];
    if(musical){
     if(album.tracks.size()>=400)continue;
-    auto title=p[2];auto dot=title.find_last_of('.');if(dot!=std::string::npos)title.resize(dot);
+    auto title=p[2];auto dot=title.find_last_of('.');
+    if(dot!=std::string::npos)title.resize(dot);
     for(char& ch:title)if(ch=='_')ch=' ';
     album.tracks.push_back({title,virtual_path(entry.root,entry.relative),entry.size});
     result.library.trackCount++;
    }else{
-    update_picture(album.cover,coverRanks[a][albumIndex],entry,p[2],"cover");
-    update_picture(album.background,albumBgRanks[a][albumIndex],entry,p[2],"background");
+    update_picture(album.cover,coverRanks[a][index],entry,p[2],"cover");
+    update_picture(album.background,albumBgRanks[a][index],entry,p[2],"background");
    }
   }
  }
@@ -298,14 +330,18 @@ CatalogResult scan(){
   for(auto& album:artist.albums){
    std::sort(album.tracks.begin(),album.tracks.end(),[](const auto& a,const auto& b){return lower(a.name)<lower(b.name);});
   }
-  artist.albums.erase(std::remove_if(artist.albums.begin(),artist.albums.end(),
-    [](const auto& al){return al.tracks.empty();}),artist.albums.end());
+  // Empty albums remain visible; users can fix missing/unsupported tracks.
   std::sort(artist.albums.begin(),artist.albums.end(),[](const auto& a,const auto& b){
    return lower(a.name)<lower(b.name);
   });
  }
- result.library.artists.erase(std::remove_if(result.library.artists.begin(),result.library.artists.end(),
-    [](const auto& artist){return artist.albums.empty();}),result.library.artists.end());
+ // Never silently discard an actual artist folder.
+ for(const auto& artist:result.library.artists){
+  size_t count=0;
+  for(const auto& album:artist.albums)count+=album.tracks.size();
+  result.status+="ARTIST="+artist.name+" ALBUMS="+std::to_string(artist.albums.size())+
+    " TRACKS="+std::to_string(count)+"; ";
+ }
  std::sort(result.library.artists.begin(),result.library.artists.end(),[](const auto& a,const auto& b){
   return lower(a.name)<lower(b.name);
  });

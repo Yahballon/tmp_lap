@@ -153,7 +153,7 @@ Library scan(const std::vector<std::string>& roots) {
    if(out.artists.size()>=256)break;
    const std::string artistDir=root+"/"+name;
    const auto albumNames=directories(artistDir);
-   if(albumNames.empty())continue;
+   // Empty artist folders are still valid library entries.
    const auto key=lowercase(name);
    size_t index=0;
    auto it=artistIndexes.find(key);
@@ -166,12 +166,23 @@ Library scan(const std::vector<std::string>& roots) {
     out.artists.push_back(std::move(artist));
    } else index=it->second;
    Artist& artist=out.artists[index];
+   // Artist root can contain loose tracks; expose as a virtual Singles album.
+   auto loose=tracks(artistDir);
+   if(!loose.empty()){
+    Album singles;singles.name="Singles";singles.path=artistDir;
+    singles.cover=art(artistDir,"cover");
+    singles.background=art(artistDir,"background");
+    singles.tracks=std::move(loose);
+    out.trackCount+=singles.tracks.size();
+    artist.albums.push_back(std::move(singles));
+    found++;
+   }
    for(const auto& albumName:albumNames) {
     if(artist.albums.size()>=128)break;
     const std::string albumDir=artistDir+"/"+albumName;
     Album album;album.name=albumName;album.path=albumDir;
     album.tracks=tracks(albumDir);
-    if(album.tracks.empty())continue;
+    // Keep albums without recognized songs visible for diagnosis.
     album.cover=art(albumDir,"cover");
     album.background=art(albumDir,"background");
     out.trackCount+=album.tracks.size();
@@ -189,10 +200,56 @@ Library scan(const std::vector<std::string>& roots) {
  std::sort(out.artists.begin(),out.artists.end(),[](const auto& a,const auto& b){
   return lowercase(a.name)<lowercase(b.name);
  });
- out.artists.erase(std::remove_if(out.artists.begin(),out.artists.end(),
-    [](const Artist& a){return a.albums.empty();}),out.artists.end());
+ // Keep all visible artist folders even if their album folders have no playable tracks.
+ for(const auto& a:out.artists){
+  size_t count=0;
+  for(const auto& album:a.albums)count+=album.tracks.size();
+  out.report+="ARTIST="+a.name+" ALBUMS="+std::to_string(a.albums.size())+
+              " TRACKS="+std::to_string(count)+"; ";
+ }
  out.report+="ARTISTS="+std::to_string(out.artists.size())+
             " TRACKS="+std::to_string(out.trackCount);
  return out;
+}
+// Unify direct and helper-discovered artists rather than showing duplicates.
+void merge(Library& target,Library&& other){
+ for(auto& added:other.artists){
+  auto artist=std::find_if(target.artists.begin(),target.artists.end(),
+   [&](const Artist& a){return lowercase(a.name)==lowercase(added.name);});
+  if(artist==target.artists.end()){
+   target.artists.push_back(std::move(added));continue;
+  }
+  if(artist->logo.empty())artist->logo=added.logo;
+  if(artist->background.empty())artist->background=added.background;
+  if(artist->theme.accent==Theme{}.accent)artist->theme=added.theme;
+  for(auto& album:added.albums){
+   auto match=std::find_if(artist->albums.begin(),artist->albums.end(),
+    [&](const Album& a){return lowercase(a.name)==lowercase(album.name);});
+   if(match==artist->albums.end()){
+    artist->albums.push_back(std::move(album));continue;
+   }
+   if(match->cover.empty())match->cover=album.cover;
+   if(match->background.empty())match->background=album.background;
+   for(auto& song:album.tracks){
+    auto dup=std::find_if(match->tracks.begin(),match->tracks.end(),[&](const Track& t){
+      return lowercase(t.name)==lowercase(song.name) && t.size==song.size;
+    });
+    if(dup==match->tracks.end())match->tracks.push_back(std::move(song));
+   }
+   std::sort(match->tracks.begin(),match->tracks.end(),[](const Track& a,const Track& b){
+     return lowercase(a.name)<lowercase(b.name);
+   });
+  }
+  std::sort(artist->albums.begin(),artist->albums.end(),[](const Album& a,const Album& b){
+    return lowercase(a.name)<lowercase(b.name);
+  });
+ }
+ std::sort(target.artists.begin(),target.artists.end(),[](const Artist& a,const Artist& b){
+  return lowercase(a.name)<lowercase(b.name);
+ });
+ target.trackCount=0;
+ for(const auto& a:target.artists)
+  for(const auto& b:a.albums)target.trackCount+=b.tracks.size();
+ target.report+=" | "+other.report;
 }
 } // namespace jukebox
