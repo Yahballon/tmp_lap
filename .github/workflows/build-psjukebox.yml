@@ -27,6 +27,35 @@ jobs:
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/psjukebox/native/library.cpp homebrew/psjukebox/tests/library_test.cpp -o /tmp/psjukebox-test
           /tmp/psjukebox-test
           g++ -std=c++20 -O2 -pthread -Wall -Wextra -c homebrew/psjukebox/native/audio_player.cpp $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2) -o /tmp/psjukebox-player.o
+      - name: Host USB helper integration test
+        run: |
+          set -euo pipefail
+          mkdir -p "/tmp/jbx-fixture/Bob Marley/Legend" "/tmp/jbx-fixture/Bob Marley/Exodus" /tmp/jbx-test-runtime
+          python3 - <<'PY'
+          from pathlib import Path
+          artist=Path('/tmp/jbx-fixture/Bob Marley')
+          (artist/'logo.png').write_bytes(bytes([137,80,78,71,13,10,26,10])+bytes(256))
+          (artist/'theme.ini').write_text('accent=#44cc77\nsecondary=#101010\n')
+          (artist/'Legend'/'cover.jpg').write_bytes(bytes([255,216])+bytes(512))
+          (artist/'Legend'/'background.png').write_bytes(bytes([137,80,78,71,13,10,26,10])+bytes(512))
+          (artist/'Legend'/'01-One-Love.mp3').write_bytes(b'ID3'+bytes(2500))
+          (artist/'Exodus'/'01-Mystic.flac').write_bytes(b'fLaC'+bytes(2600))
+          (artist/'Legend'/'skip.exe').write_bytes(b'excluded')
+          (artist/'Legend'/'symlink.mp3').symlink_to(artist/'Legend'/'01-One-Love.mp3')
+          PY
+          gcc -std=gnu11 -O2 -Wall -Wextra -Werror \
+            -DJUKEBOX_TEST_ROOT='"/tmp/jbx-fixture"' -DJUKEBOX_PORT=19188 \
+            homebrew/psjukebox/helper/jbxscan.c -o /tmp/jbx-helper-test
+          /tmp/jbx-helper-test >/tmp/jbx-helper.log 2>&1 &
+          helper_pid=$!
+          trap 'kill "$helper_pid" 2>/dev/null || true' EXIT
+          sleep 0.3
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
+            -DJUKEBOX_BRIDGE_PORT=19188 -DJUKEBOX_DATA_ROOT='"/tmp/jbx-test-runtime"' \
+            homebrew/psjukebox/native/library.cpp \
+            homebrew/psjukebox/native/remote_bridge.cpp \
+            homebrew/psjukebox/tests/bridge_test.cpp -o /tmp/jbx-bridge-test
+          /tmp/jbx-bridge-test
       - name: Prepare app and assets
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
