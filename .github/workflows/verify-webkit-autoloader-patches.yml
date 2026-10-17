@@ -90,6 +90,14 @@ jobs:
           assert 'MAX_LOG_LINES = 48' in (app/'app.js').read_text()
           assert 'JAILBREAK ME Cyber Pirate' in (app/'style.css').read_text()
           assert "exploitEl.src = EXPLOIT_URL" in (app/'app.js').read_text()
+          js=(app/'app.js').read_text()
+          assert "setTimeout(revealExploit, 1500)" not in js
+          assert "window.addEventListener('load', start)" not in js
+          assert "setTimeout(function () {\n      splashEl.hidden" not in js
+          assert js.index("    revealExploit();\n    try {\n      exploitEl.src = EXPLOIT_URL;") > -1
+          assert "  start();" in js
+          assert js.count("exploitEl.src = EXPLOIT_URL") >= 1
+          assert 'sessionStorage.setItem(\'on_load_autorun\'' in js
           assert 'Launch Exploit' not in page and 'Open Payloads' not in page
           print('Original installer logic and buttonless live UI both preserved')
           PY
