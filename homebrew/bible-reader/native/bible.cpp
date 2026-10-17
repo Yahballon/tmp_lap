@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "bible.hpp"
 #include <algorithm>
-#include <cctype>\n#include <cstdlib>
+#include <cctype>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <cerrno>
@@ -70,7 +71,8 @@ bool Library::load(const std::string& path,std::string& error){
  if(bad||rows<30000||rows>40000||chapterCount!=1189||
     !verse({0,1,1})||!verse({65,22,21})){
   error="Invalid/incomplete offline Bible (requires 66 books, 1189 chapters, 30k+ verses)";
-  for(auto& x:data_)x.clear();return false;
+  for(auto& x:data_){x.clear();}
+  return false;
  }
  count_=rows;error.clear();return true;
 }
@@ -88,7 +90,8 @@ std::vector<SearchHit> Library::search(std::string query,size_t limit) const {
 }
 bool same(Ref a,Ref b){return a.book==b.book&&a.chapter==b.chapter&&a.verse==b.verse;}
 bool bookmarked(const Settings& s,Ref r){
- for(Ref x:s.bookmarks)if(same(x,r))return true;return false;
+ for(Ref x:s.bookmarks){if(same(x,r))return true;}
+ return false;
 }
 void toggle(Settings& s,Ref r){
  auto it=std::find_if(s.bookmarks.begin(),s.bookmarks.end(),[&](Ref x){return same(x,r);});
