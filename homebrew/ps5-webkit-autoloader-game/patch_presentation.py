@@ -172,7 +172,15 @@ static int needs_update(''',
         "appmeta staging")
 
     mk = make.read_text()
-    mk = replace_once(mk, '-lSceAppInstUtil', '-lSceAppInstUtil -lsqlite3', "sqlite linker")
+    mk = replace_once(mk, 'INCLUDES := -Iinclude -I$(TARGET)/include',
+                      'INCLUDES := -Iinclude -Ivendor/sqlite -I$(TARGET)/include',
+                      "sqlite include path")
+    mk = replace_once(mk, 'SRCS := src/main.c',
+                      'SRCS := vendor/sqlite/sqlite3.c src/main.c',
+                      "compile sqlite directly into native ELF")
+    mk = replace_once(mk, 'CFLAGS  := -Os -Wall',
+                      'CFLAGS  := -Os -Wall -DSQLITE_THREADSAFE=1 -DSQLITE_OMIT_LOAD_EXTENSION',
+                      "disable SQLite dynamic extension loading")
     f.write_text(code)
     make.write_text(mk)
     print("Game presentation fix: app root icon + appmeta icon/music + SQLite snd0info update")
