@@ -178,8 +178,8 @@ jobs:
               assert z.read('PPSA99793/assets/bible/webpb.tsv').count(b'\n')>30000
               for lang in ('de','fr','es'):
                   assert z.read('PPSA99793/assets/bible/'+lang+'.tsv').count(b'\n')>30000
-          for lang in ('en','de','fr','es'):
-              assert len(z.read('PPSA99793/assets/tts/espeak-ng-data/'+lang+'_dict'))>512
+              for lang in ('en','de','fr','es'):
+                  assert len(z.read('PPSA99793/assets/tts/espeak-ng-data/'+lang+'_dict'))>512
           print('Verified public release installer, Bible and all offline TTS dictionaries')
           PY
       - name: Publish immutable release ZIP
