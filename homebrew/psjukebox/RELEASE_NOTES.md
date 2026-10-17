@@ -1,14 +1,14 @@
-# PSJukebox v0.1.2 — PS5 TESTBUILD
+# PSJukebox v0.1.3 (TESTBUILD)
 
-Multi-artist and DualSense UI fixes:
+New screenshot-inspired cinematic interface with functional Favorites:
 
-- Keep artist folders visible regardless of missing/empty album folders, e.g. Tupac alongside wu-tang.
-- Keep empty album jackets visible instead of silently dropping them; detect songs directly in artist folders as Singles.
-- Merge local and helper scan results by artist and album.
-- Both DualSense analog sticks and D-pad support cover browsing with controlled repeat; current selected jacket always remains centered in the circular carousel.
-- Bottom hints replaced with colored controller button symbols; removed Multi Album Player from the artist header.
-- Extended host regression tests for directory-only artists, zero-track albums, artist-root music, and analog navigation.
+- Five top tabs: **All Albums / Artists / Tracks / Playlists / Favorites**, replacing USB with a favorite star.
+- Full-screen artist and album backgrounds; large centered highlighted jacket and neighbors, mirrored shelf, dynamic clock and compact Now Playing progress bar.
+- Triangle adds/removes the selected or currently playing track from Favorites.
+- Dedicated Favorites tab lists saved songs from every artist; Up/Down selects, X plays, Triangle removes.
+- Favorites persist across restarts under `/data/PSJukebox/favorites.json`; portable artist/album/song path identities across USB mount indexes.
+- Playlists tab exposes the current album queue (named playlist editing to follow).
+- Improved colored controller hints, navigation to top tabs using Up + Left/Right + X or L2/R2 from library screens.
+- Existing album scanning, USB relay, background switching and FFmpeg music playback remain.
 
-No change to USB folder layout: Music/Artist/Album/{cover.jpg, background.jpg, songs}, Artist/logo.png.
-If another artist has no playable songs, it is still visible and the app logs its album and track counts.
-Requires running compatible elfldr on port 9021 for restricted USB access. Physical PS5 hardware verification remains pending.
+**PS5 TESTBUILD**: compiled and archive-verified by GitHub Actions; physical PS5 UI and save permissions must be verified. Uses the user's own music and artist artwork. No artist imagery bundled.
