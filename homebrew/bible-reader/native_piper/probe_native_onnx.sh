@@ -68,6 +68,39 @@ if old not in s:
 file.write_text(s.replace(old,'enum { kCacheAlignment = 32 };'))
 print('PS5 protobuf TLS alignment adjusted: 64 -> 32')
 PY
+echo "[PROBE] Patch Linux-only CPU pinning / profiling and x86 TLS over-alignment for PS5"
+python3 - <<'PY'
+from pathlib import Path
+root=Path('/tmp/piper-onnx-ps5/onnxruntime')
+threadpool=root/'onnxruntime/core/common/threadpool.cc'
+env=root/'onnxruntime/core/platform/posix/env.cc'
+eigen=root/'include/onnxruntime/core/platform/EigenNonBlockingThreadPool.h'
+
+def replace_checked(file,old,new,count):
+    src=file.read_text()
+    actual=src.count(old)
+    if actual!=count:
+        raise SystemExit(f'{file}: expected {count} occurrences, found {actual}: {old[:75]}')
+    file.write_text(src.replace(old,new))
+    print('PS5 portability patch:',file.name,'replaced',count)
+
+replace_checked(threadpool,
+  'core_ = sched_getcpu();',
+  '// PS5 SDK exposes no sched_getcpu; CPU index is optional profiling data.\n  core_ = -1;',
+  2)
+replace_checked(env,
+  '#if defined(CPUINFO_SUPPORTED) && !defined(__APPLE__) && !defined(__ANDROID__) && !defined(__wasm__) && !defined(_AIX)',
+  '#if defined(CPUINFO_SUPPORTED) && !defined(__APPLE__) && !defined(__ANDROID__) && !defined(__wasm__) && !defined(_AIX) && !defined(BIBLE_ONNX_PS5)',
+  1)
+replace_checked(env,
+  '#if !defined(__APPLE__) && !defined(__ANDROID__) && !defined(__wasm__) && !defined(_AIX)',
+  '#if !defined(__APPLE__) && !defined(__ANDROID__) && !defined(__wasm__) && !defined(_AIX) && !defined(BIBLE_ONNX_PS5)',
+  1)
+replace_checked(eigen,
+  '#if defined(__x86_64__)\n#define ORT_FALSE_SHARING_BYTES 128',
+  '#if defined(BIBLE_ONNX_PS5)\n#define ORT_FALSE_SHARING_BYTES 32\n#elif defined(__x86_64__)\n#define ORT_FALSE_SHARING_BYTES 128',
+  1)
+PY
 echo "[PROBE] Examining available ONNX static targets"
 ninja -C "$root/build" -t targets all | grep -E 'onnxruntime_(session|providers|graph|framework|optimizer):|onnxruntime_(session|providers|graph|framework|optimizer)\.a' | head -40 || true
 echo "[PROBE] Compiling native PS5 ONNX Runtime C API and CPU kernels"
