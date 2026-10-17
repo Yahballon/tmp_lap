@@ -63,6 +63,7 @@ jobs:
           python3 homebrew/ps5-webkit-autoloader-game/patch_presentation.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_background.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_title.py upstream-wkal
           grep -F 'MUSIC_DB_REGISTER' upstream-wkal/src/app_installer.c
       - name: Build PS5 SDK environment
         working-directory: upstream-wkal
@@ -84,7 +85,12 @@ jobs:
           background=Path('assets/pic0.dds').read_bytes()
           assert background in elf
           assert b'BACKGROUND_DB_REGISTER' in elf
+          assert b'TITLE_DB_REGISTER' in elf
+          assert b'JAILBREAK ME' in elf
+          import json
+          param=json.loads(Path('assets/param.json').read_text())
+          assert param['localizedParameters']['en-US']['titleName']=='JAILBREAK ME'
           for token in (b'WKAG00001',b'/user/appmeta/%s/snd0.at9',b'/user/appmeta/%s/icon0.png',b'snd0info'):
               assert token in elf, token
-          print('PS5 ELF smoke-build PASSED including 4K background; synthetic assets were not published')
+          print('PS5 ELF smoke-build PASSED: background + JAILBREAK ME title + icon/music; synthetic assets were not published')
           PY
