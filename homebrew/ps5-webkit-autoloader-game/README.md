@@ -86,3 +86,16 @@ Conversion/build:
 When the [combined GitHub workflow](../../.github/workflows/build-webkit-autoloader-game-music.yml) succeeds, download `PS5-WebKit-Autoloader-GAME-ICON-MUSIC-BG-v0.4.0` and run `webkit-autoloader-GAME-ICON-MUSIC-BG-installer_v0.4.0.elf`. Let the installation finish, then fully power off and restart the PS5.
 
 Logs should include `BACKGROUND_FILES_REGISTERED`, `BACKGROUND_DB_REGISTER title=WKAG00001 rows=1` (or more for multiple profiles), and `GAME_INSTALL_DONE`. If the Game Hub still shows no image, send logs instead of deleting the app database. Visual rendering requires a hardware test.
+
+
+## Cyber-Pirate installer UI (real PS5 browser page, not a mockup)
+
+The native installer now stages `frontend/installer-page/index.html` using `patch_cyber_ui.py`. This replaces only the page layout/CSS and adds status callbacks into the original v0.4.0 JavaScript, leaving the actual caching and installation endpoints unchanged.
+
+The fullscreen design follows the approved **JAILBREAK ME** reference: **no sidebar or launch buttons**; stylized title and cyber pirate emblem; cracked-lock visual from your existing `background.png`; automatic 5-stage timeline; detected PS5 firmware (when available); honest shortcut/cache status; and **real live logs** streamed from `/logs`. No fake progress, fixed firmware, or automatic exploit success claims. The exploit is run only when the installed Game shortcut is launched after setup, just as before.
+
+The original error recovery flow remains available if the browser cache is corrupted, including the **Clear WebKit Data & Retry** prompt; that is the only exceptional screen which needs user input. The actual installer still operates automatically.
+
+**Build artifact:** `PS5-JAILBREAK-ME-CYBER-UI-v0.4.0`, containing `JAILBREAK-ME-CYBER-INSTALLER_v0.4.0.elf`. After the GitHub workflow finishes successfully, launch that ELF via your existing PS5 payload launcher. An automated native smoke build validates the JavaScript syntax, original `/install` / AppCache logic, embedded background, icon, soundtrack, and native ELF construction.
+
+GitHub Actions: [Build JAILBREAK ME - Cyber Pirate Installer](../../.github/workflows/build-webkit-autoloader-game-music.yml)
