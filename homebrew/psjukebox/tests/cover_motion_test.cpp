@@ -19,9 +19,9 @@ int main(){
  for(int i=0;i<40;i++)x.tick(.016f);
  assert(!x.active()&&x.offset()==0.f);
  assert(x.begin(-1)&&x.offset()==-1.f);
- x.tick(.24f);
+ for(int i=0;i<15;i++)x.tick(.016f);
  assert(std::fabs(x.offset()+.5f)<.001f);
- x.tick(.24f);
+ for(int i=0;i<15;i++)x.tick(.016f);
  assert(!x.active()&&x.offset()==0.f);
  x.begin(1);x.reset();assert(!x.active()&&x.offset()==0.f);
  std::puts("PASS eased coverflow, one-step navigation, duration, reset, both directions");
