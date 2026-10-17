@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+// Book order is canonical and shared with the offline verse indices.
+#include <array>
+#include <string>
+#include <vector>
+namespace bible_i18n {
+enum class Key:int {
+ library, oldTestament, newTestament, bookmarks, settings, bible,
+ chooseBook, chooseChapter, searchBible, searchHint, searchResults,
+ savedVerses, matches, noMatches, noBookmarks, fontSize, dailyPanel,
+ colourTheme, language, returnReading, midnight, slate, on, off,
+ changeChapter, searchHelp, dailyVerse, offlineMissing, reinstall,
+ exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version
+};
+constexpr int kLangCount=4;
+inline int language(int n){return n>=0&&n<kLangCount?n:0;}
+inline const char* code(int n){
+ static constexpr const char* codes[]={"en","de","fr","es"};
+ return codes[language(n)];
+}
+inline const char* languageName(int n){
+ static constexpr const char* names[]={"English","Deutsch","Français","Español"};
+ return names[language(n)];
+}
+inline const char* translationName(int n){
+ static constexpr const char* names[]={
+  "World English Bible (WEBPB)", "Lutherbibel 1912",
+  "Louis Segond 1910", "Reina-Valera 1909"
+ };
+ return names[language(n)];
+}
+inline const char* label(int lang,Key key){
+ static constexpr const char* entries[][kLangCount]={
+  {"Library","Bibliothek","Bibliothèque","Biblioteca"},
+  {"Old Testament","Altes Testament","Ancien Testament","Antiguo Testamento"},
+  {"New Testament","Neues Testament","Nouveau Testament","Nuevo Testamento"},
+  {"Bookmarks","Lesezeichen","Favoris","Marcadores"},
+  {"Settings","Einstellungen","Paramètres","Ajustes"},
+  {"BIBLE","BIBEL","BIBLE","BIBLIA"},
+  {"Choose a book","Buch wählen","Choisir un livre","Elegir un libro"},
+  {"Choose a chapter","Kapitel wählen","Choisir un chapitre","Elegir capítulo"},
+  {"SEARCH THE BIBLE","BIBEL DURCHSUCHEN","RECHERCHER DANS LA BIBLE","BUSCAR EN LA BIBLIA"},
+  {"Enter a word or phrase","Wort oder Satz eingeben","Entrer un mot ou une phrase","Escribe una palabra o frase"},
+  {"SEARCH RESULTS","SUCHERGEBNISSE","RÉSULTATS DE RECHERCHE","RESULTADOS DE BÚSQUEDA"},
+  {"saved verses","gespeicherte Verse","versets enregistrés","versículos guardados"},
+  {"matches (up to 150)","Treffer (max. 150)","résultats (max. 150)","resultados (máx. 150)"},
+  {"No matching verses.","Keine passenden Verse.","Aucun verset trouvé.","No se encontraron versículos."},
+  {"No bookmarks yet.","Noch keine Lesezeichen.","Aucun favori.","Aún no hay marcadores."},
+  {"Font size","Schriftgröße","Taille du texte","Tamaño de letra"},
+  {"Daily verse panel","Tagesvers anzeigen","Verset du jour","Versículo diario"},
+  {"Colour theme","Farbschema","Thème de couleur","Tema de color"},
+  {"Language","Sprache","Langue","Idioma"},
+  {"Return to reading","Zurück zum Lesen","Retour à la lecture","Volver a leer"},
+  {"Midnight","Mitternacht","Minuit","Medianoche"},
+  {"Slate","Schiefer","Ardoise","Pizarra"},
+  {"On","Ein","Activé","Sí"},
+  {"Off","Aus","Désactivé","No"},
+  {"L1 / R1  Change chapter","L1 / R1  Kapitel wechseln","L1 / R1  Changer de chapitre","L1 / R1  Cambiar capítulo"},
+  {"R2 Search   SQUARE Delete   O Back","R2 Suchen   SQUARE Löschen   O Zurück","R2 Rechercher   SQUARE Effacer   O Retour","R2 Buscar   SQUARE Borrar   O Atrás"},
+  {"D A I L Y   V E R S E","T A G E S V E R S","V E R S E T   D U   J O U R","V E R S Í C U L O   D E L   D Í A"},
+  {"Offline Bible unavailable","Offline-Bibel nicht verfügbar","Bible hors ligne indisponible","Biblia sin conexión no disponible"},
+  {"Reinstall the complete Bible Reader ZIP","Installations-ZIP erneut installieren","Réinstallez le ZIP complet","Reinstala el ZIP completo"},
+  {"EXIT BIBLE READER?","BIBLE READER BEENDEN?","QUITTER BIBLE READER ?","¿SALIR DE BIBLE READER?"},
+  {"X Yes, close app     O No, keep reading","X Ja, schließen     O Nein, weiterlesen","X Oui, fermer     O Non, continuer","X Sí, cerrar     O No, continuar"},
+  {"100% offline - ","100 % offline - ","100 % hors ligne - ","100 % sin conexión - "},
+  {"Reading ","Lese ","Lecture ","Leyendo "},
+  {"BOOKS","BÜCHER","LIVRES","LIBROS"},
+  {"Version","Version","Version","Versión"}
+ };
+ const int i=(int)key;
+ return i>=0&&i<(int)(sizeof(entries)/sizeof(entries[0]))?entries[i][language(lang)]:"";
+}
+inline const char* bookName(int lang,int index){
+ static constexpr const char* de[]={
+ "1. Mose","2. Mose","3. Mose","4. Mose","5. Mose","Josua","Richter","Ruth",
+ "1. Samuel","2. Samuel","1. Könige","2. Könige","1. Chronik","2. Chronik",
+ "Esra","Nehemia","Ester","Hiob","Psalmen","Sprüche","Prediger","Hohelied",
+ "Jesaja","Jeremia","Klagelieder","Hesekiel","Daniel","Hosea","Joel","Amos",
+ "Obadja","Jona","Micha","Nahum","Habakuk","Zefanja","Haggai","Sacharja",
+ "Maleachi","Matthäus","Markus","Lukas","Johannes","Apostelgeschichte",
+ "Römer","1. Korinther","2. Korinther","Galater","Epheser","Philipper",
+ "Kolosser","1. Thessalonicher","2. Thessalonicher","1. Timotheus","2. Timotheus",
+ "Titus","Philemon","Hebräer","Jakobus","1. Petrus","2. Petrus","1. Johannes",
+ "2. Johannes","3. Johannes","Judas","Offenbarung"
+ };
+ static constexpr const char* fr[]={
+ "Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth",
+ "1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques",
+ "Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste",
+ "Cantique des cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel",
+ "Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie",
+ "Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes",
+ "Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens",
+ "Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens",
+ "1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques",
+ "1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"
+ };
+ static constexpr const char* es[]={
+ "Génesis","Éxodo","Levítico","Números","Deuteronomio","Josué","Jueces","Rut",
+ "1 Samuel","2 Samuel","1 Reyes","2 Reyes","1 Crónicas","2 Crónicas",
+ "Esdras","Nehemías","Ester","Job","Salmos","Proverbios","Eclesiastés",
+ "Cantares","Isaías","Jeremías","Lamentaciones","Ezequiel","Daniel",
+ "Oseas","Joel","Amós","Abdías","Jonás","Miqueas","Nahúm","Habacuc",
+ "Sofonías","Hageo","Zacarías","Malaquías","Mateo","Marcos","Lucas",
+ "Juan","Hechos","Romanos","1 Corintios","2 Corintios","Gálatas",
+ "Efesios","Filipenses","Colosenses","1 Tesalonicenses","2 Tesalonicenses",
+ "1 Timoteo","2 Timoteo","Tito","Filemón","Hebreos","Santiago",
+ "1 Pedro","2 Pedro","1 Juan","2 Juan","3 Juan","Judas","Apocalipsis"
+ };
+ if(index<0||index>=66)return "";
+ if(lang==1)return de[index];
+ if(lang==2)return fr[index];
+ if(lang==3)return es[index];
+ return "";
+}
+inline std::vector<std::string> searchKeys(int lang){
+ std::vector<std::string> v;
+ const std::string latin="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -'<";
+ for(char c:latin)v.emplace_back(1,c);
+ const char* accent=lang==1?"ÄÖÜäöüß":lang==2?"ÉÈÊËÀÂÔÎÙÛÇŒéèêëàâôîùûçœ":lang==3?"ÁÉÍÓÚÜÑáéíóúüñ¿¡":"";
+ // UTF-8 split (never cut a multibyte input glyph).
+ for(size_t i=0;accent[i];){
+  unsigned char b=(unsigned char)accent[i];size_t n=b<0x80?1:b<0xe0?2:b<0xf0?3:4;
+  v.emplace_back(accent+i,n);i+=n;
+ }
+ return v;
+}
+inline void popUtf8(std::string& input){
+ if(input.empty())return;
+ do{input.pop_back();}while(!input.empty()&&(((unsigned char)input.back()&0xC0)==0x80));
+}
+} // namespace bible_i18n
