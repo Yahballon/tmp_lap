@@ -124,6 +124,18 @@ for target in onnxruntime_common onnxruntime_util onnxruntime_mlas onnxruntime_f
     echo "[PROBE] No separate static target for $target"
   fi
 done
+echo "[PROBE] Explicitly build RE2 and nsync static dependencies for the PS5 linker"
+# ONNX's session/CPU targets do not necessarily compile these libraries:
+# they are required later when linking the native executable.
+cmake --build "$root/build" --target re2 nsync_cpp nsync --parallel 4
+echo "[PROBE] Verify actual PS5 dependency archives are present"
+for archive in libre2.a libnsync_cpp.a; do
+  if ! find "$root/build" -type f -name "$archive" -print -quit | grep -q .; then
+    echo "[PROBE] ERROR: missing cross-compiled $archive"
+    exit 1
+  fi
+  find "$root/build" -type f -name "$archive" -print
+done
 echo "[PROBE] Verifying x86_64-sie-ps5 static library archive"
 find "$root/build" -type f -name 'libonnxruntime*.a' -print
 find "$root/build" -type f -name 'libonnxruntime*.a' | grep .
