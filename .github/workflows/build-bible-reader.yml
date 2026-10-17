@@ -55,7 +55,8 @@ jobs:
           d['localizedParameters']['en-US']['titleName']='Bible Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
-          # The binary scaffold starter icon is placeholder; production icon still needs its own artwork.
+          python3 homebrew/bible-reader/assets/generate_icon.py app/sce_sys/icon0.png
+          cp app/sce_sys/icon0.png app/assets/icon0.png
       - name: Prepare PS5 OpenGL SDK
         working-directory: app
         env:
