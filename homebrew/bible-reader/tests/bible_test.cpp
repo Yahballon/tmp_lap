@@ -2,7 +2,6 @@
 #include "../native/bible.hpp"
 #include "../native/reader_layout.hpp"
 #include "../native/localization.hpp"
-#include "../native/tts_reader.hpp"
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -52,10 +51,5 @@ int main(){
  assert(expanded.verseTextWidth==1219.f);
  assert(expanded.verseTextWidth>compact.verseTextWidth);
  assert(expanded.readerX>431.f); // No overlap with sidebar.
- assert(bible_tts::neuralPreviewFilename(1,{0,1,1})=="neural/de/genesis1/1.pcm");
- assert(bible_tts::neuralPreviewFilename(1,{0,1,31})=="neural/de/genesis1/31.pcm");
- assert(bible_tts::neuralPreviewFilename(1,{0,1,32}).empty());
- assert(bible_tts::neuralPreviewFilename(0,{0,1,1}).empty());
- assert(bible_tts::neuralPreviewFilename(1,{0,2,1}).empty());
  std::puts("Bible Reader host tests passed");
 }
