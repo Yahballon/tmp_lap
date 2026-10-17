@@ -1,13 +1,16 @@
-# PSJukebox v0.1.0 — PS5 TESTBUILD
+# PSJukebox v0.1.1 — USB music permission fix (TESTBUILD)
 
-Native PlayStation 5 offline homebrew test build by YAHBALLON. Hardware test: not performed.
+**Fix:** USB and local music were not found because the sandbox denied directory access with errno 1 (EPERM).
 
-- Artist-specific logo.png and theme.ini, full-screen changing album background images
-- Five-cover album carousel and native FFmpeg/SDL2 player with DualSense controls
-- Music layout: Music/Artist/Album/music files + cover.png/jpg + background.png/jpg
-- Place the PPSA99947 folder from PPSA99947.zip into /data/homebrew with a compatible loader
-- Setup: https://github.com/Yahballon/tmp_lap/tree/main/homebrew/psjukebox
+- Add a read-only filesystem helper `jbxscan.elf` to the native ZIP.
+- Enumerate artist/album music files, logo.png, theme.ini, cover and full-screen background files via a dedicated localhost relay.
+- Launch the helper via an already-running elfldr on localhost :9021; helper serves port :9188.
+- Perform media scans and artwork reads asynchronously, preserving native album carousel and individual artist themes.
+- Copy songs on demand to a validated local cache with progress and cancellation; never edit originals.
+- Include host helper integration testing and installation package checks.
 
-Limitations: Direct /data and USB access depends on loader permissions; no privileged helper yet. Some codecs and DRM files are unsupported. Large artwork may load slowly. No copyrighted album images or audio are distributed.
+**Setup:** On USB use `PSJukebox/Music/Artist/Album/` or `Music/Artist/Album/`. Start a compatible elfldr before opening PSJukebox. Extract `PPSA99947.zip` under `/data/homebrew/`.
 
-This is a regular release rather than GitHub prerelease solely for compatibility with TESTBUILDS schema-2 catalog discovery; **TESTBUILD** remains in the title.
+**Limitations:** USB helper permissions depend on firmware and loader, and require a real PS5 hardware test. Audio and images remain user-provided; no commercial content is bundled.
+
+This GitHub Release is marked TESTBUILD in its title and published as a normal release so TESTBUILDS schema 2 can discover it.
