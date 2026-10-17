@@ -4,7 +4,9 @@
 // when the song is played or the packed album is imported.
 #include "smb_music.hpp"
 #include "album_archive.hpp"
+#include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
+#include <smb2/libsmb2-raw.h>
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -21,7 +23,8 @@ constexpr uint64_t maxFile=1024ULL*1024*1024,maxImage=12ULL*1024*1024;
 #define JUKEBOX_DATA_ROOT "/data/PSJukebox"
 #endif
 std::string lower(std::string s){
- for(char& c:s)c=(char)std::tolower((unsigned char)c);return s;
+ for(char& c:s)c=(char)std::tolower((unsigned char)c);
+ return s;
 }
 bool safe(const std::string& part){
  if(part.empty()||part.size()>180||part[0]=='.')return false;
@@ -141,7 +144,7 @@ bool transfer(Session& session,const Config& cfg,const std::string& rel,
  struct smb2fh* fh=smb2_open(session.ctx,actual(cfg,rel).c_str(),O_RDONLY);
  if(!fh){error="SMB file cannot be opened";return false;}
  bool ok=true;uint64_t done=0;
- char block[65536];
+ uint8_t block[65536];
  while(done<size){
   if(cancel&&cancel->load()){error="SMB transfer cancelled";ok=false;break;}
   const size_t want=(size_t)std::min<uint64_t>(sizeof(block),size-done);
@@ -149,7 +152,7 @@ bool transfer(Session& session,const Config& cfg,const std::string& rel,
   if(got==-EAGAIN)continue;
   if(got<=0){ok=false;error="SMB file transfer interrupted";break;}
   if(f&&fwrite(block,1,(size_t)got,f)!=(size_t)got){ok=false;error="SMB cache write failed";break;}
-  if(data)data->append(block,(size_t)got);
+  if(data)data->append(reinterpret_cast<const char*>(block),(size_t)got);
   done+=(uint64_t)got;
   if(progress)progress->store(done);
  }
