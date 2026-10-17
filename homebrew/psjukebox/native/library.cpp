@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <map>
 #include <set>
+#include <sstream>
 #include <sys/stat.h>
 
 namespace jukebox {
@@ -104,21 +105,31 @@ bool is_music(const std::string& filename) {
  return ext==".mp3"||ext==".flac"||ext==".m4a"||ext==".aac"||
         ext==".wav"||ext==".ogg"||ext==".opus"||ext==".wma";
 }
-Theme read_theme(const std::string& artistFolder) {
- Theme t;FILE* f=fopen((artistFolder+"/theme.ini").c_str(),"rb");
- if(!f)return t;
- char buf[256]{};
- for(int i=0;i<32&&fgets(buf,sizeof(buf),f);i++) {
-  std::string line=trim(buf);
+Theme parse_theme_text(const std::string& data) {
+ Theme t;
+ std::istringstream stream(data);
+ std::string line;
+ for(int i=0;i<32 && std::getline(stream,line);i++){
+  line=trim(line);
   if(line.empty()||line[0]=='#'||line[0]==';')continue;
-  const auto eq=line.find('=');if(eq==std::string::npos)continue;
+  const auto eq=line.find('=');
+  if(eq==std::string::npos)continue;
   const auto key=lowercase(trim(line.substr(0,eq)));
   const auto value=trim(line.substr(eq+1));
   if(key=="accent")t.accent=parse_hex(value,t.accent);
   if(key=="secondary")t.secondary=parse_hex(value,t.secondary);
   if(key=="text")t.text=parse_hex(value,t.text);
  }
- fclose(f);return t;
+ return t;
+}
+Theme read_theme(const std::string& artistFolder) {
+ FILE* f=fopen((artistFolder+"/theme.ini").c_str(),"rb");
+ if(!f)return {};
+ std::string content;char bytes[512];
+ for(size_t n=0;(n=fread(bytes,1,sizeof(bytes),f))>0&&content.size()<4096;)
+  content.append(bytes,std::min<size_t>(n,4096-content.size()));
+ fclose(f);
+ return parse_theme_text(content);
 }
 std::vector<std::string> music_roots() {
  return {"/data/PSJukebox/Music","/download0/PSJukebox/Music",

@@ -68,3 +68,13 @@ License: GPL-3.0-or-later. Native player code adapted from GPL-3.0-or-later Audi
 ## TESTBUILDS catalog release
 
 A successful **main-branch** GitHub Actions build creates an immutable `psjukebox-v0.1.0` Release containing verified `PPSA99947.zip`. The existing schema-2 `version.json` catalog workflow discovers its release asset on Build PSJukebox completion. The TESTBUILD designation appears in the release title. The build has not yet been tested on physical PS5 hardware.
+
+## v0.1.1: permission-denied USB music fix
+
+When the log reports `UNAVAILABLE ... errno=1`, the app's sandbox does not have directory-enumeration permission. The included `jbxscan.elf` is a dedicated, **read-only** file helper that runs via your **already-running elfldr** service on `127.0.0.1:9021`. It serves the allowed music, `theme.ini`, logos and album artwork on loopback port `9188`.
+
+The existing USB layout stays **PSJukebox/Music/<Artist>/<Album>** (or **Music/<Artist>/<Album>**) with `logo.png` and optional `theme.ini` in the artist folder; `cover.jpg/png`, `background.jpg/png`, and audio files in each album.
+
+The helper is included inside the installable PSJukebox ZIP. No separate computer-side tool is needed. Songs are staged to `/data/PSJukebox/Cache/` on first playback (with progress and cancel), reused on future plays. USB originals are not modified. Artist-themed artwork is transferred as needed.
+
+**Important:** You need a compatible jailbreak environment with `elfldr` already running on port 9021. Whether the helper can reach your particular USB mount is still firmware/loader dependent and requires PS5 hardware testing. A running app without that service cannot overcome filesystem permissions. App log: `/data/PSJukebox/psjukebox.log`.

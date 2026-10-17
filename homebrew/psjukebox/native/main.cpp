@@ -6,6 +6,7 @@
 #include "platform/ps5/system.hpp"
 #include "library.hpp"
 #include "audio_player.hpp"
+#include "remote_bridge.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -25,7 +26,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.0";
+constexpr const char* version="v0.1.1";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -80,7 +81,9 @@ std::mutex imageMutex;std::vector<ImageReady> imageDone;
 std::atomic<bool> imageBusy{false};
 void* image_worker(void* arg){
  ImageRequest* t=static_cast<ImageRequest*>(arg);
- auto bytes=read(t->path);
+ std::string bytes;
+ if(jbx::is_remote(t->path)){std::string error;jbx::image_bytes(t->path,bytes,error);}
+ else bytes=read(t->path);
  {std::lock_guard<std::mutex> lk(imageMutex);imageDone.push_back({t->path,std::move(bytes)});}
  delete t;imageBusy.store(false);return nullptr;
 }
@@ -101,9 +104,50 @@ Texture decode(Renderer& renderer,const std::string& bytes){
  result.id=renderer.batch().create_texture(w,h,rgba);
  result.w=w;result.h=h;stbi_image_free(rgba);return result;
 }
+
+struct ScanReady {jbx::CatalogResult remote;jukebox::Library local;};
+std::mutex scanMutex;std::vector<ScanReady> finishedScans;
+std::atomic<bool> scanBusy{false};
+void* scan_worker(void*){
+ auto local=jukebox::scan(jukebox::music_roots());
+ auto remote=jbx::scan();
+ {std::lock_guard<std::mutex> lk(scanMutex);
+  finishedScans.push_back({std::move(remote),std::move(local)});}
+ scanBusy.store(false);
+ return nullptr;
+}
+bool begin_scan(){
+ if(scanBusy.exchange(true))return false;
+ pthread_t thread{};
+ if(pthread_create(&thread,nullptr,scan_worker,nullptr)!=0){scanBusy.store(false);return false;}
+ pthread_detach(thread);return true;
+}
+struct TransferTask {std::string path;uint64_t size;};
+struct TransferDone {std::string path,local,error;bool ok=false;};
+std::mutex transferMutex;
+std::vector<TransferDone> finishedTransfers;
+std::atomic<bool> transferBusy{false},transferCancel{false};
+std::atomic<uint64_t> transferDone{0},transferTotal{0};
+void* transfer_worker(void* arg){
+ auto* task=static_cast<TransferTask*>(arg);
+ TransferDone result;result.path=task->path;
+ transferTotal.store(task->size);transferDone.store(0);
+ result.ok=jbx::stage_track(task->path,task->size,transferCancel,result.local,result.error,&transferDone);
+ {std::lock_guard<std::mutex> lk(transferMutex);finishedTransfers.push_back(std::move(result));}
+ delete task;transferBusy.store(false);return nullptr;
+}
+bool begin_transfer(const std::string& path,uint64_t size){
+ if(transferBusy.exchange(true))return false;
+ transferCancel.store(false);transferDone.store(0);transferTotal.store(size);
+ auto* task=new TransferTask{path,size};pthread_t thread{};
+ if(pthread_create(&thread,nullptr,transfer_worker,task)!=0){
+  delete task;transferBusy.store(false);return false;
+ }
+ pthread_detach(thread);return true;
+}
 }
 int main(){
- log("BOOT v0.1.0");
+ log("BOOT v0.1.1");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -111,10 +155,11 @@ int main(){
  if(!font.load(f))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
- auto library=jukebox::scan(jukebox::music_roots());log(library.report);
+ jukebox::Library library;
+ begin_scan();log("SCAN_START helper discovery, local + USB");
  audio::Player player;
  std::map<std::string,Texture> images;
- std::string playingPath,message=library.artists.empty()?"No music found. Add /data/PSJukebox/Music/Artist/Album/ or USB Music folders.":"";
+ std::string playingPath,message="Scanning music (USB helper via elfldr :9021)...";
  int artistIndex=0,albumIndex=0,trackIndex=0,screen=0,settingsIndex=0;
  // screen 0: album carousel; 1: track list; 2: now playing; 3: artist chooser; 4: settings
  bool exitDialog=false,exitChoice=false;
@@ -130,17 +175,25 @@ int main(){
   return &a->albums[(size_t)albumIndex];
  };
  auto rescan=[&](){
+  if(scanBusy.load()){message="Music library scan already running";return;}
+  if(transferBusy.load()){message="Wait until song transfer finishes";return;}
   player.stop();playingPath.clear();
   for(auto& it:images)destroy(it.second);images.clear();
-  library=jukebox::scan(jukebox::music_roots());log(library.report);
+  library={};
   artistIndex=0;albumIndex=0;trackIndex=0;screen=0;
-  message=library.artists.empty()?"No music found - inspect psjukebox.log for permission errors":"";
+  if(begin_scan()){message="Scanning music via read-only USB helper...";log("SCAN_BEGIN");}
+  else {message="Cannot launch music scanner";log("SCAN_THREAD_FAIL");}
  };
  auto play_track=[&](){
   auto* a=currentAlbum();if(!a||a->tracks.empty())return;
   trackIndex=std::clamp(trackIndex,0,(int)a->tracks.size()-1);
   const auto& t=a->tracks[(size_t)trackIndex];
-  if(player.start(t.path)){playingPath=t.path;screen=2;message="";}
+  if(jbx::is_remote(t.path)){
+   if(begin_transfer(t.path,t.size)){
+    message="Loading "+cut(t.name,45)+" from USB...";screen=2;
+    log("TRANSFER_BEGIN "+t.name+" bytes="+std::to_string(t.size));
+   }else message="Song transfer already running or unavailable";
+  }else if(player.start(t.path)){playingPath=t.path;screen=2;message="";}
   else{message="Audio file inaccessible: "+cut(t.name,36);log(message);}
  };
  auto next_track=[&](int delta){
@@ -160,6 +213,29 @@ int main(){
    if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;
    hold=11;
   }
+  std::vector<ScanReady> scanned;
+  {std::lock_guard<std::mutex> lk(scanMutex);scanned.swap(finishedScans);}
+  for(auto& item:scanned){
+   library=std::move(item.local);
+   auto& remote=item.remote.library;
+   library.trackCount+=remote.trackCount;
+   for(auto& artist:remote.artists)library.artists.push_back(std::move(artist));
+   library.report+=" | "+item.remote.status;
+   artistIndex=albumIndex=trackIndex=0;
+   message=library.artists.empty()?
+      ("No music. "+cut(item.remote.status,94)):("Loaded "+std::to_string(library.artists.size())+
+        " artists / "+std::to_string(library.trackCount)+" tracks");
+   log("SCAN_RESULT "+library.report);
+  }
+  std::vector<TransferDone> transfers;
+  {std::lock_guard<std::mutex> lk(transferMutex);transfers.swap(finishedTransfers);}
+  for(auto& item:transfers){
+   if(!item.ok){message="USB transfer failed: "+item.error;log("TRANSFER_ERROR "+item.error);}
+   else if(!transferCancel.load()&&player.start(item.local)){
+    playingPath=item.path;screen=2;message="";
+    log("TRANSFER_OK "+item.path);
+   }else {message="Cannot play cached audio";log("PLAYBACK_ERROR "+item.path);}
+  }
   std::vector<ImageReady> ready;
   {std::lock_guard<std::mutex> lk(imageMutex);ready.swap(imageDone);}
   for(auto& result:ready){
@@ -168,12 +244,19 @@ int main(){
   }
   auto* artist=currentArtist();
   auto* album=currentAlbum();
+  if(transferBusy.load()&&(pressed&hui::pad_bits::kCircle)){
+   transferCancel.store(true);message="Cancelling USB song transfer...";pressed=0;
+  }
   if(exitDialog){
    if(pressed&hui::pad_bits::kLeft)exitChoice=true;
    if(pressed&hui::pad_bits::kRight)exitChoice=false;
    if(pressed&hui::pad_bits::kCircle)exitDialog=false;
    if(pressed&hui::pad_bits::kCross){
     if(exitChoice){
+     transferCancel.store(true);
+     if(transferBusy.load()||scanBusy.load()||imageBusy.load()){
+      message="Waiting for file operations to stop...";exitDialog=false;continue;
+     }
      player.stop();for(auto& it:images)destroy(it.second);
      pad.close();renderer.release();display.close();hui::sys::quit();
     }
@@ -324,9 +407,18 @@ int main(){
    label(d,font,atlas,"UP/DOWN Choose     X Confirm     O Back",960,1050,21,white,Align::center);
   }else{
    label(d,font,atlas,"NO MUSIC FOUND",960,446,40,color(accent),Align::center);
-   label(d,font,atlas,"Add Artist/Album folders under /data/PSJukebox/Music",960,523,23,white,Align::center);
+   label(d,font,atlas,"USB: PSJukebox/Music/Artist/Album  |  requires elfldr :9021",960,523,23,white,Align::center);
    label(d,font,atlas,"SQUARE Rescan    OPTIONS Settings    O Quit",960,1050,20,white,Align::center);
   }
+  if(transferBusy.load()){
+   const uint64_t total=transferTotal.load(),done=transferDone.load();
+   const float frac=total?(float)std::min(1.,(double)done/(double)total):0.f;
+   d.rounded_rect({340,855,1240,110},9,color(0x050b17,.95f));
+   label(d,font,atlas,"COPYING MUSIC FROM USB   "+std::to_string((int)(frac*100))+"%  (O Cancel)",960,894,21,white,Align::center);
+   d.rounded_rect({424,923,1070,16},7,color(0x3b4352));
+   d.rounded_rect({424,923,std::max(3.f,1070*frac),16},7,color(accent));
+  }
+  if(scanBusy.load())label(d,font,atlas,"Scanning local and USB music via helper...",960,933,21,color(accent),Align::center);
   if(!message.empty())label(d,font,atlas,cut(message,126),960,962,17,color(0xffa65d),Align::center);
   if(exitDialog){
    d.rounded_rect({0,0,1920,1080},0,color(0x000000,.75f));
