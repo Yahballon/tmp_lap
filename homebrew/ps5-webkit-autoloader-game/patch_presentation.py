@@ -126,14 +126,14 @@ static int needs_update(''',
 
     code = replace_once(code,
         '    return 0; /* Already installed and up to date */',
-        '''    wkali_log("[WKALI] GAME_ASSETS already current; checking sound index\n");
+        r'''    wkali_log("[WKALI] GAME_ASSETS already current; checking sound index\n");
     (void)update_sound_index(title_id);
     return 0; /* Already installed and up to date */''',
         "recheck registration")
 
     code = replace_once(code,
         '  if ((err = install_app(title_id, "/user/app/"))) {',
-        '''  /* GAME homescreen can read the tile icon from the app root. */
+        r'''  /* GAME homescreen can read the tile icon from the app root. */
   if (install_file(root_icon_path, icon0_png, icon0_png_size)) {
     wkali_log("[WKALI] ICON_ROOT_WRITE failed (%s)\n", root_icon_path);
     sceAppInstUtilTerminate();
@@ -146,7 +146,7 @@ static int needs_update(''',
 
     code = replace_once(code,
         '  wkali_log("[WKALI] Launcher app installed successfully.\\n");',
-        '''  /* App installation may replace appmeta, so restage afterwards.
+        r'''  /* App installation may replace appmeta, so restage afterwards.
    * Do not delete/uninstall an existing title: users keep their old Game
    * launcher while this installer refreshes its presentation metadata. */
   if (mkdir_p(appmeta_dir, 0755) != 0 ||
