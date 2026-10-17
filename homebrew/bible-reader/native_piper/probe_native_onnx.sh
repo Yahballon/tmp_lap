@@ -15,6 +15,7 @@ bash tools/setup-native-dependencies.sh
 sdk="$PWD/.deps/native/ps5-payload-sdk"
 test -s "$sdk/target/lib/libc.a"
 test -d "$sdk/target/include"
+export PS5_HOME="$sdk"
 
 echo "[PROBE] Fetching released ONNX Runtime source v1.18.2"
 git clone --depth=1 --branch v1.18.2 https://github.com/microsoft/onnxruntime.git "$root/onnxruntime"
