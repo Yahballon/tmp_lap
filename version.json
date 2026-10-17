@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "3442204f6f616e09a03985994a5a57fa5acbd41b51cd728250c4e6a228e9785b",
+  "version": "88b454f41337fd94266c1679f6927883d922feed86cadd50fac2d879fbf42a82",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 13,
+  "app_count": 14,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -133,6 +133,19 @@
       "source": "homebrew/ps5-system-info",
       "size_bytes": 6064978,
       "published_at": "2026-10-15T09:58:11Z"
+    },
+    {
+      "name": "Bible Reader",
+      "slug": "bible-reader",
+      "title_id": "PPSA99793",
+      "version": "0.1.0",
+      "tag": "bible-reader-v0.1.0",
+      "zip_name": "PPSA99793.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/bible-reader-v0.1.0/PPSA99793.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/bible-reader-v0.1.0",
+      "source": "homebrew/bible-reader",
+      "size_bytes": 7412301,
+      "published_at": "2026-10-17T15:08:45Z"
     },
     {
       "name": "Payload LauncherX",
