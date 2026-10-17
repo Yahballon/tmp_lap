@@ -39,6 +39,7 @@ on:
       - Publish PS5DreamcastX Release
       - Publish PS5DreamcastX TESTBUILD
       - Build PS5MesenX (native MesenCE)
+      - Build PSJukebox
       - Publish PS5MesenX TESTBUILD
     types: [completed]
   schedule:

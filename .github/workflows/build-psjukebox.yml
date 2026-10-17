@@ -11,7 +11,7 @@ on:
       - 'homebrew/psjukebox/**'
       - '.github/workflows/build-psjukebox.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   ps5:
     runs-on: ubuntu-24.04
@@ -41,6 +41,12 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: bash tools/prepare-opengl.sh
+      - name: Prepare POSIX archive
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+          test -s app/build/jb-json/libjb-posix.a
       - name: Native PS5 compile
         working-directory: app
         env:
@@ -56,3 +62,15 @@ jobs:
           name: PSJukebox-v0.1.0
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
+      - name: Publish verified PSJukebox TESTBUILD release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="$(python3 -c 'import json;print(json.load(open("homebrew/psjukebox/app.json"))["releaseTag"])')"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Release $tag already exists; refusing to overwrite published bytes."
+            exit 1
+          fi
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.0 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

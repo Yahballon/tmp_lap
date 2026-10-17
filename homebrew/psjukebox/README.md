@@ -64,3 +64,7 @@ The first implementation relies on **directly readable** local/USB folders. Some
 No copyrighted music/artist covers/backgrounds are shipped. Supply personal, licensed artwork/audio. The attached screenshot is a visual design reference, not redistributed third-party content.
 
 License: GPL-3.0-or-later. Native player code adapted from GPL-3.0-or-later Audiobook Reader in this repository, renderer from PS5 homebrew UI. Version 0.1.0, Title ID PPSA99947.
+
+## TESTBUILDS catalog release
+
+A successful **main-branch** GitHub Actions build creates an immutable `psjukebox-v0.1.0` Release containing verified `PPSA99947.zip`. The existing schema-2 `version.json` catalog workflow discovers its release asset on Build PSJukebox completion. The TESTBUILD designation appears in the release title. The build has not yet been tested on physical PS5 hardware.
