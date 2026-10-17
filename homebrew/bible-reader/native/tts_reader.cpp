@@ -3,6 +3,12 @@
 #include "tts_reader.hpp"
 #include "tts_log.hpp"
 #include "espeak-ng/speak_lib.h"
+#if defined(BIBLE_NATIVE_PIPER)
+#include "piper_onnx.hpp"
+#include "phoneme_ids.hpp"
+#include "thorsten_phonemes.generated.hpp"
+#include <chrono>
+#endif
 #include <SDL.h>
 #include <algorithm>
 #include <cstring>
@@ -15,6 +21,23 @@ namespace bible_tts {
 namespace {
 Speaker* speaker=nullptr; // Only one instance/worker active in this app.
 constexpr int outputRate=48000, channels=2;
+#if defined(BIBLE_NATIVE_PIPER)
+std::string ipaForPiper(const std::string& utf8){
+ // Use exactly the eSpeak voice already selected for this worker (German).
+ // API advances its input pointer sentence by sentence.
+ const void* ptr=utf8.c_str();
+ std::string result;
+ for(int segment=0;ptr&&segment<256;++segment){
+  const void* before=ptr;
+  const char* chunk=espeak_TextToPhonemes(&ptr,espeakCHARS_UTF8,espeakPHONEMES_IPA);
+  if(!chunk)break;
+  if(!result.empty())result+=" ";
+  result+=chunk;
+  if(before==ptr)break;
+ }
+ return result;
+}
+#endif
 int receive(short* samples,int frames,espeak_EVENT* events){
  int begins[1024]{},sizes[1024]{},times[1024]{},count=0;
  if(events)for(int i=0;i<2048&&events[i].type!=espeakEVENT_LIST_TERMINATED;++i){
@@ -110,6 +133,10 @@ int Speaker::collect(const short* samples,int frames,int count,const int* begin,
 void Speaker::run(){
  SDL_AudioDeviceID device=0;bool subsystem=false,initialized=false;
  std::string error;
+#if defined(BIBLE_NATIVE_PIPER)
+ bible_piper::NativeInference native;
+ bool nativeReady=false;
+#endif
  const char* roots[]={"/app0/assets/tts","/data/homebrew/PPSA99793/assets/tts"};
  const char* chosenRoot=nullptr;
  int rate=-1;
@@ -153,6 +180,28 @@ void Speaker::run(){
   const espeak_VOICE* chosen=espeak_GetCurrentVoice();
   bible_log::write("TTS_READY","voice=%s",chosen&&chosen->identifier?chosen->identifier:"?");
  }
+#if defined(BIBLE_NATIVE_PIPER)
+ if(preferNeural_&&language_==1){
+  const char* models[]={
+   "/app0/assets/tts/neural/de/de_DE-thorsten-medium.onnx",
+   "/data/homebrew/PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx"
+  };
+  for(const char* model:models){
+   if(bible_log::fileSize(model)<1000000)continue;
+   std::string why;
+   bible_log::write("PIPER_LOAD","Trying PS5 native model: %s",model);
+   const auto begin=std::chrono::steady_clock::now();
+   if(native.open(model,why)){
+    nativeReady=true;
+    bible_log::write("PIPER_READY","model loaded in %lld ms",
+     (long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-begin).count());
+    break;
+   }
+   bible_log::write("PIPER_LOAD_ERR","%s",why.c_str());
+  }
+  if(!nativeReady)bible_log::write("PIPER_FALLBACK","Native model not initialized, classic/preview remains available");
+ }
+#endif
  speaker=this;espeak_SetSynthCallback(receive);
  if(SDL_InitSubSystem(SDL_INIT_AUDIO)!=0){error=SDL_GetError();bible_log::write("TTS_SDL_ERR","SDL_InitSubSystem: %s",error.c_str());goto done;}
  bible_log::write("TTS_AUDIO","SDL driver=%s",SDL_GetCurrentAudioDriver()?SDL_GetCurrentAudioDriver():"?");
@@ -179,12 +228,38 @@ void Speaker::run(){
    if(result!=EE_OK||pcm_.empty()){error="Offline synthesis failed";
     bible_log::write("TTS_SYNTH_ERR","rc=%d pcm_samples=%zu book=%d chapter=%d verse=%d",(int)result,pcm_.size(),ref.book,ref.chapter,ref.verse);
     break;}
-   // Optional German Piper HD preview consists of pre-synthesized 22.05kHz
-   // mono PCM audio. ONNX is NOT executed on the PS5.
+   // Priority: experimental on-console Piper -> pre-rendered Genesis 1
+   // preview -> classic eSpeak. All paths retain the same controller/SDL UI.
    const std::string neuralFile=preferNeural_?neuralPreviewFilename(language_,ref):std::string{};
    bool usingNeural=false;
    int inputRate=rate;
-   if(!neuralFile.empty()){
+#if defined(BIBLE_NATIVE_PIPER)
+   if(nativeReady&&!cancelled_){
+    const auto started=std::chrono::steady_clock::now();
+    const std::string ipa=ipaForPiper(phrase_);
+    const auto ids=bible_piper::encode(ipa,bible_piper::thorstenTable());
+    if(ids.success){
+     std::vector<std::int16_t> generated;
+     std::string why;
+     if(native.synthesize(ids.ids,generated,why)&&!cancelled_){
+      const auto oldSamples=pcm_.size();
+      if(oldSamples)for(auto& mark:marks_)
+       mark.timeMs=(int)std::lround((double)mark.timeMs*generated.size()/oldSamples);
+      pcm_.assign(generated.begin(),generated.end());
+      usingNeural=true;inputRate=22050;
+      bible_log::write("PIPER_NATIVE","book=%d chapter=%d verse=%d samples=%zu ms=%lld",
+       ref.book,ref.chapter,ref.verse,pcm_.size(),
+       (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now()-started).count());
+     }else{
+      bible_log::write("PIPER_RUN_ERR","%s",why.c_str());
+     }
+    }else{
+     bible_log::write("PIPER_IPA_ERR","%s",ids.error.c_str());
+    }
+   }
+#endif
+   if(!usingNeural&&!neuralFile.empty()){
     std::vector<short> highQuality;
     if(readNeuralPreview(neuralFile,highQuality)){
      const auto priorSamples=pcm_.size();
