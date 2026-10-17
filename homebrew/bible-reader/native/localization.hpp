@@ -132,6 +132,8 @@ inline std::vector<std::string> searchKeys(int lang){
 }
 inline void popUtf8(std::string& input){
  if(input.empty())return;
- do{input.pop_back();}while(!input.empty()&&(((unsigned char)input.back()&0xC0)==0x80));
+ // First strip UTF-8 continuation bytes; then remove the leading codepoint byte.
+ while(!input.empty()&&(((unsigned char)input.back()&0xC0)==0x80))input.pop_back();
+ if(!input.empty())input.pop_back();
 }
 } // namespace bible_i18n
