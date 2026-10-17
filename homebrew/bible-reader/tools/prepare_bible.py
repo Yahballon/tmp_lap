@@ -124,7 +124,7 @@ def main():
     result=convert_zip(data)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     translation_id, title = TRANSLATIONS[args.translation]
-    args.output.write_text(f"# {title} - {translation_id}, public domain, https://ebible.org/details.php?id={translation_id}\\n"+result,encoding="utf-8")
+    args.output.write_text(f"# {title} - {translation_id}, public domain, https://ebible.org/details.php?id={translation_id}\n"+result,encoding="utf-8")
     print(f"Bundled {result.count(chr(10))} offline verses; SHA256:",hashlib.sha256(args.output.read_bytes()).hexdigest())
 if __name__=="__main__":
     main()

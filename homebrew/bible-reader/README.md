@@ -1,6 +1,6 @@
 # Bible Reader by YAHBALLON
 
-Native PlayStation 5 offline Bible reader v0.1.2, designed from the provided three-column blue-and-gold reference screenshot. No network access is required at runtime.
+Native PlayStation 5 offline Bible reader v0.1.3, designed from the provided three-column blue-and-gold reference screenshot. No network access is required at runtime.
 
 ## Features
 - 66 books / 1189 chapters of the public-domain World English Bible British Edition (WEBPB), shipped as plain verse data in the installation ZIP
@@ -17,7 +17,7 @@ D-pad: Navigate; **X**: Select/Open; **O**: Back (exit confirmation from the mai
 - Title ID: `PPSA99793`
 - Persistent preferences: `/data/BibleReader/settings.txt`
 - Offline Bible dataset: `assets/bible/webpb.tsv`
-- Release naming: `bible-reader-v0.1.2`
+- Release naming: `bible-reader-v0.1.3`
 
 ## Building
 The dedicated [GitHub Actions workflow](../../.github/workflows/build-bible-reader.yml) downloads and validates the public-domain Bible **at build time**, then assembles a PS5 native homebrew install ZIP with all 66 books. The release only exists after a successful build and explicit publication. You may also prepare `webpb.tsv` with:
@@ -29,16 +29,29 @@ The build uses the GPL-3.0-or-later [PS5-DevBridge](https://github.com/Yahballon
 Once Actions creates a verified `PPSA99793.zip`, extract the `PPSA99793/` folder to `/data/homebrew/PPSA99793/` and register/start the app with your compatible native homebrew loader. Do not confuse this with a Sony-installable PKG. Existing `/data/BibleReader/` settings persist across updates.
 
 ## Status
-The GitHub Actions workflow compiles, verifies and publishes immutable installable ZIPs on successful main-branch builds. Hardware verification of v0.1.2 is still needed.
+The GitHub Actions workflow compiles, verifies and publishes immutable installable ZIPs on successful main-branch builds. Hardware verification of v0.1.3 is still needed.
 
-## v0.1.2 formatting fix
+## v0.1.3 formatting fix
 - Converts unsupported WEBPB curly quotes, typographic apostrophes, dashes and Unicode spaces into equivalent glyphs supported by the native UI font at build time (for example `God's` and `"Let there be light"`).
 - Daily verse heading uses a native drawn sun rather than an unsupported Unicode symbol.
 - Variable-height Bible verses now auto-scroll the list to keep the highlighted verse inside the reading viewport; long verse texts can be scrolled line by line with D-pad Up/Down.
 - Existing bookmarks, font settings and reading position are preserved. Re-run the full PS5 build when updating the text corpus.
 
-## v0.1.2 responsive reading layout
+## v0.1.3 responsive reading layout
 - Settings > Daily verse panel = **On**: retains the original three-column design (the centre reader is 927px wide).
 - Settings > Daily verse panel = **Off**: hides the entire Daily Verse box, not just its text, and grows the centre reading panel to 1416px while keeping the sidebar and margins unchanged.
 - Bible text reflows to 1219px instead of 730px; automatic selected-verse scrolling uses the same current width and stays inside the reading area.
 - Search results can use the additional space too. Changes apply immediately after toggling the setting, persist across restarts, and do not reset reading position or bookmarks.
+
+## v0.1.3 complete offline internationalisation
+- Language picker in Settings: **English, Deutsch, Français, Español**.
+- Every language includes its own complete, licensed public-domain 66-book text, not machine-translated English verses:
+  English [WEBPB](https://ebible.org/details.php?id=engwebpb);
+  German [Lutherbibel 1912](https://ebible.org/details.php?id=deu1912);
+  French [Louis Segond 1910](https://ebible.org/details.php?id=fraLSG);
+  Spanish [Reina-Valera 1909](https://ebible.org/details.php?id=spaRV1909).
+- All 66 book names, menu navigation, settings, daily verses and offline search are translated.
+- Font atlas is regenerated at build time with Unicode Latin coverage for German umlauts, French and Spanish accents (DejaVu Sans derivative; see included licence).
+- Language persists in `/data/BibleReader/settings.txt`; old settings files default to English.
+- All languages and extended glyphs are bundled in the installation ZIP. Switching languages never needs Internet access.
+- Brand subtitle displays `by YAHBALLON   v0.1.3` together instead of at upper-right.

@@ -57,7 +57,7 @@ def sdf(mask):
 
 def create(out, texts, fontfile):
     chars=set(chr(c) for c in range(32,127))
-    chars.update("—–•…←↑→↓▲▶▼◀✓")
+    chars.update("—–•…←↑→↓▲▶▼◀✓ ÄäÖöÜüß ÉéÈèÀàÂâÊêÎîÔôÙùÛûËëÏïÇçÑñÍíÓóÚúŒœ¿¡")
     for path in texts:
         chars.update(pathlib.Path(path).read_text(encoding="utf-8"))
     chars={ch for ch in chars if ch.isprintable()}
