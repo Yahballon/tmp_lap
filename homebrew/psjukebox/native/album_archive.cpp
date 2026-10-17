@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
+#include <climits>
 #include <cstdio>
 #include <cstring>
 #include <string>
