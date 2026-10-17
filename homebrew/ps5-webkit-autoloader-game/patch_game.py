@@ -57,9 +57,12 @@ def patch(root: Path) -> None:
     param["applicationDrmType"] = "free"
     param["contentId"] = GAME_CONTENT_ID
     param["contentVersion"] = "01.000.001"
-    param["localizedParameters"]["en-US"]["titleName"] = (
-        "WebKit Autoloader GAME v[[VERSION_PLACEHOLDER]]"
-    )
+    # Keep the launcher identity/version, but the visible PS5 Game Hub name
+    # must remain exactly "JAILBREAK ME" (no appended firmware/app version).
+    localized = param.get("localizedParameters", {})
+    for key, value in localized.items():
+        if isinstance(value, dict):
+            value["titleName"] = "JAILBREAK ME"
     template_path.write_text(
         json.dumps(param, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
