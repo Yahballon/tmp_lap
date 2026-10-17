@@ -311,8 +311,8 @@ CatalogResult scan(){
  return result;
 }
 bool stage_track(const std::string& path,uint64_t expected,std::atomic<bool>& cancelled,
-                 std::string& local,std::string& error){
- local.clear();unsigned root;std::string rel;
+                 std::string& local,std::string& error,std::atomic<uint64_t>* copied){
+ local.clear();if(copied)copied->store(0);unsigned root;std::string rel;
  if(!remote_parts(path,root,rel)||expected<1024||expected>kMaxAudio||
     !jukebox::is_music(rel)){error="Invalid remote audio reference";return false;}
  const std::string base="/data/PSJukebox",cache=base+"/Cache";
@@ -335,6 +335,7 @@ bool stage_track(const std::string& path,uint64_t expected,std::atomic<bool>& ca
   ssize_t n=recv(fd,buffer,ask,0);
   if(n<=0||fwrite(buffer,1,(size_t)n,f)!=(size_t)n){error="Audio transfer interrupted";ok=false;break;}
   left-=(size_t)n;
+  if(copied)copied->store(expected-left);
  }
  if(cancelled.load()){error="Music transfer cancelled";ok=false;}
  if(fd>=0)close(fd);
