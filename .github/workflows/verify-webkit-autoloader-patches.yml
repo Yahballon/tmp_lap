@@ -1,0 +1,76 @@
+name: Verify WKAL GAME Presentation Patches
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-webkit-autoloader-game/patch_*.py'
+      - '.github/workflows/verify-webkit-autoloader-patches.yml'
+permissions:
+  contents: read
+jobs:
+  smoke-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint patch scripts
+        run: |
+          set -euo pipefail
+          python3 -m py_compile homebrew/ps5-webkit-autoloader-game/patch_*.py
+      - name: Fetch pinned v0.4.0 upstream with submodules
+        run: |
+          set -euo pipefail
+          git clone https://github.com/itsPLK/ps5-webkit-autoloader.git upstream-wkal
+          git -C upstream-wkal checkout --detach 137f065d2ba8022ba8e796895e7cb05c204f2ce9
+          git -C upstream-wkal submodule update --init --recursive
+      - name: Create synthetic test-only icon and sound fixtures
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,struct,zlib
+          base=Path('upstream-wkal/assets')
+          # Synthetic icon has a unique known CRC. NEVER upload this as an app.
+          w=h=512
+          scan=b''.join(b'\x00'+b'\x00\x88\xcc\xff'*w for _ in range(h))
+          def chunk(t,v):
+              return struct.pack('>I',len(v))+t+v+struct.pack('>I',zlib.crc32(t+v)&0xffffffff)
+          png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(scan,9))+chunk(b'IEND',b'')
+          (base/'icon-custom.png').write_bytes(png)
+          dummy=b'RIFF'+struct.pack('<I',300)+b'WAVE'+b'\x00'*(308-12)
+          (base/'snd0.at9').write_bytes(dummy)
+          meta=base/'param.json.template'
+          obj=json.loads(meta.read_text())
+          obj['pubtools']={'loudnessSnd0':'-28.00'}
+          meta.write_text(json.dumps(obj,indent=2)+'\n')
+          print('Created synthetic fixtures (NOT for PS5 use)')
+          PY
+      - name: Apply all patches
+        run: |
+          set -euo pipefail
+          python3 homebrew/ps5-webkit-autoloader-game/patch_game.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_music.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_presentation.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
+          grep -F 'MUSIC_DB_REGISTER' upstream-wkal/src/app_installer.c
+      - name: Build PS5 SDK environment
+        working-directory: upstream-wkal
+        run: docker build --pull -t ps5-webkit-autoloader-sdk -f Dockerfile.sdk .
+      - name: Native PS5 ELF smoke build
+        working-directory: upstream-wkal
+        env:
+          BUILD_TYPE: stable
+        run: |
+          set -euo pipefail
+          ./build_release.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          elf=Path('webkit-autoloader-installer_v0.4.0.elf').read_bytes()
+          icon=Path('assets/icon-custom.png').read_bytes()
+          snd=Path('assets/snd0.at9').read_bytes()
+          assert Path('assets/icon0.png').read_bytes()==icon
+          assert icon in elf and snd in elf
+          for token in (b'WKAG00001',b'/user/appmeta/%s/snd0.at9',b'/user/appmeta/%s/icon0.png',b'snd0info'):
+              assert token in elf, token
+          print('PS5 ELF smoke-build PASSED; synthetic assets were not published')
+          PY
