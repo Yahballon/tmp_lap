@@ -113,3 +113,23 @@ Favorites are stored under **`/data/PSJukebox/favorites.json`** and persist acro
 - The five top tabs remain accessible through **Up** from All Albums, then D-pad Left/Right + X. Header tab browsing no longer uses L2/R2.
 
 This is a PS5 homebrew test build; host animation tests and native package checks cannot substitute for visual testing on a PS5.
+
+## v0.1.5 — New `.album` packed album format
+
+PSJukebox now recognizes a ZIP archive renamed to **`.album`** in the **Artist folder**, alongside normal album folders and loose songs. The uploaded Tupac sample uses a flat ZIP archive with `cover.jpg`, `background.png`, 12 MP3 songs and incidental XML/SQLite metadata. Both flat archives and ZIP files with a single wrapping folder are supported.
+
+```text
+Music/
+  Tupac/
+    logo.png
+    All Eyez on Me/
+      cover.jpg
+      song.mp3
+    2pac-the-don-killuminati-the-7-day-theory.album
+```
+
+A packed album is loaded in the background on library scan. The existing read-only PS5 USB helper enumerates `.album` files too. The app stages the archive in its local cache when it is on USB, then extracts **only supported audio and `cover/background.png/jpg/jpeg`** into `/data/PSJukebox/AlbumCache`. It builds an album listing and plays the extracted songs with the existing FFmpeg decoder. Artist logo and `theme.ini` still come from the Artist folder, and the packed album's background follows normal album switching. Unsupported files (`.xml`, `.sqlite`) are ignored.
+
+The cache avoids re-transferring and unpacking identical source path+archive size; replacing an archive with different contents but exactly the same byte size may require clearing `/data/PSJukebox/Cache/` and `/data/PSJukebox/AlbumCache/`. Requires writable local storage; large packed albums consume space for the archive **and** extracted songs. To reduce risk from malformed archives: ZIP members are streamed and CRC-checked, path traversal/symlinks are blocked, and limits are 1 GiB per packed file, 2 GiB total extracted, 512 MiB per song and 12 MiB per image. ZIP64/encrypted archives are not supported in this version.
+
+A hardware test on the target PS5 remains necessary.
