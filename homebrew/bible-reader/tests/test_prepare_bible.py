@@ -11,6 +11,11 @@ bible = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bible)
 
 class BibleConverterTests(unittest.TestCase):
+    def test_available_translations(self):
+        self.assertEqual(set(bible.TRANSLATIONS), {"en","de","fr","es"})
+        self.assertTrue(bible.sources("de")[0].endswith("/deu1912_vpl.zip"))
+        self.assertTrue(bible.sources("fr")[0].endswith("/fraLSG_vpl.zip"))
+        self.assertTrue(bible.sources("es")[0].endswith("/spaRV1909_vpl.zip"))
     def test_refs(self):
         self.assertEqual(bible.parse_line("Gen 1:1 In the beginning"),(0,1,1,"In the beginning"))
         self.assertEqual(bible.parse_line("1Co 13:4 Love is patient"),(45,13,4,"Love is patient"))
