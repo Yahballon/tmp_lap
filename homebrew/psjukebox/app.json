@@ -1,11 +1,11 @@
 {
   "name": "PSJukebox",
   "slug": "psjukebox",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "titleId": "PPSA99947",
   "contentId": "UP9000-PPSA99947_00-PSJUKEBOX0000001",
-  "contentVersion": "01.000.003",
-  "releaseTag": "psjukebox-v0.1.3",
+  "contentVersion": "01.000.004",
+  "releaseTag": "psjukebox-v0.1.4",
   "developer": "YAHBALLON",
   "formats": [
     "mp3",

@@ -99,3 +99,17 @@ The selected album stays centered in the 5-jacket carousel. When a song plays, a
 Favorites are stored under **`/data/PSJukebox/favorites.json`** and persist across restarts. Entries use root-independent `Artist/Album/Song` identities, so moving a USB stick between mount indexes does not discard favorites. Changes are saved with a temporary file + atomic rename; a save failure is reported on screen and in `psjukebox.log`, not silently claimed successful.
 
 **Notes:** The Playlists tab currently presents the current album's play queue. Named custom playlist creation is not implemented. This is an initial screen-layout implementation based on the supplied mockup, not a pixel-perfect screenshot clone. Physical PS5 UI/persistence testing is still required.
+
+## v0.1.4 — Smooth coverflow and DualSense playback controls
+
+- **L1 / R1**: switch artists in All Albums (unchanged). During playback, previous/next song (unchanged).
+- **L2 / R2**: previous/next album jacket in All Albums (replaces the old header-tab shortcut).
+- **Left/right stick and D-pad**: optional single-step album browsing; a held direction must return to neutral before triggering another change. Triggers use press edges, so holding them does not rapidly skip albums.
+- **480ms cubic smoothstep coverflow**: sleeves translate and scale in/out of the center, with a synchronized album-background crossfade and focus glow. Additional cover switches are ignored during the animation.
+- **X in All Albums**: starts the selected album at track 1. **X again during playback** opens the album's Tracklist, without pausing music. In Tracklist, X plays the highlighted track. Circle from Tracklist returns to playback.
+- **Square**: play/pause toggle when a song is active, not Settings.
+- **OPTIONS button**: Settings, and pressing OPTIONS again returns to the previous screen. Square no longer opens Settings.
+- **Triangle**: Favorite toggle remains available in the album view, track list and playback.
+- The five top tabs remain accessible through **Up** from All Albums, then D-pad Left/Right + X. Header tab browsing no longer uses L2/R2.
+
+This is a PS5 homebrew test build; host animation tests and native package checks cannot substitute for visual testing on a PS5.

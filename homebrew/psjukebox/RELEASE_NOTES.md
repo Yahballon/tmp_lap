@@ -1,14 +1,14 @@
-# PSJukebox v0.1.3 (TESTBUILD)
+# PSJukebox v0.1.4 (TESTBUILD)
 
-New screenshot-inspired cinematic interface with functional Favorites:
+Responsive smooth album browsing and revised DualSense controls.
 
-- Five top tabs: **All Albums / Artists / Tracks / Playlists / Favorites**, replacing USB with a favorite star.
-- Full-screen artist and album backgrounds; large centered highlighted jacket and neighbors, mirrored shelf, dynamic clock and compact Now Playing progress bar.
-- Triangle adds/removes the selected or currently playing track from Favorites.
-- Dedicated Favorites tab lists saved songs from every artist; Up/Down selects, X plays, Triangle removes.
-- Favorites persist across restarts under `/data/PSJukebox/favorites.json`; portable artist/album/song path identities across USB mount indexes.
-- Playlists tab exposes the current album queue (named playlist editing to follow).
-- Improved colored controller hints, navigation to top tabs using Up + Left/Right + X or L2/R2 from library screens.
-- Existing album scanning, USB relay, background switching and FFmpeg music playback remain.
+- Fluid centered album-carousel transition: ~480 milliseconds with smoothstep easing, interpolated sleeves, highlight and artist-album background fade.
+- Only one album per trigger press; repeated rapid navigation is throttled while covers slide.
+- Keep L1/R1 artist switching on All Albums, existing L1/R1 track skip while playing.
+- L2/R2 browse albums, X starts the first track, X while a song plays opens the track list.
+- Square pauses or resumes the active song. OPTIONS exclusively opens/closes settings.
+- Favorite toggle (Triangle) and Favorites storage remain unchanged.
+- Header tabs still accessible by pressing Up in albums then Left/Right and X.
+- No changes to local/USB artist and album directory layout, image names or helper.
 
-**PS5 TESTBUILD**: compiled and archive-verified by GitHub Actions; physical PS5 UI and save permissions must be verified. Uses the user's own music and artist artwork. No artist imagery bundled.
+Tested via host motion tests and PS5 cross-build/package verification; console responsiveness and animation quality require a PS5 hardware test.
