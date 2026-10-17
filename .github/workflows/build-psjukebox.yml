@@ -1,0 +1,76 @@
+name: Build PSJukebox
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/psjukebox/**'
+      - '.github/workflows/build-psjukebox.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/psjukebox/**'
+      - '.github/workflows/build-psjukebox.yml'
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev zip
+      - name: Native library regression tests
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/psjukebox/native/library.cpp homebrew/psjukebox/tests/library_test.cpp -o /tmp/psjukebox-test
+          /tmp/psjukebox-test
+          g++ -std=c++20 -O2 -pthread -Wall -Wextra -c homebrew/psjukebox/native/audio_player.cpp $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2) -o /tmp/psjukebox-player.o
+      - name: Prepare app and assets
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/psjukebox/native/*.cpp homebrew/psjukebox/native/*.hpp app/src/
+          curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
+          python3 homebrew/psjukebox/tools/prepare.py app
+      - name: Prepare PS5 OpenGL SDK
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: bash tools/prepare-opengl.sh
+      - name: Prepare POSIX archive
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+          test -s app/build/jb-json/libjb-posix.a
+      - name: Native PS5 compile
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='libavformat libavcodec libavutil libswresample sdl2' app
+      - name: Verify package
+        run: python3 homebrew/psjukebox/tools/verify.py app/dist/PPSA99947.zip
+      - name: Upload installable test ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: PSJukebox-v0.1.0
+          path: app/dist/PPSA99947.zip
+          if-no-files-found: error
+      - name: Publish verified PSJukebox TESTBUILD release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="$(python3 -c 'import json;print(json.load(open("homebrew/psjukebox/app.json"))["releaseTag"])')"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Release $tag already exists; refusing to overwrite published bytes."
+            exit 1
+          fi
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.0 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
