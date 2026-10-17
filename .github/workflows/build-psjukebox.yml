@@ -21,7 +21,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev zlib1g-dev zip
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev zlib1g-dev libsmb2-dev zip
       - name: Native library regression tests
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/psjukebox/native/library.cpp homebrew/psjukebox/tests/library_test.cpp -o /tmp/psjukebox-test
@@ -40,6 +40,7 @@ jobs:
           with zipfile.ZipFile(p,'w') as z:
             z.writestr('cover.jpg',bytes([255,216])+bytes(600),compress_type=zipfile.ZIP_DEFLATED)
             z.writestr('background.png',bytes([137,80,78,71,13,10,26,10])+bytes(700),compress_type=zipfile.ZIP_STORED)
+            z.writestr('Tupac.artist',b'',compress_type=zipfile.ZIP_STORED)
             z.writestr('01. Hail Mary.mp3',b'ID3'+bytes(3000),compress_type=zipfile.ZIP_DEFLATED)
             z.writestr('Wrap/02. Other Track.mp3',b'ID3'+bytes(3100),compress_type=zipfile.ZIP_STORED)
             z.writestr('some_meta.xml',b'<xml>ignored</xml>')
@@ -50,6 +51,17 @@ jobs:
             homebrew/psjukebox/native/library.cpp \
             homebrew/psjukebox/tests/archive_test.cpp -lz -o /tmp/psjukebox-album-test
           /tmp/psjukebox-album-test /tmp/psjukebox-zip-test/Demo.album /tmp/psjukebox-zip-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -c homebrew/psjukebox/native/smb_music.cpp -o /tmp/psjukebox-smb.o
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/psjukebox-zip-test/Music')
+          p.mkdir(exist_ok=True)
+          (p/'Demo.album').write_bytes(Path('/tmp/psjukebox-zip-test/Demo.album').read_bytes())
+          PY
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/native/library.cpp \
+            homebrew/psjukebox/tests/root_album_test.cpp -o /tmp/psjukebox-root-album-test
+          /tmp/psjukebox-root-album-test /tmp/psjukebox-zip-test/Music
           g++ -std=c++20 -O2 -pthread -Wall -Wextra -c homebrew/psjukebox/native/audio_player.cpp $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2) -o /tmp/psjukebox-player.o
       - name: Host USB helper integration test
         run: |
@@ -68,6 +80,11 @@ jobs:
           (artist/'Legend'/'skip.exe').write_bytes(b'excluded')
           (Path('/tmp/jbx-fixture/Tupac/All Eyez on Me')/'cover.jpg').write_bytes(bytes([255,216])+bytes(512))
           (Path('/tmp/jbx-fixture/wu-tang')/'01 - Intro.mp3').write_bytes(b'ID3'+bytes(2000))
+          import zipfile
+          with zipfile.ZipFile('/tmp/jbx-fixture/RootAlbum.album','w') as z:
+            z.writestr('Tupac.artist',b'')
+            z.writestr('01. Hail Mary.mp3',b'ID3'+bytes(2000))
+
           import zipfile
           with zipfile.ZipFile('/tmp/jbx-fixture/Tupac/Killuminati.album','w') as z:
             z.writestr('cover.jpg',bytes(200),compress_type=zipfile.ZIP_DEFLATED)
@@ -123,13 +140,13 @@ jobs:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
-        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='libavformat libavcodec libavutil libswresample sdl2 zlib' APP_ROOT_FILES=jbxscan.elf app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='libavformat libavcodec libavutil libswresample sdl2 zlib libsmb2' APP_ROOT_FILES=jbxscan.elf app
       - name: Verify package
         run: python3 homebrew/psjukebox/tools/verify.py app/dist/PPSA99947.zip
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.5
+          name: PSJukebox-v0.1.6
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -142,5 +159,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.5 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.6 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
