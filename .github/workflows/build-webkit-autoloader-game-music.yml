@@ -74,6 +74,7 @@ jobs:
           set -euo pipefail
           python3 homebrew/ps5-webkit-autoloader-game/patch_game.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_music.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/stage_sqlite.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_presentation.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
           python3 - <<'PY'
@@ -91,7 +92,7 @@ jobs:
           assert '/user/appmeta/%s/icon0.png' in installer
           assert '/user/appmeta/%s/snd0.at9' in installer
           assert 'MUSIC_DB_REGISTER' in installer
-          assert '-lsqlite3' in (root/'Makefile').read_text()
+          assert 'vendor/sqlite/sqlite3.c' in (root/'Makefile').read_text()
           print(f'PS5 Game selection music ready ({len(song)} bytes)')
           PY
       - name: Build PS5 SDK image
