@@ -175,3 +175,13 @@ If your share exposes a top-level `Music` folder, use `share=Media` and `path=Mu
 PSJukebox uses the PS5-native `libsmb2` SMB2/3 client. It scans artist directories and album/track names over the network; covers and songs are downloaded **on demand** to local PS5 cache, with pause/favorites/tracklist features unchanged. SMB .album packages are copied to cache and imported during library scan (so large archive imports may take time). No SMB upload, rename or delete actions are implemented. SMB connections require LAN reachability and firewall port 445, and the PlayStation homebrew sandbox must allow network sockets.
 
 **Limits:** Read-only SMB share, up to one configured share, maximum 1 GiB per media/archive. Playback uses a local disk cache (network data is read on demand rather than streamed sample-by-sample into FFmpeg). PS5 hardware testing and actual SMB-server compatibility remain necessary.
+
+## v0.1.7 — Fix Music-root .album files not appearing
+
+The original helper used by v0.1.5 can remain resident when a newer app launches. Both old and new versions previously used the same port and JBOX1 handshake, so the old helper could silently omit Music-root `.album` packages from the catalog. **v0.1.7 moves the read-only helper to port 9189 and requires a JBOX2 response**, ensuring old helper instances can never be mistaken for the current one. It launches the bundled matching ELF over the existing elfldr service (:9021).
+
+During scan, the app now writes `ALBUM_SCAN`, `ALBUM_FOUND`, `ALBUM_TRANSFER_OK`, `ALBUM_EXTRACT_BEGIN`, `ALBUM_OK` and detailed `ALBUM_TRANSFER_ERROR` / `ALBUM_INVALID` events to `/data/PSJukebox/psjukebox.log`. The helper reports oversized `.album` packages rather than silently ignoring them. Max supported package size remains 1 GiB.
+
+Root packages with a valid `ArtistName.artist` file still appear under the correct artist; archives without any `.artist` marker now load under **Unsorted Albums** rather than disappearing, provided they contain valid supported music. Invalid/duplicate artist markers still produce an explicit error.
+
+**Test:** install v0.1.7, keep `Music/wu-tang-forever.album` in place, open Settings / Rescan, then check `ALBUM_SCAN ... helper=...` and `ALBUM_OK ...` in the new log. Albums imported under Unsorted Albums can be repacked with `wutang.artist` later.
