@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "144e8e71b0d3be82ceffe8ea87d5a68d6160d3755097dbd10dc08c95e63b9d17",
+  "version": "e28432dedf3d66e56bd158937b3be3f0a3d0cacb3a1bfa83240c7dfd93a3c8f3",
   "repository": "Yahballon/tmp_lap",
   "app_count": 15,
   "apps": [
@@ -190,14 +190,14 @@
       "name": "PSJukebox",
       "slug": "psjukebox",
       "title_id": "PPSA99947",
-      "version": "0.1.3",
-      "tag": "psjukebox-v0.1.3",
+      "version": "0.1.4",
+      "tag": "psjukebox-v0.1.4",
       "zip_name": "PPSA99947.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/psjukebox-v0.1.3/PPSA99947.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/psjukebox-v0.1.3",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/psjukebox-v0.1.4/PPSA99947.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/psjukebox-v0.1.4",
       "source": "homebrew/psjukebox",
-      "size_bytes": 19537502,
-      "published_at": "2026-10-17T20:58:55Z"
+      "size_bytes": 19541741,
+      "published_at": "2026-10-17T21:15:55Z"
     }
   ]
 }
