@@ -145,15 +145,24 @@ jobs:
           assert {'libonnxruntime_session.a','libonnxruntime_graph.a',
                   'libonnxruntime_framework.a','libonnxruntime_providers.a',
                   'libonnxruntime_optimizer.a'}.issubset(names), names
+          # Enforce required PS5 cross-compiled dependency archives. All
+          # inputs must originate from the same CMake cross-build directory.
+          assert 'libnsync_cpp.a' in names, 'Missing nsync_cpp static archive'
+          assert 'libre2.a' in names, 'Missing RE2 static archive'
+          # Archive dependency order matters for static linkers. Keep ONNX
+          # archives first and put RE2/nsync last, after consumers.
+          tail={'libre2.a','libnsync_cpp.a','libnsync.a'}
+          ordered=[x for x in files if x.name not in tail]
+          ordered.extend(x for x in files if x.name in tail)
           lines=[]
-          for lib in files:
+          for lib in ordered:
               relative=lib.relative_to(root)
               path=target/relative
               path.parent.mkdir(parents=True,exist_ok=True)
               shutil.copyfile(lib,path)
               lines.append(str(path.relative_to('app')))
           Path('/tmp/ps5_ort_archives.txt').write_text(' '.join(lines))
-          print('ONNX Runtime static archives:',len(files))
+          print('ONNX Runtime + RE2/nsync static archives:',len(files))
           print('Archive bytes:',sum(lib.stat().st_size for lib in files))
           PY
           cp /tmp/piper-onnx-ps5/onnxruntime/LICENSE app/assets/licenses/ONNXRuntime-MIT.txt
