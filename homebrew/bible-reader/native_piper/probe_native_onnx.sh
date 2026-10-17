@@ -38,6 +38,8 @@ cmake -S cmake -B "$root/build" -G Ninja \
   -Donnxruntime_DISABLE_CONTRIB_OPS=ON \
   -Donnxruntime_DISABLE_ML_OPS=ON \
   -Donnxruntime_USE_FULL_PROTOBUF=OFF \
+  -Donnxruntime_USE_PREINSTALLED_EIGEN=ON \
+  -Deigen_SOURCE_PATH=/usr/include/eigen3 \
   -Donnxruntime_ENABLE_PYTHON=OFF \
   -Donnxruntime_USE_MIMALLOC=OFF \
   -Donnxruntime_USE_XNNPACK=OFF \

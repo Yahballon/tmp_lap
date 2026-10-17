@@ -21,7 +21,7 @@ jobs:
       - name: Install PS5 and ONNX build tooling
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 make curl wget unzip tar git pkg-config ninja-build cmake python3 python3-pip protobuf-compiler
+          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 make curl wget unzip tar git pkg-config ninja-build cmake python3 python3-pip protobuf-compiler libeigen3-dev
           python3 -m pip install --break-system-packages 'cmake>=3.26,<4'
       - name: Cross-compile ONNX Runtime CPU for the PS5 ABI
         env:
