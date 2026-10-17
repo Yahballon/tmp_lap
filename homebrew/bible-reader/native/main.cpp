@@ -9,7 +9,8 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
-#include <cstdlib>\n#include <cctype>
+#include <cstdlib>
+#include <cctype>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -168,7 +169,8 @@ int main(){
     listScroll=0;page=Page::results;
    }
    if(pressed&hui::pad_bits::kL2&&loaded&&page==Page::read){
-    std::time_t t=std::time(nullptr);std::tm* date=std::localtime(&t);\n    bible::Ref ref=bible::dailyReference(date?date->tm_yday+1:1);
+    std::time_t t=std::time(nullptr);std::tm* date=std::localtime(&t);
+    bible::Ref ref=bible::dailyReference(date?date->tm_yday+1:1);
     if(library.verse(ref))gotoRef(ref);
    }
   }
