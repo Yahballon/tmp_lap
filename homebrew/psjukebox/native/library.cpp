@@ -153,7 +153,7 @@ Library scan(const std::vector<std::string>& roots) {
    if(out.artists.size()>=256)break;
    const std::string artistDir=root+"/"+name;
    const auto albumNames=directories(artistDir);
-   if(albumNames.empty())continue;
+   // Empty artist folders are still valid library entries.
    const auto key=lowercase(name);
    size_t index=0;
    auto it=artistIndexes.find(key);
