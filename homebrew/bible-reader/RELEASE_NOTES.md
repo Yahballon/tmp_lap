@@ -1,8 +1,8 @@
-# Bible Reader v0.1.1
+# Bible Reader v0.1.2
 
-- Fix unreadable replacement question marks in Bible passages (curly quotes/apostrophes and typographic punctuation are normalised for the UI font).
-- Draw Daily Verse sun icon without unsupported Unicode glyph.
-- Keep selected verse panels and text inside the reading viewport with height-aware auto-scroll; long passages scroll by line.
-- Remember last selected verse on restart.
-- Same 66-book offline public-domain WEBPB Bible, controller controls and saved data as v0.1.0.
-- Hardware test on an actual PS5 is still pending for this version.
+- Make the Daily Verse sidebar genuinely optional: when disabled in Settings, hide its border, header, sun icon and content entirely.
+- Automatically expand the central reader to the right-hand edge (1416px versus 927px) and reflow verse paragraphs to 1219px.
+- Use the same responsive wrap width for selection/scroll calculations; improve search result snippet widths in the expanded layout.
+- Keep original three-column geometry when Daily Verse is enabled.
+- Maintain existing offline Bible, bookmarks, reading progress, settings file and PS5 Title ID PPSA99793.
+- PS5 hardware test for this build remains pending.

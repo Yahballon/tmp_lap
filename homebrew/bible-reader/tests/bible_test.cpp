@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "../native/bible.hpp"
+#include "../native/reader_layout.hpp"
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -27,5 +28,17 @@ int main(){
   auto ref=bible::dailyReference(day);
   assert(ref.book>=0&&ref.book<66&&ref.chapter>=1&&ref.verse>=1);
  }
+ // Daily Verse ON preserves the exact old three-column layout.
+ const auto compact=bible_ui::layoutFor(true);
+ const auto expanded=bible_ui::layoutFor(false);
+ assert(compact.showDaily && !expanded.showDaily);
+ assert(compact.readerX==469.f && compact.readerWidth==927.f);
+ assert(compact.readerX+compact.readerWidth==1396.f);
+ assert(expanded.readerX+expanded.readerWidth==1885.f);
+ assert(expanded.readerWidth>compact.readerWidth);
+ assert(compact.verseTextWidth==730.f);
+ assert(expanded.verseTextWidth==1219.f);
+ assert(expanded.verseTextWidth>compact.verseTextWidth);
+ assert(expanded.readerX>431.f); // No overlap with sidebar.
  std::puts("Bible Reader host tests passed");
 }

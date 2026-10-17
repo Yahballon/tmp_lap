@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.1 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.2 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "core/input.hpp"
 #include "bible.hpp"
+#include "reader_layout.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -132,7 +133,7 @@ int main(){
     else if(page==Page::read&&loaded){
      const auto& verses=library.chapter(settings.book,settings.chapter);
      const int maxLines=std::max(1,(int)((899.f-454.f-32.f)/(settings.fontSize*1.40f)));
-     const int total=(int)font.wrap(verses[(size_t)selected].text,(float)settings.fontSize,730.f).size();
+     const int total=(int)font.wrap(verses[(size_t)selected].text,(float)settings.fontSize,bible_ui::layoutFor(settings.daily).verseTextWidth).size();
      if(total>maxLines&&verseLineScroll<total-maxLines)++verseLineScroll;
      else {selected=std::min((int)verses.size()-1,selected+1);verseLineScroll=0;}
     }
@@ -200,7 +201,7 @@ int main(){
   d.rounded_rect({0,0,1920,207},0,Color::rgb(0x081731,0.42f));
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   text(d,font,atlas,"by Y A H B A L L O N",307,148,20,gold);
-  text(d,font,atlas,"v0.1.1",1825,89,19,subdued,Align::right);
+  text(d,font,atlas,"v0.1.2",1825,89,19,subdued,Align::right);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;
@@ -209,7 +210,10 @@ int main(){
    text(d,font,atlas,tabs[i],155,y+60,28,white);
    text(d,font,atlas,">",400,y+60,27,subdued,Align::right);
   }
-  float cx=469,cw=927;panel(d,cx,210,cw,758);
+  const auto layout=bible_ui::layoutFor(settings.daily);
+  const float cx=layout.readerX,cw=layout.readerWidth;
+  const float verseTextWidth=layout.verseTextWidth;
+  panel(d,cx,210,cw,758);
   if(page==Page::read&&loaded){
    const auto& vv=library.chapter(settings.book,settings.chapter);
    text(d,font,atlas,"B I B L E  /  "+std::string(settings.book<39?"OLD TESTAMENT":"NEW TESTAMENT"),
@@ -228,7 +232,7 @@ int main(){
    std::vector<std::vector<std::string>> wrapped((size_t)end);
    std::vector<float> heights((size_t)end);
    for(int i=0;i<end;++i){
-    wrapped[(size_t)i]=font.wrap(vv[(size_t)i].text,(float)settings.fontSize,730.f);
+    wrapped[(size_t)i]=font.wrap(vv[(size_t)i].text,(float)settings.fontSize,verseTextWidth);
     const int count=(int)wrapped[(size_t)i].size();
     const int visible=i==selected?std::min(count,maxLines):count;
     heights[(size_t)i]=visible*lineHeight+18.f;
@@ -312,7 +316,7 @@ int main(){
     bible::Ref r=search?hits[(size_t)i].ref:settings.bookmarks[(size_t)i];
     text(d,font,atlas,name(r),cx+58,y,23,gold);
     const auto* v=library.verse(r);
-    if(v)text(d,font,atlas,font.fit(v->text,19,540),cx+352,y,19,white);
+    if(v)text(d,font,atlas,font.fit(v->text,19,540.f+(cw-927.f)),cx+352,y,19,white);
    }
    if(n==0)text(d,font,atlas,search?"No matching verses.":"No bookmarks yet.",cx+50,473,24,subdued);
   }else if(page==Page::settings){
@@ -326,6 +330,7 @@ int main(){
     text(d,font,atlas,vals[i],cx+cw-80,y,25,gold,Align::right);
    }
   }
+  if(layout.showDaily){
   panel(d,1417,295,468,371);
   // Draw the sun as geometry; the baked UI font has no U+263C sun glyph.
   d.circle(1464,336,11,gold);
@@ -336,7 +341,7 @@ int main(){
   }
   text(d,font,atlas,"D A I L Y   V E R S E",1505,354,24,gold);
   d.line(1454,381,1847,381,2,gold);
-  if(loaded&&settings.daily){
+  if(loaded){
    std::time_t now=std::time(nullptr);std::tm* date=std::localtime(&now);
    bible::Ref ref=bible::dailyReference(date?date->tm_yday+1:1);
    auto v=library.verse(ref);
@@ -344,7 +349,8 @@ int main(){
     float y=455;wrap(d,font,atlas,"\""+v->text+"\"",1452,y,390,26,590,white);
     text(d,font,atlas,name(ref),1453,635,19,gold);
    }
-  }else text(d,font,atlas,"Daily verse disabled",1452,479,25,subdued);
+  }else text(d,font,atlas,"Offline Bible unavailable",1452,479,25,subdued);
+  } // Hide the Daily Verse panel entirely when disabled in settings.
   d.line(0,994,1920,994,1,border);
   text(d,font,atlas,"X Select   O Back   SQUARE Bookmark   TRIANGLE Search   L1/R1 Chapters   OPTIONS Settings   L2 Daily verse",
        45,1038,21,subdued);
