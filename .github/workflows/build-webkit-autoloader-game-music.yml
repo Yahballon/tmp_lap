@@ -1,4 +1,4 @@
-name: Build WebKit Autoloader GAME with Menu Music
+name: Build WebKit Autoloader GAME - Custom Icon and Music
 on:
   workflow_dispatch:
     inputs:
@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'homebrew/ps5-webkit-autoloader-game/soundtrack.mp3'
+      - 'homebrew/ps5-webkit-autoloader-game/icon.png'
 permissions:
   contents: read
 jobs:
@@ -34,6 +35,22 @@ jobs:
             exit 1
           fi
           test -s /tmp/wkal-audio/song.mp3
+      - name: Verify user-supplied 512x512 JAILBREAK ME icon
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('homebrew/ps5-webkit-autoloader-game/icon.png')
+          if not p.is_file():
+              raise SystemExit('ERROR: Upload your JAILBREAK ME icon.png to homebrew/ps5-webkit-autoloader-game/ before building. Refusing to release default icon.')
+          b=p.read_bytes()
+          if b[:8]!=b'\x89PNG\r\n\x1a\n' or len(b)<32:
+              raise SystemExit('icon.png must be a valid PNG')
+          dims=tuple(int.from_bytes(b[o:o+4],'big') for o in (16,20))
+          if dims!=(512,512):
+              raise SystemExit(f'icon.png must be 512x512, got {dims}')
+          print('Custom game tile icon verified:',len(b),'bytes')
+          PY
       - name: Fetch pinned WebKit v0.4.0 and PS5 AT9 encoder
         run: |
           set -euo pipefail
@@ -41,6 +58,7 @@ jobs:
           git -C upstream-wkal checkout --detach 137f065d2ba8022ba8e796895e7cb05c204f2ce9
           git -C upstream-wkal submodule update --init --recursive
           git clone --depth 1 --branch v0.1.0 https://github.com/blackbearreloaded/ps5-at9-converter.git /tmp/ps5-at9-converter
+          cp homebrew/ps5-webkit-autoloader-game/icon.png upstream-wkal/assets/icon-custom.png
       - name: Encode 60-second looping PS5 selection music
         run: |
           set -euo pipefail
@@ -51,11 +69,13 @@ jobs:
             --output upstream-wkal/assets/snd0.at9 \
             --start 0 --duration 60 --bitrate 192 --workers 4 \
             --param-json upstream-wkal/assets/param.json.template
-      - name: Patch game identity and embed menu soundtrack
+      - name: Patch game identity, icon, home screen music and registration
         run: |
           set -euo pipefail
           python3 homebrew/ps5-webkit-autoloader-game/patch_game.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_music.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_presentation.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -67,6 +87,11 @@ jobs:
           assert j['pubtools']['loudnessSnd0']
           assert song.startswith(b'RIFF') and song[8:12]==b'WAVE'
           assert len(song)<=2097152
+          installer=(root/'src/app_installer.c').read_text()
+          assert '/user/appmeta/%s/icon0.png' in installer
+          assert '/user/appmeta/%s/snd0.at9' in installer
+          assert 'MUSIC_DB_REGISTER' in installer
+          assert '-lsqlite3' in (root/'Makefile').read_text()
           print(f'PS5 Game selection music ready ({len(song)} bytes)')
           PY
       - name: Build PS5 SDK image
@@ -92,21 +117,26 @@ jobs:
           assert p['titleId']=='WKAG00001'
           assert p['applicationCategoryType']==0 and p['pubtools']['loudnessSnd0']
           elf=Path('webkit-autoloader-installer_v0.4.0.elf').read_bytes()
+          icon=Path('assets/icon0.png').read_bytes()
+          custom=Path('assets/icon-custom.png').read_bytes()
+          assert icon==custom, 'ERROR: original icon overwrote JAILBREAK ME icon'
+          assert icon in elf, 'ERROR: user-supplied PS5 game icon not embedded in installer'
           sound=Path('assets/snd0.at9').read_bytes()
           assert b'WKAG00001' in elf
-          assert sound[:64] in elf
+          assert sound in elf, 'ERROR: soundtrack not embedded in installer'
           assert b'http://127.0.0.1:18181/app/index.html' in elf
-          print('ELF embeds Game category and ATRAC9 selection music')
+          print('ELF embeds CUSTOM ICON, music, appmeta and Game category')
           PY
           mkdir -p ../game-build-with-music
-          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/webkit-autoloader-GAME-MUSIC-installer_v0.4.0.elf
+          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/webkit-autoloader-GAME-ICON-MUSIC-installer_v0.4.0.elf
           cp webkit-autoloader-host_v0.4.0.py ../game-build-with-music/webkit-autoloader-GAME-MUSIC-host_v0.4.0.py
           cp assets/snd0.at9 ../game-build-with-music/snd0.at9
+          cp assets/icon0.png ../game-build-with-music/icon0.png
           cp assets/param.json ../game-build-with-music/param.json
           (cd ../game-build-with-music && sha256sum * > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-WebKit-Autoloader-GAME-with-Music-v0.4.0
+          name: PS5-WebKit-Autoloader-GAME-ICON-MUSIC-v0.4.0
           path: game-build-with-music/
           if-no-files-found: error
           retention-days: 30
