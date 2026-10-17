@@ -1,6 +1,6 @@
 # Bible Reader by YAHBALLON
 
-Native PlayStation 5 offline Bible reader v0.1.0, designed from the provided three-column blue-and-gold reference screenshot. No network access is required at runtime.
+Native PlayStation 5 offline Bible reader v0.1.1, designed from the provided three-column blue-and-gold reference screenshot. No network access is required at runtime.
 
 ## Features
 - 66 books / 1189 chapters of the public-domain World English Bible British Edition (WEBPB), shipped as plain verse data in the installation ZIP
@@ -17,7 +17,7 @@ D-pad: Navigate; **X**: Select/Open; **O**: Back (exit confirmation from the mai
 - Title ID: `PPSA99793`
 - Persistent preferences: `/data/BibleReader/settings.txt`
 - Offline Bible dataset: `assets/bible/webpb.tsv`
-- Release naming: `bible-reader-v0.1.0` (reserved for a verified future release)
+- Release naming: `bible-reader-v0.1.1`
 
 ## Building
 The dedicated [GitHub Actions workflow](../../.github/workflows/build-bible-reader.yml) downloads and validates the public-domain Bible **at build time**, then assembles a PS5 native homebrew install ZIP with all 66 books. The release only exists after a successful build and explicit publication. You may also prepare `webpb.tsv` with:
@@ -29,4 +29,10 @@ The build uses the GPL-3.0-or-later [PS5-DevBridge](https://github.com/Yahballon
 Once Actions creates a verified `PPSA99793.zip`, extract the `PPSA99793/` folder to `/data/homebrew/PPSA99793/` and register/start the app with your compatible native homebrew loader. Do not confuse this with a Sony-installable PKG. Existing `/data/BibleReader/` settings persist across updates.
 
 ## Status
-This repository branch contains the implementation and proposed build workflow. A native compile and hardware verification must be completed before a production release.
+The GitHub Actions workflow compiles, verifies and publishes immutable installable ZIPs on successful main-branch builds. Hardware verification of v0.1.1 is still needed.
+
+## v0.1.1 formatting fix
+- Converts unsupported WEBPB curly quotes, typographic apostrophes, dashes and Unicode spaces into equivalent glyphs supported by the native UI font at build time (for example `God's` and `"Let there be light"`).
+- Daily verse heading uses a native drawn sun rather than an unsupported Unicode symbol.
+- Variable-height Bible verses now auto-scroll the list to keep the highlighted verse inside the reading viewport; long verse texts can be scrolled line by line with D-pad Up/Down.
+- Existing bookmarks, font settings and reading position are preserved. Re-run the full PS5 build when updating the text corpus.

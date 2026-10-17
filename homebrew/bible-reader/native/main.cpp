@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.0 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.1 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cctype>
 #include <ctime>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <sys/stat.h>
@@ -70,8 +71,14 @@ int main(){
   settings.book=std::clamp(settings.book,0,65);
   settings.chapter=std::clamp(settings.chapter,1,library.chapterCount(settings.book));
  }
- Page page=Page::read;int nav=0,side=0,selected=0,verseScroll=0,listScroll=0;
+ Page page=Page::read;int nav=0,side=0,selected=0,verseScroll=0,verseLineScroll=0,listScroll=0;
  int firstBook=0,bookSelection=0,chapterSelection=1;
+ if(loaded){
+  const auto& current=library.chapter(settings.book,settings.chapter);
+  for(size_t i=0;i<current.size();++i){
+   if(current[i].number==settings.selectedVerse){selected=(int)i;break;}
+  }
+ }
  std::string query,notice="100% offline - World English Bible (WEBPB)";
  std::vector<bible::SearchHit> hits;
  bool exitDialog=false,focusedSidebar=true;
@@ -79,7 +86,7 @@ int main(){
  auto save=[&](){bible::writeSettings(state,settings);};
  auto gotoRef=[&](bible::Ref r){
   settings.book=r.book;settings.chapter=r.chapter;settings.selectedVerse=r.verse;
-  selected=0;verseScroll=0;page=Page::read;focusedSidebar=false;
+  selected=0;verseScroll=0;verseLineScroll=0;page=Page::read;focusedSidebar=false;
   const auto& vv=library.chapter(r.book,r.chapter);
   for(size_t i=0;i<vv.size();i++)if(vv[i].number==r.verse){selected=(int)i;break;}
   verseScroll=std::max(0,selected-2);save();
@@ -111,7 +118,10 @@ int main(){
    if(pressed&hui::pad_bits::kRight){if(page==Page::read)focusedSidebar=false;else if(page==Page::search)nav=1;}
    if(pressed&hui::pad_bits::kUp){
     if(page==Page::read&&focusedSidebar)side=(side+4)%5;
-    else if(page==Page::read&&loaded){selected=std::max(0,selected-1);verseScroll=std::min(verseScroll,selected);}
+    else if(page==Page::read&&loaded){
+     if(verseLineScroll>0)--verseLineScroll;
+     else {selected=std::max(0,selected-1);verseScroll=std::min(verseScroll,selected);verseLineScroll=0;}
+    }
     else if(page==Page::books){bookSelection=std::max(firstBook,bookSelection-1);listScroll=std::min(listScroll,bookSelection-firstBook);}
     else if(page==Page::chapters)chapterSelection=std::max(1,chapterSelection-6);
     else if(page==Page::results||page==Page::bookmarks||page==Page::settings)listScroll=std::max(0,listScroll-1);
@@ -119,7 +129,13 @@ int main(){
    }
    if(pressed&hui::pad_bits::kDown){
     if(page==Page::read&&focusedSidebar)side=(side+1)%5;
-    else if(page==Page::read&&loaded){selected=std::min((int)library.chapter(settings.book,settings.chapter).size()-1,selected+1);}
+    else if(page==Page::read&&loaded){
+     const auto& verses=library.chapter(settings.book,settings.chapter);
+     const int maxLines=std::max(1,(int)((899.f-454.f-32.f)/(settings.fontSize*1.40f)));
+     const int total=(int)font.wrap(verses[(size_t)selected].text,(float)settings.fontSize,730.f).size();
+     if(total>maxLines&&verseLineScroll<total-maxLines)++verseLineScroll;
+     else {selected=std::min((int)verses.size()-1,selected+1);verseLineScroll=0;}
+    }
     else if(page==Page::books){bookSelection=std::min(firstBook==0?38:65,bookSelection+1);}
     else if(page==Page::chapters&&loaded)chapterSelection=std::min(library.chapterCount(bookSelection),chapterSelection+6);
     else if(page==Page::results)listScroll=std::min((int)hits.size()-1,listScroll+1);
@@ -184,7 +200,7 @@ int main(){
   d.rounded_rect({0,0,1920,207},0,Color::rgb(0x081731,0.42f));
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   text(d,font,atlas,"by Y A H B A L L O N",307,148,20,gold);
-  text(d,font,atlas,"v0.1.0",1825,89,19,subdued,Align::right);
+  text(d,font,atlas,"v0.1.1",1825,89,19,subdued,Align::right);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;
@@ -201,18 +217,55 @@ int main(){
    text(d,font,atlas,std::string(bible::kBooks[(size_t)settings.book])+" "+std::to_string(settings.chapter),
         cx+42,357,59,white);
    d.line(cx+42,411,cx+cw-42,411,1,border);
-   float y=442;int end=(int)vv.size();
-   if(selected>=verseScroll+7)verseScroll=selected-6;
-   for(int i=verseScroll;i<end&&y<908;i++){
+   // Fit the highlighted verse fully into the reading viewport instead
+   // of drawing its border over the lower chapter hint or outside the panel.
+   constexpr float kTextTop=454.f, kTextBottom=906.f;
+   const float lineHeight=settings.fontSize*1.40f;
+   const int maxLines=std::max(1,(int)((kTextBottom-kTextTop-32.f)/lineHeight));
+   const int end=(int)vv.size();
+   selected=std::clamp(selected,0,end-1);
+   verseScroll=std::clamp(verseScroll,0,selected);
+   std::vector<std::vector<std::string>> wrapped((size_t)end);
+   std::vector<float> heights((size_t)end);
+   for(int i=0;i<end;++i){
+    wrapped[(size_t)i]=font.wrap(vv[(size_t)i].text,(float)settings.fontSize,730.f);
+    const int count=(int)wrapped[(size_t)i].size();
+    const int visible=i==selected?std::min(count,maxLines):count;
+    heights[(size_t)i]=visible*lineHeight+18.f;
+   }
+   // Make the selected verse visible on every D-pad step, even when
+   // preceding verses have different paragraph heights.
+   float needed=0;
+   for(int i=verseScroll;i<=selected;++i)needed+=heights[(size_t)i]+12.f;
+   while(needed>kTextBottom-kTextTop && verseScroll<selected){
+    needed-=heights[(size_t)verseScroll]+12.f;
+    ++verseScroll;
+   }
+   float y=kTextTop;
+   for(int i=verseScroll;i<end;++i){
     const auto& verse=vv[(size_t)i];
-    float h=font.wrap(verse.text,(float)settings.fontSize,730).size()*settings.fontSize*1.40f+16;
-    if(i==selected)panel(d,cx+35,y-19,cw-70,std::min(h,458.f),!focusedSidebar);
+    const auto& lines=wrapped[(size_t)i];
+    const float height=heights[(size_t)i];
+    if(y+height>kTextBottom)break;
+    if(i==selected)panel(d,cx+35,y-19,cw-70,height+5.f,!focusedSidebar);
     auto r=bible::Ref{verse.book,verse.chapter,verse.number};
     text(d,font,atlas,std::to_string(verse.number),cx+58,y+12,22,gold);
     if(bible::bookmarked(settings,r))text(d,font,atlas,"*",cx+8,y+12,25,gold);
-    float lineY=y+12;wrap(d,font,atlas,verse.text,cx+110,lineY,730,(float)settings.fontSize,927);
-    y+=h+12;
+    const int first=i==selected?std::clamp(verseLineScroll,0,std::max(0,(int)lines.size()-maxLines)):0;
+    const int visible=std::min((int)lines.size()-first,i==selected?maxLines:(int)lines.size());
+    for(int j=0;j<visible;++j){
+     const float lineY=y+12.f+j*lineHeight;
+     if(lineY>kTextBottom-4.f)break;
+     text(d,font,atlas,lines[(size_t)(first+j)],cx+110,lineY,(float)settings.fontSize);
+    }
+    if(i==selected&&(int)lines.size()>maxLines){
+     text(d,font,atlas,std::to_string(first+1)+"-"+std::to_string(first+visible)+"/"+std::to_string(lines.size()),
+          cx+cw-43,y+height-8,16,gold,Align::right);
+    }
+    y+=height+12.f;
    }
+   // Separator and chapter controls live outside the scrollable verse area.
+   d.line(cx+43,925,cx+cw-43,925,1,border);
    text(d,font,atlas,"L1 / R1  Change chapter",cx+43,952,17,subdued);
   }else if(!loaded){
    text(d,font,atlas,"Bible data missing",cx+50,310,42,gold);
@@ -274,7 +327,14 @@ int main(){
    }
   }
   panel(d,1417,295,468,371);
-  text(d,font,atlas,"☼  D A I L Y   V E R S E",1451,354,24,gold);
+  // Draw the sun as geometry; the baked UI font has no U+263C sun glyph.
+  d.circle(1464,336,11,gold);
+  for(int k=0;k<8;++k){
+   const float a=(float)k*3.14159265f/4.f;
+   d.line(1464+std::cos(a)*17.f,336+std::sin(a)*17.f,
+          1464+std::cos(a)*25.f,336+std::sin(a)*25.f,2,gold);
+  }
+  text(d,font,atlas,"D A I L Y   V E R S E",1505,354,24,gold);
   d.line(1454,381,1847,381,2,gold);
   if(loaded&&settings.daily){
    std::time_t now=std::time(nullptr);std::tm* date=std::localtime(&now);

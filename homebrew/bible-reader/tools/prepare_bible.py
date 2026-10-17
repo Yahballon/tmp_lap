@@ -29,6 +29,23 @@ ALIASES.update({normal(k):v for k,v in {
     "Mark":40,"1 Kings":10,"Jhn":42,"Jn":42,"1 Cor":45,"1 Tim":53,
     "Ezek":25,"Matt":39,"Gen":0,"Rev":65,"Phil":49,"1 Sam":8
 }.items()})
+# Our baked Inter UI font lacks Unicode smart punctuation. Preserve Bible wording
+# while converting typographic punctuation to visually equivalent ASCII glyphs.
+# Never use Unicode decoding with 'replace': invalid source data should fail.
+DISPLAY_PUNCTUATION = str.maketrans({
+    "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+    "\u02bc": "'", "\u2032": "'",
+    "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"',
+    "\u00ab": '"', "\u00bb": '"',
+    "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-",
+    "\u2014": "-", "\u2015": "-", "\u2212": "-",
+    "\u2026": "...", "\u00a0": " ", "\u202f": " ", "\u2007": " ",
+    "\u2009": " ", "\u200b": "", "\u2060": "", "\u00ad": "",
+    "\ufeff": "",
+})
+def normalize_display_text(text):
+    return re.sub(r"\s+", " ", text.translate(DISPLAY_PUNCTUATION)).strip()
+
 REF = re.compile(r"^\s*(.*?)\s+(\d{1,3}):(\d{1,3})(?:-\d+)?\s+(.+?)\s*$")
 def parse_line(line):
     m = REF.match(line.replace("\ufeff", ""))
@@ -38,7 +55,7 @@ def parse_line(line):
     if book is None:
         return None
     ch, verse = int(m[2]), int(m[3])
-    text = re.sub(r"\s+", " ", m[4].strip())
+    text = normalize_display_text(m[4].strip())
     if not 1 <= ch <= 150 or not 1 <= verse <= 180 or not text:
         return None
     return (book, ch, verse, text)
@@ -52,7 +69,7 @@ def convert_zip(data):
                 continue
             if pathlib.PurePosixPath(item.filename).suffix.lower() not in (".txt",".vpl"):
                 continue
-            content=archive.read(item).decode("utf-8-sig",errors="replace")
+            content=archive.read(item).decode("utf-8-sig", errors="strict")
             parsed=[v for line in content.splitlines() if (v:=parse_line(line)) is not None]
             if len(parsed)>1000:
                 parts.extend(parsed)
