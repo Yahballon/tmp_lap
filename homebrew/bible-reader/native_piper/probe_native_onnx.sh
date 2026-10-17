@@ -72,6 +72,16 @@ echo "[PROBE] Examining available ONNX static targets"
 ninja -C "$root/build" -t targets all | grep -E 'onnxruntime_(session|providers|graph|framework|optimizer):|onnxruntime_(session|providers|graph|framework|optimizer)\.a' | head -40 || true
 echo "[PROBE] Compiling native PS5 ONNX Runtime C API and CPU kernels"
 cmake --build "$root/build" --target onnxruntime_session onnxruntime_providers onnxruntime_optimizer onnxruntime_framework onnxruntime_graph --parallel 4
+echo "[PROBE] Building all available auxiliary CPU/static ONNX targets required by final executable linking"
+ninja -C "$root/build" -t targets all > "$root/native-targets.txt"
+for target in onnxruntime_common onnxruntime_util onnxruntime_mlas onnxruntime_flatbuffers onnxruntime_providers_cpu; do
+  if grep -Eq "^lib${target}\\.a:" "$root/native-targets.txt"; then
+    echo "[PROBE] Required additional target: $target"
+    cmake --build "$root/build" --target "$target" --parallel 4
+  else
+    echo "[PROBE] No separate static target for $target"
+  fi
+done
 echo "[PROBE] Verifying x86_64-sie-ps5 static library archive"
 find "$root/build" -type f -name 'libonnxruntime*.a' -print
 find "$root/build" -type f -name 'libonnxruntime*.a' | grep .
