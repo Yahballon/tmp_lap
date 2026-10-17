@@ -92,10 +92,10 @@ static int secure_file(unsigned root,const char *relative,uint64_t *size){
   if(p&&!S_ISDIR(st.st_mode))return 0;
   ++depth;
  }
- if(depth<2||depth>3||!S_ISREG(st.st_mode)||st.st_size<1)return 0;
+ if(depth<1||depth>3||!S_ISREG(st.st_mode)||st.st_size<1)return 0;
  const char *name=strrchr(relative,'/');name=name?name+1:relative;
  int t=kind(name);
- if(!t||(t==2&&depth!=2&&depth!=3)||(t==3&&depth!=2)||(t==4&&depth!=1&&depth!=2))return 0;
+ if(!t||(t==1&&depth==1)||(t==2&&depth!=2&&depth!=3)||(t==3&&depth!=2)||(t==4&&depth!=1&&depth!=2))return 0;
  uint64_t limit=t==2?MAX_MEDIA:(t==1?MAX_ART:(t==4?1024ULL*1024*1024:4096));
  if((uint64_t)st.st_size>limit)return 0;
  *size=(uint64_t)st.st_size;return 1;
