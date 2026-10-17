@@ -136,9 +136,9 @@ static void wkag_rename_installed_title(const char *title_id) {
         "    wkag_rename_installed_title(title_id);",
         "rename already up-to-date installed tile")
     code = replace_once(code,
-        '  wkali_log("[WKALI] GAME_INSTALL_DONE title=%s\\n", title_id);',
+        '  wkali_log("[WKALI] GAME_INSTALL_DONE',
         '  wkag_rename_installed_title(title_id);\n'
-        '  wkali_log("[WKALI] GAME_INSTALL_DONE title=%s\\n", title_id);',
+        '  wkali_log("[WKALI] GAME_INSTALL_DONE',
         "rename after installation")
 
     app_file.write_text(code, encoding="utf-8")
