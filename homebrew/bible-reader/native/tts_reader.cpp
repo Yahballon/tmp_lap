@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // eSpeak NG 1.52.0 synthesis + PS5 SDL2 queued PCM playback, no network.
 #include "tts_reader.hpp"
+#include "tts_log.hpp"
 #include "espeak-ng/speak_lib.h"
 #include <SDL.h>
 #include <algorithm>
@@ -86,8 +87,29 @@ void Speaker::run(){
  if(rate<0){error="Offline speech dictionaries not found";goto done;}
  initialized=true;
  {
-  const char* voices[]={"en","de","fr","es"};
-  if(espeak_SetVoiceByName(voices[language_])!=EE_OK){error="Voice unavailable";goto done;}
+  const char* codes[]={"en","de","fr","es"};
+  const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es"};
+  const char* code=codes[language_];
+  const char* profile=profiles[language_];
+  const espeak_VOICE** list=espeak_ListVoices(nullptr);
+  int count=0;
+  if(list)for(int i=0;i<256&&list[i];++i){
+   ++count;
+   bible_log::write("TTS_VOICE","id=%s name=%s",list[i]->identifier?list[i]->identifier:"?",
+                    list[i]->name?list[i]->name:"?");
+  }
+  bible_log::write("TTS_VOICES","found=%d code=%s",count,code);
+  espeak_VOICE filter{};
+  filter.languages=const_cast<char*>(code);
+  espeak_ERROR result=espeak_SetVoiceByProperties(&filter);
+  bible_log::write("TTS_SELECT","locale=%s result=%d",code,(int)result);
+  if(result!=EE_OK){
+   result=espeak_SetVoiceByName(profile);
+   bible_log::write("TTS_FALLBACK","profile=%s result=%d",profile,(int)result);
+  }
+  if(result!=EE_OK){error="Voice unavailable (see BibleReader log)";goto done;}
+  const espeak_VOICE* chosen=espeak_GetCurrentVoice();
+  bible_log::write("TTS_READY","voice=%s",chosen&&chosen->identifier?chosen->identifier:"?");
  }
  speaker=this;espeak_SetSynthCallback(receive);
  if(SDL_InitSubSystem(SDL_INIT_AUDIO)!=0){error=SDL_GetError();goto done;}
