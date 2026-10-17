@@ -101,6 +101,10 @@ replace_checked(eigen,
   '#if defined(BIBLE_ONNX_PS5)\n#define ORT_FALSE_SHARING_BYTES 32\n#elif defined(__x86_64__)\n#define ORT_FALSE_SHARING_BYTES 128',
   1)
 PY
+echo "[PROBE] Scope MLAS AVX-512/VNNI helpers to CPU-specific objects"
+python3 "$source_root/homebrew/bible-reader/native_piper/patch_ps5_mlas.py" "$root/onnxruntime"
+echo "[PROBE] Build MLAS first so intrinsic portability errors fail early"
+cmake --build "$root/build" --target onnxruntime_mlas --parallel 4
 echo "[PROBE] Examining available ONNX static targets"
 ninja -C "$root/build" -t targets all | grep -E 'onnxruntime_(session|providers|graph|framework|optimizer):|onnxruntime_(session|providers|graph|framework|optimizer)\.a' | head -40 || true
 echo "[PROBE] Compiling native PS5 ONNX Runtime C API and CPU kernels"
