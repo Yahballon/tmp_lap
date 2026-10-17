@@ -7,9 +7,7 @@
  * active credentials/connections while the network-scanner thread runs.
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-#include <array>
-#include <cstdio>
-#include <sys/stat.h>
+// Includes are provided by bigpicture.cpp before its anonymous namespace.
 namespace dreamcastx_smb_settings {
 struct Config {
     std::array<std::string,6> paths{};
