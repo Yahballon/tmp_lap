@@ -19,7 +19,18 @@ const std::array<const char*,66> kBooks={{
  "Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John",
  "Jude","Revelation"
 }};
-static std::string lower(std::string s){for(char& c:s)c=(char)std::tolower((unsigned char)c);return s;}
+static std::string lower(std::string s){
+ for(size_t i=0;i<s.size();++i){
+  unsigned char c=(unsigned char)s[i];
+  if(c<128){s[i]=(char)std::tolower(c);continue;}
+  // UTF-8 Latin-1 accented uppercase (À..Ö, Ø..Þ), maintaining byte width.
+  if(c==0xc3&&i+1<s.size()){
+   unsigned char b=(unsigned char)s[i+1];
+   if((b>=0x80&&b<=0x96)||(b>=0x98&&b<=0x9e)){s[i+1]=(char)(b+0x20);++i;}
+  }
+ }
+ return s;
+}
 static const std::vector<Verse> empty;
 int Library::chapterCount(int book) const {
  if(book<0||book>=66)return 0;
@@ -112,6 +123,8 @@ bool readSettings(const std::string& path,Settings& s){
    if(a>=22&&a<=38)next.fontSize=a;
    if(b>=0&&b<=1)next.theme=b;
    next.daily=c!=0;
+  }else if(std::sscanf(row,"language=%d",&a)==1){
+   if(a>=0&&a<4)next.language=a;
   }else if(std::sscanf(row,"bookmark=%d,%d,%d",&d,&e,&g)==3){
    Ref r{d,e,g};
    if(d>=0&&d<66&&e>=1&&e<=150&&g>=1&&g<=180&&!bookmarked(next,r)&&next.bookmarks.size()<512)
@@ -123,8 +136,8 @@ bool readSettings(const std::string& path,Settings& s){
 bool writeSettings(const std::string& path,const Settings& s){
  const std::string temp=path+".tmp";
  FILE* f=std::fopen(temp.c_str(),"wb");if(!f)return false;
- bool ok=std::fprintf(f,"BIBLE_STATE=1\nposition=%d,%d,%d\nappearance=%d,%d,%d\n",
- s.book,s.chapter,s.selectedVerse,s.fontSize,s.theme,s.daily?1:0)>0;
+ bool ok=std::fprintf(f,"BIBLE_STATE=1\nposition=%d,%d,%d\nappearance=%d,%d,%d\nlanguage=%d\n",
+ s.book,s.chapter,s.selectedVerse,s.fontSize,s.theme,s.daily?1:0,s.language)>0;
  for(auto r:s.bookmarks)if(std::fprintf(f,"bookmark=%d,%d,%d\n",r.book,r.chapter,r.verse)<0)ok=false;
  if(std::fflush(f)!=0)ok=false;
  if(std::fclose(f)!=0)ok=false;

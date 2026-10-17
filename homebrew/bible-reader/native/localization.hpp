@@ -11,7 +11,7 @@ enum class Key:int {
  savedVerses, matches, noMatches, noBookmarks, fontSize, dailyPanel,
  colourTheme, language, returnReading, midnight, slate, on, off,
  changeChapter, searchHelp, dailyVerse, offlineMissing, reinstall,
- exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version
+ exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version, controls
 };
 constexpr int kLangCount=4;
 inline int language(int n){return n>=0&&n<kLangCount?n:0;}
@@ -66,7 +66,11 @@ inline const char* label(int lang,Key key){
   {"100% offline - ","100 % offline - ","100 % hors ligne - ","100 % sin conexión - "},
   {"Reading ","Lese ","Lecture ","Leyendo "},
   {"BOOKS","BÜCHER","LIVRES","LIBROS"},
-  {"Version","Version","Version","Versión"}
+  {"Version","Version","Version","Versión"},
+  {"X Select   O Back   SQUARE Bookmark   TRIANGLE Search   L1/R1 Chapters   OPTIONS Settings   L2 Daily verse",
+   "X Wählen   O Zurück   SQUARE Merken   TRIANGLE Suche   L1/R1 Kapitel   OPTIONS Einstellungen   L2 Tagesvers",
+   "X Choisir   O Retour   SQUARE Favoris   TRIANGLE Recherche   L1/R1 Chapitre   OPTIONS Paramètres   L2 Verset du jour",
+   "X Elegir   O Atrás   SQUARE Marcador   TRIANGLE Buscar   L1/R1 Capítulo   OPTIONS Ajustes   L2 Versículo diario"}
  };
  const int i=(int)key;
  return i>=0&&i<(int)(sizeof(entries)/sizeof(entries[0]))?entries[i][language(lang)]:"";

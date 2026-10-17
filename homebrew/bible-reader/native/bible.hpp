@@ -23,6 +23,7 @@ private:
 struct Settings {
  int book=0, chapter=1, selectedVerse=1, fontSize=29, theme=0;
  bool daily=true;
+ int language=0; // English, German, French, Spanish; backwards-compatible state
  std::vector<Ref> bookmarks;
 };
 bool same(Ref a,Ref b);

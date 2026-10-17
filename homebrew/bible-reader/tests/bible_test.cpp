@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "../native/bible.hpp"
 #include "../native/reader_layout.hpp"
+#include "../native/localization.hpp"
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -15,6 +16,15 @@ int main(){
  bible::Settings b;
  assert(bible::readSettings(path,b));
  assert(b.book==42&&b.chapter==3&&b.selectedVerse==16&&b.fontSize==32);
+ assert(b.language==0); // Backward-compatible: old preferences default to English.
+ b.language=2;assert(bible::writeSettings(path,b));
+ bible::Settings restored;assert(bible::readSettings(path,restored));
+ assert(restored.language==2 && restored.book==42);
+ assert(std::string(bible_i18n::bookName(1,0))=="1. Mose");
+ assert(std::string(bible_i18n::bookName(2,0))=="Genèse");
+ assert(std::string(bible_i18n::bookName(3,0))=="Génesis");
+ assert(bible_i18n::searchKeys(1).size()>42);
+ std::string utf8="é";bible_i18n::popUtf8(utf8);assert(utf8.empty());
  assert(bible::bookmarked(b,{42,3,16}));
  bible::toggle(b,{42,3,16});assert(b.bookmarks.empty());
  std::remove(path.c_str());

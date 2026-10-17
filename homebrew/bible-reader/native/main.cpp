@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.2 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.3 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "core/input.hpp"
 #include "bible.hpp"
+#include "localization.hpp"
 #include "reader_layout.hpp"
 #include <algorithm>
 #include <array>
@@ -47,12 +48,26 @@ void wrap(DrawList& d,const Font& font,unsigned atlas,const std::string& str,flo
   y+=fontSize*1.40f;
  }
 }
-std::string name(bible::Ref r){
- return std::string(bible::kBooks[(size_t)r.book])+" "+std::to_string(r.chapter)+":"+std::to_string(r.verse);
+std::string name(bible::Ref r,int lang){
+ const char* localized=bible_i18n::bookName(lang,r.book);
+ const std::string label=localized[0]?localized:bible::kBooks[(size_t)r.book];
+ return label+" "+std::to_string(r.chapter)+":"+std::to_string(r.verse);
+}
+bool readTranslation(bible::Library& lib,int lang,std::string& error){
+ const std::string code=bible_i18n::code(lang);
+ const char* filename=lang==0?"webpb.tsv":nullptr;
+ const std::string file=filename?filename:code+".tsv";
+ const std::string appPath="/app0/assets/bible/"+file;
+ if(lib.load(appPath,error))return true;
+ return lib.load("/data/homebrew/PPSA99793/assets/bible/"+file,error);
 }
 enum class Page {read,books,chapters,search,results,bookmarks,settings};
 const char* tabs[]={"Library","Old Testament","New Testament","Bookmarks","Settings"};
 const char* glyphs[]={"[=]","||","+","[*]","[O]"};
+const bible_i18n::Key tabKeys[]={
+ bible_i18n::Key::library,bible_i18n::Key::oldTestament,
+ bible_i18n::Key::newTestament,bible_i18n::Key::bookmarks,bible_i18n::Key::settings
+};
 }
 int main(){
  mkdir("/data/BibleReader",0755);
@@ -64,10 +79,9 @@ int main(){
  if(!font.load(f))hui::sys::park();
  const unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
- bible::Library library;std::string problem;
- bool loaded=library.load("/app0/assets/bible/webpb.tsv",problem);
- if(!loaded)loaded=library.load("/data/homebrew/PPSA99793/assets/bible/webpb.tsv",problem);
  bible::Settings settings;bible::readSettings(state,settings);
+ bible::Library library;std::string problem;
+ bool loaded=readTranslation(library,settings.language,problem);
  if(loaded){
   settings.book=std::clamp(settings.book,0,65);
   settings.chapter=std::clamp(settings.chapter,1,library.chapterCount(settings.book));
@@ -80,7 +94,8 @@ int main(){
    if(current[i].number==settings.selectedVerse){selected=(int)i;break;}
   }
  }
- std::string query,notice="100% offline - World English Bible (WEBPB)";
+ std::string query,notice=std::string(bible_i18n::label(settings.language,bible_i18n::Key::offlineStatus))
+                 +bible_i18n::translationName(settings.language);
  std::vector<bible::SearchHit> hits;
  bool exitDialog=false,focusedSidebar=true;
  unsigned previous=0;
@@ -141,14 +156,14 @@ int main(){
     else if(page==Page::chapters&&loaded)chapterSelection=std::min(library.chapterCount(bookSelection),chapterSelection+6);
     else if(page==Page::results)listScroll=std::min((int)hits.size()-1,listScroll+1);
     else if(page==Page::bookmarks)listScroll=std::min((int)settings.bookmarks.size()-1,listScroll+1);
-    else if(page==Page::settings)listScroll=std::min(3,listScroll+1);
-    else if(page==Page::search)nav=std::min(41,nav+8);
+    else if(page==Page::settings)listScroll=std::min(4,listScroll+1);
+    else if(page==Page::search)nav=std::min((int)bible_i18n::searchKeys(settings.language).size()-1,nav+8);
    }
    if(pressed&hui::pad_bits::kSquare){
     if(page==Page::read&&loaded){
      const auto& vv=library.chapter(settings.book,settings.chapter);
      if(selected>=0&&selected<(int)vv.size()){auto& v=vv[(size_t)selected];bible::toggle(settings,{v.book,v.chapter,v.number});save();}
-    }else if(page==Page::search){if(!query.empty())query.pop_back();}
+    }else if(page==Page::search)bible_i18n::popUtf8(query);
    }
    if(pressed&hui::pad_bits::kCross){
     if(page==Page::read&&focusedSidebar){
@@ -161,7 +176,7 @@ int main(){
      const auto& vv=library.chapter(settings.book,settings.chapter);
      if(selected>=0&&selected<(int)vv.size()){
       settings.selectedVerse=vv[(size_t)selected].number;save();
-      notice="Reading "+name({settings.book,settings.chapter,settings.selectedVerse});
+      notice=std::string(bible_i18n::label(settings.language,bible_i18n::Key::reading))+name({settings.book,settings.chapter,settings.selectedVerse},settings.language);
      }
     }else if(page==Page::books){chapterSelection=1;page=Page::chapters;}
     else if(page==Page::chapters&&loaded){gotoRef({bookSelection,chapterSelection,1});}
@@ -169,16 +184,33 @@ int main(){
      if(listScroll>=0&&listScroll<(int)settings.bookmarks.size())gotoRef(settings.bookmarks[(size_t)listScroll]);
     }else if(page==Page::results){if(listScroll>=0&&listScroll<(int)hits.size())gotoRef(hits[(size_t)listScroll].ref);}
     else if(page==Page::settings){
-     if(listScroll==0)settings.fontSize=settings.fontSize>=38?22:settings.fontSize+2;
-     if(listScroll==1)settings.daily=!settings.daily;
-     if(listScroll==2)settings.theme=1-settings.theme;
-     if(listScroll==3){page=Page::read;focusedSidebar=true;}
+     if(listScroll==0){
+      const int candidate=(settings.language+1)%bible_i18n::kLangCount;
+      bible::Library replacement;std::string error;
+      if(readTranslation(replacement,candidate,error)){
+       if(loaded&&!library.chapter(settings.book,settings.chapter).empty())
+        settings.selectedVerse=library.chapter(settings.book,settings.chapter)[(size_t)std::clamp(selected,0,(int)library.chapter(settings.book,settings.chapter).size()-1)].number;
+       library=std::move(replacement);loaded=true;settings.language=candidate;
+       settings.chapter=std::clamp(settings.chapter,1,library.chapterCount(settings.book));
+       const auto& vv=library.chapter(settings.book,settings.chapter);
+       selected=0;
+       for(size_t i=0;i<vv.size();++i)if(vv[i].number==settings.selectedVerse){selected=(int)i;break;}
+       verseScroll=std::max(0,selected-2);verseLineScroll=0;
+       hits.clear();query.clear();nav=0;
+       notice=std::string(bible_i18n::label(settings.language,bible_i18n::Key::offlineStatus))
+          +bible_i18n::translationName(settings.language);
+      }else notice="Bible translation unavailable: "+error;
+     }
+     if(listScroll==1)settings.fontSize=settings.fontSize>=38?22:settings.fontSize+2;
+     if(listScroll==2)settings.daily=!settings.daily;
+     if(listScroll==3)settings.theme=1-settings.theme;
+     if(listScroll==4){page=Page::read;focusedSidebar=true;}
      save();
     }else if(page==Page::search){
-     const std::string keys="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -'<";
-     char c=keys[(size_t)std::min(nav,(int)keys.size()-1)];
-     if(c=='<'){if(!query.empty())query.pop_back();}
-     else if(query.size()<55)query+=(char)std::tolower((unsigned char)c);
+     const auto keys=bible_i18n::searchKeys(settings.language);
+     const std::string& key=keys[(size_t)std::min(nav,(int)keys.size()-1)];
+     if(key=="<")bible_i18n::popUtf8(query);
+     else if(query.size()<55)query+=key;
     }
    }
    if(page==Page::search&&(pressed&hui::pad_bits::kR2)){
@@ -200,14 +232,15 @@ int main(){
   d.line(1573,111,1667,111,9,gold);
   d.rounded_rect({0,0,1920,207},0,Color::rgb(0x081731,0.42f));
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
-  text(d,font,atlas,"by Y A H B A L L O N",307,148,20,gold);
-  text(d,font,atlas,"v0.1.2",1825,89,19,subdued,Align::right);
+  const std::string maker="by Y A H B A L L O N";
+  text(d,font,atlas,maker,307,148,20,gold);
+  text(d,font,atlas,"v0.1.3",307+font.measure(maker,20.f)+34.f,148,19,subdued);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;
    if(page==Page::read&&focusedSidebar&&side==i)panel(d,40,y,385,91,true);
    text(d,font,atlas,glyphs[i],75,y+59,31,i==side?gold:white);
-   text(d,font,atlas,tabs[i],155,y+60,28,white);
+   text(d,font,atlas,font.fit(bible_i18n::label(settings.language,tabKeys[i]),26,202),155,y+60,26,white);
    text(d,font,atlas,">",400,y+60,27,subdued,Align::right);
   }
   const auto layout=bible_ui::layoutFor(settings.daily);
@@ -216,9 +249,10 @@ int main(){
   panel(d,cx,210,cw,758);
   if(page==Page::read&&loaded){
    const auto& vv=library.chapter(settings.book,settings.chapter);
-   text(d,font,atlas,"B I B L E  /  "+std::string(settings.book<39?"OLD TESTAMENT":"NEW TESTAMENT"),
+   text(d,font,atlas,std::string(bible_i18n::label(settings.language,bible_i18n::Key::bible))+" / "+
+         bible_i18n::label(settings.language,settings.book<39?bible_i18n::Key::oldTestament:bible_i18n::Key::newTestament),
         cx+42,271,20,gold);
-   text(d,font,atlas,std::string(bible::kBooks[(size_t)settings.book])+" "+std::to_string(settings.chapter),
+   text(d,font,atlas,std::string(bible_i18n::bookName(settings.language,settings.book)[0]?bible_i18n::bookName(settings.language,settings.book):bible::kBooks[(size_t)settings.book])+" "+std::to_string(settings.chapter),
         cx+42,357,59,white);
    d.line(cx+42,411,cx+cw-42,411,1,border);
    // Fit the highlighted verse fully into the reading viewport instead
@@ -270,24 +304,24 @@ int main(){
    }
    // Separator and chapter controls live outside the scrollable verse area.
    d.line(cx+43,925,cx+cw-43,925,1,border);
-   text(d,font,atlas,"L1 / R1  Change chapter",cx+43,952,17,subdued);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::changeChapter),cx+43,952,17,subdued);
   }else if(!loaded){
-   text(d,font,atlas,"Bible data missing",cx+50,310,42,gold);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::offlineMissing),cx+50,310,34,gold);
    float y=380;wrap(d,font,atlas,problem,cx+50,y,790,25,850);
-   text(d,font,atlas,"Reinstall a complete build containing assets/bible/webpb.tsv",cx+50,560,20,subdued);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::reinstall),cx+50,560,20,subdued);
   }else if(page==Page::books){
-   text(d,font,atlas,firstBook?"NEW TESTAMENT":"OLD TESTAMENT",cx+45,285,28,gold);
-   text(d,font,atlas,"Choose a book",cx+45,344,46);
+   text(d,font,atlas,bible_i18n::label(settings.language,firstBook?bible_i18n::Key::newTestament:bible_i18n::Key::oldTestament),cx+45,285,28,gold);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::chooseBook),cx+45,344,40);
    if(bookSelection-firstBook>=11+listScroll)listScroll=bookSelection-firstBook-10;
    for(int i=listScroll;i<listScroll+11;i++){
     int b=firstBook+i;if(b>= (firstBook?66:39))break;
     float y=395+(i-listScroll)*49;
     if(b==bookSelection)panel(d,cx+32,y-35,cw-64,45,true);
-    text(d,font,atlas,bible::kBooks[(size_t)b],cx+62,y,25,b==bookSelection?gold:white);
+    text(d,font,atlas,font.fit(bible_i18n::bookName(settings.language,b)[0]?bible_i18n::bookName(settings.language,b):bible::kBooks[(size_t)b],25,cw-115),cx+62,y,25,b==bookSelection?gold:white);
    }
   }else if(page==Page::chapters){
-   text(d,font,atlas,bible::kBooks[(size_t)bookSelection],cx+50,320,49,gold);
-   text(d,font,atlas,"Choose a chapter",cx+50,374,27,subdued);
+   text(d,font,atlas,font.fit(bible_i18n::bookName(settings.language,bookSelection)[0]?bible_i18n::bookName(settings.language,bookSelection):bible::kBooks[(size_t)bookSelection],47,cw-110),cx+50,320,47,gold);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::chooseChapter),cx+50,374,27,subdued);
    int cap=library.chapterCount(bookSelection),start=((chapterSelection-1)/48)*48;
    for(int i=0;i<48&&start+i<cap;i++){
     int c=start+i+1;float x=cx+62+(i%6)*138,y=446+(i/6)*60;
@@ -295,39 +329,46 @@ int main(){
     text(d,font,atlas,std::to_string(c),x+35,y,26,c==chapterSelection?gold:white,Align::center);
    }
   }else if(page==Page::search){
-   text(d,font,atlas,"SEARCH THE BIBLE",cx+45,290,42,gold);
+   text(d,font,atlas,font.fit(bible_i18n::label(settings.language,bible_i18n::Key::searchBible),38,cw-90),cx+45,290,38,gold);
    panel(d,cx+40,321,cw-80,70,true);
-   text(d,font,atlas,query.empty()?"Enter a word or phrase":query,cx+60,365,27);
-   const std::string keys="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -'<";
+   text(d,font,atlas,font.fit(query.empty()?bible_i18n::label(settings.language,bible_i18n::Key::searchHint):query,27,cw-125),cx+60,365,27);
+   const auto keys=bible_i18n::searchKeys(settings.language);
    for(size_t i=0;i<keys.size();i++){
-    float x=cx+47+(i%8)*100,y=447+(i/8)*73;
+    float x=cx+47+(i%8)*100,y=447+(i/8)*60;
     if((int)i==nav)panel(d,x-11,y-36,81,59,true);
-    text(d,font,atlas,std::string(1,keys[i]),x+32,y,30,gold,Align::center);
+    text(d,font,atlas,keys[i],x+32,y,27,gold,Align::center);
    }
-   text(d,font,atlas,"R2  Search     SQUARE  Delete     O  Back",cx+47,920,21,subdued);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::searchHelp),cx+47,920,20,subdued);
   }else if(page==Page::results||page==Page::bookmarks){
    const bool search=page==Page::results;
-   text(d,font,atlas,search?"SEARCH RESULTS":"BOOKMARKS",cx+42,295,43,gold);
+   text(d,font,atlas,search?bible_i18n::label(settings.language,bible_i18n::Key::searchResults):bible_i18n::label(settings.language,bible_i18n::Key::bookmarks),cx+42,295,38,gold);
    const int n=search?(int)hits.size():(int)settings.bookmarks.size();
-   text(d,font,atlas,std::to_string(n)+(search?" matches (up to 150)":" saved verses"),cx+42,341,22,subdued);
+   text(d,font,atlas,std::to_string(n)+" "+bible_i18n::label(settings.language,search?bible_i18n::Key::matches:bible_i18n::Key::savedVerses),cx+42,341,22,subdued);
    for(int i=listScroll;i<n&&i<listScroll+9;i++){
     float y=402+(i-listScroll)*60;
     if(i==listScroll)panel(d,cx+32,y-37,cw-64,55,true);
     bible::Ref r=search?hits[(size_t)i].ref:settings.bookmarks[(size_t)i];
-    text(d,font,atlas,name(r),cx+58,y,23,gold);
+    text(d,font,atlas,name(r,settings.language),cx+58,y,23,gold);
     const auto* v=library.verse(r);
     if(v)text(d,font,atlas,font.fit(v->text,19,540.f+(cw-927.f)),cx+352,y,19,white);
    }
-   if(n==0)text(d,font,atlas,search?"No matching verses.":"No bookmarks yet.",cx+50,473,24,subdued);
+   if(n==0)text(d,font,atlas,bible_i18n::label(settings.language,search?bible_i18n::Key::noMatches:bible_i18n::Key::noBookmarks),cx+50,473,24,subdued);
   }else if(page==Page::settings){
-   text(d,font,atlas,"SETTINGS",cx+48,300,44,gold);
-   std::string labels[]={"Font size","Daily verse panel","Colour theme","Return to reading"};
-   std::string vals[]={std::to_string(settings.fontSize),settings.daily?"On":"Off",settings.theme?"Slate":"Midnight",""};
-   for(int i=0;i<4;i++){
-    float y=394+i*105;
-    if(i==listScroll)panel(d,cx+35,y-54,cw-70,81,true);
-    text(d,font,atlas,labels[i],cx+70,y,28,white);
-    text(d,font,atlas,vals[i],cx+cw-80,y,25,gold,Align::right);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::settings),cx+48,300,43,gold);
+   const bible_i18n::Key labels[]={
+    bible_i18n::Key::language,bible_i18n::Key::fontSize,
+    bible_i18n::Key::dailyPanel,bible_i18n::Key::colourTheme,
+    bible_i18n::Key::returnReading
+   };
+   const std::string vals[]={bible_i18n::languageName(settings.language),
+    std::to_string(settings.fontSize),
+    bible_i18n::label(settings.language,settings.daily?bible_i18n::Key::on:bible_i18n::Key::off),
+    bible_i18n::label(settings.language,settings.theme?bible_i18n::Key::slate:bible_i18n::Key::midnight),""};
+   for(int i=0;i<5;i++){
+    const float y=387+i*101;
+    if(i==listScroll)panel(d,cx+35,y-54,cw-70,80,true);
+    text(d,font,atlas,font.fit(bible_i18n::label(settings.language,labels[i]),24,cw*0.57f),cx+70,y,24,white);
+    text(d,font,atlas,font.fit(vals[i],23,cw*0.36f),cx+cw-80,y,23,gold,Align::right);
    }
   }
   if(layout.showDaily){
@@ -339,7 +380,7 @@ int main(){
    d.line(1464+std::cos(a)*17.f,336+std::sin(a)*17.f,
           1464+std::cos(a)*25.f,336+std::sin(a)*25.f,2,gold);
   }
-  text(d,font,atlas,"D A I L Y   V E R S E",1505,354,24,gold);
+  text(d,font,atlas,font.fit(bible_i18n::label(settings.language,bible_i18n::Key::dailyVerse),21,337),1505,354,21,gold);
   d.line(1454,381,1847,381,2,gold);
   if(loaded){
    std::time_t now=std::time(nullptr);std::tm* date=std::localtime(&now);
@@ -347,19 +388,19 @@ int main(){
    auto v=library.verse(ref);
    if(v){
     float y=455;wrap(d,font,atlas,"\""+v->text+"\"",1452,y,390,26,590,white);
-    text(d,font,atlas,name(ref),1453,635,19,gold);
+    text(d,font,atlas,name(ref,settings.language),1453,635,19,gold);
    }
-  }else text(d,font,atlas,"Offline Bible unavailable",1452,479,25,subdued);
+  }else text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::offlineMissing),1452,479,22,subdued);
   } // Hide the Daily Verse panel entirely when disabled in settings.
   d.line(0,994,1920,994,1,border);
-  text(d,font,atlas,"X Select   O Back   SQUARE Bookmark   TRIANGLE Search   L1/R1 Chapters   OPTIONS Settings   L2 Daily verse",
-       45,1038,21,subdued);
+  text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::controls),
+       45,1038,17,subdued);
   if(!notice.empty())text(d,font,atlas,font.fit(notice,19,700),1812,1038,19,gold,Align::right);
   if(exitDialog){
    d.rounded_rect({0,0,1920,1080},0,Color::rgb(0x000309,0.8f));
    panel(d,530,353,860,338,true);
-   text(d,font,atlas,"EXIT BIBLE READER?",960,469,43,gold,Align::center);
-   text(d,font,atlas,"X  Yes, close app     O  No, continue reading",960,575,26,white,Align::center);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::exitQuestion),960,469,38,gold,Align::center);
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::exitAnswer),960,575,23,white,Align::center);
   }
   renderer.begin();renderer.draw(d);
   renderer.present(0,display.width(),display.height());
