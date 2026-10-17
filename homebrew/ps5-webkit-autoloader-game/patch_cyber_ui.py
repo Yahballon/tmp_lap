@@ -276,7 +276,25 @@ def patch(root: Path) -> None:
     assert "/install" in raw and "/logs?pos=" in raw and "applicationCache" in raw
     assert "clear-webkit-data" in raw and "goToAutoloader" in raw
     path.write_text(raw, encoding="utf-8")
-    print(f"Applied real JAILBREAK ME cyber-pirate installer UI ({len(raw)} bytes); original AppCache/HTTP logic retained.")
+
+    # The installer master page is cached by Sony WebKit AppCache.  The upstream
+    # build version is still 0.4.0 and an existing console may already have
+    # /?v=0.4.0 cached; a UI-only cache-buster ensures the new interface is
+    # actually fetched without changing the exploit payload chain.
+    launcher = root / "src/main.c"
+    source = launcher.read_text(encoding="utf-8")
+    url_changes = (
+        ('http://127.0.0.1:%d/?v=%s%s&retry=1',
+         'http://127.0.0.1:%d/?v=%s%s&ui=cyberpirate1&retry=1'),
+        ('http://127.0.0.1:%d/?v=%s%s',
+         'http://127.0.0.1:%d/?v=%s%s&ui=cyberpirate1'),
+    )
+    for needle, replacement in url_changes:
+        if source.count(needle) != 1:
+            raise ValueError(f"Missing original installer browser URL: {needle}")
+        source = source.replace(needle, replacement, 1)
+    launcher.write_text(source, encoding="utf-8")
+    print(f"Applied real JAILBREAK ME cyber-pirate installer UI ({len(raw)} bytes) and fresh AppCache master URL; original endpoints/logic retained.")
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
