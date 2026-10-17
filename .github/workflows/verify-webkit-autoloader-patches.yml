@@ -124,7 +124,9 @@ jobs:
           assert '/index.html' in registry and '/background.png' in registry
           app_index=list(Path('frontend/dist/app').glob('v*/index.html'))
           assert len(app_index)==1 and 'JAILBREAK ME' in app_index[0].read_text()
-          assert b'jailbreakHeader' in elf and b'jailbreakFirmware' in elf
+          staged_js=list(Path('frontend/dist/app').glob('v*/app.js'))
+          assert len(staged_js)==1 and 'MAX_LOG_LINES = 48' in staged_js[0].read_text()
+          assert b'/app/v0.4.0/index.html' in elf and b'/app/v0.4.0/app.js' in elf
           assert b'/index.html' in elf and b'/background.png' in elf
           import json
           param=json.loads(Path('assets/param.json').read_text())
