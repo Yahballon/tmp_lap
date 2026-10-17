@@ -180,7 +180,8 @@ bool read_small(const std::string& path,size_t limit,std::string& data,std::stri
  size_t offset=0;
  while(offset<data.size()){
   ssize_t got=recv(fd,&data[offset],data.size()-offset,0);
-  if(got<=0)break;offset+=(size_t)got;
+  if(got<=0)break;
+  offset+=(size_t)got;
  }
  close(fd);
  if(offset!=data.size()){data.clear();error="Incomplete image/metadata transfer";return false;}
