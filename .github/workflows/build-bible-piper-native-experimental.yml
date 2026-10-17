@@ -98,7 +98,7 @@ jobs:
           import json,pathlib
           p=pathlib.Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.007')
+          d.update(titleId='PPSA99794',conceptId='99793',contentId='UP9000-PPSA99794_00-BIBLEREADERLAB01',contentVersion='01.000.007')
           d['localizedParameters']['en-US']['titleName']='Bible Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -163,6 +163,10 @@ jobs:
           path=Path('app/sce_sys/param.json')
           data=json.loads(path.read_text())
           data['contentVersion']='01.000.008'
+          data['titleId']='PPSA99794'
+          data['conceptId']='99794'
+          data['contentId']='UP9000-PPSA99794_00-BIBLEREADERLAB01'
+          data['localizedParameters']['en-US']['titleName']='Bible Reader Piper LAB'
           path.write_text(json.dumps(data,indent=2)+'\n')
           p=Path('app/src/main.cpp')
           p.write_text(p.read_text().replace('v0.1.6','v0.1.7-NATIVE-TEST'))
@@ -202,15 +206,15 @@ jobs:
         run: |
           python3 - <<'PY'
           import pathlib,json,zipfile,struct
-          root=pathlib.Path('app/dist/PPSA99793')
+          root=pathlib.Path('app/dist/PPSA99794')
           exe=(root/'eboot.bin').read_bytes()
           assert len(exe)>1000
           assert struct.unpack('<I',exe[:4])[0]==0x1d3d154f
           meta=json.loads((root/'sce_sys/param.json').read_text())
-          assert meta['titleId']=='PPSA99793'
-          assert meta['contentId']=='UP9000-PPSA99793_00-BIBLEREADER00001'
+          assert meta['titleId']=='PPSA99794'
+          assert meta['contentId']=='UP9000-PPSA99794_00-BIBLEREADERLAB01'
           assert meta['contentVersion']=='01.000.008'
-          with zipfile.ZipFile('app/dist/PPSA99793.zip') as archive:
+          with zipfile.ZipFile('app/dist/PPSA99794.zip') as archive:
               assert archive.testzip() is None
               paths=set(archive.namelist())
               for path in ('eboot.bin','sce_sys/param.json','sce_sys/icon0.png',
@@ -232,21 +236,21 @@ jobs:
                            'assets/licenses/ONNXRuntime-MIT.txt',
                            'assets/bible/webpb.tsv','assets/bible/de.tsv',
                            'assets/bible/fr.tsv','assets/bible/es.tsv'):
-                  assert 'PPSA99793/'+path in paths,path
-              verse_data=archive.read('PPSA99793/assets/bible/webpb.tsv')
+                  assert 'PPSA99794/'+path in paths,path
+              verse_data=archive.read('PPSA99794/assets/bible/webpb.tsv')
               assert len(verse_data)>1000000
               assert verse_data.count(b'\n')>30000
               for language in ('de','fr','es'):
-                  translated=archive.read('PPSA99793/assets/bible/'+language+'.tsv')
+                  translated=archive.read('PPSA99794/assets/bible/'+language+'.tsv')
                   assert translated.count(b'\n')>30000
                   assert translated.startswith(b'# ')
-              preview='PPSA99793/assets/tts/neural/de/genesis1/'
+              preview='PPSA99794/assets/tts/neural/de/genesis1/'
               manifest=archive.read(preview+'preview-manifest.txt').decode()
               assert 'verse_count=31' in manifest
               for verse in range(1,32):
                   raw=archive.read(preview+str(verse)+'.pcm')
                   assert len(raw)>1000 and len(raw)%2==0,verse
-              assert len(archive.read('PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx'))>50_000_000
+              assert len(archive.read('PPSA99794/assets/tts/neural/de/de_DE-thorsten-medium.onnx'))>50_000_000
               assert b"God's Spirit" in verse_data
               assert b'God\xe2\x80\x99s' not in verse_data
           print('PS5 native ZIP and complete offline Bible verified')
@@ -254,7 +258,7 @@ jobs:
       - name: Upload testbuild
         uses: actions/upload-artifact@v4
         with:
-          name: Bible-Reader-v0.1.7-NATIVE-PIPER-EXPERIMENTAL-PPSA99793
-          path: app/dist/PPSA99793.zip
+          name: Bible-Reader-v0.1.7-NATIVE-PIPER-EXPERIMENTAL-PPSA99794
+          path: app/dist/PPSA99794.zip
           if-no-files-found: error
 
