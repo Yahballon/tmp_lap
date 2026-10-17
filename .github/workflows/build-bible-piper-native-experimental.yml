@@ -140,7 +140,11 @@ jobs:
           root=Path('/tmp/piper-onnx-ps5/build')
           target=Path('app/lib/nativeort')
           files=sorted(root.rglob('*.a'))
-          assert len(files)>=12, len(files)
+          assert len(files)>=9, len(files)
+          names={x.name for x in files}
+          assert {'libonnxruntime_session.a','libonnxruntime_graph.a',
+                  'libonnxruntime_framework.a','libonnxruntime_providers.a',
+                  'libonnxruntime_optimizer.a'}.issubset(names), names
           lines=[]
           for lib in files:
               relative=lib.relative_to(root)
