@@ -131,7 +131,7 @@ int main(){
     if(page==Page::read&&focusedSidebar)side=(side+1)%5;
     else if(page==Page::read&&loaded){
      const auto& verses=library.chapter(settings.book,settings.chapter);
-     const int maxLines=std::max(1,(int)((899.f-454.f)/(settings.fontSize*1.40f)));
+     const int maxLines=std::max(1,(int)((899.f-454.f-32.f)/(settings.fontSize*1.40f)));
      const int total=(int)font.wrap(verses[(size_t)selected].text,(float)settings.fontSize,730.f).size();
      if(total>maxLines&&verseLineScroll<total-maxLines)++verseLineScroll;
      else {selected=std::min((int)verses.size()-1,selected+1);verseLineScroll=0;}
@@ -221,7 +221,7 @@ int main(){
    // of drawing its border over the lower chapter hint or outside the panel.
    constexpr float kTextTop=454.f, kTextBottom=906.f;
    const float lineHeight=settings.fontSize*1.40f;
-   const int maxLines=std::max(1,(int)((kTextBottom-kTextTop)/lineHeight));
+   const int maxLines=std::max(1,(int)((kTextBottom-kTextTop-32.f)/lineHeight));
    const int end=(int)vv.size();
    selected=std::clamp(selected,0,end-1);
    verseScroll=std::clamp(verseScroll,0,selected);
