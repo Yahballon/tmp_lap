@@ -364,7 +364,7 @@ int main(){
    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::changeChapter),cx+43,952,17,subdued);
    if(spoken.active){
     d.rounded_rect({cx+cw-335,930,286,29},7,Color::rgb(0x2c391c));
-    text(d,font,atlas,"READING   O STOP",cx+cw-322,951,18,Color::rgb(0xffdc27));
+    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::ttsStop),cx+cw-322,951,18,Color::rgb(0xffdc27));
    }else if(!spoken.error.empty())
     text(d,font,atlas,font.fit(spoken.error,16,355),cx+cw-401,951,16,gold);
   }else if(!loaded){
