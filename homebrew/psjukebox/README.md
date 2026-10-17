@@ -188,3 +188,7 @@ Root packages with a valid `ArtistName.artist` file still appear under the corre
 
 ## v0.1.8 — Fix archive detection on PS5 sandbox
 Actual PS5 logs from v0.1.7 show that the new helper finds `Music/wu-tang-forever.album` (109,407,657 bytes) and transfers it successfully, but the album reader subsequently fails with `Invalid packed album`. This is consistent with PS5 path metadata operations returning `errno=1`. The reader now validates packed file handles without `lstat` (uses `open` with `O_NOFOLLOW`, `fstat` and size fallback), and the extracted-library scanner tolerates path metadata denials for readable cache files. CI covers EPERM simulation for both `lstat` and `fstat`. If an album still fails, `ALBUM_INVALID` includes ZIP-parser or cache-specific detail.
+
+## v0.1.9 — Native ZIP import crash fix / cleaner album header
+
+An actual PS5 fault (`SIGSEGV` directly after `ALBUM_EXTRACT_BEGIN`) exposed excessive stack usage in the ZIP extraction routine: two 32 KiB local buffers on a background worker stack. v0.1.9 uses heap-owned scratch and includes a **64 KiB thread-stack regression test** for archive extraction, artist marker, cover/background and music scanning. The large album-directory name above the selected cover was also removed, leaving the carousel and playing track display intact. PS5 hardware acceptance remains necessary.

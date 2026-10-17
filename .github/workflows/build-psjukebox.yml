@@ -51,6 +51,14 @@ jobs:
             homebrew/psjukebox/native/library.cpp \
             homebrew/psjukebox/tests/archive_test.cpp -lz -o /tmp/psjukebox-album-test
           /tmp/psjukebox-album-test /tmp/psjukebox-zip-test/Demo.album /tmp/psjukebox-zip-test
+          # Real PS5 scan runs on a small pthread stack; a 64 KiB stack
+          # reproduces the v0.1.8 crash from the two local ZIP buffers.
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
+            homebrew/psjukebox/native/album_archive.cpp \
+            homebrew/psjukebox/native/library.cpp \
+            homebrew/psjukebox/tests/album_stack_test.cpp \
+            -lz -o /tmp/psjukebox-album-stack-test
+          /tmp/psjukebox-album-stack-test /tmp/psjukebox-zip-test/Demo.album /tmp/psjukebox-zip-test
           # Regression for actual PS5 errno=1 during lstat/fstat: a readable
           # archive must still unpack into app-managed cache and rescan.
           g++ -std=c++20 -Wall -Wextra -Werror -O2 -DPS5_DENY_FILE_STAT_TEST \
@@ -155,7 +163,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.8
+          name: PSJukebox-v0.1.9
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -168,5 +176,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.8 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.9 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
