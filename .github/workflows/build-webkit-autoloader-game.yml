@@ -1,0 +1,84 @@
+name: Build WebKit Autoloader GAME v0.4.0
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-webkit-autoloader-game/**'
+      - '.github/workflows/build-webkit-autoloader-game.yml'
+permissions:
+  contents: read
+jobs:
+  build-game-installer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - name: Checkout game conversion scripts
+        uses: actions/checkout@v4
+      - name: Fetch pinned upstream v0.4.0 with submodules
+        run: |
+          set -euo pipefail
+          git clone https://github.com/itsPLK/ps5-webkit-autoloader.git upstream-wkal
+          git -C upstream-wkal checkout --detach 137f065d2ba8022ba8e796895e7cb05c204f2ce9
+          git -C upstream-wkal submodule update --init --recursive
+      - name: Convert launcher metadata to PS5 Game category
+        run: |
+          set -euo pipefail
+          python3 homebrew/ps5-webkit-autoloader-game/patch_game.py upstream-wkal
+          BUILD_TYPE=stable python3 upstream-wkal/tools/gen_version.py --print
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('upstream-wkal')
+          t=json.loads((root/'assets/param.json.template').read_text())
+          assert t['titleId']=='WKAG00001'
+          assert t['applicationCategoryType']==0
+          assert t['contentBadgeType']==1
+          assert t['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
+          assert '"WKAG00001"' in (root/'include/wkali.h').read_text()
+          assert 'WKAL_VERSION "0.4.0"' in (root/'include/wkali.h').read_text()
+          print('Game metadata, identity and offline deeplink checks passed')
+          PY
+      - name: Build pinned upstream SDK Docker image
+        working-directory: upstream-wkal
+        run: docker build --pull -t ps5-webkit-autoloader-sdk -f Dockerfile.sdk .
+      - name: Compile installer and PC setup host
+        working-directory: upstream-wkal
+        env:
+          BUILD_TYPE: stable
+        run: |
+          set -euo pipefail
+          ./build_release.sh
+          test -s webkit-autoloader-installer_v0.4.0.elf
+          test -s webkit-autoloader-host_v0.4.0.py
+      - name: Verify built metadata was embedded in the native installer
+        working-directory: upstream-wkal
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path('assets/param.json').read_text())
+          assert j['titleId']=='WKAG00001'
+          assert j['applicationCategoryType']==0
+          assert j['contentBadgeType']==1
+          assert j['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
+          elf=Path('webkit-autoloader-installer_v0.4.0.elf').read_bytes()
+          assert b'WKAG00001' in elf
+          assert b'WKAL00001' not in elf
+          assert b'http://127.0.0.1:18181/app/index.html' in elf
+          print('Native ELF embeds the GAME launcher metadata')
+          PY
+          sha256sum webkit-autoloader-installer_v0.4.0.elf webkit-autoloader-host_v0.4.0.py > SHA256SUMS
+          mkdir -p ../game-build
+          cp webkit-autoloader-installer_v0.4.0.elf ../game-build/webkit-autoloader-GAME-installer_v0.4.0.elf
+          cp webkit-autoloader-host_v0.4.0.py ../game-build/webkit-autoloader-GAME-host_v0.4.0.py
+          cp assets/param.json ../game-build/param.json
+          cp SHA256SUMS ../game-build/SHA256SUMS-upstream-filenames.txt
+      - name: Upload test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PS5-WebKit-Autoloader-GAME-v0.4.0
+          path: game-build/
+          if-no-files-found: error
+          retention-days: 30
