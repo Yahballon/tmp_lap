@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.2.0"
+VERSION="0.2.1"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -36,8 +36,8 @@ def adapt():
         if f.is_file() and f.suffix in (".cpp",".h",".sh",".py",".json",".cmake",".inc",".txt",".md"):
             t=f.read_text(encoding="utf-8")
             # Preserve copyright attribution to the original PSFlyCast authors.
-            t=t.replace("PPSA99247",TITLE).replace("PSFlyCast","PS5DreamcastX")
-            t=t.replace("Copyright 2026 the PS5DreamcastX contributors",
+            t=t.replace("PPSA99247",TITLE).replace("PSFlyCast","DreamXcast")
+            t=t.replace("Copyright 2026 the DreamXcast contributors",
                 "Copyright 2026 the PSFlyCast contributors")
             f.write_text(t,encoding="utf-8")
 
@@ -60,15 +60,18 @@ def adapt():
     if '#include "dreamcastx_shelf.inc"' not in t:
         assert t.count(include)==1, "Upstream library layout changed"
         t=t.replace(include,'#include "dreamcastx_shelf.inc"\n\n'+include)
-    old='text(dl, bold(), 34, 112, 28, col::text, "PS5DreamcastX");'
-    if old in t:
-        t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
-                    '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
-    marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.2.0"' not in t:
-        t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.2.0");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.2.0");',1)
+    # UI name + version on author line; no extra clock-version duplicate.
+    # Every other exposed PS5 shell text is rebranded in the pass above.
+    old='text(dl, bold(), 34, 112, 28, col::text, "DreamXcast");'
+    assert t.count(old)==1, "Expected pinned native header title"
+    byline=f"by YAHBALLON  v{VERSION}"
+    t=t.replace(old,
+        'text(dl, bold(), 29, 112, 18, col::text, "DreamXcast");' + chr(10) +
+        f'\t\ttext(dl, regular(), 17, 114, 60, col::dim, "{byline}");',1)
+    clock='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
+    assert t.count(clock)==1
+    # Do not add any version label beneath the clock.
+
     # Log scanner totals when the async catalog grows or shrinks. A scan
     # root count is NOT a game count; record both for PS5 diagnostics.
     catalogAnchor='findDiscSets();\n\treturn true;'
@@ -402,9 +405,9 @@ void findUsbDirs()
     # The fork's brand has a longer prefix than PSFlyCast, fix version parsing.
     assert 'ownTag = buildLine.substr(10, buildLine.find_first_of(", ", 10) - 10);' in u
     u=u.replace('ownTag = buildLine.substr(10, buildLine.find_first_of(", ", 10) - 10);',
-                'ownTag = buildLine.substr(sizeof("PS5DreamcastX ") - 1, '
-                'buildLine.find_first_of(", ", sizeof("PS5DreamcastX ") - 1) '
-                '- (sizeof("PS5DreamcastX ") - 1));')
+                'ownTag = buildLine.substr(sizeof("DreamXcast ") - 1, '
+                'buildLine.find_first_of(", ", sizeof("DreamXcast ") - 1) '
+                '- (sizeof("DreamXcast ") - 1));')
     assert 'swapIn(appDir,' in u and 'readLine(appDir + "BUILD.txt")' in u
 
     tag='release.tag = entry["tag_name"].get<std::string>();'
@@ -418,7 +421,7 @@ void findUsbDirs()
     }
     release.tag = release.tag.substr(sizeof("ps5-dreamcastx-") - 1);
 ''',1)
-    wanted='const std::string wanted = "PS5DreamcastX-" + release.tag + ".zip";'
+    wanted='const std::string wanted = "DreamXcast-" + release.tag + ".zip";'
     if wanted not in u:
         raise RuntimeError("Expected renamed updater asset pattern missing")
     u=u.replace(wanted,'const std::string wanted = "PPSA99765.zip";',1)
@@ -430,9 +433,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 11',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 12',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.2.0"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.2.1"',v)
     assert n==1
     ver.write_text(v)
 
@@ -441,9 +444,9 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.010"
+    data["contentVersion"]="01.000.011"
     data["masterVersion"]="01.00"
-    data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
+    data["localizedParameters"]["en-US"]["titleName"]="DreamXcast"
     meta.write_text(json.dumps(data,indent=2)+"\n")
     # Leave restart/update targeting the title installation while settings
     # and the emulator's writable content use the external data directory.

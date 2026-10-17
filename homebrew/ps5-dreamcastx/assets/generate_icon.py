@@ -28,7 +28,7 @@ try:
     font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",21)
 except OSError:
     font=ImageFont.load_default()
-d.text((256,421),"DREAMCAST X",anchor="mm",fill=(225,242,255),font=font)
+d.text((256,421),"DREAMXCAST",anchor="mm",fill=(225,242,255),font=font)
 args.output.parent.mkdir(parents=True,exist_ok=True)
 im.save(args.output,format="PNG",optimize=True)
 print("Generated",args.output,"512x512 RGB")

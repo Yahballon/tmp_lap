@@ -1,18 +1,11 @@
-# PS5DreamcastX v0.2.0
+# DreamXcast v0.2.1
 
-## Unified library and SMB connection editor
+## App rename and header version
 
-- Removed Internal, USB and Network header tabs.
-- CoverFlow, Grid, List, Search, Favourites and Recently played now include
-  discovered Internal, USB and SMB games together.
-- Automatic asynchronous SMB scan when opening the combined library.
-- Square rescans all sources instead of just the previously selected tab.
-- The source of each game appears in its subtitle.
-- Edit SMB shares, username, password and domain in Settings > Library using
-  the native PS5 keyboard; six fields for shares, remaining shares preserved.
-- Saves network.cfg atomically with permissions 0600; password shown only
-  as masked characters. Restart app to activate new SMB credentials.
-- Unchanged emulator core, CoverFlow image renderer, cover cache, games,
-  BIOS, memory card and save paths.
+- Renamed the visible PS5 app, menu header, splash, icon and update dialogues to **DreamXcast**.
+- Moved the current version beside the author under the logo: **by YAHBALLON  v0.2.1**.
+- Removed the version duplicate beneath the clock.
+- Kept the v0.2.0 combined Internal/USB/SMB library and persistent fast cover cache.
+- Retained title ID `PPSA99765`, existing install folder `PS5DreamcastX/`, `/data/PS5DreamcastX/` saves and cover files, the GitHub release tag namespace and the exact ZIP name for seamless upgrades.
 
-Install: PPSA99765.zip -> /data/homebrew/PS5DreamcastX/.
+Download: `PPSA99765.zip`.
