@@ -334,8 +334,8 @@ int main(){
    text(d,font,atlas,font.fit(query.empty()?bible_i18n::label(settings.language,bible_i18n::Key::searchHint):query,27,cw-125),cx+60,365,27);
    const auto keys=bible_i18n::searchKeys(settings.language);
    for(size_t i=0;i<keys.size();i++){
-    float x=cx+47+(i%8)*100,y=447+(i/8)*60;
-    if((int)i==nav)panel(d,x-11,y-36,81,59,true);
+    float x=cx+47+(i%8)*100,y=431+(i/8)*53;
+    if((int)i==nav)panel(d,x-11,y-31,81,49,true);
     text(d,font,atlas,keys[i],x+32,y,27,gold,Align::center);
    }
    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::searchHelp),cx+47,920,20,subdued);
