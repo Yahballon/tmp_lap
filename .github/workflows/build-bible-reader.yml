@@ -106,7 +106,7 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='sdl2' APP_INCLUDE_PATHS='src/third_party/espeak/include' APP_STATIC_ARCHIVES='lib/libespeak-ng.a lib/libucd.a' app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='sdl2' APP_INCLUDE_PATHS='src src/third_party/espeak/include' APP_STATIC_ARCHIVES='lib/libespeak-ng.a lib/libucd.a' app
       - name: Verify installation ZIP and offline corpus
         run: |
           python3 - <<'PY'
