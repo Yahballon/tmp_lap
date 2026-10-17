@@ -6,6 +6,7 @@ The PS5 browser exploit and source assets remain unchanged.
 """
 from pathlib import Path
 import argparse
+import json
 
 EXPECTED_LENGTH = 148 + (3840 // 4) * (2160 // 4) * 16
 
@@ -190,6 +191,14 @@ static int register_game_background(const char *title_id) {
   int registered = update_sound_index(title_id);''',
         "register artwork and report result")
 
+    # Invalidate PS5 Game Hub metadata versions when upgrading from the
+    # earlier icon+audio installer; preserve the original title ID.
+    metadata_path = root / "assets/param.json.template"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if metadata.get("titleId") != "WKAG00001" or metadata.get("applicationCategoryType") != 0:
+        raise RuntimeError("Refusing to change metadata outside the GAME title")
+    metadata["contentVersion"] = "01.000.002"
+    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     path.write_text(code, encoding="utf-8")
     print("PS5 Game Hub background embedded, staged and registered (BC7, 4K)")
 
