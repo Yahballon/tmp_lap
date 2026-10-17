@@ -6,6 +6,8 @@
 #include <SDL.h>
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <unistd.h>
@@ -49,11 +51,36 @@ bool nextVerse(const bible::Library& lib,bible::Ref& ref){
 void Speaker::status(Snapshot s){std::lock_guard<std::mutex> lock(mutex_);status_=std::move(s);}
 Snapshot Speaker::snapshot() const{std::lock_guard<std::mutex> lock(mutex_);return status_;}
 bool Speaker::active() const{return snapshot().active;}
-bool Speaker::start(const bible::Library& lib,bible::Ref from,int lang){
+std::string neuralPreviewFilename(int language,bible::Ref ref){
+ if(language!=1||ref.book!=0||ref.chapter!=1||ref.verse<1||ref.verse>31)return {};
+ return "neural/de/genesis1/"+std::to_string(ref.verse)+".pcm";
+}
+static bool readNeuralPreview(const std::string& relative,std::vector<short>& pcm){
+ if(relative.empty())return false;
+ const char* roots[]={"/app0/assets/tts/","/data/homebrew/PPSA99793/assets/tts/"};
+ for(const char* root:roots){
+  const std::string path=std::string(root)+relative;
+  FILE* file=std::fopen(path.c_str(),"rb");
+  if(!file)continue;
+  const bool seek=std::fseek(file,0,SEEK_END)==0;
+  const long length=seek?std::ftell(file):-1;
+  if(length<1000||length>6*1024*1024||length%2!=0||
+      std::fseek(file,0,SEEK_SET)!=0){std::fclose(file);continue;}
+  std::vector<short> bytes((size_t)length/sizeof(short));
+  const size_t count=std::fread(bytes.data(),sizeof(short),bytes.size(),file);
+  std::fclose(file);
+  if(count!=bytes.size())continue;
+  pcm=std::move(bytes);
+  return true;
+ }
+ return false;
+}
+bool Speaker::start(const bible::Library& lib,bible::Ref from,int lang,bool preferNeural){
  stop();
  if(!lib.verse(from)){bible_log::write("TTS_BAD_REF","book=%d chapter=%d verse=%d",from.book,from.chapter,from.verse);return false;}
  bible_log::write("TTS_START","language=%d book=%d chapter=%d verse=%d",lang,from.book,from.chapter,from.verse);
- library_=&lib;from_=from;language_=std::clamp(lang,0,3);cancelled_=false;
+ library_=&lib;from_=from;language_=std::clamp(lang,0,3);preferNeural_=preferNeural;cancelled_=false;
+ bible_log::write("TTS_ENGINE","preferNeural=%d language=%d",preferNeural?1:0,language_);
  Snapshot st{};st.active=true;st.ref=from;status(st);
  pthread_attr_t attrs{};pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,2*1024*1024);
  int err=pthread_create(&thread_,&attrs,entry,this);pthread_attr_destroy(&attrs);
@@ -152,8 +179,28 @@ void Speaker::run(){
    if(result!=EE_OK||pcm_.empty()){error="Offline synthesis failed";
     bible_log::write("TTS_SYNTH_ERR","rc=%d pcm_samples=%zu book=%d chapter=%d verse=%d",(int)result,pcm_.size(),ref.book,ref.chapter,ref.verse);
     break;}
+   // Optional German Piper HD preview consists of pre-synthesized 22.05kHz
+   // mono PCM audio. ONNX is NOT executed on the PS5.
+   const std::string neuralFile=preferNeural_?neuralPreviewFilename(language_,ref):std::string{};
+   bool usingNeural=false;
+   int inputRate=rate;
+   if(!neuralFile.empty()){
+    std::vector<short> highQuality;
+    if(readNeuralPreview(neuralFile,highQuality)){
+     const auto priorSamples=pcm_.size();
+     // eSpeak word timings are used only as an approximation for Piper audio.
+     // Rescale onset times to the different total audio duration.
+     if(priorSamples>0)for(auto& mark:marks_){
+      mark.timeMs=(int)std::lround((double)mark.timeMs*
+                                 (double)highQuality.size()/(double)priorSamples);
+     }
+     pcm_=std::move(highQuality);inputRate=22050;usingNeural=true;
+     bible_log::write("PIPER_PREVIEW","sample=%s samples=%zu",neuralFile.c_str(),pcm_.size());
+    }else bible_log::write("PIPER_FALLBACK","missing/corrupt=%s (using classic)",neuralFile.c_str());
+   }
+   st.neural=usingNeural;
    SDL_AudioCVT cvt{};
-   if(SDL_BuildAudioCVT(&cvt,AUDIO_S16SYS,1,rate,AUDIO_S16SYS,channels,outputRate)<0){
+   if(SDL_BuildAudioCVT(&cvt,AUDIO_S16SYS,1,inputRate,AUDIO_S16SYS,channels,outputRate)<0){
     error=SDL_GetError();break;
    }
    cvt.len=(int)(pcm_.size()*sizeof(short));

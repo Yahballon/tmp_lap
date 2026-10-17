@@ -11,20 +11,21 @@
 namespace bible_tts {
 struct WordMark {int timeMs=0;size_t begin=0,end=0;};
 struct Snapshot {
- bool active=false,playing=false;
+ bool active=false,playing=false,neural=false;
  bible::Ref ref{};
  size_t wordBegin=0,wordEnd=0;
  std::string error;
 };
 size_t utf8Offset(const std::string& value,size_t characters);
 bool nextVerse(const bible::Library& lib,bible::Ref& ref);
+std::string neuralPreviewFilename(int language,bible::Ref ref);
 class Speaker {
 public:
  ~Speaker(){stop();}
  Speaker(const Speaker&)=delete;
  Speaker& operator=(const Speaker&)=delete;
  Speaker()=default;
- bool start(const bible::Library& lib,bible::Ref from,int language);
+ bool start(const bible::Library& lib,bible::Ref from,int language,bool preferNeural=false);
  void stop();
  Snapshot snapshot() const;
  bool active() const;
@@ -39,6 +40,7 @@ private:
  const bible::Library* library_=nullptr;
  bible::Ref from_{};
  int language_=0;
+ bool preferNeural_=false;
  pthread_t thread_{};
  bool joined_=true;
  std::atomic<bool> cancelled_{false};
