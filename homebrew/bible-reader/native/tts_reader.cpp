@@ -85,6 +85,7 @@ void Speaker::run(){
  std::string error;
  const char* roots[]={"/app0/assets/tts","/data/homebrew/PPSA99793/assets/tts"};
  const char* chosenRoot=nullptr;
+ int rate=-1;
  const char* languages[]={"en","de","fr","es"};
  const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es"};
  for(const char* root:roots){
@@ -96,7 +97,7 @@ void Speaker::run(){
   if(phon>0&&dict>0&&profile>0){chosenRoot=root;break;}
  }
  if(!chosenRoot){error="Offline voice data missing";bible_log::write("TTS_DATA_ERR","No complete language assets for %s",languages[language_]);goto done;}
- const int rate=espeak_Initialize(AUDIO_OUTPUT_SYNCHRONOUS,100,chosenRoot,espeakINITIALIZE_DONT_EXIT);
+ rate=espeak_Initialize(AUDIO_OUTPUT_SYNCHRONOUS,100,chosenRoot,espeakINITIALIZE_DONT_EXIT);
  bible_log::write("TTS_INIT","sample_rate=%d root=%s",rate,chosenRoot);
  if(rate<=0){error="Offline voice initialization failed";goto done;}
  initialized=true;
