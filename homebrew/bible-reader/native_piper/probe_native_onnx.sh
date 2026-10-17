@@ -55,6 +55,19 @@ cmake -S cmake -B "$root/build" -G Ninja \
   -Donnxruntime_MINIMAL_BUILD=OFF \
   -Donnxruntime_ENABLE_LTO=OFF \
   -DCMAKE_INSTALL_PREFIX="$root/install"
+echo "[PROBE] Apply PS5 ABI thread-local max alignment compatibility patch"
+python3 - <<'PY'
+from pathlib import Path
+file=Path('/tmp/piper-onnx-ps5/build/_deps/protobuf-src/src/google/protobuf/arena_impl.h')
+s=file.read_text()
+old='enum { kCacheAlignment = 64 };'
+if old not in s:
+    raise SystemExit('Unsupported protobuf source: expected cache alignment expression missing')
+# PS5 clang target limits thread-local alignment to 32 bytes. Reduces
+# cache-line padding, not the data type's semantic alignment requirements.
+file.write_text(s.replace(old,'enum { kCacheAlignment = 32 };'))
+print('PS5 protobuf TLS alignment adjusted: 64 -> 32')
+PY
 echo "[PROBE] Examining available ONNX static targets"
 ninja -C "$root/build" -t targets all | grep -E 'onnxruntime_(session|providers|graph|framework|optimizer):|onnxruntime_(session|providers|graph|framework|optimizer)\.a' | head -40 || true
 echo "[PROBE] Compiling native PS5 ONNX Runtime C API and CPU kernels"
