@@ -136,6 +136,10 @@ jobs:
           assert 'jailbreakFirmware' in exploit and 'jailbreakChain' in exploit
           assert 'MAX_LOG_LINES = 48' in exploit_js
           assert "exploitEl.src = EXPLOIT_URL" in exploit_js
+          assert 'setTimeout(revealExploit, 1500)' not in exploit_js
+          assert "window.addEventListener('load', start)" not in exploit_js
+          assert "    revealExploit();\n    try {\n      exploitEl.src = EXPLOIT_URL;" in exploit_js
+          assert "  start();" in exploit_js
           assert 'JAILBREAK ME Cyber Pirate' in exploit_css
           assert 'background.png' not in exploit_css
           assert j['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
@@ -207,7 +211,7 @@ jobs:
           print('ELF contains themed INSTALLER and offline EXPLOIT UI + icon + music + BC7 Game Hub background')
           PY
           mkdir -p ../game-build-with-music
-          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/JAILBREAK-ME-CYBER-FULL_v0.4.0.elf
+          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/JAILBREAK-ME-CYBER-FASTBOOT_v0.4.0.elf
           cp webkit-autoloader-host_v0.4.0.py ../game-build-with-music/JAILBREAK-ME-host_v0.4.0.py
           cp assets/snd0.at9 ../game-build-with-music/snd0.at9
           cp assets/icon0.png ../game-build-with-music/icon0.png
@@ -217,7 +221,7 @@ jobs:
           (cd ../game-build-with-music && sha256sum * > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-JAILBREAK-ME-CYBER-FULL-v0.4.0
+          name: PS5-JAILBREAK-ME-CYBER-FASTBOOT-v0.4.0
           path: game-build-with-music/
           if-no-files-found: error
           retention-days: 30
