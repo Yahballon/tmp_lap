@@ -94,7 +94,7 @@ bool decode(const std::string& path,std::string& relativePath){
  return relative(relativePath);
 }
 struct Session{
- smb2_context* ctx=nullptr;
+ struct smb2_context* ctx=nullptr;
  bool connected=false;
  ~Session(){
   if(ctx){
@@ -120,7 +120,7 @@ struct Session{
 struct Item{std::string name;uint32_t type;uint64_t size;};
 std::vector<Item> listing(Session& session,const std::string& path){
  std::vector<Item> result;
- smb2dir* dir=smb2_opendir(session.ctx,path.empty()?"":path.c_str());
+ struct smb2dir* dir=smb2_opendir(session.ctx,path.empty()?"":path.c_str());
  if(!dir)return result;
  while(auto* e=smb2_readdir(session.ctx,dir)){
   if(!safe(e->name))continue;
@@ -138,7 +138,7 @@ bool transfer(Session& session,const Config& cfg,const std::string& rel,
               uint64_t size,FILE* f,std::string* data,
               std::atomic<bool>* cancel,std::atomic<uint64_t>* progress,
               std::string& error){
- smb2fh* fh=smb2_open(session.ctx,actual(cfg,rel).c_str(),O_RDONLY);
+ struct smb2fh* fh=smb2_open(session.ctx,actual(cfg,rel).c_str(),O_RDONLY);
  if(!fh){error="SMB file cannot be opened";return false;}
  bool ok=true;uint64_t done=0;
  char block[65536];
@@ -245,7 +245,7 @@ bool artwork(const std::string& path,std::string& data,std::string& error){
  if(!decode(path,rel)||!config(cfg,error))return false;
  if(!artwork_file(rel.substr(rel.find_last_of('/')+1))){error="Not an SMB image";return false;}
  Session session;if(!session.open(cfg,error))return false;
- smb2_stat_64 st{};
+ struct smb2_stat_64 st{};
  if(smb2_stat(session.ctx,actual(cfg,rel).c_str(),&st)!=0||
     st.smb2_type!=SMB2_TYPE_FILE||st.smb2_size<8||st.smb2_size>maxImage){
   error="SMB image unavailable";return false;

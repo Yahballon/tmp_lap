@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.5
+// PSJukebox by YAHBALLON v0.1.6
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -11,6 +11,7 @@
 #include "cover_motion.hpp"
 #include "favorites.hpp"
 #include "album_archive.hpp"
+#include "smb_music.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -32,7 +33,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.5";
+constexpr const char* version="v0.1.6";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -89,6 +90,7 @@ void* image_worker(void* arg){
  ImageRequest* t=static_cast<ImageRequest*>(arg);
  std::string bytes;
  if(jbx::is_remote(t->path)){std::string error;jbx::image_bytes(t->path,bytes,error);}
+ else if(smb_music::is_smb(t->path)){std::string error;smb_music::artwork(t->path,bytes,error);}
  else bytes=read(t->path);
  {std::lock_guard<std::mutex> lk(imageMutex);imageDone.push_back({t->path,std::move(bytes)});}
  delete t;imageBusy.store(false);return nullptr;
@@ -117,8 +119,10 @@ std::atomic<bool> scanBusy{false};
 void* scan_worker(void*){
  auto local=jukebox::scan(jukebox::music_roots());
  auto remote=jbx::scan();
+ auto network=smb_music::scan();
  auto packs=jukebox::find_packed_albums(jukebox::music_roots());
  for(const auto& p:remote.archives)packs.push_back(p);
+ for(const auto& p:network.archives)packs.push_back(p);
  std::atomic<bool> cancelled{false};
  std::string importedStatus;
  unsigned processed=0;
@@ -127,20 +131,27 @@ void* scan_worker(void*){
   const std::string name=jukebox::album_stem(pack.path);
   if(name.empty())continue;
   std::string path=pack.path,error,musicRoot;
-  if(jbx::is_remote(pack.path)){
-   if(!jbx::stage_track(pack.path,pack.size,cancelled,path,error)){
-    importedStatus+="ALBUM_TRANSFER_ERROR "+name+": "+error+"; ";continue;
-   }
+  if(jbx::is_remote(pack.path)||smb_music::is_smb(pack.path)){
+   const bool ok=jbx::is_remote(pack.path)?
+     jbx::stage_track(pack.path,pack.size,cancelled,path,error):
+     smb_music::stage(pack.path,pack.size,cancelled,path,error);
+   if(!ok){importedStatus+="ALBUM_TRANSFER_ERROR "+name+": "+error+"; ";continue;}
   }
-  if(!jukebox::unpack_album(path,pack.artist,name,pack.path,jukebox::archive_cache_root(),musicRoot,error)){
+  std::string artist=pack.artist;
+  if(artist.empty()){
+   artist=jukebox::album_artist_marker(path,error);
+   if(artist.empty()){importedStatus+="ALBUM_ARTIST_ERROR "+name+": "+error+"; ";continue;}
+  }
+  if(!jukebox::unpack_album(path,artist,name,pack.path,jukebox::archive_cache_root(),musicRoot,error)){
    importedStatus+="ALBUM_INVALID "+name+": "+error+"; ";continue;
   }
   auto entry=jukebox::scan({musicRoot});
   const auto songs=entry.trackCount;
   jukebox::merge(local,std::move(entry));
-  importedStatus+="ALBUM_OK "+pack.artist+"/"+name+" tracks="+std::to_string(songs)+"; ";
+  importedStatus+="ALBUM_OK "+artist+"/"+name+" tracks="+std::to_string(songs)+"; ";
  }
- local.report+=" | "+importedStatus;
+ jukebox::merge(local,std::move(network.library));
+ local.report+=" | "+network.status+" | "+importedStatus;
  {std::lock_guard<std::mutex> lk(scanMutex);
   finishedScans.push_back({std::move(remote),std::move(local)});}
  scanBusy.store(false);
@@ -162,7 +173,9 @@ void* transfer_worker(void* arg){
  auto* task=static_cast<TransferTask*>(arg);
  TransferDone result;result.path=task->path;
  transferTotal.store(task->size);transferDone.store(0);
- result.ok=jbx::stage_track(task->path,task->size,transferCancel,result.local,result.error,&transferDone);
+ result.ok=smb_music::is_smb(task->path)?
+   smb_music::stage(task->path,task->size,transferCancel,result.local,result.error,&transferDone):
+   jbx::stage_track(task->path,task->size,transferCancel,result.local,result.error,&transferDone);
  {std::lock_guard<std::mutex> lk(transferMutex);finishedTransfers.push_back(std::move(result));}
  delete task;transferBusy.store(false);return nullptr;
 }
@@ -230,7 +243,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.5");
+ log("BOOT v0.1.6");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -310,7 +323,7 @@ int main(){
   trackIndex=std::clamp(trackIndex,0,(int)a->tracks.size()-1);
   const auto& t=a->tracks[(size_t)trackIndex];
   queuedSong={static_cast<size_t>(artistIndex),static_cast<size_t>(albumIndex),static_cast<size_t>(trackIndex)};
-  if(jbx::is_remote(t.path)){
+  if(jbx::is_remote(t.path)||smb_music::is_smb(t.path)){
    if(begin_transfer(t.path,t.size)){
     message="Loading "+cut(t.name,45)+" from USB...";screen=2;
     log("TRANSFER_BEGIN "+t.name+" bytes="+std::to_string(t.size));
@@ -478,6 +491,10 @@ int main(){
     const int count=(int)artist->albums.size();
     albumIndex=(albumIndex+step+count)%count;
     trackIndex=0;
+   }
+   if(pressed&hui::pad_bits::kDown){
+    if(album){trackIndex=0;screen=1;headerIndex=2;headerFocus=false;}
+    else message="Select an album to view its tracks";
    }
    if(pressed&hui::pad_bits::kCross&&album&&!album->tracks.empty()){trackIndex=0;play_track();}
    if(pressed&hui::pad_bits::kTriangle){
@@ -693,7 +710,7 @@ int main(){
      }
     }
    }else{
-    label(d,font,atlas,"L2 / R2  Albums     X  Play     Triangle  Favorite",960,902,19,muted,Align::center);
+    label(d,font,atlas,"L2/R2 Albums   DOWN Tracklist   X Play   Triangle Favorite",960,902,19,muted,Align::center);
    }
   }else if((screen==1||screen==5)&&album){
    d.rounded_rect({142,245,1636,680},13,color(0x050810,.88f));
@@ -749,7 +766,7 @@ int main(){
     label(d,font,atlas,options[i],960,430+i*85.f,27,white,Align::center);
    }
    label(d,font,atlas,"Favorites: /data/PSJukebox/favorites.json",960,721,21,muted,Align::center);
-   label(d,font,atlas,"L1/R1 Artist  |  L2/R2 Albums  |  X Play / Tracklist",960,765,19,muted,Align::center);
+   label(d,font,atlas,"L1/R1 Artist | L2/R2 Album | Down Tracklist | SMB: /data/PSJukebox/smb.ini",960,765,19,muted,Align::center);
   }else{
    label(d,font,atlas,"NO ALBUMS FOUND",960,485,34,color(accent),Align::center);
    label(d,font,atlas,"Music/Artist/Album/cover.jpg + song.mp3",960,534,23,white,Align::center);

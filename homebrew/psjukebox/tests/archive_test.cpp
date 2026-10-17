@@ -11,6 +11,9 @@ int main(int argc,char** argv){
  assert(jukebox::is_album_file("demo.album"));
  assert(jukebox::is_album_file("DREAM.ALBUM"));
  assert(!jukebox::is_album_file("demo.zip"));
+ std::string metadataError,embedded=jukebox::album_artist_marker(argv[1],metadataError);
+ assert(embedded=="Tupac");
+ assert(metadataError.empty());
  assert(jukebox::album_stem("jbox://8/Tupac/Demo.album")=="Demo");
  std::string root,error;
  assert(jukebox::unpack_album(argv[1],"Tupac","Killuminati","jbox://8/Tupac/Demo.album",

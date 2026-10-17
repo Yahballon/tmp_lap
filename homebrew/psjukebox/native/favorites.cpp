@@ -63,7 +63,8 @@ bool parse_json(const std::string& s,std::set<std::string>& out){
 }
 std::string favorite_key(const std::string& path){
  std::string result;
- if(path.rfind("jbox://",0)==0){
+ if(path.rfind("smbj://",0)==0){result=path.substr(7);}
+ else if(path.rfind("jbox://",0)==0){
   auto sep=path.find('/',7);
   if(sep!=std::string::npos)result=path.substr(sep+1);
  }else{
