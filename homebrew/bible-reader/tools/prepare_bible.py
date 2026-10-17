@@ -11,7 +11,11 @@ import re
 import urllib.request
 import zipfile
 
-SOURCE = "https://ebible.org/Scriptures/engwebpb_vpl.zip"
+SOURCES = [
+    "https://ftp.ebible.org/Scriptures/engwebpb_vpl.zip",
+    "https://pacificbibles.org/Scriptures/engwebpb_vpl.zip",
+    "https://ebible.org/Scriptures/engwebpb_vpl.zip",
+]
 NAMES = """Genesis|Exodus|Leviticus|Numbers|Deuteronomy|Joshua|Judges|Ruth|1 Samuel|2 Samuel|1 Kings|2 Kings|1 Chronicles|2 Chronicles|Ezra|Nehemiah|Esther|Job|Psalms|Proverbs|Ecclesiastes|Song of Solomon|Isaiah|Jeremiah|Lamentations|Ezekiel|Daniel|Hosea|Joel|Amos|Obadiah|Jonah|Micah|Nahum|Habakkuk|Zephaniah|Haggai|Zechariah|Malachi|Matthew|Mark|Luke|John|Acts|Romans|1 Corinthians|2 Corinthians|Galatians|Ephesians|Philippians|Colossians|1 Thessalonians|2 Thessalonians|1 Timothy|2 Timothy|Titus|Philemon|Hebrews|James|1 Peter|2 Peter|1 John|2 John|3 John|Jude|Revelation""".split("|")
 CODES = """Gen Exo Lev Num Deu Jos Jdg Rut 1Sa 2Sa 1Ki 2Ki 1Ch 2Ch Ezr Neh Est Job Psa Pro Ecc Sol Isa Jer Lam Eze Dan Hos Joe Amo Oba Jon Mic Nah Hab Zep Hag Zec Mal Mat Mar Luk Joh Act Rom 1Co 2Co Gal Eph Phi Col 1Th 2Th 1Ti 2Ti Tit Phm Heb Jam 1Pe 2Pe 1Jo 2Jo 3Jo Jud Rev""".split()
 ALIASES = {}
@@ -76,8 +80,18 @@ def main():
     if args.input:
         data=args.input.read_bytes()
     else:
-        with urllib.request.urlopen(SOURCE,timeout=90) as response:
-            data=response.read(20_000_001)
+        data = None
+        for url in SOURCES:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0", "Accept":"application/zip,*/*"})
+                with urllib.request.urlopen(req, timeout=45) as response:
+                    data = response.read(20_000_001)
+                print("Source:", url)
+                break
+            except Exception as exc:
+                print("Source unavailable:", url, exc)
+        if data is None:
+            raise RuntimeError("No public-domain Bible source reachable during build")
     print("Upstream ZIP SHA256:",hashlib.sha256(data).hexdigest())
     result=convert_zip(data)
     args.output.parent.mkdir(parents=True,exist_ok=True)
