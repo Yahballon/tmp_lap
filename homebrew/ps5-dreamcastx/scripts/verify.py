@@ -26,6 +26,19 @@ assert 'shelves.insert(shelves.begin(), all);' in (src/"dreamcastx_library_order
 assert 'shelves.push_back(all);' in (src/"dreamcastx_library_order.inc").read_text()
 assert 'Shelf recent{ "Recently played" };' in ui
 assert '#include "ps5_diag.h"' in ui
+assert 'ALL GAMES' in ui and 'refreshGames(true);' in ui
+assert 'refreshGames(lib.source == Network)' not in ui
+assert 'games[i].source == lib.source' not in ui
+assert 'games[i].source != lib.source' not in ui
+assert '&& g.source == lib.source' not in ui
+assert 'dreamcastx_smb_settings::addRows(storage);' in ui
+assert 'dreamcastx_smb_settings::accept(typed);' in ui
+assert 'KeyboardRaPassword, KeyboardSmb' in ui
+assert (src/"dreamcastx_smb_settings.inc").exists()
+assert 'ps5::ime::Kind::Password' in (src/"dreamcastx_smb_settings.inc").read_text()
+assert 'chmod(temp.c_str(),0600)' in (src/"dreamcastx_smb_settings.inc").read_text()
+assert 'sourceOf(m.path)' in ui
+
 assert "string_tolower(extension);" in (root/"build/flycast/core/ui/game_scanner.cpp").read_text()
 usb=(src/"dreamcastx_usb.inc").read_text()
 assert "const std::string base=mount+\"/\"+folder;" in usb
@@ -46,7 +59,7 @@ assert "imageFill(dl,image,art.x,art.y,art.w,art.h" in shelf
 for forbidden in ("AddImageQuad(", "AddQuadFilled(", "PrimReserve(", "dreamcastXReflection(", "softDisc("):
     assert forbidden not in shelf, "Unsafe PS5 renderer reintroduced: "+forbidden
 assert "ps5-dreamcastx-v" in (src/"ps5_update.cpp").read_text()
-assert "PS5_VERSION \"0.1.9\"" in (src/"ps5_build.h").read_text()
+assert "PS5_VERSION \"0.2.0\"" in (src/"ps5_build.h").read_text()
 async_ui=(root/"build/flycast/core/ui/gui_util.cpp").read_text()
 assert '#include "dreamcastx_cover_async.inc"' in async_ui
 assert 'dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount)' in async_ui

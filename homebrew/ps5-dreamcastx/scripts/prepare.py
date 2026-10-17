@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.1.9"
+VERSION="0.2.0"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -61,10 +61,10 @@ def adapt():
         t=t.replace(old,'text(dl, bold(), 28, 112, 18, col::text, "PS5DreamcastX");\n'
                     '\t\ttext(dl, regular(), 17, 114, 60, col::dim, "by YAHBALLON");',1)
     marker='text(dl, bold(), 30, W - 48 - cs.x, 48 - cs.y / 2, col::text, clock);'
-    if marker in t and '"v0.1.9"' not in t:
+    if marker in t and '"v0.2.0"' not in t:
         t=t.replace(marker,marker+'\n\t'
-            'const ImVec2 vs = textSize(regular(), 17, "v0.1.9");\n\t'
-            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.1.9");',1)
+            'const ImVec2 vs = textSize(regular(), 17, "v0.2.0");\n\t'
+            'text(dl, regular(), 17, W - 48 - vs.x, 76, col::dim, "v0.2.0");',1)
     # Log scanner totals when the async catalog grows or shrinks. A scan
     # root count is NOT a game count; record both for PS5 diagnostics.
     catalogAnchor='findDiscSets();\n\treturn true;'
@@ -109,6 +109,133 @@ def adapt():
     assert t.count('dreamcastXPutAllFirst(shelves, all, selectDisk)')==1
     ps5_source=p/"dreamcastx_library_order.inc"
     shutil.copy2(ROOT/"src/dreamcastx_library_order.inc",ps5_source)
+
+    # Unified library: all sources are already present in the game's
+    # single vector. Do not filter it into separate Internal/USB/SMB tabs.
+    # The per-game source is retained for disc launch and SMB streaming.
+    barsStart=t.index('\t// Tabs, switched with L1 / R1.')
+    barsEnd=t.index('\t// The clock, and the pads.', barsStart)
+    t=t[:barsStart]+'''
+    const char *allGamesLabel = "ALL GAMES";
+    const ImVec2 allSize = textSize(bold(),25,allGamesLabel);
+    text(dl,bold(),25,(W-allSize.x)*0.5f,34,col::dim,allGamesLabel);
+
+'''+t[barsEnd:]
+    assert t.count("ALL GAMES")==1
+
+    oldChoice='''void switchSource(int source)
+{
+\tif (source == lib.source)'''
+    assert oldChoice in t, "Source selection function changed upstream"
+    first=t.index("void switchSource(int source)")
+    last=t.index("const char *regionText(u32 r);",first)
+    t=t[:first]+'''void switchSource(int source)
+{
+    // All platforms share the same library. Only launch() distinguishes
+    // a game's real location (internal, USB, or SMB).
+    (void)source;
+    lib.source = Internal;
+}
+void chooseSource()
+{
+    if (!sourceChosen) {
+        sourceChosen = true;
+        lib.source = Internal;
+    }
+}
+
+'''+t[last:]
+
+    assert t.count("refreshGames(lib.source == Network);")==2
+    t=t.replace("refreshGames(lib.source == Network);","refreshGames(true);")
+    assert t.count("games[i].source == lib.source && ")==3
+    assert t.count(" && games[i].source == lib.source")==2
+    assert t.count(" && g.source == lib.source")==1
+    assert t.count("games[i].source != lib.source || ")==1
+    t=t.replace("games[i].source == lib.source && ","")
+    t=t.replace(" && games[i].source == lib.source","")
+    t=t.replace(" && g.source == lib.source","")
+    t=t.replace("games[i].source != lib.source || ","")
+    # All games includes Arcade as well; Arcade stays as an optional shelf.
+    oldArcade='''\t\tif (!selectDisk && games[i].media.arcade)
+\t\t\tarcade.items.push_back(i);
+\t\telse
+\t\t\tall.items.push_back(i);'''
+    assert t.count(oldArcade)==1
+    t=t.replace(oldArcade,'''        all.items.push_back(i);
+        if (!selectDisk && games[i].media.arcade)
+            arcade.items.push_back(i);''',1)
+    # When the cached SMB scanner completes it has always incremented its
+    # generation. This invalidates all unified shelves and list variants.
+    oldScans='''\t\t\tif (lib.source == Network)
+\t\t\t\tscanNetwork();
+\t\t\telse
+\t\t\t{
+\t\t\t\tscanner().refresh();
+\t\t\t\tif (lib.source == Usb)
+\t\t\t\t\tps5::rescanUsb();
+\t\t\t\tscannedCount = (size_t)-1;
+\t\t\t}'''
+    assert t.count(oldScans)==1
+    t=t.replace(oldScans,'''            scanner().refresh();
+            ps5::rescanUsb();
+            scanNetwork();
+            scannedCount = (size_t)-1;''',1)
+    # L1/R1 are no longer used for tabs, including the disc picker.
+    first=t.index("if (in.l1 || in.r1)",t.index("void libraryScreen(bool selectDisk)"))
+    second=t.index("\n\t\t}",first)+4
+    original=t[first:second]
+    assert "switchSource(next)" in original
+    t=t[:first]+'''// L1 / R1 are reserved for future shortcuts; no hidden source tabs.'''+t[second:]
+    t=t.replace('{ Glyph::L1R1, "Tab" }, ','')
+    t=t.replace('{ Glyph::L1R1, "Source" }, ','')
+    t=t.replace('const char *scanHint = lib.source == Network ? "Scan the share" : "Rescan";',
+                'const char *scanHint = "Rescan all";')
+    t=t.replace('if (lib.source == Network && !empty)','if (!empty)')
+    # Show the true origin on each game's subtitle in the unified shelf.
+    metaBegin=t.index("std::string metaText(Game& g)")
+    metaReturn=t.index(chr(9)+"return meta;",metaBegin)
+    newMeta=chr(10).join([
+        "    const char *origin = g.source == Network ? \"SMB\" :",
+        "                         g.source == Usb ? \"USB\" : \"Internal\";",
+        "    meta += (meta.empty() ? \"\" : \"  /  \");",
+        "    meta += origin;",
+        ""])
+    t=t[:metaReturn]+newMeta+t[metaReturn:]
+    # Drop stale network-specific empty-library copy; one consistent help.
+    noGameHelp='''\t\tbody = "Copy your games to\\n" + root + "games/\\n\\n"'''
+    assert t.count(noGameHelp)==1
+    t=t.replace(noGameHelp,'''        body = "Internal, USB and SMB games appear together.\\n"
+               "Internal: " + root + "games/\\n"
+               "Network: Settings > Library > SMB shares\\n\\n"''',1)
+
+    # Move SMB editing into the already existing Library settings screen.
+    enumItem="KeyboardRaUser, KeyboardRaPassword };"
+    assert t.count(enumItem)==1
+    t=t.replace(enumItem,"KeyboardRaUser, KeyboardRaPassword, KeyboardSmb };")
+    settingsEntry="std::vector<Category> buildCategories()"
+    assert t.count(settingsEntry)==1
+    t=t.replace(settingsEntry,'#include "dreamcastx_smb_settings.inc"\n\n'+settingsEntry,1)
+    rowsPoint='''\tfor (const auto& [label, sub] : std::vector<std::pair<std::string, std::string>>{'''
+    assert t.count(rowsPoint)==1
+    t=t.replace(rowsPoint,'''    dreamcastx_smb_settings::addRows(storage);
+'''+rowsPoint,1)
+    settingsKeyboard='''\t\telse if (keyboard == KeyboardRaUser || keyboard == KeyboardRaPassword)'''
+    assert t.count(settingsKeyboard)==1
+    t=t.replace(settingsKeyboard,'''        else if (keyboard == KeyboardSmb)
+        {
+            dreamcastx_smb_settings::accept(typed);
+            std::fill(typed.begin(),typed.end(),'\\0');
+            ps5::ime::forget();
+        }
+'''+settingsKeyboard,1)
+    # Ensure network status appears in the merged library when SMB is active.
+    t=t.replace('if (lib.source == Network && !empty)',
+                'if (!ps5::smb::gameFolders().empty() && !empty)')
+    assert "dreamcastx_smb_settings::addRows(storage);" in t
+    assert "dreamcastx_smb_settings::accept(typed);" in t
+    assert t.count("refreshGames(true);")==2
+    shutil.copy2(ROOT/"src/dreamcastx_smb_settings.inc",p/"dreamcastx_smb_settings.inc")
 
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
@@ -299,9 +426,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 10',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 11',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.1.9"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.2.0"',v)
     assert n==1
     ver.write_text(v)
 
@@ -310,7 +437,7 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.009"
+    data["contentVersion"]="01.000.010"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="PS5DreamcastX"
     meta.write_text(json.dumps(data,indent=2)+"\n")
