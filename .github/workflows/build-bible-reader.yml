@@ -130,7 +130,7 @@ jobs:
               assert 'PPSA99793/eboot.bin' in z.namelist()
               assert struct.unpack('<I',z.read('PPSA99793/eboot.bin')[:4])[0]==0x1d3d154f
               assert json.loads(z.read('PPSA99793/sce_sys/param.json'))['titleId']=='PPSA99793'
-              assert z.read('PPSA99793/assets/bible/webpb.tsv').count(b'\\n')>30000
+              assert z.read('PPSA99793/assets/bible/webpb.tsv').count(b'\n')>30000
           print('Verified public release installer and offline Bible')
           PY
       - name: Publish immutable release ZIP
