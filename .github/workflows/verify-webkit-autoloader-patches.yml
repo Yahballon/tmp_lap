@@ -50,6 +50,7 @@ jobs:
           set -euo pipefail
           python3 homebrew/ps5-webkit-autoloader-game/patch_game.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_music.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/stage_sqlite.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_presentation.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
           grep -F 'MUSIC_DB_REGISTER' upstream-wkal/src/app_installer.c
