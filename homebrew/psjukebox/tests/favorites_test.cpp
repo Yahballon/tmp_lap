@@ -2,6 +2,8 @@
 #include "../native/favorites.hpp"
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
+#include <string>
 #include <unistd.h>
 int main(){
  char name[]="/tmp/ps5-jbx-favs-XXXXXX";
