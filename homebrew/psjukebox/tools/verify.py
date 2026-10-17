@@ -14,9 +14,12 @@ assert param["titleId"]==name
 assert param["contentId"]==meta["contentId"]
 with Image.open(root/"sce_sys/icon0.png") as icon:
  assert icon.size==(512,512)
+helper=root/"jbxscan.elf"
+assert helper.is_file() and helper.stat().st_size>1024
+assert helper.read_bytes()[:4]==bytes([127,69,76,70])
 with zipfile.ZipFile(p) as z:
  assert z.testzip() is None
  files=set(z.namelist())
- for rel in ("eboot.bin","sce_sys/param.json","sce_sys/icon0.png","assets/fonts/inter-semibold.huifont","sce_module/libc.prx"):
+ for rel in ("eboot.bin","sce_sys/param.json","sce_sys/icon0.png","assets/fonts/inter-semibold.huifont","sce_module/libc.prx","jbxscan.elf"):
   assert name+"/"+rel in files,rel
 print("Verified installable",p)
