@@ -1,6 +1,5 @@
 // GPL-3.0-or-later. Portable Piper IPA->input tensor test.
-#include "phoneme_ids.hpp"
-#include "thorsten_phonemes.generated.hpp"
+#include "thorsten_phonemes.generated.hpp" // Includes phoneme_ids.hpp from the same build root
 #include <cassert>
 #include <cstdint>
 #include <string>
