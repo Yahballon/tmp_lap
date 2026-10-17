@@ -56,7 +56,7 @@ def patch(root: Path) -> None:
     param["contentBadgeType"] = 1
     param["applicationDrmType"] = "free"
     param["contentId"] = GAME_CONTENT_ID
-    param["contentVersion"] = "01.000.000"
+    param["contentVersion"] = "01.000.001"
     param["localizedParameters"]["en-US"]["titleName"] = (
         "WebKit Autoloader GAME v[[VERSION_PLACEHOLDER]]"
     )
