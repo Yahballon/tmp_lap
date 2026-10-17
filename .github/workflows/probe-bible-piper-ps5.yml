@@ -1,0 +1,38 @@
+name: Probe PS5 Native Piper ONNX Runtime
+on:
+  workflow_dispatch:
+  push:
+    branches: [research/bible-piper-native-onnx-ps5]
+    paths:
+      - 'homebrew/bible-reader/native_piper/**'
+      - '.github/workflows/probe-bible-piper-ps5.yml'
+  pull_request:
+    paths:
+      - 'homebrew/bible-reader/native_piper/**'
+      - '.github/workflows/probe-bible-piper-ps5.yml'
+permissions:
+  contents: read
+jobs:
+  ps5-onnx-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 and ONNX build tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 make curl wget unzip tar git pkg-config ninja-build cmake python3 python3-pip protobuf-compiler
+          python3 -m pip install --break-system-packages 'cmake>=3.26,<4'
+      - name: Cross-compile ONNX Runtime CPU for the PS5 ABI
+        env:
+          SOURCE_ROOT: ${{ github.workspace }}
+        run: bash homebrew/bible-reader/native_piper/probe_native_onnx.sh
+      - name: Preserve native build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Piper-PS5-Native-ONNX-Probe-Logs
+          path: |
+            /tmp/piper-onnx-ps5/probe.log
+            /tmp/piper-onnx-ps5/build/CMakeCache.txt
+          if-no-files-found: warn
