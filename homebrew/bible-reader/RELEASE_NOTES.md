@@ -1,8 +1,8 @@
-# Bible Reader v0.1.0 (candidate)
+# Bible Reader v0.1.1
 
-- Native PS5 Bible Reader by YAHBALLON.
-- Offline WEBPB Bible, 66 books, 1189 chapters, searchable verses.
-- Matching navy/gold 1920x1080 three-column dashboard with DualSense controls.
-- Bookmarks, daily verse, persistent position and settings.
-- Requires compatible native homebrew launcher, no Internet needed while reading.
-- Hardware verification required before production release.
+- Fix unreadable replacement question marks in Bible passages (curly quotes/apostrophes and typographic punctuation are normalised for the UI font).
+- Draw Daily Verse sun icon without unsupported Unicode glyph.
+- Keep selected verse panels and text inside the reading viewport with height-aware auto-scroll; long passages scroll by line.
+- Remember last selected verse on restart.
+- Same 66-book offline public-domain WEBPB Bible, controller controls and saved data as v0.1.0.
+- Hardware test on an actual PS5 is still pending for this version.

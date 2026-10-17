@@ -17,6 +17,18 @@ class BibleConverterTests(unittest.TestCase):
         self.assertEqual(bible.parse_line("Revelation 22:21 Amen."),(65,22,21,"Amen."))
         self.assertIsNone(bible.parse_line("random heading"))
         self.assertIsNone(bible.parse_line("Gen 1000:1 Invalid"))
+    def test_typographic_punctuation_from_webpb(self):
+        verse = bible.parse_line("Gen 1:2 The earth was empty. Darkness was on the surface, and God’s Spirit moved.")
+        self.assertEqual(verse[3], "The earth was empty. Darkness was on the surface, and God's Spirit moved.")
+        verse = bible.parse_line("Gen 1:3 God said, “Let there be light,” and there was light.")
+        self.assertEqual(verse[3], 'God said, "Let there be light," and there was light.')
+        verse = bible.parse_line("Gen 1:5 God called the light ‘day’, and the darkness ‘night’.")
+        self.assertEqual(verse[3], "God called the light 'day', and the darkness 'night'.")
+        self.assertEqual(bible.normalize_display_text("Grace—and truth… Glory\u00a0to God."), "Grace-and truth... Glory to God.")
+        self.assertEqual(bible.normalize_display_text("‘test’ “quote”"), """'test' "quote" """.strip())
+    def test_invalid_utf8_is_not_silently_replaced(self):
+        with self.assertRaises(UnicodeDecodeError):
+            b"\\xff".decode("utf-8-sig", errors="strict")
     def test_rejects_partial_corpus(self):
         stream=io.BytesIO()
         with zipfile.ZipFile(stream,"w") as z:
