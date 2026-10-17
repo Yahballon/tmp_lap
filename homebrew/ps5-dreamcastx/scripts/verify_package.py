@@ -7,6 +7,7 @@ treated these as the same string and rejected a fully compiled PS5 SELF.
 """
 import argparse
 import json
+import hashlib
 import struct
 from pathlib import Path
 from zipfile import ZipFile
@@ -36,8 +37,15 @@ def verify(package: Path, manifest: Path) -> None:
         assert executable.file_size > 100_000, "eboot.bin too small"
         with archive.open(prefix + "eboot.bin") as eboot:
             assert eboot.read(4) == struct.pack("<I", 0x1D3D154F), "Not a signed PS5 SELF"
+        icon = archive.read(prefix + "sce_sys/icon0.png")
+        assert icon[:8] == b"\x89PNG\r\n\x1a\n", "Invalid PS5 launcher icon PNG"
+        expected = manifest.parent / "build" / "icon0.png"
+        if expected.exists():
+            assert hashlib.sha256(icon).digest() == hashlib.sha256(expected.read_bytes()).digest(), "Stale or incorrect PS5 icon0.png"
         param = json.loads(archive.read(prefix + "sce_sys/param.json"))
         assert param["titleId"] == title_id, (param["titleId"], title_id)
+        if "contentVersion" in app:
+            assert param["contentVersion"] == app["contentVersion"], "Outdated package content version"
         assert param["localizedParameters"]["en-US"]["titleName"] == app["name"]
     print(f"PASS: signed PS5 package {package.name}, installed to {root}/, Title ID {title_id}")
 

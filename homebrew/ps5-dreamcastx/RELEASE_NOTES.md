@@ -1,11 +1,11 @@
-# DreamXcast v0.2.1
+# DreamXcast v0.2.2
 
-## App rename and header version
+## PS5 home menu neon icon fix
 
-- Renamed the visible PS5 app, menu header, splash, icon and update dialogues to **DreamXcast**.
-- Moved the current version beside the author under the logo: **by YAHBALLON  v0.2.1**.
-- Removed the version duplicate beneath the clock.
-- Kept the v0.2.0 combined Internal/USB/SMB library and persistent fast cover cache.
-- Retained title ID `PPSA99765`, existing install folder `PS5DreamcastX/`, `/data/PS5DreamcastX/` saves and cover files, the GitHub release tag namespace and the exact ZIP name for seamless upgrades.
+- Replaced the obsolete generated blue X launcher icon with the user-provided metallic DreamXcast neon emblem.
+- The native PS5 build now decodes `assets/dreamxcast-neon.avif` and installs it into `PS5DreamcastX/sce_sys/icon0.png`.
+- Enforced build/package verification to reject a stale icon in the signed ZIP.
+- Increased `contentVersion` so the PS5 recognizes this as a newer installation.
+- Preserved Title ID `PPSA99765`, saves, cover cache, internal/USB/SMB game loading, and the existing UI.
 
-Download: `PPSA99765.zip`.
+Install the updated `PPSA99765.zip` through your usual homebrew installation flow. If the home screen still caches the old icon, remove/reinstall the app (preserve `/data/PS5DreamcastX`).

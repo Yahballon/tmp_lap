@@ -12,7 +12,7 @@ SOURCE=ROOT/"build/flycast"
 PIN="1cc6b2978d891f93cd2e36123ba4fd14118bd444"
 TITLE="PPSA99765"
 APP_FOLDER="PS5DreamcastX"
-VERSION="0.2.1"
+VERSION="0.2.2"
 
 def cmd(*args):
     subprocess.run(args,check=True)
@@ -433,9 +433,9 @@ void findUsbDirs()
 
     ver=p/"ps5_build.h"
     v=ver.read_text()
-    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 12',v)
+    v,n=re.subn(r'#define PS5_BUILD_NUMBER\s+\d+','#define PS5_BUILD_NUMBER 13',v)
     assert n==1
-    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.2.1"',v)
+    v,n=re.subn(r'#define PS5_VERSION\s+"[^"]+"','#define PS5_VERSION "0.2.2"',v)
     assert n==1
     ver.write_text(v)
 
@@ -444,13 +444,14 @@ void findUsbDirs()
     data["titleId"]=TITLE
     data["conceptId"]=TITLE[4:]
     data["contentId"]="UP9000-PPSA99765_00-PS5DREAMCASTX001"
-    data["contentVersion"]="01.000.011"
+    data["contentVersion"]="01.000.012"
     data["masterVersion"]="01.00"
     data["localizedParameters"]["en-US"]["titleName"]="DreamXcast"
     meta.write_text(json.dumps(data,indent=2)+"\n")
     # Leave restart/update targeting the title installation while settings
     # and the emulator's writable content use the external data directory.
-    # Generated from an original vector design; original Flycast icon not copied.
+    # The PS5 home screen icon is the actual user-provided DreamXcast neon artwork.
+    # Regenerate from our pinned source on every build; never use upstream icon0.png.
     out=ROOT/"build/icon0.png"
     cmd("python3",str(ROOT/"assets/generate_icon.py"),str(out))
     shutil.copy2(out,p/"sce_sys/icon0.png")
