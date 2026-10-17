@@ -1,0 +1,256 @@
+name: Build Bible Reader Native Piper Experimental
+on:
+  workflow_dispatch:
+  push:
+    branches: [research/bible-piper-native-onnx-ps5]
+    paths:
+      - 'homebrew/bible-reader/native_piper/**'
+      - 'homebrew/bible-reader/native/tts_reader.cpp'
+      - '.github/workflows/build-bible-piper-native-experimental.yml'
+  pull_request:
+    paths:
+      - 'homebrew/bible-reader/native_piper/**'
+      - 'homebrew/bible-reader/native/tts_reader.cpp'
+      - '.github/workflows/build-bible-piper-native-experimental.yml'
+permissions:
+  contents: read
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make wget curl unzip tar git python3 python3-pil fonts-dejavu-core libeigen3-dev pkg-config ca-certificates g++ cmake ninja-build libespeak-ng-dev libsdl2-dev
+      - name: Test host-side Bible engine
+        run: |
+          python3 -m unittest discover -s homebrew/bible-reader/tests -p 'test_*.py' -v
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/bible-reader/native/bible.cpp homebrew/bible-reader/tests/bible_test.cpp -o /tmp/bible-reader-test
+          /tmp/bible-reader-test
+      - name: Test TTS Unicode timing engine on Linux host
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
+            homebrew/bible-reader/native/bible.cpp \
+            homebrew/bible-reader/native/tts_reader.cpp \
+            homebrew/bible-reader/tests/tts_test.cpp \
+            $(pkg-config --cflags --libs sdl2) -lespeak-ng \
+            -o /tmp/bible-tts-test
+          /tmp/bible-tts-test
+      - name: Prepare complete offline public-domain Bible
+        run: |
+          mkdir -p /tmp/bible-assets
+          for lang in en de fr es; do
+            python3 homebrew/bible-reader/tools/prepare_bible.py "/tmp/bible-assets/$lang.tsv" --translation "$lang"
+          done
+          python3 homebrew/bible-reader/tools/build_unicode_font.py /tmp/bible-assets/multilingual.huifont /tmp/bible-assets/{en,de,fr,es}.tsv homebrew/bible-reader/native/localization.hpp
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          for lang in ('en','de','fr','es'):
+              path=Path(f'/tmp/bible-assets/{lang}.tsv')
+              lines=[line for line in path.read_text(encoding='utf-8').splitlines() if not line.startswith('#')]
+              assert 30000<len(lines)<40000,(lang,len(lines))
+              assert lines[0].startswith('0\t1\t1\t'),lang
+              assert lines[-1].startswith('65\t22\t21\t'),lang
+              assert len(path.read_bytes())>1_000_000,lang
+              print(lang, len(lines), 'validated complete offline verses')
+          font=Path('/tmp/bible-assets/multilingual.huifont').read_bytes()
+          assert struct.unpack_from('<I',font)[0]==0x46505a50
+          glyph_count=struct.unpack_from('<I',font,32)[0]
+          chars={struct.unpack_from('<I',font,40+i*24)[0] for i in range(glyph_count)}
+          assert all(ord(ch) in chars for ch in 'ÄäÖöÜüßÉéÑñÇç¿¡'),glyph_count
+          print('Multilingual SDF font valid:',glyph_count,'glyphs')
+          PY
+      - name: Render genuine Piper German neural HD preview on CI host
+        run: |
+          python3 -m venv /tmp/piper-hd
+          /tmp/piper-hd/bin/pip install --disable-pip-version-check "piper-tts==1.4.0"
+          mkdir -p /tmp/piper-model /tmp/neural-preview/de/genesis1
+          model_base=https://huggingface.co/Thorsten-Voice/Piper/resolve/4c56824d7a76ee98b08a6e9046e640727397fac7
+          curl --fail --location --retry 3 --connect-timeout 20 \
+            "$model_base/de_DE-thorsten-medium.onnx" \
+            -o /tmp/piper-model/de_DE-thorsten-medium.onnx
+          curl --fail --location --retry 3 --connect-timeout 20 \
+            "$model_base/de_DE-thorsten-medium.onnx.json" \
+            -o /tmp/piper-model/de_DE-thorsten-medium.onnx.json
+          /tmp/piper-hd/bin/python homebrew/bible-reader/tools/generate_piper_preview.py \
+            --model /tmp/piper-model/de_DE-thorsten-medium.onnx \
+            --config /tmp/piper-model/de_DE-thorsten-medium.onnx.json \
+            --corpus /tmp/bible-assets/de.tsv \
+            --output /tmp/neural-preview/de/genesis1
+      - name: Prepare native framework
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/bible-reader/native/*.cpp homebrew/bible-reader/native/*.hpp app/src/
+          mkdir -p app/assets/bible
+          cp /tmp/bible-assets/en.tsv app/assets/bible/webpb.tsv
+          cp /tmp/bible-assets/{de,fr,es}.tsv app/assets/bible/
+          cp /tmp/bible-assets/multilingual.huifont app/assets/fonts/inter-semibold.huifont
+          mkdir -p app/assets/tts/neural/de/genesis1
+          cp -a /tmp/neural-preview/de/genesis1/*.pcm app/assets/tts/neural/de/genesis1/
+          cp /tmp/neural-preview/de/genesis1/preview-manifest.txt app/assets/tts/neural/de/genesis1/
+          mkdir -p app/assets/licenses
+          cp /usr/share/doc/fonts-dejavu-core/copyright app/assets/licenses/DejaVu-COPYRIGHT.txt
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('app/sce_sys/param.json')
+          d=json.loads(p.read_text())
+          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.007')
+          d['localizedParameters']['en-US']['titleName']='Bible Reader'
+          p.write_text(json.dumps(d,indent=2)+'\n')
+          PY
+          python3 homebrew/bible-reader/assets/generate_icon.py app/sce_sys/icon0.png
+          cp app/sce_sys/icon0.png app/assets/icon0.png
+      - name: Prepare PS5 OpenGL SDK
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+        run: bash tools/prepare-opengl.sh
+      - name: Cross-compile offline TTS engine for PS5
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+        run: bash ../homebrew/bible-reader/tools/build_offline_tts.sh
+      - name: Build ONNX Runtime CPU natively for PS5
+        env:
+          SOURCE_ROOT: ${{ github.workspace }}
+        run: |
+          bash homebrew/bible-reader/native_piper/probe_native_onnx.sh
+      - name: Install ONNX CPU libs, native inference and Thorsten model in app
+        run: |
+          set -euo pipefail
+          model=/tmp/piper-model/de_DE-thorsten-medium.onnx
+          test -s "$model"
+          mkdir -p app/assets/tts/neural/de app/src/third_party/onnx app/lib/nativeort
+          cp "$model" app/assets/tts/neural/de/de_DE-thorsten-medium.onnx
+          cp homebrew/bible-reader/native_piper/{piper_onnx.cpp,piper_onnx.hpp,phoneme_ids.cpp,phoneme_ids.hpp} app/src/
+          cp /tmp/piper-onnx-ps5/onnxruntime/include/onnxruntime/core/session/onnxruntime_c_api.h app/src/third_party/onnx/
+          python3 homebrew/bible-reader/native_piper/generate_phonemes.py \
+            /tmp/piper-model/de_DE-thorsten-medium.onnx.json \
+            app/src/thorsten_phonemes.generated.hpp
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          root=Path('/tmp/piper-onnx-ps5/build')
+          target=Path('app/lib/nativeort')
+          files=sorted(root.rglob('*.a'))
+          assert len(files)>=12, len(files)
+          lines=[]
+          for lib in files:
+              relative=lib.relative_to(root)
+              path=target/relative
+              path.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copyfile(lib,path)
+              lines.append(str(path.relative_to('app')))
+          Path('/tmp/ps5_ort_archives.txt').write_text(' '.join(lines))
+          print('ONNX Runtime static archives:',len(files))
+          print('Archive bytes:',sum(lib.stat().st_size for lib in files))
+          PY
+          cp /tmp/piper-onnx-ps5/onnxruntime/LICENSE app/assets/licenses/ONNXRuntime-MIT.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path('app/sce_sys/param.json')
+          data=json.loads(path.read_text())
+          data['contentVersion']='01.000.008'
+          path.write_text(json.dumps(data,indent=2)+'\n')
+          p=Path('app/src/main.cpp')
+          p.write_text(p.read_text().replace('v0.1.6','v0.1.7-NATIVE-TEST'))
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -Ihomebrew/bible-reader/native_piper -Iapp/src \
+            homebrew/bible-reader/native_piper/phoneme_ids.cpp \
+            homebrew/bible-reader/native_piper/test_phoneme_ids.cpp \
+            -o /tmp/bible-native-piper-ids
+          /tmp/bible-native-piper-ids
+      - name: Validate real offline English German French Spanish speech
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/bible-reader/tests/tts_voice_smoke.cpp \
+            -lespeak-ng -o /tmp/bible-tts-smoke
+          /tmp/bible-tts-smoke app/assets/tts
+      - name: Prepare POSIX compatibility symbols
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Compile native PS5 executable
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+        run: |
+          set -euo pipefail
+          ort_archives=$(cat /tmp/ps5_ort_archives.txt)
+          make USE_CCACHE=0 BUILD_JOBS=4 \
+            PACBREW_PACKAGES='sdl2' \
+            APP_DEFINITIONS='GL_GLEXT_PROTOTYPES=1 BIBLE_NATIVE_PIPER=1' \
+            APP_INCLUDE_PATHS='src .deps/ps5-opengl/current/include src/third_party/espeak/include src/third_party/onnx' \
+            APP_STATIC_ARCHIVES=".deps/ps5-opengl/libps5opengl-group.a lib/libespeak-ng.a lib/libucd.a $ort_archives" app
+      - name: Verify installation ZIP and offline corpus
+        run: |
+          python3 - <<'PY'
+          import pathlib,json,zipfile,struct
+          root=pathlib.Path('app/dist/PPSA99793')
+          exe=(root/'eboot.bin').read_bytes()
+          assert len(exe)>1000
+          assert struct.unpack('<I',exe[:4])[0]==0x1d3d154f
+          meta=json.loads((root/'sce_sys/param.json').read_text())
+          assert meta['titleId']=='PPSA99793'
+          assert meta['contentId']=='UP9000-PPSA99793_00-BIBLEREADER00001'
+          assert meta['contentVersion']=='01.000.008'
+          with zipfile.ZipFile('app/dist/PPSA99793.zip') as archive:
+              assert archive.testzip() is None
+              paths=set(archive.namelist())
+              for path in ('eboot.bin','sce_sys/param.json','sce_sys/icon0.png',
+                           'sce_module/libc.prx','assets/fonts/inter-semibold.huifont',
+                           'assets/licenses/DejaVu-COPYRIGHT.txt',
+                           'assets/licenses/eSpeakNG-GPL3.txt',
+                           'assets/tts/espeak-ng-data/en_dict',
+                           'assets/tts/espeak-ng-data/de_dict',
+                           'assets/tts/espeak-ng-data/fr_dict',
+                           'assets/tts/espeak-ng-data/es_dict',
+                           'assets/tts/espeak-ng-data/lang/gmw/en',
+                           'assets/tts/espeak-ng-data/lang/gmw/de',
+                           'assets/tts/espeak-ng-data/lang/roa/fr',
+                           'assets/tts/espeak-ng-data/lang/roa/es',
+                           'assets/tts/neural/de/genesis1/preview-manifest.txt',
+                           'assets/tts/neural/de/genesis1/1.pcm',
+                           'assets/tts/neural/de/genesis1/31.pcm',
+                           'assets/tts/neural/de/de_DE-thorsten-medium.onnx',
+                           'assets/licenses/ONNXRuntime-MIT.txt',
+                           'assets/bible/webpb.tsv','assets/bible/de.tsv',
+                           'assets/bible/fr.tsv','assets/bible/es.tsv'):
+                  assert 'PPSA99793/'+path in paths,path
+              verse_data=archive.read('PPSA99793/assets/bible/webpb.tsv')
+              assert len(verse_data)>1000000
+              assert verse_data.count(b'\n')>30000
+              for language in ('de','fr','es'):
+                  translated=archive.read('PPSA99793/assets/bible/'+language+'.tsv')
+                  assert translated.count(b'\n')>30000
+                  assert translated.startswith(b'# ')
+              preview='PPSA99793/assets/tts/neural/de/genesis1/'
+              manifest=archive.read(preview+'preview-manifest.txt').decode()
+              assert 'verse_count=31' in manifest
+              for verse in range(1,32):
+                  raw=archive.read(preview+str(verse)+'.pcm')
+                  assert len(raw)>1000 and len(raw)%2==0,verse
+              assert len(archive.read('PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx'))>50_000_000
+              assert b"God's Spirit" in verse_data
+              assert b'God\xe2\x80\x99s' not in verse_data
+          print('PS5 native ZIP and complete offline Bible verified')
+          PY
+      - name: Upload testbuild
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bible-Reader-v0.1.7-NATIVE-PIPER-EXPERIMENTAL-PPSA99793
+          path: app/dist/PPSA99793.zip
+          if-no-files-found: error
+
