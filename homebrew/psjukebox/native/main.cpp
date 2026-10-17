@@ -147,39 +147,59 @@ bool begin_transfer(const std::string& path,uint64_t size){
  pthread_detach(thread);return true;
 }
 void footer_chip(DrawList& d,const Font& font,unsigned atlas,float x,float y,
-                 const char* symbol,const char* name,const char* action,
-                 uint32_t tint,float width=195.f){
+                 char symbol,const char* action,uint32_t tint,float width=195.f){
  d.rounded_rect({x,y,width,48},11,color(0x191c25,.92f));
- d.bordered_rect({x+5,y+6,36,36},18,color(tint,.23f),2,color(tint));
- label(d,font,atlas,symbol,x+23,y+31,23,color(tint),Align::center);
+ d.bordered_rect({x+5,y+6,36,36},18,color(tint,.17f),2,color(tint));
+ const float cx=x+23,cy=y+24;
+ const Color ink=color(tint);
+ switch(symbol){
+  case 'X':
+   d.line(cx-9,cy-9,cx+9,cy+9,3.3f,ink);
+   d.line(cx+9,cy-9,cx-9,cy+9,3.3f,ink);break;
+  case 'O':d.ring(cx,cy,10,3,ink);break;
+  case 'S':d.bordered_rect({cx-10,cy-10,20,20},2,color(0x000000,0),3,ink);break;
+  case 'T':d.triangle({cx-11,cy-11,22,22},ink,3.0f);break;
+  case 'M':
+   for(int i=0;i<3;i++)d.line(cx-10,cy-8+i*8,cx+10,cy-8+i*8,2.5f,ink);
+   break;
+  case 'B':
+   d.line(cx-10,cy,cx+10,cy,3,ink);
+   d.triangle({cx-15,cy-6,9,12},ink,0,-1.5708f);
+   d.triangle({cx+6,cy-6,9,12},ink,0,1.5708f);break;
+  case 'U':
+   d.line(cx,cy-11,cx,cy+11,3,ink);
+   d.triangle({cx-6,cy-15,12,9},ink);
+   d.triangle({cx-6,cy+6,12,9},ink,0,3.14159f);break;
+  case 'L':label(d,font,atlas,"L1",cx,cy+7,16,ink,Align::center);break;
+  case 'R':label(d,font,atlas,"R1",cx,cy+7,16,ink,Align::center);break;
+ }
  label(d,font,atlas,action,x+49,y+31,19,white);
- (void)name;
 }
 void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
  const float y=1013;
  if(screen==0||screen==3){
-  footer_chip(d,font,atlas,50,y,"\xE2\x86\x94","Stick","Browse covers",0x68d0ff,255);
-  footer_chip(d,font,atlas,317,y,"L1","L1","Prev artist",0xffd062,216);
-  footer_chip(d,font,atlas,545,y,"R1","R1","Next artist",0xffd062,216);
-  footer_chip(d,font,atlas,773,y,"\xE2\x9C\x95","Cross","Tracks",0x78baff,186);
-  footer_chip(d,font,atlas,971,y,"\xE2\x96\xA1","Square","Rescan",0xff9fce,190);
-  footer_chip(d,font,atlas,1173,y,"\xE2\x89\xA1","Options","Settings",0xc0b5ff,215);
-  footer_chip(d,font,atlas,1400,y,"\xE2\x97\x8B","Circle","Quit",0xff738c,170);
+  footer_chip(d,font,atlas,50,y,'B',"Browse covers",0x68d0ff,255);
+  footer_chip(d,font,atlas,317,y,'L',"Prev artist",0xffd062,216);
+  footer_chip(d,font,atlas,545,y,'R',"Next artist",0xffd062,216);
+  footer_chip(d,font,atlas,773,y,'X',"Tracks",0x78baff,186);
+  footer_chip(d,font,atlas,971,y,'S',"Rescan",0xff9fce,190);
+  footer_chip(d,font,atlas,1173,y,'M',"Settings",0xc0b5ff,215);
+  footer_chip(d,font,atlas,1400,y,'O',"Quit",0xff738c,170);
  }else if(screen==1){
-  footer_chip(d,font,atlas,391,y,"\xE2\x86\x95","Stick","Select track",0x68d0ff,295);
-  footer_chip(d,font,atlas,698,y,"\xE2\x9C\x95","Cross","Play",0x78baff,190);
-  footer_chip(d,font,atlas,900,y,"R1","R1","Play",0xffd062,190);
-  footer_chip(d,font,atlas,1102,y,"\xE2\x97\x8B","Circle","Albums",0xff738c,225);
+  footer_chip(d,font,atlas,391,y,'U',"Select track",0x68d0ff,295);
+  footer_chip(d,font,atlas,698,y,'X',"Play",0x78baff,190);
+  footer_chip(d,font,atlas,900,y,'R',"Play",0xffd062,190);
+  footer_chip(d,font,atlas,1102,y,'O',"Albums",0xff738c,225);
  }else if(screen==2){
-  footer_chip(d,font,atlas,163,y,"\xE2\x86\x94","Stick","Seek 10s",0x68d0ff,225);
-  footer_chip(d,font,atlas,400,y,"L1","L1","Prev track",0xffd062,205);
-  footer_chip(d,font,atlas,617,y,"R1","R1","Next track",0xffd062,205);
-  footer_chip(d,font,atlas,834,y,"\xE2\x9C\x95","Cross","Pause",0x78baff,185);
-  footer_chip(d,font,atlas,1031,y,"\xE2\x96\xB3","Triangle","Track list",0x74f4ae,241);
-  footer_chip(d,font,atlas,1284,y,"\xE2\x97\x8B","Circle","Back",0xff738c,160);
+  footer_chip(d,font,atlas,163,y,'B',"Seek 10s",0x68d0ff,225);
+  footer_chip(d,font,atlas,400,y,'L',"Prev track",0xffd062,205);
+  footer_chip(d,font,atlas,617,y,'R',"Next track",0xffd062,205);
+  footer_chip(d,font,atlas,834,y,'X',"Pause",0x78baff,185);
+  footer_chip(d,font,atlas,1031,y,'T',"Track list",0x74f4ae,241);
+  footer_chip(d,font,atlas,1284,y,'O',"Back",0xff738c,160);
  }else{
-  footer_chip(d,font,atlas,710,y,"\xE2\x9C\x95","Cross","Select",0x78baff,215);
-  footer_chip(d,font,atlas,937,y,"\xE2\x97\x8B","Circle","Back",0xff738c,215);
+  footer_chip(d,font,atlas,710,y,'X',"Select",0x78baff,215);
+  footer_chip(d,font,atlas,937,y,'O',"Back",0xff738c,215);
  }
 }
 }
