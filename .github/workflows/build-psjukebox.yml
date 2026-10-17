@@ -51,6 +51,14 @@ jobs:
             homebrew/psjukebox/native/library.cpp \
             homebrew/psjukebox/tests/archive_test.cpp -lz -o /tmp/psjukebox-album-test
           /tmp/psjukebox-album-test /tmp/psjukebox-zip-test/Demo.album /tmp/psjukebox-zip-test
+          # Regression for actual PS5 errno=1 during lstat/fstat: a readable
+          # archive must still unpack into app-managed cache and rescan.
+          g++ -std=c++20 -Wall -Wextra -Werror -O2 -DPS5_DENY_FILE_STAT_TEST \
+            -Wl,--wrap=lstat -Wl,--wrap=fstat \
+            homebrew/psjukebox/native/album_archive.cpp \
+            homebrew/psjukebox/native/library.cpp \
+            homebrew/psjukebox/tests/archive_test.cpp -lz -o /tmp/psjukebox-sandbox-album-test
+          /tmp/psjukebox-sandbox-album-test /tmp/psjukebox-zip-test/Demo.album /tmp/psjukebox-zip-test
           git clone --depth=1 https://github.com/sahlberg/libsmb2.git /tmp/jbx-libsmb2
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -I/tmp/jbx-libsmb2/include -c homebrew/psjukebox/native/smb_music.cpp -o /tmp/psjukebox-smb.o
           python3 - <<'PY'
@@ -147,7 +155,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.7
+          name: PSJukebox-v0.1.8
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -160,5 +168,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.7 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.8 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

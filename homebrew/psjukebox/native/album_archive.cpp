@@ -8,6 +8,8 @@
 #include <climits>
 #include <cstdio>
 #include <cstring>
+#include <fcntl.h>
+#include <dirent.h>
 #include <string>
 #include <vector>
 #include <sys/stat.h>
@@ -40,7 +42,51 @@ bool exact(FILE* f,void* p,size_t count){return fread(p,1,count,f)==count;}
 bool dir(const std::string& p){
  struct stat st{};
  if(lstat(p.c_str(),&st)==0)return S_ISDIR(st.st_mode);
- return mkdir(p.c_str(),0755)==0;
+ const int failure=errno;
+ // On PS5, lstat can fail with EPERM in an otherwise writable/cacheable
+ // directory. stat and opendir can still work for app-owned cache paths.
+ if((failure==EPERM||failure==ENOSYS)&&stat(p.c_str(),&st)==0)
+  return S_ISDIR(st.st_mode);
+ if(mkdir(p.c_str(),0755)==0)return true;
+ if(errno==EEXIST){
+  DIR* d=opendir(p.c_str());
+  if(d){closedir(d);return true;}
+ }
+ return false;
+}
+FILE* open_album(const std::string& path,uint64_t& size,std::string& error){
+ size=0;
+ int flags=O_RDONLY;
+#ifdef O_NOFOLLOW
+ flags|=O_NOFOLLOW;  // Never allow symlink traversal from an album reference.
+#endif
+ int fd=open(path.c_str(),flags);
+ if(fd<0){error="Cannot open packed album errno="+std::to_string(errno);return nullptr;}
+ struct stat st{};
+ if(fstat(fd,&st)==0){
+  if(!S_ISREG(st.st_mode)||st.st_size<22||uint64_t(st.st_size)>maxPack){
+   error="Packed album is not a regular file or exceeds 1 GiB size";
+   close(fd);return nullptr;
+  }
+  size=(uint64_t)st.st_size;
+ }else{
+  // Certain PS5 sandbox combinations deny path metadata syscalls; use the
+  // open descriptor for sizing rather than lstat(path). Keep O_NOFOLLOW.
+  int code=errno;
+  if(code!=EPERM&&code!=ENOSYS&&code!=EACCES){
+   error="Packed album fstat failed errno="+std::to_string(code);
+   close(fd);return nullptr;
+  }
+  const off_t end=lseek(fd,0,SEEK_END);
+  if(end<22||(uint64_t)end>maxPack||lseek(fd,0,SEEK_SET)!=0){
+   error="Packed album seek/size failed errno="+std::to_string(errno);
+   close(fd);return nullptr;
+  }
+  size=(uint64_t)end;
+ }
+ FILE* f=fdopen(fd,"rb");
+ if(!f){error="Packed album stream failed errno="+std::to_string(errno);close(fd);}
+ return f;
 }
 uint64_t hash(const std::string& path){
  uint64_t h=14695981039346656037ULL;
@@ -128,11 +174,9 @@ std::string album_stem(const std::string& filename){
 }
 std::string album_artist_marker(const std::string& archive,std::string& error){
  error.clear();
- struct stat st{};
- if(lstat(archive.c_str(),&st)||!S_ISREG(st.st_mode)||st.st_size<22||
-    uint64_t(st.st_size)>maxPack){error="Invalid packed album";return {};}
- FILE* f=fopen(archive.c_str(),"rb");if(!f){error="Cannot open packed album";return {};}
- const uint64_t length=(uint64_t)st.st_size;
+ uint64_t length=0;
+ FILE* f=open_album(archive,length,error);
+ if(!f)return {};
  std::string artist;
  do{
   const size_t n=(size_t)std::min<uint64_t>(length,65557);
@@ -186,10 +230,9 @@ bool unpack_album(const std::string& path,const std::string& artist,
                   std::string& error){
  musicRoot.clear();error.clear();
  if(!safe(artist)||!safe(album)||sourceKey.empty()){error="Invalid album/artist name";return false;}
- struct stat st{};
- if(lstat(path.c_str(),&st)!=0||!S_ISREG(st.st_mode)||st.st_size<22||
-    (uint64_t)st.st_size>maxPack){error="Invalid or oversized .album file";return false;}
- const uint64_t length=(uint64_t)st.st_size;
+ uint64_t length=0;
+ FILE* z=open_album(path,length,error);
+ if(!z)return false;
  // A content-size-qualified cache directory isolates different ZIP files
  // while preserving the original Artist/Album layout for the library scanner.
  const std::string id=hex(hash(sourceKey+"#"+std::to_string(length)));
@@ -197,9 +240,7 @@ bool unpack_album(const std::string& path,const std::string& artist,
  musicRoot=home+"/Music";
  const std::string folder=musicRoot+"/"+artist+"/"+album;
  const std::string marker=folder+"/.album-ready";
- if(access(marker.c_str(),R_OK)==0)return true;
- FILE* z=fopen(path.c_str(),"rb");
- if(!z){error="Could not open album archive";return false;}
+ if(access(marker.c_str(),R_OK)==0){fclose(z);return true;}
  bool okay=false;
  do{
   const size_t tailSize=(size_t)std::min<uint64_t>(length,65557);

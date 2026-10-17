@@ -2,10 +2,17 @@
 #include "../native/album_archive.hpp"
 #include "../native/library.hpp"
 #include <cassert>
+#include <cerrno>
 #include <cstdio>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef PS5_DENY_FILE_STAT_TEST
+// Emulate PS5 homebrew sandbox permissions: path-based lstat() and even
+// descriptor fstat() can return EPERM despite readable file contents.
+extern "C" int __wrap_lstat(const char*,struct stat*){errno=EPERM;return -1;}
+extern "C" int __wrap_fstat(int,struct stat*){errno=EPERM;return -1;}
+#endif
 int main(int argc,char** argv){
  assert(argc==3);
  assert(jukebox::is_album_file("demo.album"));
