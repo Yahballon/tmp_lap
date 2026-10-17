@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <map>
 #include <set>
+#include <sstream>
 #include <sys/stat.h>
 
 namespace jukebox {
