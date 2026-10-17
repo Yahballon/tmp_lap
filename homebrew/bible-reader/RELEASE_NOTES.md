@@ -1,8 +1,8 @@
-# Bible Reader v0.1.2
+# Bible Reader v0.1.3
 
-- Make the Daily Verse sidebar genuinely optional: when disabled in Settings, hide its border, header, sun icon and content entirely.
-- Automatically expand the central reader to the right-hand edge (1416px versus 927px) and reflow verse paragraphs to 1219px.
-- Use the same responsive wrap width for selection/scroll calculations; improve search result snippet widths in the expanded layout.
-- Keep original three-column geometry when Daily Verse is enabled.
-- Maintain existing offline Bible, bookmarks, reading progress, settings file and PS5 Title ID PPSA99793.
-- PS5 hardware test for this build remains pending.
+- Full offline language picker: English WEBPB, Deutsch Lutherbibel 1912, Français Louis Segond 1910, Español Reina-Valera 1909.
+- Translate the complete user interface, navigation, settings, all 66 Bible book names, daily verse and search while retaining book/chapter/verse references.
+- Add a full set of Latin accented characters with a newly generated DejaVu-based signed-distance-field (SDF) font atlas.
+- Move version info to the line directly after 'by YAHBALLON'.
+- Preserve existing saved settings and bookmarks; defaults to English for pre-v0.1.3 users.
+- Build and validate four complete public-domain Bibles entirely offline for the running PS5 app.
