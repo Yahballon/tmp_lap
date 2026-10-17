@@ -30,6 +30,7 @@ struct Artist {
  Theme theme;
  std::vector<Album> albums;
 };
+struct PackedAlbum {std::string artist,path;uint64_t size=0;};
 struct Library {
  std::vector<Artist> artists;
  size_t trackCount=0;
@@ -39,6 +40,7 @@ bool is_music(const std::string& filename);
 Theme read_theme(const std::string& artistFolder);
 Theme parse_theme_text(const std::string& data);
 Library scan(const std::vector<std::string>& roots);
+std::vector<PackedAlbum> find_packed_albums(const std::vector<std::string>& roots);
 void merge(Library& target,Library&& other);
 std::vector<std::string> music_roots();
 std::string album_background(const Artist& artist,const Album& album);

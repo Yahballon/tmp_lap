@@ -13,6 +13,9 @@ int main() {
  assert(artist.theme.accent==0x44cc77);
  assert(artist.albums.size()==2);
  assert(found.library.trackCount==3);
+ assert(found.archives.size()==1);
+ assert(found.archives[0].artist=="Tupac");
+ assert(found.archives[0].path.find("Killuminati.album")!=std::string::npos);
  const jukebox::Album* album=nullptr;
  for(const auto& a:artist.albums)if(a.name=="Legend")album=&a;
  assert(album&&album->tracks.size()==1);

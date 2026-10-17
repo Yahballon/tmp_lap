@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.4
+// PSJukebox by YAHBALLON v0.1.5
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -10,6 +10,7 @@
 #include "stick_nav.hpp"
 #include "cover_motion.hpp"
 #include "favorites.hpp"
+#include "album_archive.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
@@ -31,7 +32,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.4";
+constexpr const char* version="v0.1.5";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -116,6 +117,30 @@ std::atomic<bool> scanBusy{false};
 void* scan_worker(void*){
  auto local=jukebox::scan(jukebox::music_roots());
  auto remote=jbx::scan();
+ auto packs=jukebox::find_packed_albums(jukebox::music_roots());
+ for(const auto& p:remote.archives)packs.push_back(p);
+ std::atomic<bool> cancelled{false};
+ std::string importedStatus;
+ unsigned processed=0;
+ for(const auto& pack:packs){
+  if(processed++>=64){importedStatus+="ALBUM_LIMIT; ";break;}
+  const std::string name=jukebox::album_stem(pack.path);
+  if(name.empty())continue;
+  std::string path=pack.path,error,musicRoot;
+  if(jbx::is_remote(pack.path)){
+   if(!jbx::stage_track(pack.path,pack.size,cancelled,path,error)){
+    importedStatus+="ALBUM_TRANSFER_ERROR "+name+": "+error+"; ";continue;
+   }
+  }
+  if(!jukebox::unpack_album(path,pack.artist,name,pack.path,jukebox::archive_cache_root(),musicRoot,error)){
+   importedStatus+="ALBUM_INVALID "+name+": "+error+"; ";continue;
+  }
+  auto entry=jukebox::scan({musicRoot});
+  const auto songs=entry.trackCount;
+  jukebox::merge(local,std::move(entry));
+  importedStatus+="ALBUM_OK "+pack.artist+"/"+name+" tracks="+std::to_string(songs)+"; ";
+ }
+ local.report+=" | "+importedStatus;
  {std::lock_guard<std::mutex> lk(scanMutex);
   finishedScans.push_back({std::move(remote),std::move(local)});}
  scanBusy.store(false);
@@ -205,7 +230,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.4");
+ log("BOOT v0.1.5");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);

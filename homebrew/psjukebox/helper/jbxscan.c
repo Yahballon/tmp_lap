@@ -71,6 +71,7 @@ static int kind(const char *n){
     ends(n,".opus")||ends(n,".wma"))return 2;
  if(ends(n,".png")||ends(n,".jpg")||ends(n,".jpeg"))return 1;
  if(!strcasecmp(n,"theme.ini"))return 3;
+ if(ends(n,".album"))return 4;
  return 0;
 }
 static int secure_file(unsigned root,const char *relative,uint64_t *size){
@@ -94,8 +95,8 @@ static int secure_file(unsigned root,const char *relative,uint64_t *size){
  if(depth<2||depth>3||!S_ISREG(st.st_mode)||st.st_size<1)return 0;
  const char *name=strrchr(relative,'/');name=name?name+1:relative;
  int t=kind(name);
- if(!t||(t==2&&depth!=2&&depth!=3)||(t==3&&depth!=2))return 0;
- uint64_t limit=t==2?MAX_MEDIA:(t==1?MAX_ART:4096);
+ if(!t||(t==2&&depth!=2&&depth!=3)||(t==3&&depth!=2)||(t==4&&depth!=2))return 0;
+ uint64_t limit=t==2?MAX_MEDIA:(t==1?MAX_ART:(t==4?1024ULL*1024*1024:4096));
  if((uint64_t)st.st_size>limit)return 0;
  *size=(uint64_t)st.st_size;return 1;
 }

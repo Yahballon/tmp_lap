@@ -211,6 +211,25 @@ Library scan(const std::vector<std::string>& roots) {
             " TRACKS="+std::to_string(out.trackCount);
  return out;
 }
+std::vector<PackedAlbum> find_packed_albums(const std::vector<std::string>& roots){
+ std::vector<PackedAlbum> result;
+ for(const auto& root:roots){
+  for(const auto& name:directories(root)){
+   const auto folder=root+"/"+name;
+   DIR* d=opendir(folder.c_str());if(!d)continue;
+   while(dirent* e=readdir(d)){
+    const std::string filename=e->d_name,low=lowercase(filename);
+    if(!safe_name(filename)||low.size()<=6||low.substr(low.size()-6)!=".album")continue;
+    uint64_t size=0;
+    const std::string path=folder+"/"+filename;
+    if(is_file(path,&size)&&size>=22&&size<=1024ULL*1024*1024)
+     result.push_back({name,path,size});
+   }
+   closedir(d);
+  }
+ }
+ return result;
+}
 // Unify direct and helper-discovered artists rather than showing duplicates.
 void merge(Library& target,Library&& other){
  for(auto& added:other.artists){

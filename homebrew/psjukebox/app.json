@@ -1,11 +1,11 @@
 {
   "name": "PSJukebox",
   "slug": "psjukebox",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "titleId": "PPSA99947",
   "contentId": "UP9000-PPSA99947_00-PSJUKEBOX0000001",
-  "contentVersion": "01.000.004",
-  "releaseTag": "psjukebox-v0.1.4",
+  "contentVersion": "01.000.005",
+  "releaseTag": "psjukebox-v0.1.5",
   "developer": "YAHBALLON",
   "formats": [
     "mp3",
@@ -15,7 +15,8 @@
     "wav",
     "ogg",
     "opus",
-    "wma"
+    "wma",
+    "album"
   ],
   "theme": "Per-artist and per-album local artwork",
   "offline": true
