@@ -43,6 +43,15 @@ jobs:
           obj=json.loads(meta.read_text())
           obj['pubtools']={'loudnessSnd0':'-28.00'}
           meta.write_text(json.dumps(obj,indent=2)+'\n')
+          # DX10 BC7 4K DDS header with dummy payload (only for ELF smoke tests).
+          hdr=bytearray(148)
+          hdr[0:4]=b'DDS '
+          struct.pack_into('<I',hdr,4,124)
+          struct.pack_into('<II',hdr,12,2160,3840)
+          struct.pack_into('<I',hdr,28,1)
+          hdr[84:88]=b'DX10'
+          struct.pack_into('<IIIII',hdr,128,98,3,0,1,0)
+          (base/'pic0.dds').write_bytes(hdr + bytes((3840//4)*(2160//4)*16))
           print('Created synthetic fixtures (NOT for PS5 use)')
           PY
       - name: Apply all patches
@@ -52,6 +61,7 @@ jobs:
           python3 homebrew/ps5-webkit-autoloader-game/patch_music.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/stage_sqlite.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_presentation.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_background.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
           grep -F 'MUSIC_DB_REGISTER' upstream-wkal/src/app_installer.c
       - name: Build PS5 SDK environment
@@ -71,7 +81,10 @@ jobs:
           snd=Path('assets/snd0.at9').read_bytes()
           assert Path('assets/icon0.png').read_bytes()==icon
           assert icon in elf and snd in elf
+          background=Path('assets/pic0.dds').read_bytes()
+          assert background in elf
+          assert b'BACKGROUND_DB_REGISTER' in elf
           for token in (b'WKAG00001',b'/user/appmeta/%s/snd0.at9',b'/user/appmeta/%s/icon0.png',b'snd0info'):
               assert token in elf, token
-          print('PS5 ELF smoke-build PASSED; synthetic assets were not published')
+          print('PS5 ELF smoke-build PASSED including 4K background; synthetic assets were not published')
           PY
