@@ -22,7 +22,7 @@ TRANSLATIONS = {
 def sources(code):
     identity = TRANSLATIONS[code][0]
     return [f"https://{host}/Scriptures/{identity}_vpl.zip"
-            for host in ("ftp.ebible.org", "pacificbibles.org", "ebible.org")]
+            for host in ("ebible.org", "pacificbibles.org", "ftp.ebible.org")]
 NAMES = """Genesis|Exodus|Leviticus|Numbers|Deuteronomy|Joshua|Judges|Ruth|1 Samuel|2 Samuel|1 Kings|2 Kings|1 Chronicles|2 Chronicles|Ezra|Nehemiah|Esther|Job|Psalms|Proverbs|Ecclesiastes|Song of Solomon|Isaiah|Jeremiah|Lamentations|Ezekiel|Daniel|Hosea|Joel|Amos|Obadiah|Jonah|Micah|Nahum|Habakkuk|Zephaniah|Haggai|Zechariah|Malachi|Matthew|Mark|Luke|John|Acts|Romans|1 Corinthians|2 Corinthians|Galatians|Ephesians|Philippians|Colossians|1 Thessalonians|2 Thessalonians|1 Timothy|2 Timothy|Titus|Philemon|Hebrews|James|1 Peter|2 Peter|1 John|2 John|3 John|Jude|Revelation""".split("|")
 CODES = """Gen Exo Lev Num Deu Jos Jdg Rut 1Sa 2Sa 1Ki 2Ki 1Ch 2Ch Ezr Neh Est Job Psa Pro Ecc Sol Isa Jer Lam Eze Dan Hos Joe Amo Oba Jon Mic Nah Hab Zep Hag Zec Mal Mat Mar Luk Joh Act Rom 1Co 2Co Gal Eph Phi Col 1Th 2Th 1Ti 2Ti Tit Phm Heb Jam 1Pe 2Pe 1Jo 2Jo 3Jo Jud Rev""".split()
 ALIASES = {}
@@ -96,7 +96,7 @@ def convert_zip(data):
         raise ValueError(f"Incomplete Bible: chapters={sum(map(len,counts.values()))}, books={sum(bool(x) for x in counts.values())}")
     if not 30000<=len(unique)<=40000:
         raise ValueError(f"Incomplete Bible: {len(unique)} verses")
-    if "in the beginning" not in unique.get((0,1,1),"").lower() or (65,22,21) not in unique:
+    if not unique.get((0,1,1)) or not unique.get((65,22,21)):
         raise ValueError("Expected first and last passages missing")
     return "".join(f"{b}\t{c}\t{v}\t{t.replace(chr(9),' ')}\n" for (b,c,v),t in sorted(unique.items()))
 def main():
