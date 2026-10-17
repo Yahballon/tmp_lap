@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "0cc173bbc6bee4e131394e3f9611af5a69d3c13da1e660fb335277d0c5a05e53",
+  "version": "48bd0ab365679c7c61dcbc21295e1e259d30c52e9af397634309629bef49a65b",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 14,
+  "app_count": 15,
   "apps": [
     {
       "name": "Crypto Tracker",
@@ -185,6 +185,19 @@
       "source": "homebrew/ps5-mesenx",
       "size_bytes": 7580391,
       "published_at": "2026-10-16T14:38:18Z"
+    },
+    {
+      "name": "PSJukebox",
+      "slug": "psjukebox",
+      "title_id": "PPSA99947",
+      "version": "0.1.0",
+      "tag": "psjukebox-v0.1.0",
+      "zip_name": "PPSA99947.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/psjukebox-v0.1.0/PPSA99947.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/psjukebox-v0.1.0",
+      "source": "homebrew/psjukebox",
+      "size_bytes": 19338509,
+      "published_at": "2026-10-17T19:09:16Z"
     }
   ]
 }
