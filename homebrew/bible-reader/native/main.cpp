@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.4 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.5 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -9,6 +9,7 @@
 #include "localization.hpp"
 #include "reader_layout.hpp"
 #include "tts_reader.hpp"
+#include "tts_log.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -72,6 +73,7 @@ const bible_i18n::Key tabKeys[]={
 }
 int main(){
  mkdir("/data/BibleReader",0755);
+ bible_log::write("BOOT","Bible Reader v0.1.5 title=PPSA99793 log=%s",bible_log::path);
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;
@@ -81,9 +83,11 @@ int main(){
  const unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  bible::Settings settings;bible::readSettings(state,settings);
+ bible_log::write("SETTINGS","language=%d book=%d chapter=%d verse=%d",settings.language,settings.book,settings.chapter,settings.selectedVerse);
  bible::Library library;std::string problem;
  bible_tts::Speaker voice;
  bool loaded=readTranslation(library,settings.language,problem);
+ bible_log::write(loaded?"BIBLE_LOAD_OK":"BIBLE_LOAD_ERR","language=%d details=%s",settings.language,loaded?"offline translation ready":problem.c_str());
  if(loaded){
   settings.book=std::clamp(settings.book,0,65);
   settings.chapter=std::clamp(settings.chapter,1,library.chapterCount(settings.book));
@@ -255,7 +259,7 @@ int main(){
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   const std::string maker="by Y A H B A L L O N";
   text(d,font,atlas,maker,307,148,20,gold);
-  text(d,font,atlas,"v0.1.4",307+font.measure(maker,20.f)+34.f,148,19,subdued);
+  text(d,font,atlas,"v0.1.5",307+font.measure(maker,20.f)+34.f,148,19,subdued);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;

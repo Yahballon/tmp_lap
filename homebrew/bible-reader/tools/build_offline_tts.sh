@@ -47,4 +47,9 @@ test -s "$root/lib/libespeak-ng.a"
 test -s "$root/lib/libucd.a"
 cp -a /tmp/bible-espeak-host/espeak-ng-data "$root/assets/tts/"
 for language in en de fr es; do test -s "$root/assets/tts/espeak-ng-data/${language}_dict"; done
+for profile in gmw/en gmw/de roa/fr roa/es; do
+    test -s "$root/assets/tts/espeak-ng-data/lang/$profile" || { echo "Missing voice profile $profile" >&2; exit 1; }
+done
+test -s "$root/assets/tts/espeak-ng-data/phondata"
+test -s "$root/assets/tts/espeak-ng-data/phontab"
 printf 'Offline TTS engine ready: %s bytes library and four languages\n' "$(stat -c %s "$root/lib/libespeak-ng.a")"
