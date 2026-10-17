@@ -57,7 +57,8 @@ static int safe_relative(const char *path){
   const char *e=strchr(p,'/');size_t length=e?(size_t)(e-p):strlen(p);
   if(!length||length>180||*p=='.')return 0;
   for(size_t i=0;i<length;i++)if((unsigned char)p[i]<32||p[i]==127||p[i]=='\\')return 0;
-  if(!e)break;p=e+1;
+  if(!e)break;
+  p=e+1;
  }
  return 1;
 }
