@@ -229,7 +229,7 @@ void buildShelves(bool selectDisk)''',1)
     t=t.replace(settingsKeyboard,'''        else if (keyboard == KeyboardSmb)
         {
             dreamcastx_smb_settings::accept(typed);
-            std::fill(typed.begin(),typed.end(),'\0');
+            std::fill(typed.begin(),typed.end(),'\\0');
             ps5::ime::forget();
         }
 '''+settingsKeyboard,1)
