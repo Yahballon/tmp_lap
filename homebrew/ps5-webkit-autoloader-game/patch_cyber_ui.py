@@ -284,10 +284,10 @@ def patch(root: Path) -> None:
     launcher = root / "src/main.c"
     source = launcher.read_text(encoding="utf-8")
     url_changes = (
-        ('http://127.0.0.1:%d/?v=%s%s&retry=1',
-         'http://127.0.0.1:%d/?v=%s%s&ui=cyberpirate1&retry=1'),
-        ('http://127.0.0.1:%d/?v=%s%s',
-         'http://127.0.0.1:%d/?v=%s%s&ui=cyberpirate1'),
+        ('"http://127.0.0.1:%d/?v=%s%s&retry=1"',
+         '"http://127.0.0.1:%d/?v=%s%s&ui=cyberpirate1&retry=1"'),
+        ('"http://127.0.0.1:%d/?v=%s%s"',
+         '"http://127.0.0.1:%d/?v=%s%s&ui=cyberpirate1"'),
     )
     for needle, replacement in url_changes:
         if source.count(needle) != 1:
