@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.3 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.4 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -8,6 +8,7 @@
 #include "bible.hpp"
 #include "localization.hpp"
 #include "reader_layout.hpp"
+#include "tts_reader.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -81,6 +82,7 @@ int main(){
  hui::ps5::Pad pad;pad.open();
  bible::Settings settings;bible::readSettings(state,settings);
  bible::Library library;std::string problem;
+ bible_tts::Speaker voice;
  bool loaded=readTranslation(library,settings.language,problem);
  if(loaded){
   settings.book=std::clamp(settings.book,0,65);
@@ -111,6 +113,7 @@ int main(){
   firstBook=b;bookSelection=b;listScroll=0;page=Page::books;focusedSidebar=false;
  };
  auto back=[&](){
+  if(voice.active()){voice.stop();return;}
   if(exitDialog){exitDialog=false;return;}
   if(page==Page::read){if(focusedSidebar)exitDialog=true;else focusedSidebar=true;}
   else if(page==Page::chapters)page=Page::books;
@@ -126,10 +129,10 @@ int main(){
    if(pressed&hui::pad_bits::kCross){save();pad.close();renderer.release();display.close();hui::sys::quit();}
   }else{
    if(pressed&hui::pad_bits::kCircle)back();
-   if(pressed&hui::pad_bits::kOptions){page=Page::settings;focusedSidebar=false;listScroll=0;}
-   if(pressed&hui::pad_bits::kL1){if(loaded&&page==Page::read){int b=settings.book,c=settings.chapter-1;if(c<1){b=(b+65)%66;c=library.chapterCount(b);}gotoRef({b,c,1});}}
-   if(pressed&hui::pad_bits::kR1){if(loaded&&page==Page::read){int b=settings.book,c=settings.chapter+1;if(c>library.chapterCount(b)){b=(b+1)%66;c=1;}gotoRef({b,c,1});}}
-   if(pressed&hui::pad_bits::kTriangle){if(page!=Page::search){page=Page::search;query.clear();nav=0;focusedSidebar=false;}}
+   if(pressed&hui::pad_bits::kOptions){voice.stop();page=Page::settings;focusedSidebar=false;listScroll=0;}
+   if(pressed&hui::pad_bits::kL1){if(loaded&&page==Page::read){voice.stop();int b=settings.book,c=settings.chapter-1;if(c<1){b=(b+65)%66;c=library.chapterCount(b);}gotoRef({b,c,1});}}
+   if(pressed&hui::pad_bits::kR1){if(loaded&&page==Page::read){voice.stop();int b=settings.book,c=settings.chapter+1;if(c>library.chapterCount(b)){b=(b+1)%66;c=1;}gotoRef({b,c,1});}}
+   if(pressed&hui::pad_bits::kTriangle){if(page!=Page::search){voice.stop();page=Page::search;query.clear();nav=0;focusedSidebar=false;}}
    if(pressed&hui::pad_bits::kLeft){if(page==Page::read)focusedSidebar=true;else if(page==Page::search)nav=0;}
    if(pressed&hui::pad_bits::kRight){if(page==Page::read)focusedSidebar=false;else if(page==Page::search)nav=1;}
    if(pressed&hui::pad_bits::kUp){
@@ -167,6 +170,7 @@ int main(){
    }
    if(pressed&hui::pad_bits::kCross){
     if(page==Page::read&&focusedSidebar){
+     voice.stop();
      if(side==0)section(0);
      if(side==1)section(0);
      if(side==2)section(39);
@@ -176,6 +180,7 @@ int main(){
      const auto& vv=library.chapter(settings.book,settings.chapter);
      if(selected>=0&&selected<(int)vv.size()){
       settings.selectedVerse=vv[(size_t)selected].number;save();
+      voice.start(library,{settings.book,settings.chapter,settings.selectedVerse},settings.language);
       notice=std::string(bible_i18n::label(settings.language,bible_i18n::Key::reading))+name({settings.book,settings.chapter,settings.selectedVerse},settings.language);
      }
     }else if(page==Page::books){chapterSelection=1;page=Page::chapters;}
@@ -184,6 +189,7 @@ int main(){
      if(listScroll>=0&&listScroll<(int)settings.bookmarks.size())gotoRef(settings.bookmarks[(size_t)listScroll]);
     }else if(page==Page::results){if(listScroll>=0&&listScroll<(int)hits.size())gotoRef(hits[(size_t)listScroll].ref);}
     else if(page==Page::settings){
+     voice.stop();
      if(listScroll==0){
       const int candidate=(settings.language+1)%bible_i18n::kLangCount;
       bible::Library replacement;std::string error;
@@ -220,7 +226,7 @@ int main(){
    if(pressed&hui::pad_bits::kL2&&loaded&&page==Page::read){
     std::time_t t=std::time(nullptr);std::tm* date=std::localtime(&t);
     bible::Ref ref=bible::dailyReference(date?date->tm_yday+1:1);
-    if(library.verse(ref))gotoRef(ref);
+    if(library.verse(ref)){voice.stop();gotoRef(ref);}
    }
   }
   DrawList d;
@@ -234,7 +240,7 @@ int main(){
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   const std::string maker="by Y A H B A L L O N";
   text(d,font,atlas,maker,307,148,20,gold);
-  text(d,font,atlas,"v0.1.3",307+font.measure(maker,20.f)+34.f,148,19,subdued);
+  text(d,font,atlas,"v0.1.4",307+font.measure(maker,20.f)+34.f,148,19,subdued);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;
