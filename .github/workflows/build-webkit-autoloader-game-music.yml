@@ -1,4 +1,4 @@
-name: Build WebKit Autoloader GAME - Custom Icon, Music and Background
+name: Build JAILBREAK ME - PS5 Game
 on:
   workflow_dispatch:
     inputs:
@@ -9,13 +9,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'homebrew/ps5-webkit-autoloader-game/soundtrack.mp3'
-      - 'homebrew/ps5-webkit-autoloader-game/icon.png'
-      - 'homebrew/ps5-webkit-autoloader-game/background.png'
+      - 'homebrew/ps5-webkit-autoloader-game/**'
+      - '.github/workflows/build-webkit-autoloader-game-music.yml'
 permissions:
   contents: read
 jobs:
-  build-game-with-menu-music:
+  build-jailbreak-me-game:
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     env:
@@ -94,7 +93,7 @@ jobs:
           git clone https://github.com/richgel999/bc7enc_rdo.git /tmp/wkal-bc7enc
           git -C /tmp/wkal-bc7enc checkout --detach b9438627eef73a1157e84201b6fa6eb2ffd6d9f0
           cmake -S /tmp/wkal-bc7enc -B /tmp/wkal-bc7enc/build \
-            -DCMAKE_BUILD_TYPE=Release -DSUPPORT_BC7E=FALSE
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS='-include stdint.h' -DSUPPORT_BC7E=FALSE
           cmake --build /tmp/wkal-bc7enc/build -j 4
           /tmp/wkal-bc7enc/build/bc7enc -q -g -C -u3 \
             upstream-wkal/assets/background-4k.png upstream-wkal/assets/pic0.dds
@@ -111,6 +110,7 @@ jobs:
           python3 homebrew/ps5-webkit-autoloader-game/patch_presentation.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_background.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
+          python3 homebrew/ps5-webkit-autoloader-game/patch_title.py upstream-wkal
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -118,6 +118,8 @@ jobs:
           j=json.loads((root/'assets/param.json.template').read_text())
           song=(root/'assets/snd0.at9').read_bytes()
           assert j['titleId']=='WKAG00001' and j['applicationCategoryType']==0
+          assert j['localizedParameters']['en-US']['titleName']=='JAILBREAK ME'
+          assert j['contentVersion']=='01.000.003'
           assert j['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
           assert j['pubtools']['loudnessSnd0']
           assert song.startswith(b'RIFF') and song[8:12]==b'WAVE'
@@ -127,6 +129,7 @@ jobs:
           assert '/user/appmeta/%s/snd0.at9' in installer
           assert 'MUSIC_DB_REGISTER' in installer
           assert 'BACKGROUND_DB_REGISTER' in installer
+          assert 'TITLE_DB_REGISTER' in installer
           assert 'pic0_dds' in installer
           assert 'vendor/sqlite/sqlite3.c' in (root/'Makefile').read_text()
           print(f'PS5 Game selection music ready ({len(song)} bytes)')
@@ -152,6 +155,8 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('assets/param.json').read_text())
           assert p['titleId']=='WKAG00001'
+          assert p['localizedParameters']['en-US']['titleName']=='JAILBREAK ME'
+          assert p['contentVersion']=='01.000.003'
           assert p['applicationCategoryType']==0 and p['pubtools']['loudnessSnd0']
           elf=Path('webkit-autoloader-installer_v0.4.0.elf').read_bytes()
           icon=Path('assets/icon0.png').read_bytes()
@@ -160,6 +165,8 @@ jobs:
           assert icon in elf, 'ERROR: user-supplied PS5 game icon not embedded in installer'
           sound=Path('assets/snd0.at9').read_bytes()
           assert b'WKAG00001' in elf
+          assert b'JAILBREAK ME' in elf
+          assert b'TITLE_DB_REGISTER' in elf
           assert sound in elf, 'ERROR: soundtrack not embedded in installer'
           background=Path('assets/pic0.dds').read_bytes()
           assert background==Path('assets/pic1.dds').read_bytes()
@@ -169,8 +176,8 @@ jobs:
           print('ELF contains custom JAILBREAK ME icon + snd0.at9 + 4K BC7 background + Game category')
           PY
           mkdir -p ../game-build-with-music
-          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/webkit-autoloader-GAME-ICON-MUSIC-BG-installer_v0.4.0.elf
-          cp webkit-autoloader-host_v0.4.0.py ../game-build-with-music/webkit-autoloader-GAME-MUSIC-host_v0.4.0.py
+          cp webkit-autoloader-installer_v0.4.0.elf ../game-build-with-music/JAILBREAK-ME-installer_v0.4.0.elf
+          cp webkit-autoloader-host_v0.4.0.py ../game-build-with-music/JAILBREAK-ME-host_v0.4.0.py
           cp assets/snd0.at9 ../game-build-with-music/snd0.at9
           cp assets/icon0.png ../game-build-with-music/icon0.png
           cp assets/pic0.dds ../game-build-with-music/pic0.dds
@@ -179,7 +186,7 @@ jobs:
           (cd ../game-build-with-music && sha256sum * > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-WebKit-Autoloader-GAME-ICON-MUSIC-BG-v0.4.0
+          name: PS5-JAILBREAK-ME-v0.4.0
           path: game-build-with-music/
           if-no-files-found: error
           retention-days: 30
