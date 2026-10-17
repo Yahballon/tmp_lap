@@ -174,8 +174,12 @@ jobs:
           assert b'WKAG00001' in elf
           assert b'JAILBREAK ME' in elf
           assert b'TITLE_DB_REGISTER' in elf
-          assert b'AUTO-INSTALL SEQUENCE' in elf
-          assert (Path('frontend/installer-page/background.png').read_bytes()) in elf
+          registry=Path('include/file_registry.c').read_text()
+          page=Path('frontend/dist/index.html').read_text()
+          assert 'AUTO-INSTALL SEQUENCE' in page
+          assert '/index.html' in registry and '/background.png' in registry
+          assert b'/index.html' in elf and b'/background.png' in elf
+          assert Path('frontend/dist/background.png').read_bytes()==Path('frontend/installer-page/background.png').read_bytes()
           assert sound in elf, 'ERROR: soundtrack not embedded in installer'
           background=Path('assets/pic0.dds').read_bytes()
           assert background==Path('assets/pic1.dds').read_bytes()
