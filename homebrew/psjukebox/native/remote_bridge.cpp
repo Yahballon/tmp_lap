@@ -22,6 +22,9 @@ namespace {
 #ifndef JUKEBOX_BRIDGE_PORT
 #define JUKEBOX_BRIDGE_PORT 9188
 #endif
+#ifndef JUKEBOX_DATA_ROOT
+#define JUKEBOX_DATA_ROOT "/data/PSJukebox"
+#endif
 constexpr int kPort=JUKEBOX_BRIDGE_PORT;
 constexpr uint64_t kMaxAudio=8ULL*1024*1024*1024,kMaxImage=12ULL*1024*1024;
 std::string lower(std::string s){
@@ -315,7 +318,7 @@ bool stage_track(const std::string& path,uint64_t expected,std::atomic<bool>& ca
  local.clear();if(copied)copied->store(0);unsigned root;std::string rel;
  if(!remote_parts(path,root,rel)||expected<1024||expected>kMaxAudio||
     !jukebox::is_music(rel)){error="Invalid remote audio reference";return false;}
- const std::string base="/data/PSJukebox",cache=base+"/Cache";
+ const std::string base=JUKEBOX_DATA_ROOT,cache=base+"/Cache";
  mkdir(base.c_str(),0755);mkdir(cache.c_str(),0755);
  char hash[32];std::snprintf(hash,sizeof(hash),"%016llx",(unsigned long long)hash_path(path));
  const std::string extension=rel.substr(rel.find_last_of('.'));
