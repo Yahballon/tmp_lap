@@ -110,6 +110,137 @@ def adapt():
     ps5_source=p/"dreamcastx_library_order.inc"
     shutil.copy2(ROOT/"src/dreamcastx_library_order.inc",ps5_source)
 
+    # Unified library: all sources are already present in the game's
+    # single vector. Do not filter it into separate Internal/USB/SMB tabs.
+    # The per-game source is retained for disc launch and SMB streaming.
+    barsStart=t.index('\t// Tabs, switched with L1 / R1.')
+    barsEnd=t.index('\t// The clock, and the pads.', barsStart)
+    t=t[:barsStart]+'''
+    const char *allGamesLabel = "ALL GAMES";
+    const ImVec2 allSize = textSize(bold(),25,allGamesLabel);
+    text(dl,bold(),25,(W-allSize.x)*0.5f,34,col::dim,allGamesLabel);
+
+'''+t[barsEnd:]
+    assert t.count("ALL GAMES")==1
+
+    oldChoice='''void switchSource(int source)
+{
+\tif (source == lib.source)'''
+    assert oldChoice in t, "Source selection function changed upstream"
+    first=t.index("void switchSource(int source)")
+    last=t.index("const char *regionText(u32 r);",first)
+    t=t[:first]+'''void switchSource(int source)
+{
+    // All platforms share the same library. Only launch() distinguishes
+    // a game's real location (internal, USB, or SMB).
+    (void)source;
+    lib.source = Internal;
+}
+void chooseSource()
+{
+    if (!sourceChosen) {
+        sourceChosen = true;
+        lib.source = Internal;
+    }
+}
+
+'''+t[last:]
+
+    assert t.count("refreshGames(lib.source == Network);")==2
+    t=t.replace("refreshGames(lib.source == Network);","refreshGames(true);")
+    assert t.count("games[i].source == lib.source && ")==3
+    assert t.count(" && games[i].source == lib.source")==2
+    assert t.count(" && g.source == lib.source")==1
+    assert t.count("games[i].source != lib.source || ")==1
+    t=t.replace("games[i].source == lib.source && ","")
+    t=t.replace(" && games[i].source == lib.source","")
+    t=t.replace(" && g.source == lib.source","")
+    t=t.replace("games[i].source != lib.source || ","")
+    # All games includes Arcade as well; Arcade stays as an optional shelf.
+    oldArcade='''\t\tif (!selectDisk && games[i].media.arcade)
+\t\t\tarcade.items.push_back(i);
+\t\telse
+\t\t\tall.items.push_back(i);'''
+    assert t.count(oldArcade)==1
+    t=t.replace(oldArcade,'''        all.items.push_back(i);
+        if (!selectDisk && games[i].media.arcade)
+            arcade.items.push_back(i);''',1)
+    # When the cached SMB scanner completes it has always incremented its
+    # generation. This invalidates all unified shelves and list variants.
+    oldScans='''\t\t\tif (lib.source == Network)
+\t\t\t\tscanNetwork();
+\t\t\telse
+\t\t\t{
+\t\t\t\tscanner().refresh();
+\t\t\t\tif (lib.source == Usb)
+\t\t\t\t\tps5::rescanUsb();
+\t\t\t\tscannedCount = (size_t)-1;
+\t\t\t}'''
+    assert t.count(oldScans)==1
+    t=t.replace(oldScans,'''            scanner().refresh();
+            ps5::rescanUsb();
+            scanNetwork();
+            scannedCount = (size_t)-1;''',1)
+    # L1/R1 are no longer used for tabs, including the disc picker.
+    first=t.index("if (in.l1 || in.r1)",t.index("void libraryScreen(bool selectDisk)"))
+    second=t.index("\n\t\t}",first)+4
+    original=t[first:second]
+    assert "switchSource(next)" in original
+    t=t[:first]+'''// L1 / R1 are reserved for future shortcuts; no hidden source tabs.'''+t[second:]
+    t=t.replace('{ Glyph::L1R1, "Tab" }, ','')
+    t=t.replace('{ Glyph::L1R1, "Source" }, ','')
+    t=t.replace('const char *scanHint = lib.source == Network ? "Scan the share" : "Rescan";',
+                'const char *scanHint = "Rescan all";')
+    t=t.replace('if (lib.source == Network && !empty)','if (!empty)')
+    # Show the true origin on each game's subtitle in the unified shelf.
+    sourceMeta='''\treturn meta;
+}
+
+void buildShelves(bool selectDisk)'''
+    assert t.count(sourceMeta)==1
+    t=t.replace(sourceMeta,'''    const char *origin = g.source == Network ? "SMB" :
+                         g.source == Usb ? "USB" : "Internal";
+    meta += (meta.empty() ? "" : "   ·   ");
+    meta += origin;
+    return meta;
+}
+
+void buildShelves(bool selectDisk)''',1)
+    # Drop stale network-specific empty-library copy; one consistent help.
+    noGameHelp='''\t\tbody = "Copy your games to\\n" + root + "games/\\n\\n"'''
+    assert t.count(noGameHelp)==1
+    t=t.replace(noGameHelp,'''        body = "Internal, USB and SMB games appear together.\\n"
+               "Internal: " + root + "games/\\n"
+               "Network: Settings > Library > SMB shares\\n\\n"''',1)
+
+    # Move SMB editing into the already existing Library settings screen.
+    enumItem="KeyboardRaUser, KeyboardRaPassword };"
+    assert t.count(enumItem)==1
+    t=t.replace(enumItem,"KeyboardRaUser, KeyboardRaPassword, KeyboardSmb };")
+    settingsEntry="std::vector<Category> buildCategories()"
+    assert t.count(settingsEntry)==1
+    t=t.replace(settingsEntry,'#include "dreamcastx_smb_settings.inc"\n\n'+settingsEntry,1)
+    rowsPoint='''\tfor (const auto& [label, sub] : std::vector<std::pair<std::string, std::string>>{'''
+    assert t.count(rowsPoint)==1
+    t=t.replace(rowsPoint,'''    dreamcastx_smb_settings::addRows(storage);
+'''+rowsPoint,1)
+    settingsKeyboard='''\t\telse if (keyboard == KeyboardRaUser || keyboard == KeyboardRaPassword)'''
+    assert t.count(settingsKeyboard)==1
+    t=t.replace(settingsKeyboard,'''        else if (keyboard == KeyboardSmb)
+        {
+            dreamcastx_smb_settings::accept(typed);
+            std::fill(typed.begin(),typed.end(),'\0');
+            ps5::ime::forget();
+        }
+'''+settingsKeyboard,1)
+    # Ensure network status appears in the merged library when SMB is active.
+    t=t.replace('if (lib.source == Network && !empty)',
+                'if (!ps5::smb::gameFolders().empty() && !empty)')
+    assert "dreamcastx_smb_settings::addRows(storage);" in t
+    assert "dreamcastx_smb_settings::accept(typed);" in t
+    assert t.count("refreshGames(true);")==2
+    shutil.copy2(ROOT/"src/dreamcastx_smb_settings.inc",p/"dreamcastx_smb_settings.inc")
+
     ui.write_text(t)
     shutil.copy2(ROOT/"src/dreamcastx_shelf.inc",p/"dreamcastx_shelf.inc")
 
