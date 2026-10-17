@@ -1,11 +1,11 @@
 {
   "name": "Bible Reader",
   "slug": "bible-reader",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "titleId": "PPSA99793",
   "contentId": "UP9000-PPSA99793_00-BIBLEREADER00001",
-  "contentVersion": "01.000.002",
-  "releaseTag": "bible-reader-v0.1.1",
+  "contentVersion": "01.000.003",
+  "releaseTag": "bible-reader-v0.1.2",
   "developer": "YAHBALLON",
   "bibleTranslation": "World English Bible British Edition (WEBPB)",
   "offline": true
