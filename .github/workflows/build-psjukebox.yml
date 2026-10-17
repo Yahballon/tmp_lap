@@ -47,19 +47,29 @@ jobs:
           cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
           llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
           test -s app/build/jb-json/libjb-posix.a
+      - name: Compile read-only Jukebox ELF helper
+        run: |
+          make -C homebrew/psjukebox/helper PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          cp homebrew/psjukebox/helper/jbxscan.elf app/jbxscan.elf
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/jbxscan.elf')
+          assert p.is_file() and p.stat().st_size>1024
+          assert p.read_bytes()[:4]==bytes([0x7f,0x45,0x4c,0x46])
+          PY
       - name: Native PS5 compile
         working-directory: app
         env:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
-        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='libavformat libavcodec libavutil libswresample sdl2' app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='libavformat libavcodec libavutil libswresample sdl2' APP_ROOT_FILES=jbxscan.elf app
       - name: Verify package
         run: python3 homebrew/psjukebox/tools/verify.py app/dist/PPSA99947.zip
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.0
+          name: PSJukebox-v0.1.1
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -72,5 +82,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.0 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.1 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
