@@ -127,6 +127,7 @@ jobs:
           assert 'wkalCyberStage' in themed
           assert 'clear-webkit-data' in themed and '/install' in themed
           assert (root/'frontend/installer-page/background.png').is_file()
+          assert 'ui=cyberpirate1' in (root/'src/main.c').read_text()
           assert j['deeplinkUri']=='http://127.0.0.1:18181/app/index.html'
           assert j['pubtools']['loudnessSnd0']
           assert song.startswith(b'RIFF') and song[8:12]==b'WAVE'
