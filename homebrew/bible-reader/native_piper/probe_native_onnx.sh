@@ -24,6 +24,14 @@ echo "[PROBE] ORT revision $(git rev-parse HEAD)"
 
 echo "[PROBE] Checking PS5 SDK iconv support"
 test -f "$sdk/target/include/iconv.h" && echo "[PROBE] SDK iconv.h exists" || echo "[PROBE] SDK iconv.h absent; may require libiconv port"
+echo "[PROBE] Check Native Piper C API inference code with the real PS5 compiler"
+clang++-18 --target=x86_64-sie-ps5 --sysroot="$sdk" \
+  -isystem "$sdk/target/include/c++/v1" -isystem "$sdk/target/include" \
+  -I"$root/onnxruntime/include/onnxruntime/core/session" \
+  -I"$source_root/homebrew/bible-reader/native_piper" \
+  -std=c++17 -fno-rtti -fvisibility-nodllstorageclass=default \
+  -fno-stack-protector -fno-plt -femulated-tls -fsyntax-only \
+  "$source_root/homebrew/bible-reader/native_piper/piper_onnx.cpp"
 echo "[PROBE] Configure with PS5 FreeBSD SDK, statically linked CPU backend"
 cmake -S cmake -B "$root/build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
