@@ -229,6 +229,21 @@ int main(){
     if(library.verse(ref)){voice.stop();gotoRef(ref);}
    }
   }
+  const auto spoken=voice.snapshot();
+  if(spoken.active&&loaded&&page==Page::read){
+   const auto& current=library.chapter(settings.book,settings.chapter);
+   const bool changed=settings.book!=spoken.ref.book||settings.chapter!=spoken.ref.chapter||
+       selected<0||selected>=(int)current.size()||
+       current[(size_t)selected].number!=spoken.ref.verse;
+   if(changed){
+    settings.book=spoken.ref.book;settings.chapter=spoken.ref.chapter;
+    settings.selectedVerse=spoken.ref.verse;
+    const auto& target=library.chapter(settings.book,settings.chapter);
+    selected=0;
+    for(size_t i=0;i<target.size();i++)if(target[i].number==spoken.ref.verse){selected=(int)i;break;}
+    verseScroll=selected;verseLineScroll=0;focusedSidebar=false;save();
+   }
+  }
   DrawList d;
   d.gradient_rect({0,0,1920,1080},0,Color::rgb(settings.theme?0x142342:0x031129),
                   Color::rgb(0x01050e));
@@ -277,6 +292,21 @@ int main(){
     const int visible=i==selected?std::min(count,maxLines):count;
     heights[(size_t)i]=visible*lineHeight+18.f;
    }
+   // Follow the actual spoken word when a verse wraps onto multiple lines.
+   if(spoken.active&&spoken.playing&&spoken.wordEnd>spoken.wordBegin&&
+      bible::same(spoken.ref,{settings.book,settings.chapter,vv[(size_t)selected].number})){
+    size_t from=0;const auto& lines=wrapped[(size_t)selected];
+    for(size_t line=0;line<lines.size();++line){
+     size_t at=vv[(size_t)selected].text.find(lines[line],from);
+     if(at==std::string::npos)break;
+     from=at+lines[line].size();
+     if(spoken.wordBegin>=at&&spoken.wordBegin<from){
+      if((int)line<verseLineScroll)verseLineScroll=(int)line;
+      else if((int)line>=verseLineScroll+maxLines)verseLineScroll=(int)line-maxLines+1;
+      break;
+     }
+    }
+   }
    // Make the selected verse visible on every D-pad step, even when
    // preceding verses have different paragraph heights.
    float needed=0;
@@ -300,7 +330,28 @@ int main(){
     for(int j=0;j<visible;++j){
      const float lineY=y+12.f+j*lineHeight;
      if(lineY>kTextBottom-4.f)break;
-     text(d,font,atlas,lines[(size_t)(first+j)],cx+110,lineY,(float)settings.fontSize);
+     const auto& line=lines[(size_t)(first+j)];
+     const float size=(float)settings.fontSize;
+     text(d,font,atlas,line,cx+110,lineY,size);
+     if(i==selected&&spoken.active&&spoken.playing&&spoken.wordEnd>spoken.wordBegin&&
+        bible::same(spoken.ref,r)){
+      size_t from=0,begin=std::string::npos;
+      for(int row=0;row<=first+j;++row){
+       size_t at=verse.text.find(lines[(size_t)row],from);
+       if(at==std::string::npos)break;
+       if(row==first+j)begin=at;
+       from=at+lines[(size_t)row].size();
+      }
+      if(begin!=std::string::npos&&spoken.wordBegin>=begin&&
+         spoken.wordEnd<=begin+line.size()){
+       const size_t offset=spoken.wordBegin-begin;
+       const auto word=line.substr(offset,spoken.wordEnd-spoken.wordBegin);
+       const float x=cx+110+font.measure(line.substr(0,offset),size);
+       d.rounded_rect({x-2,lineY-size*.76f,font.measure(word,size)+4,size*1.12f},
+                      4,Color::rgb(0xffdc27,0.15f));
+       text(d,font,atlas,word,x,lineY,size,Color::rgb(0xffdc27));
+      }
+     }
     }
     if(i==selected&&(int)lines.size()>maxLines){
      text(d,font,atlas,std::to_string(first+1)+"-"+std::to_string(first+visible)+"/"+std::to_string(lines.size()),
@@ -311,6 +362,11 @@ int main(){
    // Separator and chapter controls live outside the scrollable verse area.
    d.line(cx+43,925,cx+cw-43,925,1,border);
    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::changeChapter),cx+43,952,17,subdued);
+   if(spoken.active){
+    d.rounded_rect({cx+cw-335,930,286,29},7,Color::rgb(0x2c391c));
+    text(d,font,atlas,"READING   O STOP",cx+cw-322,951,18,Color::rgb(0xffdc27));
+   }else if(!spoken.error.empty())
+    text(d,font,atlas,font.fit(spoken.error,16,355),cx+cw-401,951,16,gold);
   }else if(!loaded){
    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::offlineMissing),cx+50,310,34,gold);
    float y=380;wrap(d,font,atlas,problem,cx+50,y,790,25,850);
