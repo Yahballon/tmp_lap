@@ -105,3 +105,43 @@ jobs:
           name: Bible-Reader-v0.1.0-PPSA99793
           path: app/dist/PPSA99793.zip
           if-no-files-found: error
+
+  publish:
+    name: Publish verified Bible Reader TESTBUILD
+    needs: [ps5]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bible-Reader-v0.1.0-PPSA99793
+          path: release
+      - name: Verify downloaded release ZIP
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, struct, zipfile
+          f=pathlib.Path('release/PPSA99793.zip')
+          assert f.is_file() and f.stat().st_size>1_000_000
+          with zipfile.ZipFile(f) as z:
+              assert z.testzip() is None
+              assert 'PPSA99793/eboot.bin' in z.namelist()
+              assert struct.unpack('<I',z.read('PPSA99793/eboot.bin')[:4])[0]==0x1d3d154f
+              assert json.loads(z.read('PPSA99793/sce_sys/param.json'))['titleId']=='PPSA99793'
+              assert z.read('PPSA99793/assets/bible/webpb.tsv').count(b'\\n')>30000
+          print('Verified public release installer and offline Bible')
+          PY
+      - name: Publish immutable release ZIP
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=bible-reader-v0.1.0
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
+            echo "Release and binary already exist; preserving immutable version"
+            exit 0
+          fi
+          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.1.0" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
+          gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
