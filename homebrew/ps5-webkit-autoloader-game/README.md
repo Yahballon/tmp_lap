@@ -29,17 +29,42 @@ The workflow checks out upstream with recursive submodules, patches the launcher
 **Safety:** Do not delete `WKAL00001` or clear the existing WebKit browser cache just to test the category. The two shortcuts may share the browser cache, even though their title IDs differ.
 
 
-## Game tile background music (optional)
 
-The separate [GAME with Menu Music workflow](../../.github/workflows/build-webkit-autoloader-game-music.yml) adds PS5 home-screen selection music. It uses the soundtrack YOU supply, and does not include third-party music in this public source repository.
+## FIX: JAILBREAK ME custom icon + Game tile selection music
 
-**How to make the music installer:**
+The **only supported workflow** is [Build WebKit Autoloader GAME - Custom Icon and Music](../../.github/workflows/build-webkit-autoloader-game-music.yml). The old GAME-only workflow was removed because its successful artifacts had the original icon and no audio.
 
-1. Supply your MP3 as `homebrew/ps5-webkit-autoloader-game/soundtrack.mp3` in GitHub **only if you have permission to publish/distribute it**. Committing the file automatically starts the music workflow. Alternatively, run the workflow manually with an HTTPS `soundtrack_url` you control.
-2. The workflow uses the open-source [PS5 AT9 Converter](https://github.com/blackbearreloaded/ps5-at9-converter) v0.1.0 to encode the first **60 seconds** at 192 kbit/s as looping, loudness-normalized `snd0.at9` (maximum 2 MiB).
-3. The native v0.4.0 installer is patched to embed and install `/user/app/WKAG00001/sce_sys/snd0.at9` alongside its existing `param.json` and `icon0.png`, with `pubtools.loudnessSnd0` in the app metadata.
-4. Download the `PS5-WebKit-Autoloader-GAME-with-Music-v0.4.0` GitHub Actions artifact. Use the `webkit-autoloader-GAME-MUSIC-installer_v0.4.0.elf` via your existing ELF loader, then reboot and select the GAME tile.
+### Required files
 
-The existing Media launcher `WKAL00001` is untouched. This only changes selection music when the GAME tile is **highlighted**, not audio inside the WebKit exploit app itself. PS5 **Home Screen Music** must be enabled.
+- \`homebrew/ps5-webkit-autoloader-game/icon.png\` — the user-provided **JAILBREAK ME** image, exactly 512 x 512 PNG.
+- \`homebrew/ps5-webkit-autoloader-game/soundtrack.mp3\` — user-provided source music (already uploaded; only publish if licensed).
 
-**Hardware status:** The GAME-category browser deeplink and selection-music combination still needs an on-console test; a successful build alone does not guarantee playback on all firmwares.
+**Important:** The CI workflow deliberately fails when icon.png is absent so it cannot silently build an installer with the old logo. Upload the file with the exact name above before starting the workflow. An upload of icon.png automatically starts the music+icon workflow.
+
+The workflow generates a 60-second, 192 kb/s, looped ATRAC9 \`snd0.at9\`, patching \`pubtools.loudnessSnd0\`, and builds a PS5 installer that embeds both the custom PNG and soundtrack. The upstream \`tools/gen_icons.py\` is patched to respect the custom icon **after** its normal icon generation, otherwise it would regenerate the old default PNG.
+
+### Fixes for Game tile presentation
+
+The installer uses the test ID \`WKAG00001\`, **not** the Media launcher ID \`WKAL00001\`. It writes the icon and song to all needed locations:
+
+\`\`\`text
+/user/app/WKAG00001/icon0.png
+/user/app/WKAG00001/sce_sys/icon0.png
+/user/app/WKAG00001/sce_sys/snd0.at9
+/user/app/WKAG00001/sce_sys/param.json
+/user/appmeta/WKAG00001/icon0.png
+/user/appmeta/WKAG00001/snd0.at9
+/user/appmeta/WKAG00001/param.json
+\`\`\`
+
+It then updates only the \`WKAG00001\` row in the PS5 app database to point \`tbl_contentinfo.snd0info\` to \`/user/appmeta/WKAG00001/snd0.at9\`. It accepts the existing-install restoration status and logs explicit asset staging and DB registration results. It **does not** uninstall the Media app or modify other DB rows.
+
+### Build and test
+
+Download **PS5-WebKit-Autoloader-GAME-ICON-MUSIC-v0.4.0** from the successful GitHub Actions run (not an older artifact). Launch \`webkit-autoloader-GAME-ICON-MUSIC-installer_v0.4.0.elf\` via your existing PS5 ELF loader, allow caching to complete, then **fully power off and restart the PS5** to refresh the Home Screen icon/music cache. Confirm **Home Screen Music** is on in PS5 audio settings.
+
+Look for the installer logs:
+\`ICON_REGISTERED\`, \`MUSIC_FILE_REGISTERED\`, \`MUSIC_DB_REGISTER title=WKAG00001 rows=1\`, \`GAME_INSTALL_DONE\`.
+If the database update is blocked or \`rows=0\`, upload the logs instead of deleting system databases. Do not edit app.db manually or delete the working Media launcher.
+
+The selected-tile audio for a Game-category browser deeplink remains a **hardware test**, even after correct file/DB registration. This is not a native \`eboot.bin\` game. If it is still silent after the fixes, we need PS5-side logs.
