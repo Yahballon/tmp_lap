@@ -83,6 +83,6 @@ assert "Yahballon/tmp_lap/releases" in feed
 assert "ps5-dreamcastx-v" in feed
 icon=(src/"sce_sys/icon0.png").read_bytes()
 source=(root/"build/icon0.png").read_bytes()
-assert len(icon)>1000 and icon.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+assert len(icon)>1000 and icon.startswith(bytes.fromhex("89504e470d0a1a0a"))
 assert hashlib.sha256(icon).digest()==hashlib.sha256(source).digest(), "PS5 launcher icon does not match generated neon icon"
 print(f"PASS: DreamXcast v{version} menu/version, exact neon launcher icon, storage and updater")
