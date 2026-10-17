@@ -106,6 +106,21 @@ replace_checked(eigen,
   '#if defined(BIBLE_ONNX_PS5)\n#define ORT_FALSE_SHARING_BYTES 32\n#elif defined(__x86_64__)\n#define ORT_FALSE_SHARING_BYTES 128',
   1)
 PY
+echo "[PROBE] Fix PS5 C++ TLS weak initialization hook in MLAS"
+python3 - <<'PY'
+from pathlib import Path
+root=Path('/tmp/piper-onnx-ps5/onnxruntime/onnxruntime/core/mlas/lib')
+pairs=[
+    (root/'mlasi.h','extern thread_local size_t ThreadedBufSize;','extern __thread size_t ThreadedBufSize;'),
+    (root/'platform.cpp','thread_local size_t ThreadedBufSize = 0;','__thread size_t ThreadedBufSize = 0;'),
+]
+for path,old,new in pairs:
+    source=path.read_text()
+    if source.count(old)!=1:
+        raise SystemExit(f'PS5 TLS patch anchor mismatch for {path}: {source.count(old)}')
+    path.write_text(source.replace(old,new,1))
+    print(f'PS5 TLS compatibility patch applied to {path.name}')
+PY
 echo "[PROBE] Scope MLAS AVX-512/VNNI helpers to CPU-specific objects"
 python3 "$source_root/homebrew/bible-reader/native_piper/patch_ps5_mlas.py" "$root/onnxruntime"
 echo "[PROBE] Build MLAS first so intrinsic portability errors fail early"
