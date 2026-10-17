@@ -64,7 +64,29 @@ jobs:
           python3 homebrew/ps5-webkit-autoloader-game/patch_background.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_icon.py upstream-wkal
           python3 homebrew/ps5-webkit-autoloader-game/patch_title.py upstream-wkal
+          cp homebrew/ps5-webkit-autoloader-game/background.png upstream-wkal/frontend/installer-page/background.png
+          python3 homebrew/ps5-webkit-autoloader-game/patch_cyber_ui.py upstream-wkal
           grep -F 'MUSIC_DB_REGISTER' upstream-wkal/src/app_installer.c
+      - name: Validate embedded browser JavaScript and installer behavior
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          import re
+          page=Path('upstream-wkal/frontend/installer-page/index.html').read_text()
+          scripts=re.findall(r'<script>(.*?)</script>',page,re.S)
+          assert len(scripts)==2, 'Expected cyber status hook and intact upstream WebKit installer logic'
+          for i,code in enumerate(scripts):
+              Path(f'/tmp/wkal-js-{i}.js').write_text(code)
+          for needed in ('/logs?pos=', '/install', '/version', 'applicationCache', '/clear-webkit-data', 'setCacheCorrupted', 'goToAutoloader', 'window.wkalCyberStage'):
+              assert needed in page, needed
+          assert '<aside class="rail"' in page and 'AUTO-INSTALL SEQUENCE' in page
+          assert 'Launch Exploit' not in page and 'Open Payloads' not in page
+          print('Original installer logic and buttonless live UI both preserved')
+          PY
+          node --check /tmp/wkal-js-0.js
+          node --check /tmp/wkal-js-1.js
       - name: Build PS5 SDK environment
         working-directory: upstream-wkal
         run: docker build --pull -t ps5-webkit-autoloader-sdk -f Dockerfile.sdk .
@@ -87,10 +109,12 @@ jobs:
           assert b'BACKGROUND_DB_REGISTER' in elf
           assert b'TITLE_DB_REGISTER' in elf
           assert b'JAILBREAK ME' in elf
+          assert b'AUTO-INSTALL SEQUENCE' in elf
+          assert Path('frontend/installer-page/background.png').read_bytes() in elf
           import json
           param=json.loads(Path('assets/param.json').read_text())
           assert param['localizedParameters']['en-US']['titleName']=='JAILBREAK ME'
           for token in (b'WKAG00001',b'/user/appmeta/%s/snd0.at9',b'/user/appmeta/%s/icon0.png',b'snd0info'):
               assert token in elf, token
-          print('PS5 ELF smoke-build PASSED: background + JAILBREAK ME title + icon/music; synthetic assets were not published')
+          print('PS5 ELF smoke-build PASSED: real cyber-pirate installer UI + background + title + icon/music; synthetic fixtures NOT published')
           PY
