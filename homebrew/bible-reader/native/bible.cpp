@@ -125,6 +125,8 @@ bool readSettings(const std::string& path,Settings& s){
    next.daily=c!=0;
   }else if(std::sscanf(row,"language=%d",&a)==1){
    if(a>=0&&a<4)next.language=a;
+  }else if(std::sscanf(row,"voice_style=%d",&a)==1){
+   if(a==0||a==1)next.voiceStyle=a;
   }else if(std::sscanf(row,"bookmark=%d,%d,%d",&d,&e,&g)==3){
    Ref r{d,e,g};
    if(d>=0&&d<66&&e>=1&&e<=150&&g>=1&&g<=180&&!bookmarked(next,r)&&next.bookmarks.size()<512)
@@ -136,8 +138,8 @@ bool readSettings(const std::string& path,Settings& s){
 bool writeSettings(const std::string& path,const Settings& s){
  const std::string temp=path+".tmp";
  FILE* f=std::fopen(temp.c_str(),"wb");if(!f)return false;
- bool ok=std::fprintf(f,"BIBLE_STATE=1\nposition=%d,%d,%d\nappearance=%d,%d,%d\nlanguage=%d\n",
- s.book,s.chapter,s.selectedVerse,s.fontSize,s.theme,s.daily?1:0,s.language)>0;
+ bool ok=std::fprintf(f,"BIBLE_STATE=1\nposition=%d,%d,%d\nappearance=%d,%d,%d\nlanguage=%d\nvoice_style=%d\n",
+ s.book,s.chapter,s.selectedVerse,s.fontSize,s.theme,s.daily?1:0,s.language,s.voiceStyle)>0;
  for(auto r:s.bookmarks)if(std::fprintf(f,"bookmark=%d,%d,%d\n",r.book,r.chapter,r.verse)<0)ok=false;
  if(std::fflush(f)!=0)ok=false;
  if(std::fclose(f)!=0)ok=false;

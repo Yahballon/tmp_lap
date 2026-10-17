@@ -1,8 +1,10 @@
-# Bible Reader v0.1.5 - Offline voice fix + PS5 diagnostics
+# Bible Reader v0.1.6 - German Piper Neural HD Preview
 
-- Fix `Voice unavailable`: resolve offline eSpeak NG voices using their language codes and real profile IDs.
-- Confirm phoneme assets, dictionaries and selected language profiles exist before initializing speech.
-- Persistent TTS diagnostic log: `/data/BibleReader/bible-reader.log` (rotates at 1 MiB).
-- Log PS5 startup, voice enumeration, TTS initialization, chosen voice, SDL audio backend, and audio synthesis errors.
-- Add host integration checks for real spoken PCM in English, German, French and Spanish.
-- Keep existing karaoke highlighting, continuous playback, offline Bible translations, existing settings and Title ID.
+- New Voice style setting: Classic / Neural HD (1. Mose 1).
+- Genuine offline Piper Thorsten Medium neural speech for all 31 verses of German Genesis chapter 1.
+- Speech rendered at GitHub Actions build time using a pinned real neural model, then delivered as PCM with the install ZIP.
+- Continuous reading switches automatically to eSpeak for chapters without Neural HD previews.
+- Yellow karaoke still present with approximate word-onset alignment in preview.
+- eSpeak voice fallback for English, French, Spanish and the full Bible remains fully functional.
+- Logs neural sample usage and fallback in /data/BibleReader/bible-reader.log.
+- This preview is **not native on-console Piper ONNX synthesis**. That requires an unsupported PS5/FreeBSD ONNX runtime port and hardware validation.

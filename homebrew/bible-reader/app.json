@@ -1,11 +1,11 @@
 {
   "name": "Bible Reader",
   "slug": "bible-reader",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "titleId": "PPSA99793",
   "contentId": "UP9000-PPSA99793_00-BIBLEREADER00001",
-  "contentVersion": "01.000.006",
-  "releaseTag": "bible-reader-v0.1.5",
+  "contentVersion": "01.000.007",
+  "releaseTag": "bible-reader-v0.1.6",
   "developer": "YAHBALLON",
   "bibleTranslation": "World English Bible British Edition (WEBPB)",
   "offline": true,
@@ -16,5 +16,7 @@
     "Reina-Valera 1909"
   ],
   "ttsEngine": "eSpeak NG 1.52.0 / SDL2",
-  "ttsOffline": true
+  "ttsOffline": true,
+  "voiceEnginePreview": "Piper Thorsten Medium (German Genesis 1, pre-rendered PCM)",
+  "neuralOnDevice": false
 }

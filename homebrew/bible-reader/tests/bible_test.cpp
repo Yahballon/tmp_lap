@@ -9,13 +9,14 @@
 int main(){
  const std::string path="/tmp/bible-reader-state-fixture.txt";
  bible::Settings s;
- s.book=42;s.chapter=3;s.selectedVerse=16;s.fontSize=32;
+ s.book=42;s.chapter=3;s.selectedVerse=16;s.fontSize=32;s.voiceStyle=0;
  bible::toggle(s,{42,3,16});
  assert(bible::bookmarked(s,{42,3,16}));
  assert(bible::writeSettings(path,s));
  bible::Settings b;
  assert(bible::readSettings(path,b));
  assert(b.book==42&&b.chapter==3&&b.selectedVerse==16&&b.fontSize==32);
+ assert(b.voiceStyle==0);
  assert(b.language==0); // Backward-compatible: old preferences default to English.
  b.language=2;assert(bible::writeSettings(path,b));
  bible::Settings restored;assert(bible::readSettings(path,restored));
