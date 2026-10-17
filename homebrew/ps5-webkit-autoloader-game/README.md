@@ -36,18 +36,18 @@ The **only supported workflow** is [Build WebKit Autoloader GAME - Custom Icon a
 
 ### Required files
 
-- \`homebrew/ps5-webkit-autoloader-game/icon.png\` — the user-provided **JAILBREAK ME** image, exactly 512 x 512 PNG.
-- \`homebrew/ps5-webkit-autoloader-game/soundtrack.mp3\` — user-provided source music (already uploaded; only publish if licensed).
+- `homebrew/ps5-webkit-autoloader-game/icon.png` — the user-provided **JAILBREAK ME** image, exactly 512 x 512 PNG.
+- `homebrew/ps5-webkit-autoloader-game/soundtrack.mp3` — user-provided source music (already uploaded; only publish if licensed).
 
 **Important:** The CI workflow deliberately fails when icon.png is absent so it cannot silently build an installer with the old logo. Upload the file with the exact name above before starting the workflow. An upload of icon.png automatically starts the music+icon workflow.
 
-The workflow generates a 60-second, 192 kb/s, looped ATRAC9 \`snd0.at9\`, patching \`pubtools.loudnessSnd0\`, and builds a PS5 installer that embeds both the custom PNG and soundtrack. The upstream \`tools/gen_icons.py\` is patched to respect the custom icon **after** its normal icon generation, otherwise it would regenerate the old default PNG.
+The workflow generates a 60-second, 192 kb/s, looped ATRAC9 `snd0.at9`, patching `pubtools.loudnessSnd0`, and builds a PS5 installer that embeds both the custom PNG and soundtrack. The upstream `tools/gen_icons.py` is patched to respect the custom icon **after** its normal icon generation, otherwise it would regenerate the old default PNG.
 
 ### Fixes for Game tile presentation
 
-The installer uses the test ID \`WKAG00001\`, **not** the Media launcher ID \`WKAL00001\`. It writes the icon and song to all needed locations:
+The installer uses the test ID `WKAG00001`, **not** the Media launcher ID `WKAL00001`. It writes the icon and song to all needed locations:
 
-\`\`\`text
+```text
 /user/app/WKAG00001/icon0.png
 /user/app/WKAG00001/sce_sys/icon0.png
 /user/app/WKAG00001/sce_sys/snd0.at9
@@ -55,16 +55,16 @@ The installer uses the test ID \`WKAG00001\`, **not** the Media launcher ID \`WK
 /user/appmeta/WKAG00001/icon0.png
 /user/appmeta/WKAG00001/snd0.at9
 /user/appmeta/WKAG00001/param.json
-\`\`\`
+```
 
-It then updates only the \`WKAG00001\` row in the PS5 app database to point \`tbl_contentinfo.snd0info\` to \`/user/appmeta/WKAG00001/snd0.at9\`. It accepts the existing-install restoration status and logs explicit asset staging and DB registration results. It **does not** uninstall the Media app or modify other DB rows.
+It then updates only the `WKAG00001` row in the PS5 app database to point `tbl_contentinfo.snd0info` to `/user/appmeta/WKAG00001/snd0.at9`. It accepts the existing-install restoration status and logs explicit asset staging and DB registration results. It **does not** uninstall the Media app or modify other DB rows.
 
 ### Build and test
 
-Download **PS5-WebKit-Autoloader-GAME-ICON-MUSIC-v0.4.0** from the successful GitHub Actions run (not an older artifact). Launch \`webkit-autoloader-GAME-ICON-MUSIC-installer_v0.4.0.elf\` via your existing PS5 ELF loader, allow caching to complete, then **fully power off and restart the PS5** to refresh the Home Screen icon/music cache. Confirm **Home Screen Music** is on in PS5 audio settings.
+Download **PS5-WebKit-Autoloader-GAME-ICON-MUSIC-v0.4.0** from the successful GitHub Actions run (not an older artifact). Launch `webkit-autoloader-GAME-ICON-MUSIC-installer_v0.4.0.elf` via your existing PS5 ELF loader, allow caching to complete, then **fully power off and restart the PS5** to refresh the Home Screen icon/music cache. Confirm **Home Screen Music** is on in PS5 audio settings.
 
 Look for the installer logs:
-\`ICON_REGISTERED\`, \`MUSIC_FILE_REGISTERED\`, \`MUSIC_DB_REGISTER title=WKAG00001 rows=1\`, \`GAME_INSTALL_DONE\`.
-If the database update is blocked or \`rows=0\`, upload the logs instead of deleting system databases. Do not edit app.db manually or delete the working Media launcher.
+`ICON_REGISTERED`, `MUSIC_FILE_REGISTERED`, `MUSIC_DB_REGISTER title=WKAG00001 rows=1`, `GAME_INSTALL_DONE`.
+If the database update is blocked or `rows=0`, upload the logs instead of deleting system databases. Do not edit app.db manually or delete the working Media launcher.
 
-The selected-tile audio for a Game-category browser deeplink remains a **hardware test**, even after correct file/DB registration. This is not a native \`eboot.bin\` game. If it is still silent after the fixes, we need PS5-side logs.
+The selected-tile audio for a Game-category browser deeplink remains a **hardware test**, even after correct file/DB registration. This is not a native `eboot.bin` game. If it is still silent after the fixes, we need PS5-side logs.
