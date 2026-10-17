@@ -20,7 +20,7 @@ assert exe.is_file() and exe.stat().st_size>100000
 assert exe.read_bytes()[:4]==struct.pack("<I",0x1D3D154F), "Not a signed SELF executable"
 meta=json.loads((root/"sce_sys/param.json").read_text())
 assert meta["titleId"]=="PPSA99765"
-assert meta["localizedParameters"]["en-US"]["titleName"]=="PS5DreamcastX"
+assert meta["localizedParameters"]["en-US"]["titleName"]=="DreamXcast"
 for p in ("sce_sys/icon0.png","sce_module/libc.prx","LEGAL.txt"):
     assert (root/p).is_file(),p
 out=Path("dist/PPSA99765.zip")

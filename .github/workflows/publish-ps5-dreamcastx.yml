@@ -104,7 +104,7 @@ jobs:
           # Source snapshot reproduces the native build's PS5DreamcastX tree,
           # based on last successfully released tag. This skips unrelated
           # PS5MesenX workflow-file history that GITHUB_TOKEN may not tag.
-          RELEASE_SOURCE_SHA: 068b2e6313ba859909af90a88c3c7dc99033df6e
+          RELEASE_SOURCE_SHA: b33de3990b8a8a8518836667919343d377556039
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Git tag $TAG exists."
@@ -121,7 +121,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.build.outputs.tag }}
-          RELEASE_SOURCE_SHA: 068b2e6313ba859909af90a88c3c7dc99033df6e
+          RELEASE_SOURCE_SHA: b33de3990b8a8a8518836667919343d377556039
         working-directory: homebrew/ps5-dreamcastx
         run: |
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
@@ -131,5 +131,5 @@ jobs:
           gh release create "$TAG" dist/PPSA99765.zip \
             --repo "${{ github.repository }}" \
             --target "$RELEASE_SOURCE_SHA" \
-            --title "PS5DreamcastX v${{ steps.build.outputs.version }}" \
+            --title "DreamXcast v${{ steps.build.outputs.version }}" \
             --notes-file RELEASE_NOTES.md

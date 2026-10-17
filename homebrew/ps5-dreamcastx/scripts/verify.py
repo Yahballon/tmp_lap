@@ -8,10 +8,14 @@ assert src.is_dir(), "Flycast source has not been prepared"
 ui=(src/"bigpicture.cpp").read_text()
 assert ui.count('drawDreamcastXShelf(dl, focused, selectDisk);')==1
 assert ui.count('#include "dreamcastx_shelf.inc"')==1
+assert 'col::text, "DreamXcast");' in ui
+assert 'col::dim, "by YAHBALLON  v0.2.1");' in ui
+assert 'W - 48 - vs.x' not in ui
+assert 'static const char name[] = "DreamXcast";' in ui
 assert 'void drawDreamcastXShelf(' in (src/"dreamcastx_shelf.inc").read_text()
 meta=json.loads((src/"sce_sys/param.json").read_text())
 assert meta["titleId"]=="PPSA99765"
-assert meta["localizedParameters"]["en-US"]["titleName"]=="PS5DreamcastX"
+assert meta["localizedParameters"]["en-US"]["titleName"]=="DreamXcast"
 assert "title=PS5DreamcastX" in (src/"build.sh").read_text()
 assert "/data/homebrew/PS5DreamcastX/" in (src/"ps5_main.cpp").read_text()
 assert 'candidates.push_back("/data/homebrew/PS5DreamcastX");' in (src/"ps5_main.cpp").read_text()
@@ -59,7 +63,7 @@ assert "imageFill(dl,image,art.x,art.y,art.w,art.h" in shelf
 for forbidden in ("AddImageQuad(", "AddQuadFilled(", "PrimReserve(", "dreamcastXReflection(", "softDisc("):
     assert forbidden not in shelf, "Unsafe PS5 renderer reintroduced: "+forbidden
 assert "ps5-dreamcastx-v" in (src/"ps5_update.cpp").read_text()
-assert "PS5_VERSION \"0.2.0\"" in (src/"ps5_build.h").read_text()
+assert "PS5_VERSION \"0.2.1\"" in (src/"ps5_build.h").read_text()
 async_ui=(root/"build/flycast/core/ui/gui_util.cpp").read_text()
 assert '#include "dreamcastx_cover_async.inc"' in async_ui
 assert 'dreamcastx_cover_async::texture(path,nearestSampling,textureLoadCount)' in async_ui
@@ -73,4 +77,4 @@ feed=(src/"ps5_update.cpp").read_text()
 assert "Yahballon/tmp_lap/releases" in feed
 assert "ps5-dreamcastx-v" in feed
 assert (src/"sce_sys/icon0.png").stat().st_size>1000
-print("PASS: PS5DreamcastX core integration, title, paths, branding, safe release filter")
+print("PASS: DreamXcast v0.2.1 menu/version, launcher branding, legacy storage and updater")

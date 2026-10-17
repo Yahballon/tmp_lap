@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory() as temp:
     app = {
         "titleId": "PPSA99765",
         "installFolder": "PS5DreamcastX",
-        "name": "PS5DreamcastX",
+        "name": "DreamXcast",
     }
     manifest = tmp / "app.json"
     manifest.write_text(json.dumps(app))
@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory() as temp:
         with ZipFile(package, "w", ZIP_DEFLATED) as z:
             z.writestr(prefix + "eboot.bin", struct.pack("<I", 0x1D3D154F) + os.urandom(125_000))
             z.writestr(prefix + "sce_sys/param.json", json.dumps({
-                "titleId": "PPSA99765", "localizedParameters": {"en-US": {"titleName": "PS5DreamcastX"}}
+                "titleId": "PPSA99765", "localizedParameters": {"en-US": {"titleName": "DreamXcast"}}
             }))
             z.writestr(prefix + "sce_sys/icon0.png", b"\x89PNG\r\n\x1a\n")
             z.writestr(prefix + "sce_module/libc.prx", b"prx")

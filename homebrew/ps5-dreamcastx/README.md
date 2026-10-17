@@ -1,8 +1,8 @@
-# PS5DreamcastX
+# DreamXcast
 
 **Native Dreamcast emulation on PS5 with white DVD-style CoverFlow cases, angled neighbours and subtle reflections.**
 
-Version **0.1.9** · Title ID **PPSA99765** · **by YAHBALLON**.
+Version **0.2.1** · Title ID **PPSA99765** · **by YAHBALLON**.
 
 The application integrates the *native* PS5 Flycast platform port from
 [PSFlycast](https://github.com/Press5elect/PSFlycast), pinned at
@@ -24,7 +24,7 @@ then compiles and verifies the real signed PS5 application.
 
 On a successful **main push**, the build workflow uploads the verified
 `PPSA99765.zip` as an artifact. The independent release publisher uploads
-it to the `ps5-dreamcastx-v0.1.9` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
+it to the `ps5-dreamcastx-v0.2.1` tag. PR builds create only test artifacts. Releases are never created after a failing native build.
 No ROM, BIOS or firmware is supplied. A source-only ZIP is **not** installable.
 
 Run locally from the app directory (requires clang 18, CMake/Ninja, PS5 stack):
@@ -195,3 +195,14 @@ Settings are saved automatically to `/data/PS5DreamcastX/network.cfg`
 with mode 0600. Password is masked. Restart the app after editing SMB
 settings so that new credentials are used safely (never swap active SMB
 credentials while the background scanner or a game is running).
+
+### v0.2.1: DreamXcast branding
+
+The app is now displayed as **DreamXcast** in the native game menu, splash,
+PS5 launcher, about/update screens and app icon. The main menu reads
+**by YAHBALLON  v0.2.1** under DreamXcast; no duplicated version under the clock.
+
+Internal identity remains `PPSA99765` and the install folder is still
+`/data/homebrew/PS5DreamcastX/`. Games, VMU, BIOS, artwork and settings stay
+in `/data/PS5DreamcastX/` and work without manual migration. The GitHub
+release tag prefix stays `ps5-dreamcastx-` to preserve auto-update support.
