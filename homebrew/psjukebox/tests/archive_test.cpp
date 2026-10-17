@@ -14,6 +14,9 @@ int main(int argc,char** argv){
  std::string metadataError,embedded=jukebox::album_artist_marker(argv[1],metadataError);
  assert(embedded=="Tupac");
  assert(metadataError.empty());
+ // Root archives without a marker are eligible for Unsorted Albums.
+ // Existing explicit markers still override the default.
+ assert(embedded=="Tupac");
  assert(jukebox::album_stem("jbox://8/Tupac/Demo.album")=="Demo");
  std::string root,error;
  assert(jukebox::unpack_album(argv[1],"Tupac","Killuminati","jbox://8/Tupac/Demo.album",

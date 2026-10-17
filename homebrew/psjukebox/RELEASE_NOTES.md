@@ -1,11 +1,10 @@
-# PSJukebox v0.1.6 (TESTBUILD)
+# PSJukebox v0.1.7 — Music-root .album recognition fix
 
-- Drop `.album` ZIPs directly in Music/ with internal empty `Tupac.artist` (or `<Artist>.artist`) marker. No manual artist folders needed.
-- Keep Music/Artist/*.album and Music/Artist/Album/ folders fully supported.
-- PS5 read-only USB helper can now enumerate Music-root .album files.
-- Album-cover **Down** opens the track list directly; X starts playback as before.
-- Native SMB2/3 read-only share support via `/data/PSJukebox/smb.ini` (server, share, optional path, username, password, domain).
-- Browse NAS/Windows artist folders, stream artwork/track files into the local player cache on demand, and import packed .album packages from SMB.
-- Preserve existing artist themes, Favorites, coverflow, FFmpeg decoding and other controller mappings.
+- Fix helper-version mismatch across PSJukebox upgrades: unique port 9189 + JBOX2 version handshake ensures the app cannot accidentally reuse the v0.1.5-era helper that ignores Music-root albums.
+- Log discovery, archive transfer, extraction, success and failure immediately, so errors are observable even during large scans.
+- If `Music/name.album` lacks an `ArtistName.artist` marker, import it under **Unsorted Albums** rather than silently dropping it. A valid internal `.artist` still sorts it into the correct artist.
+- Reject malformed, encrypted and oversized archives with descriptive log entries; continue scanning other music.
+- Preserve normal artist folders, Favorites, SMB sources and DualSense coverflow / tracklist controls.
+- Regression tests validate new USB catalog handshake and root archive discovery.
 
-Limitations: SMB requires network access/permissions; one configured share; disk cache for audio and archive extraction; password stored in plaintext in user-managed smb.ini. Tested by CI host compilation/native PS5 package checks, not yet hardware-verified.
+Hardware validation is still required; especially confirm updated elfldr launches the new read-only helper on port 9189.
