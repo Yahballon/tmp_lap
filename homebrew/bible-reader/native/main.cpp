@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.5 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.6 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -73,7 +73,7 @@ const bible_i18n::Key tabKeys[]={
 }
 int main(){
  mkdir("/data/BibleReader",0755);
- bible_log::write("BOOT","Bible Reader v0.1.5 title=PPSA99793 log=%s",bible_log::path);
+ bible_log::write("BOOT","Bible Reader v0.1.6 title=PPSA99793 log=%s",bible_log::path);
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;
@@ -163,7 +163,7 @@ int main(){
     else if(page==Page::chapters&&loaded)chapterSelection=std::min(library.chapterCount(bookSelection),chapterSelection+6);
     else if(page==Page::results)listScroll=std::min((int)hits.size()-1,listScroll+1);
     else if(page==Page::bookmarks)listScroll=std::min((int)settings.bookmarks.size()-1,listScroll+1);
-    else if(page==Page::settings)listScroll=std::min(4,listScroll+1);
+    else if(page==Page::settings)listScroll=std::min(5,listScroll+1);
     else if(page==Page::search)nav=std::min((int)bible_i18n::searchKeys(settings.language).size()-1,nav+8);
    }
    if(pressed&hui::pad_bits::kSquare){
@@ -184,7 +184,7 @@ int main(){
      const auto& vv=library.chapter(settings.book,settings.chapter);
      if(selected>=0&&selected<(int)vv.size()){
       settings.selectedVerse=vv[(size_t)selected].number;save();
-      voice.start(library,{settings.book,settings.chapter,settings.selectedVerse},settings.language);
+      voice.start(library,{settings.book,settings.chapter,settings.selectedVerse},settings.language,settings.voiceStyle==1);
       notice=std::string(bible_i18n::label(settings.language,bible_i18n::Key::reading))+name({settings.book,settings.chapter,settings.selectedVerse},settings.language);
      }
     }else if(page==Page::books){chapterSelection=1;page=Page::chapters;}
@@ -214,7 +214,8 @@ int main(){
      if(listScroll==1)settings.fontSize=settings.fontSize>=38?22:settings.fontSize+2;
      if(listScroll==2)settings.daily=!settings.daily;
      if(listScroll==3)settings.theme=1-settings.theme;
-     if(listScroll==4){page=Page::read;focusedSidebar=true;}
+     if(listScroll==4)settings.voiceStyle=1-settings.voiceStyle;
+     if(listScroll==5){page=Page::read;focusedSidebar=true;}
      save();
     }else if(page==Page::search){
      const auto keys=bible_i18n::searchKeys(settings.language);
@@ -259,7 +260,7 @@ int main(){
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   const std::string maker="by Y A H B A L L O N";
   text(d,font,atlas,maker,307,148,20,gold);
-  text(d,font,atlas,"v0.1.5",307+font.measure(maker,20.f)+34.f,148,19,subdued);
+  text(d,font,atlas,"v0.1.6",307+font.measure(maker,20.f)+34.f,148,19,subdued);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;
@@ -368,7 +369,7 @@ int main(){
    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::changeChapter),cx+43,952,17,subdued);
    if(spoken.active){
     d.rounded_rect({cx+cw-335,930,286,29},7,Color::rgb(0x2c391c));
-    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::ttsStop),cx+cw-322,951,18,Color::rgb(0xffdc27));
+    text(d,font,atlas,spoken.neural?"NEURAL HD - O STOP":bible_i18n::label(settings.language,bible_i18n::Key::ttsStop),cx+cw-322,951,18,Color::rgb(0xffdc27));
    }else if(!spoken.error.empty())
     text(d,font,atlas,font.fit(spoken.error,16,355),cx+cw-401,951,16,gold);
   }else if(!loaded){
@@ -424,14 +425,15 @@ int main(){
    const bible_i18n::Key labels[]={
     bible_i18n::Key::language,bible_i18n::Key::fontSize,
     bible_i18n::Key::dailyPanel,bible_i18n::Key::colourTheme,
-    bible_i18n::Key::returnReading
+    bible_i18n::Key::voiceStyle,bible_i18n::Key::returnReading
    };
    const std::string vals[]={bible_i18n::languageName(settings.language),
     std::to_string(settings.fontSize),
     bible_i18n::label(settings.language,settings.daily?bible_i18n::Key::on:bible_i18n::Key::off),
-    bible_i18n::label(settings.language,settings.theme?bible_i18n::Key::slate:bible_i18n::Key::midnight),""};
-   for(int i=0;i<5;i++){
-    const float y=387+i*101;
+    bible_i18n::label(settings.language,settings.theme?bible_i18n::Key::slate:bible_i18n::Key::midnight),
+    bible_i18n::label(settings.language,settings.voiceStyle?bible_i18n::Key::neuralPreview:bible_i18n::Key::classicVoice),""};
+   for(int i=0;i<6;i++){
+    const float y=379+i*90;
     if(i==listScroll)panel(d,cx+35,y-54,cw-70,80,true);
     text(d,font,atlas,font.fit(bible_i18n::label(settings.language,labels[i]),24,cw*0.57f),cx+70,y,24,white);
     text(d,font,atlas,font.fit(vals[i],23,cw*0.36f),cx+cw-80,y,23,gold,Align::right);

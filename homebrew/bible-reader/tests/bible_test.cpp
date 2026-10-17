@@ -2,6 +2,7 @@
 #include "../native/bible.hpp"
 #include "../native/reader_layout.hpp"
 #include "../native/localization.hpp"
+#include "../native/tts_reader.hpp"
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -9,13 +10,14 @@
 int main(){
  const std::string path="/tmp/bible-reader-state-fixture.txt";
  bible::Settings s;
- s.book=42;s.chapter=3;s.selectedVerse=16;s.fontSize=32;
+ s.book=42;s.chapter=3;s.selectedVerse=16;s.fontSize=32;s.voiceStyle=0;
  bible::toggle(s,{42,3,16});
  assert(bible::bookmarked(s,{42,3,16}));
  assert(bible::writeSettings(path,s));
  bible::Settings b;
  assert(bible::readSettings(path,b));
  assert(b.book==42&&b.chapter==3&&b.selectedVerse==16&&b.fontSize==32);
+ assert(b.voiceStyle==0);
  assert(b.language==0); // Backward-compatible: old preferences default to English.
  b.language=2;assert(bible::writeSettings(path,b));
  bible::Settings restored;assert(bible::readSettings(path,restored));
@@ -50,5 +52,10 @@ int main(){
  assert(expanded.verseTextWidth==1219.f);
  assert(expanded.verseTextWidth>compact.verseTextWidth);
  assert(expanded.readerX>431.f); // No overlap with sidebar.
+ assert(bible_tts::neuralPreviewFilename(1,{0,1,1})=="neural/de/genesis1/1.pcm");
+ assert(bible_tts::neuralPreviewFilename(1,{0,1,31})=="neural/de/genesis1/31.pcm");
+ assert(bible_tts::neuralPreviewFilename(1,{0,1,32}).empty());
+ assert(bible_tts::neuralPreviewFilename(0,{0,1,1}).empty());
+ assert(bible_tts::neuralPreviewFilename(1,{0,2,1}).empty());
  std::puts("Bible Reader host tests passed");
 }

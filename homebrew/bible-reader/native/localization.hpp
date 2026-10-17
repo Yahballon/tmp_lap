@@ -11,7 +11,7 @@ enum class Key:int {
  savedVerses, matches, noMatches, noBookmarks, fontSize, dailyPanel,
  colourTheme, language, returnReading, midnight, slate, on, off,
  changeChapter, searchHelp, dailyVerse, offlineMissing, reinstall,
- exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version, controls, ttsStop
+ exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version, controls, ttsStop, voiceStyle, neuralPreview, classicVoice
 };
 constexpr int kLangCount=4;
 inline int language(int n){return n>=0&&n<kLangCount?n:0;}
@@ -71,7 +71,10 @@ inline const char* label(int lang,Key key){
    "X Wählen   O Zurück   SQUARE Merken   TRIANGLE Suche   L1/R1 Kapitel   OPTIONS Einstellungen   L2 Tagesvers",
    "X Choisir   O Retour   SQUARE Favoris   TRIANGLE Recherche   L1/R1 Chapitre   OPTIONS Paramètres   L2 Verset du jour",
    "X Elegir   O Atrás   SQUARE Marcador   TRIANGLE Buscar   L1/R1 Capítulo   OPTIONS Ajustes   L2 Versículo diario"},
-  {"READING   O STOP","VORLESEN   O STOP","LECTURE   O ARRÊTER","LEYENDO   O PARAR"}
+  {"READING   O STOP","VORLESEN   O STOP","LECTURE   O ARRÊTER","LEYENDO   O PARAR"},
+  {"Voice style","Stimmqualität","Style de voix","Estilo de voz"},
+  {"Neural HD (DE Gen 1)","Neural HD (1. Mose 1)","Neural HD (DE Gen 1)","Neural HD (DE Gén 1)"},
+  {"Classic","Klassisch","Classique","Clásica"}
  };
  const int i=(int)key;
  return i>=0&&i<(int)(sizeof(entries)/sizeof(entries[0]))?entries[i][language(lang)]:"";
