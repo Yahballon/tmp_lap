@@ -280,6 +280,11 @@ CatalogResult scan(){
    continue;
   }
   if(p.size()==2){
+   const std::string low=lower(p[1]);
+   if(low.size()>6&&low.substr(low.size()-6)==".album"&&entry.size>=22&&entry.size<=1024ULL*1024*1024){
+    result.archives.push_back({p[0],virtual_path(entry.root,entry.relative),entry.size});
+    continue;
+   }
    if(jukebox::is_music(p[1])&&entry.size>=1024){
     const size_t index=album_index("Singles");
     if(index>=artist.albums.size()||artist.albums[index].tracks.size()>=400)continue;
@@ -353,8 +358,11 @@ CatalogResult scan(){
 bool stage_track(const std::string& path,uint64_t expected,std::atomic<bool>& cancelled,
                  std::string& local,std::string& error,std::atomic<uint64_t>* copied){
  local.clear();if(copied)copied->store(0);unsigned root;std::string rel;
- if(!remote_parts(path,root,rel)||expected<1024||expected>kMaxAudio||
-    !jukebox::is_music(rel)){error="Invalid remote audio reference";return false;}
+ if(!remote_parts(path,root,rel)){error="Invalid remote file path";return false;}
+ const std::string low=lower(rel);
+ const bool archived=low.size()>6&&low.substr(low.size()-6)==".album";
+ if(expected<(archived?22:1024)||expected>(archived?1024ULL*1024*1024:kMaxAudio)||
+    (!archived&&!jukebox::is_music(rel))){error="Invalid remote audio/archive reference";return false;}
  const std::string base=JUKEBOX_DATA_ROOT,cache=base+"/Cache";
  mkdir(base.c_str(),0755);mkdir(cache.c_str(),0755);
  char hash[32];std::snprintf(hash,sizeof(hash),"%016llx",(unsigned long long)hash_path(path));

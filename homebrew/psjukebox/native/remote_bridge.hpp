@@ -8,6 +8,7 @@
 namespace jbx {
 struct CatalogResult {
  jukebox::Library library;
+ std::vector<jukebox::PackedAlbum> archives;
  bool helperRunning=false;
  std::string status;
 };
