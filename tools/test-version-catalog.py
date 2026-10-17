@@ -27,6 +27,7 @@ releases=[release('starbound-rebased','0.1.19','PPSA99642'),
           release('audiobook-reader','0.1.0','PPSA99784'),
           release('audiobook-reader','0.2.0','PPSA99784'),
           release('ps5-system-info','0.1.0','PPSA99786'),
+          release('bible-reader','0.1.0','PPSA99793'),
           release('ps5-dreamcastx','0.1.0','PPSA99765')]
 with tempfile.TemporaryDirectory() as tmp:
     root=Path(tmp)
@@ -36,6 +37,9 @@ with tempfile.TemporaryDirectory() as tmp:
     audio=root/'homebrew/audiobook-reader'
     audio.mkdir(parents=True)
     (audio/'app.json').write_text(json.dumps({'titleId':'PPSA99784','name':'Audiobook Reader','slug':'audiobook-reader'}))
+    bible=root/'homebrew/bible-reader'
+    bible.mkdir(parents=True)
+    (bible/'app.json').write_text(json.dumps({'titleId':'PPSA99793','name':'Bible Reader','slug':'bible-reader'}))
     info=root/'homebrew/ps5-system-info'
     info.mkdir(parents=True)
     (info/'app.json').write_text(json.dumps({'titleId':'PPSA99786','name':'PS5 System Info','slug':'ps5-system-info'}))
@@ -47,7 +51,7 @@ with tempfile.TemporaryDirectory() as tmp:
         catalog.main()
         result=json.loads((root/'version.json').read_text())
         selected={entry['title_id']:entry['version'] for entry in result['apps']}
-        assert selected=={'PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0'},selected
+        assert selected=={'PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0'},selected
         # A raw.githubusercontent.com artifact does not have a GitHub
         # Release; it must not silently replace a compatible console entry.
         fallback=root/'testbuilds/ps5-dreamcastx.json'
@@ -71,4 +75,4 @@ with tempfile.TemporaryDirectory() as tmp:
         before=(root/'version.json').read_bytes()
         catalog.main()
         assert (root/'version.json').read_bytes()==before
-print('PASS: Audiobook Reader, System Info and PS5DreamcastX included; newest semantic versions selected; prerelease filtering and deterministic output verified')
+print('PASS: Audiobook Reader, System Info, Bible Reader and PS5DreamcastX included; newest semantic versions selected; prerelease filtering and deterministic output verified')

@@ -1,0 +1,147 @@
+name: Build Bible Reader for PS5
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/bible-reader/**'
+      - '.github/workflows/build-bible-reader.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/bible-reader/**'
+      - '.github/workflows/build-bible-reader.yml'
+permissions:
+  contents: read
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++
+      - name: Test host-side Bible engine
+        run: |
+          python3 -m unittest discover -s homebrew/bible-reader/tests -p 'test_*.py' -v
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/bible-reader/native/bible.cpp homebrew/bible-reader/tests/bible_test.cpp -o /tmp/bible-reader-test
+          /tmp/bible-reader-test
+      - name: Prepare complete offline public-domain Bible
+        run: |
+          mkdir -p /tmp/bible-assets
+          python3 homebrew/bible-reader/tools/prepare_bible.py /tmp/bible-assets/webpb.tsv
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('/tmp/bible-assets/webpb.tsv')
+          lines=[line for line in path.read_text(encoding='utf-8').splitlines() if not line.startswith('#')]
+          assert 30000<len(lines)<40000
+          assert lines[0].startswith('0\t1\t1\t')
+          assert lines[-1].startswith('65\t22\t21\t')
+          print(len(lines),'verses validated and bundled for offline use')
+          PY
+      - name: Prepare native framework
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/bible-reader/native/*.cpp homebrew/bible-reader/native/*.hpp app/src/
+          mkdir -p app/assets/bible
+          cp /tmp/bible-assets/webpb.tsv app/assets/bible/webpb.tsv
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('app/sce_sys/param.json')
+          d=json.loads(p.read_text())
+          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.001')
+          d['localizedParameters']['en-US']['titleName']='Bible Reader'
+          p.write_text(json.dumps(d,indent=2)+'\n')
+          PY
+          python3 homebrew/bible-reader/assets/generate_icon.py app/sce_sys/icon0.png
+          cp app/sce_sys/icon0.png app/assets/icon0.png
+      - name: Prepare PS5 OpenGL SDK
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+        run: bash tools/prepare-opengl.sh
+      - name: Prepare POSIX compatibility symbols
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Compile native PS5 executable
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify installation ZIP and offline corpus
+        run: |
+          python3 - <<'PY'
+          import pathlib,json,zipfile,struct
+          root=pathlib.Path('app/dist/PPSA99793')
+          exe=(root/'eboot.bin').read_bytes()
+          assert len(exe)>1000
+          assert struct.unpack('<I',exe[:4])[0]==0x1d3d154f
+          meta=json.loads((root/'sce_sys/param.json').read_text())
+          assert meta['titleId']=='PPSA99793'
+          assert meta['contentId']=='UP9000-PPSA99793_00-BIBLEREADER00001'
+          assert meta['contentVersion']=='01.000.001'
+          with zipfile.ZipFile('app/dist/PPSA99793.zip') as archive:
+              assert archive.testzip() is None
+              paths=set(archive.namelist())
+              for path in ('eboot.bin','sce_sys/param.json','sce_sys/icon0.png',
+                           'sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/bible/webpb.tsv'):
+                  assert 'PPSA99793/'+path in paths,path
+              verse_data=archive.read('PPSA99793/assets/bible/webpb.tsv')
+              assert len(verse_data)>1000000
+              assert verse_data.count(b'\n')>30000
+          print('PS5 native ZIP and complete offline Bible verified')
+          PY
+      - name: Upload testbuild
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bible-Reader-v0.1.0-PPSA99793
+          path: app/dist/PPSA99793.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish verified Bible Reader TESTBUILD
+    needs: [ps5]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bible-Reader-v0.1.0-PPSA99793
+          path: release
+      - name: Verify downloaded release ZIP
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, struct, zipfile
+          f=pathlib.Path('release/PPSA99793.zip')
+          assert f.is_file() and f.stat().st_size>1_000_000
+          with zipfile.ZipFile(f) as z:
+              assert z.testzip() is None
+              assert 'PPSA99793/eboot.bin' in z.namelist()
+              assert struct.unpack('<I',z.read('PPSA99793/eboot.bin')[:4])[0]==0x1d3d154f
+              assert json.loads(z.read('PPSA99793/sce_sys/param.json'))['titleId']=='PPSA99793'
+              assert z.read('PPSA99793/assets/bible/webpb.tsv').count(b'\n')>30000
+          print('Verified public release installer and offline Bible')
+          PY
+      - name: Publish immutable release ZIP
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=bible-reader-v0.1.0
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
+            echo "Release and binary already exist; preserving immutable version"
+            exit 0
+          fi
+          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.1.0" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
+          gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
