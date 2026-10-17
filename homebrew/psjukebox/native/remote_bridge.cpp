@@ -250,6 +250,14 @@ CatalogResult scan(){
  for(const auto& entry:files){
   const auto p=segments(entry.relative);
   if(p.empty()||p.size()>3)continue;
+  // A root archive has no artist folder: read its <Artist>.artist marker
+  // once staged, before inserting it into the library.
+  if(p.size()==1&&entry.size>=22&&entry.size<=1024ULL*1024*1024){
+   const auto filename=lower(p[0]);
+   if(filename.size()>6&&filename.substr(filename.size()-6)==".album")
+    result.archives.push_back({"",virtual_path(entry.root,entry.relative),entry.size});
+   continue;
+  }
   const std::string key=std::to_string(entry.root)+":"+lower(p[0]);
   size_t a=0;auto it=artistIndices.find(key);
   if(it==artistIndices.end()){
