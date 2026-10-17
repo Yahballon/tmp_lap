@@ -87,3 +87,15 @@ The helper is included inside the installable PSJukebox ZIP. No separate compute
 - Both DualSense sticks and D-pad navigate covers. D-pad L1/R1 cycles artists. The selected album always stays centered while neighboring covers rotate around it and wrap at the ends.
 - Footer uses geometrically drawn, colored PlayStation-style input symbols; removed the `Multi Album Player` subtitle from the header.
 - Rebuilt release `psjukebox-v0.1.2` is auto-discovered by TESTBUILDS `version.json` after the main workflow passes.
+
+## v0.1.3 — Cinematic interface and persistent Favorites
+
+Screenshot-inspired full-window album UI with five working tabs: All Albums, Artists, Tracks, Playlists (the current album's playable queue), and Favorites. The USB tab is removed. Artist-defined `logo.png`, `background.jpg/png` and album covers remain the only art sources; the install ZIP does not bundle commercial cover art.
+
+The selected album stays centered in the 5-jacket carousel. When a song plays, a mini-player with live song/album details, elapsed/total time and progress appears below it. The PS5 clock is shown at top-right when available.
+
+**Controller:** L1/R1 switches artists in All Albums. Left stick, right stick, or D-pad Left/Right changes albums. Press **Up** in All Albums to focus the five header tabs, then Left/Right and X to activate. Alternatively L2/R2 cycles tabs while browsing. X starts the selected album; while playing it toggles pause. Triangle marks/unmarks the selected or playing song. In Favorites, Up/Down selects a saved song, X plays it, Triangle removes it. Square opens Settings (including Rescan); Circle returns.
+
+Favorites are stored under **`/data/PSJukebox/favorites.json`** and persist across restarts. Entries use root-independent `Artist/Album/Song` identities, so moving a USB stick between mount indexes does not discard favorites. Changes are saved with a temporary file + atomic rename; a save failure is reported on screen and in `psjukebox.log`, not silently claimed successful.
+
+**Notes:** The Playlists tab currently presents the current album's play queue. Named custom playlist creation is not implemented. This is an initial screen-layout implementation based on the supplied mockup, not a pixel-perfect screenshot clone. Physical PS5 UI/persistence testing is still required.
