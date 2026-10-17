@@ -1,11 +1,15 @@
-name: Build PSJukebox (native PS5)
+name: Build PSJukebox
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['homebrew/psjukebox/**', '.github/workflows/build-psjukebox.yml']
+    paths:
+      - 'homebrew/psjukebox/**'
+      - '.github/workflows/build-psjukebox.yml'
   push:
     branches: [main]
-    paths: ['homebrew/psjukebox/**', '.github/workflows/build-psjukebox.yml']
+    paths:
+      - 'homebrew/psjukebox/**'
+      - '.github/workflows/build-psjukebox.yml'
 permissions:
   contents: read
 jobs:
@@ -14,82 +18,41 @@ jobs:
     timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
-      - name: Install prerequisites
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make wget curl unzip tar git zip python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev
-      - name: Test artist album scanner
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev zip
+      - name: Native library regression tests
         run: |
-          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/psjukebox/native/library.cpp homebrew/psjukebox/tests/library_test.cpp -o /tmp/psjukebox-scanner-test
-          /tmp/psjukebox-scanner-test
-          python3 -m json.tool homebrew/psjukebox/app.json >/dev/null
-      - name: Check PS5 audio player host compilation
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/psjukebox/native/library.cpp homebrew/psjukebox/tests/library_test.cpp -o /tmp/psjukebox-test
+          /tmp/psjukebox-test
+          g++ -std=c++20 -O2 -pthread -Wall -Wextra -c homebrew/psjukebox/native/audio_player.cpp $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2) -o /tmp/psjukebox-player.o
+      - name: Prepare app and assets
         run: |
-          g++ -std=c++20 -O2 -pthread -Wall -Wextra -c homebrew/psjukebox/native/audio_player.cpp $(pkg-config --cflags libavformat libavcodec libavutil libswresample sdl2) -o /tmp/psjukebox-audio.o
-      - name: Prepare native scaffold
-        run: |
-          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/ps5-devbridge
-          cp -a /tmp/ps5-devbridge/templates/simple-calc ./app
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/psjukebox/native/*.cpp homebrew/psjukebox/native/*.hpp app/src/
           curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          from PIL import Image,ImageDraw
-          meta=json.loads(Path('homebrew/psjukebox/app.json').read_text())
-          f=Path('app/sce_sys/param.json')
-          d=json.loads(f.read_text())
-          d.update(titleId=meta['titleId'],conceptId=meta['titleId'][4:],contentId=meta['contentId'],contentVersion=meta['contentVersion'])
-          d['localizedParameters']['en-US']['titleName']=meta['name']
-          f.write_text(json.dumps(d,indent=2)+'\n')
-          image=Image.new('RGB',(512,512),(10,15,24))
-          draw=ImageDraw.Draw(image)
-          draw.rounded_rectangle((46,46,466,466),radius=100,outline=(255,191,42),width=17)
-          draw.ellipse((125,118,387,380),outline=(255,191,42),width=24)
-          draw.ellipse((219,211,293,285),fill=(255,191,42))
-          draw.line([(314,155),(314,90),(375,106),(375,162)],fill=(255,191,42),width=17)
-          image.save('app/sce_sys/icon0.png')
-          image.save('app/assets/icon0.png')
-          PY
-      - name: Prepare PS5 native SDK
+          python3 homebrew/psjukebox/tools/prepare.py app
+      - name: Prepare PS5 OpenGL SDK
         working-directory: app
         env:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: bash tools/prepare-opengl.sh
-      - name: Prepare POSIX archive
-        run: |
-          mkdir -p app/build/jb-json
-          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
-          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
-      - name: Build native app
+      - name: Native PS5 compile
         working-directory: app
         env:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
         run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='libavformat libavcodec libavutil libswresample sdl2' app
-      - name: Validate packaged executable and artwork
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import json,struct,zipfile
-          root=Path('app/dist/PPSA99947')
-          exe=(root/'eboot.bin').read_bytes()
-          assert len(exe)>1000 and struct.unpack('<I',exe[:4])[0]==0x1D3D154F
-          p=json.loads((root/'sce_sys/param.json').read_text())
-          assert p['titleId']=='PPSA99947'
-          for path in ['sce_sys/icon0.png','sce_module/libc.prx','assets/icon0.png','assets/fonts/inter-semibold.huifont']:
-            assert (root/path).is_file(),path
-          with zipfile.ZipFile('app/dist/PPSA99947.zip') as z:
-            assert z.testzip() is None
-            assert 'PPSA99947/eboot.bin' in z.namelist()
-            assert 'PPSA99947/sce_sys/icon0.png' in z.namelist()
-          print('PASS installable PS5 ZIP')
-          PY
-      - uses: actions/upload-artifact@v4
+      - name: Verify package
+        run: python3 homebrew/psjukebox/tools/verify.py app/dist/PPSA99947.zip
+      - name: Upload installable test ZIP
+        uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.0-TESTBUILD
+          name: PSJukebox-v0.1.0
           path: app/dist/PPSA99947.zip
           if-no-files-found: error

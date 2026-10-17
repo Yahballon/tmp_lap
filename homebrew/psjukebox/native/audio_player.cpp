@@ -16,7 +16,7 @@ extern "C" {
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
-namespace jukebox {
+namespace audio {
 namespace {
 int interrupted(void* p){return static_cast<std::atomic<bool>*>(p)->load()?1:0;}
 std::string av_error(int rc){char text[128]{};av_strerror(rc,text,sizeof(text));return text;}
@@ -70,9 +70,9 @@ void Player::decode(){
  fmt->interrupt_callback.callback=interrupted;fmt->interrupt_callback.opaque=&quit_;
  {
   const int rc=avformat_open_input(&fmt,path_.c_str(),nullptr,nullptr);
-  if(rc<0){error="Cannot read M4B: "+av_error(rc);goto cleanup;}
+  if(rc<0){error="Cannot read audio file: "+av_error(rc);goto cleanup;}
  }
- if(avformat_find_stream_info(fmt,nullptr)<0){error="Invalid or unsupported M4B";goto cleanup;}
+ if(avformat_find_stream_info(fmt,nullptr)<0){error="Invalid or unsupported audio file";goto cleanup;}
  index=av_find_best_stream(fmt,AVMEDIA_TYPE_AUDIO,-1,-1,nullptr,0);
  if(index<0){error="Audiobook does not contain an audio track";goto cleanup;}
  {
@@ -101,7 +101,7 @@ void Player::decode(){
   if(fmt->duration>0&&fmt->duration!=AV_NOPTS_VALUE)duration=(double)fmt->duration/AV_TIME_BASE;
   else if(fmt->streams[index]->duration>0)duration=fmt->streams[index]->duration*av_q2d(fmt->streams[index]->time_base);
   std::lock_guard<std::mutex> guard(mutex_);
-  status_.duration=duration;status_.playing=true;status_.opening=false;status_.message="Playing M4B";
+  status_.duration=duration;status_.playing=true;status_.opening=false;status_.message="Playing audio";
  }
  {
   bool wasPaused=false;
@@ -173,4 +173,4 @@ cleanup:
  if(!error.empty())status_.message=error;
  else if(!quit_)status_.message="Audiobook finished";
 }
-} // namespace jukebox
+} // namespace audio

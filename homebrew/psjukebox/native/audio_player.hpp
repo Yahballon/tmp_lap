@@ -4,7 +4,7 @@
 #include <mutex>
 #include <pthread.h>
 #include <string>
-namespace jukebox {
+namespace audio {
 struct Status {
  bool opening=false, playing=false, paused=false, ended=false, seeking=false;
  double seconds=0, duration=0;
