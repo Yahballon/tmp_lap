@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "bible.hpp"
 #include <algorithm>
-#include <cctype>
+#include <cctype>\n#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <cerrno>
