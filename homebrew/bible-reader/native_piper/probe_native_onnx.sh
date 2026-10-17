@@ -22,12 +22,16 @@ git clone --depth=1 --branch v1.18.2 https://github.com/microsoft/onnxruntime.gi
 cd "$root/onnxruntime"
 echo "[PROBE] ORT revision $(git rev-parse HEAD)"
 
+echo "[PROBE] Checking PS5 SDK iconv support"
+test -f "$sdk/target/include/iconv.h" && echo "[PROBE] SDK iconv.h exists" || echo "[PROBE] SDK iconv.h absent; may require libiconv port"
 echo "[PROBE] Configure with PS5 FreeBSD SDK, statically linked CPU backend"
 cmake -S cmake -B "$root/build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="$source_root/homebrew/bible-reader/native_piper/ps5-onnx-toolchain.cmake" \
   -DPS5_HOME="$sdk" \
   -Donnxruntime_CROSS_COMPILING=ON \
+  -DIconv_IS_BUILT_IN=TRUE \
+  -DIconv_INCLUDE_DIR="$sdk/target/include" \
   -Donnxruntime_BUILD_SHARED_LIB=OFF \
   -Donnxruntime_BUILD_UNIT_TESTS=OFF \
   -Donnxruntime_RUN_ONNX_TESTS=OFF \
