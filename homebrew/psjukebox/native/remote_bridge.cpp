@@ -20,7 +20,7 @@
 namespace jbx {
 namespace {
 #ifndef JUKEBOX_BRIDGE_PORT
-#define JUKEBOX_BRIDGE_PORT 9188
+#define JUKEBOX_BRIDGE_PORT 9189
 #endif
 #ifndef JUKEBOX_DATA_ROOT
 #define JUKEBOX_DATA_ROOT "/data/PSJukebox"
@@ -120,7 +120,7 @@ bool launch_helper(std::string& error){
   if(probe>=0){close(probe);return true;}
   usleep(100000);
  }
- error="ELF started, but jukebox helper port 9188 unavailable";
+ error="ELF started, but jukebox helper port 9189 unavailable";
  return false;
 }
 bool read_catalog(std::string& catalog,std::string& error){
@@ -129,9 +129,9 @@ bool read_catalog(std::string& catalog,std::string& error){
  bool ok=send_all(fd,"LIST\n",5);
  if(ok){
   std::string row;
-  if(!line(fd,row)||row!="JBOX1")ok=false;
+  if(!line(fd,row)||row!="JBOX2")ok=false;
   else{
-   catalog.clear();catalog+="JBOX1\n";
+   catalog.clear();catalog+="JBOX2\n";
    for(unsigned i=0;i<16000;i++){
     if(!line(fd,row)){ok=false;break;}
     if(catalog.size()+row.size()+1>1600000){ok=false;break;}
@@ -358,8 +358,9 @@ CatalogResult scan(){
  std::sort(result.library.artists.begin(),result.library.artists.end(),[](const auto& a,const auto& b){
   return lower(a.name)<lower(b.name);
  });
- result.status+="HELPER artists="+std::to_string(result.library.artists.size())+
-  " tracks="+std::to_string(result.library.trackCount);
+ result.status+="HELPER_V2 artists="+std::to_string(result.library.artists.size())+
+  " tracks="+std::to_string(result.library.trackCount)+
+  " archives="+std::to_string(result.archives.size());
  result.library.report=result.status;
  return result;
 }

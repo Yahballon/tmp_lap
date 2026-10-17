@@ -18,7 +18,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #ifndef JUKEBOX_PORT
-#define JUKEBOX_PORT 9188
+#define JUKEBOX_PORT 9189
 #endif
 #ifndef JUKEBOX_TEST_ROOT
 static const char *roots[]={
@@ -124,7 +124,16 @@ static void enumerate(int fd,unsigned root,const char *dir,const char *rel,unsig
   }
   if(!S_ISREG(st.st_mode))continue;
   uint64_t size=0;
-  if(!secure_file(root,next,&size))continue;
+  if(!secure_file(root,next,&size)){
+   // Do not silently discard a visible root .album that exceeds the limit.
+   if(ends(e->d_name,".album")&&st.st_size>1024LL*1024*1024){
+    char issue[720];
+    n=snprintf(issue,sizeof(issue),"ERROR ALBUM_TOO_LARGE %llu %s\n",
+       (unsigned long long)st.st_size,next);
+    if(n>0&&n<(int)sizeof(issue))send_all(fd,issue,(size_t)n);
+   }
+   continue;
+  }
   char line[720];
   n=snprintf(line,sizeof(line),"F %u %llu %s\n",root,(unsigned long long)size,next);
   if(n>0&&n<(int)sizeof(line)&&send_all(fd,line,(size_t)n))catalog_files++;
@@ -132,7 +141,7 @@ static void enumerate(int fd,unsigned root,const char *dir,const char *rel,unsig
  closedir(d);
 }
 static void listing(int fd){
- catalog_files=catalog_dirs=catalog_artists=0;print_all(fd,"JBOX1\n");
+ catalog_files=catalog_dirs=catalog_artists=0;print_all(fd,"JBOX2\n");
  for(unsigned i=0;i<ROOTS;i++){
   struct stat st;if(lstat(roots[i],&st)!=0||!S_ISDIR(st.st_mode))continue;
   char line[700];int n=snprintf(line,sizeof(line),"R %u %s\n",i,roots[i]);

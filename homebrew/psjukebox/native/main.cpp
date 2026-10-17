@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.6
+// PSJukebox by YAHBALLON v0.1.7
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -33,7 +33,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.6";
+constexpr const char* version="v0.1.7";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -123,31 +123,54 @@ void* scan_worker(void*){
  auto packs=jukebox::find_packed_albums(jukebox::music_roots());
  for(const auto& p:remote.archives)packs.push_back(p);
  for(const auto& p:network.archives)packs.push_back(p);
+ log("ALBUM_SCAN local_or_helper="+std::to_string(packs.size())+
+     " helper="+std::to_string(remote.archives.size())+
+     " smb="+std::to_string(network.archives.size())+
+     " helper_status="+remote.status);
  std::atomic<bool> cancelled{false};
  std::string importedStatus;
  unsigned processed=0;
  for(const auto& pack:packs){
   if(processed++>=64){importedStatus+="ALBUM_LIMIT; ";break;}
   const std::string name=jukebox::album_stem(pack.path);
-  if(name.empty())continue;
+  log("ALBUM_FOUND name="+name+" size="+std::to_string(pack.size)+
+      " source="+(jbx::is_remote(pack.path)?"HELPER":smb_music::is_smb(pack.path)?"SMB":"LOCAL"));
+  if(name.empty()){importedStatus+="ALBUM_BAD_NAME; ";log("ALBUM_BAD_NAME "+pack.path);continue;}
   std::string path=pack.path,error,musicRoot;
   if(jbx::is_remote(pack.path)||smb_music::is_smb(pack.path)){
    const bool ok=jbx::is_remote(pack.path)?
      jbx::stage_track(pack.path,pack.size,cancelled,path,error):
      smb_music::stage(pack.path,pack.size,cancelled,path,error);
-   if(!ok){importedStatus+="ALBUM_TRANSFER_ERROR "+name+": "+error+"; ";continue;}
+   if(!ok){
+    log("ALBUM_TRANSFER_ERROR "+name+": "+error);
+    importedStatus+="ALBUM_TRANSFER_ERROR "+name+": "+error+"; ";continue;
+   }
+   log("ALBUM_TRANSFER_OK "+name);
   }
   std::string artist=pack.artist;
   if(artist.empty()){
    artist=jukebox::album_artist_marker(path,error);
-   if(artist.empty()){importedStatus+="ALBUM_ARTIST_ERROR "+name+": "+error+"; ";continue;}
+   if(artist.empty()){
+    if(error=="Root .album requires a <Name>.artist marker"){
+     // Without the optional filename marker, make the album visible instead
+     // of silently hiding it or guessing the artist from a release title.
+     artist="Unsorted Albums";
+     log("ALBUM_ARTIST_MISSING "+name+" -> Unsorted Albums");
+    }else{
+     log("ALBUM_ARTIST_ERROR "+name+": "+error);
+     importedStatus+="ALBUM_ARTIST_ERROR "+name+": "+error+"; ";continue;
+    }
+   }
   }
+  log("ALBUM_EXTRACT_BEGIN "+artist+"/"+name);
   if(!jukebox::unpack_album(path,artist,name,pack.path,jukebox::archive_cache_root(),musicRoot,error)){
+   log("ALBUM_INVALID "+name+": "+error);
    importedStatus+="ALBUM_INVALID "+name+": "+error+"; ";continue;
   }
   auto entry=jukebox::scan({musicRoot});
   const auto songs=entry.trackCount;
   jukebox::merge(local,std::move(entry));
+  log("ALBUM_OK "+artist+"/"+name+" tracks="+std::to_string(songs));
   importedStatus+="ALBUM_OK "+artist+"/"+name+" tracks="+std::to_string(songs)+"; ";
  }
  jukebox::merge(local,std::move(network.library));
@@ -243,7 +266,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.6");
+ log("BOOT v0.1.7");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
