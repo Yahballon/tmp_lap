@@ -126,6 +126,53 @@ std::string album_stem(const std::string& filename){
  const auto stem=base.substr(0,base.size()-6);
  return safe(stem)?stem:std::string{};
 }
+std::string album_artist_marker(const std::string& archive,std::string& error){
+ error.clear();
+ struct stat st{};
+ if(lstat(archive.c_str(),&st)||!S_ISREG(st.st_mode)||st.st_size<22||
+    uint64_t(st.st_size)>maxPack){error="Invalid packed album";return {};}
+ FILE* f=fopen(archive.c_str(),"rb");if(!f){error="Cannot open packed album";return {};}
+ const uint64_t length=(uint64_t)st.st_size;
+ std::string artist;
+ do{
+  const size_t n=(size_t)std::min<uint64_t>(length,65557);
+  std::vector<unsigned char> tail(n);
+  if(!seek(f,length-n)||!exact(f,tail.data(),n)){error="ZIP end unavailable";break;}
+  size_t end=n;
+  for(size_t i=n-22;;i--){if(u32(tail.data()+i)==0x06054b50u){end=i;break;}if(i==0)break;}
+  if(end==n||u16(tail.data()+end+4)!=0||u16(tail.data()+end+6)!=0||
+     u16(tail.data()+end+8)!=u16(tail.data()+end+10)||
+     u16(tail.data()+end+10)>512){error="Invalid ZIP central directory";break;}
+  const uint64_t offset=u32(tail.data()+end+16),sz=u32(tail.data()+end+12);
+  if(offset+sz>length||!seek(f,offset)){error="Invalid ZIP index";break;}
+  bool bad=false;
+  for(unsigned i=0;i<u16(tail.data()+end+10);i++){
+   unsigned char hd[46]{};
+   if(!exact(f,hd,sizeof(hd))||u32(hd)!=0x02014b50u){bad=true;break;}
+   const unsigned namelen=u16(hd+28),extra=u16(hd+30),comment=u16(hd+32);
+   if(namelen<1||namelen>360){bad=true;break;}
+   std::string name(namelen,'\0');
+   if(!exact(f,name.data(),name.size())||fseek(f,(long)(extra+comment),SEEK_CUR)!=0){bad=true;break;}
+   // A marker may be at archive root or under the same single wrapper
+   // folder used by its cover/audio files. The *filename* is the artist.
+   const size_t sep=name.find('/');
+   if(sep!=std::string::npos){
+    if(!safe(name.substr(0,sep))||name.find('/',sep+1)!=std::string::npos)continue;
+    name=name.substr(sep+1);
+   }
+   if(name.size()<=7||lower(name.substr(name.size()-7))!=".artist")continue;
+   const auto candidate=name.substr(0,name.size()-7);
+   if(!safe(candidate)||u32(hd+24)>4096||u16(hd+8)&1||artist.size()){
+    bad=true;break;
+   }
+   artist=candidate;
+  }
+  if(bad){error="Invalid or duplicate .artist marker";artist.clear();}
+  else if(artist.empty())error="Root .album requires a <Name>.artist marker";
+ }while(false);
+ fclose(f);
+ return artist;
+}
 std::string archive_cache_root(){
 #ifdef JUKEBOX_DATA_ROOT
  return std::string(JUKEBOX_DATA_ROOT)+"/AlbumCache";

@@ -133,3 +133,45 @@ A packed album is loaded in the background on library scan. The existing read-on
 The cache avoids re-transferring and unpacking identical source path+archive size; replacing an archive with different contents but exactly the same byte size may require clearing `/data/PSJukebox/Cache/` and `/data/PSJukebox/AlbumCache/`. Requires writable local storage; large packed albums consume space for the archive **and** extracted songs. To reduce risk from malformed archives: ZIP members are streamed and CRC-checked, path traversal/symlinks are blocked, and limits are 1 GiB per packed file, 2 GiB total extracted, 512 MiB per song and 12 MiB per image. ZIP64/encrypted archives are not supported in this version.
 
 A hardware test on the target PS5 remains necessary.
+
+## v0.1.6 — Unsorted root .album packages and native SMB share playback
+
+A `Music/*.album` package can be dropped **directly into the root Music folder**, with an internal file named **`<Artist>.artist`**, e.g. `Tupac.artist`. The marker may be empty; only the **filename** determines the artist. Existing `Music/Artist/*.album` files remain supported and do **not** require a marker. The marker can be at archive root or in a single wrapper folder. Invalid or missing markers in root archives are reported as `ALBUM_ARTIST_ERROR` in the app log, and do not cause empty/Unknown artists.
+
+```text
+Music/
+  2pac-the-don-killuminati-the-7-day-theory.album
+  wu-tang/
+    logo.png
+    enterthewutang/
+      cover.jpg
+      song.mp3
+
+Inside 2pac-the-don-killuminati-the-7-day-theory.album:
+  Tupac.artist                  <- empty file allowed, supplies artist identity
+  cover.jpg
+  background.png
+  01 - Bomb First.mp3
+  02 - Hail Mary.mp3
+```
+
+**Tracklist shortcut:** While the album cover carousel is selected, press **Down (D-pad or analog)** to open that album's Tracklist. Circle goes back. X still plays normally.
+
+### SMB2/SMB3 share playback (read-only)
+
+Create `/data/PSJukebox/smb.ini` using the PS5 file manager, then press Rescan in Settings. Configure a Windows/NAS SMB2 or SMB3 share with its Music root (or set the path to an existing Music subfolder):
+
+```ini
+server=192.168.1.50
+share=Music
+path=
+username=jukebox
+password=YOUR_SMB_PASSWORD
+domain=
+```
+
+If your share exposes a top-level `Music` folder, use `share=Media` and `path=Music`. `domain` is optional; omit username/password only if the share permits Guest. No network credentials are ever placed in logs or GitHub, and the config is user-managed. Restrict access to `smb.ini` because it contains plaintext SMB credentials.
+
+PSJukebox uses the PS5-native `libsmb2` SMB2/3 client. It scans artist directories and album/track names over the network; covers and songs are downloaded **on demand** to local PS5 cache, with pause/favorites/tracklist features unchanged. SMB .album packages are copied to cache and imported during library scan (so large archive imports may take time). No SMB upload, rename or delete actions are implemented. SMB connections require LAN reachability and firewall port 445, and the PlayStation homebrew sandbox must allow network sockets.
+
+**Limits:** Read-only SMB share, up to one configured share, maximum 1 GiB per media/archive. Playback uses a local disk cache (network data is read on demand rather than streamed sample-by-sample into FFmpeg). PS5 hardware testing and actual SMB-server compatibility remain necessary.

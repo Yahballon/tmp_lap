@@ -214,6 +214,19 @@ Library scan(const std::vector<std::string>& roots) {
 std::vector<PackedAlbum> find_packed_albums(const std::vector<std::string>& roots){
  std::vector<PackedAlbum> result;
  for(const auto& root:roots){
+  // Drop <Album>.album straight in Music/: use <Artist>.artist inside it.
+  DIR* base=opendir(root.c_str());
+  if(base){
+   while(dirent* e=readdir(base)){
+    const std::string name=e->d_name,low=lowercase(name);
+    if(!safe_name(name)||low.size()<=6||low.substr(low.size()-6)!=".album")continue;
+    uint64_t size=0;
+    const std::string full=root+"/"+name;
+    if(is_file(full,&size)&&size>=22&&size<=1024ULL*1024*1024)
+     result.push_back({"",full,size});
+   }
+   closedir(base);
+  }
   for(const auto& name:directories(root)){
    const auto folder=root+"/"+name;
    DIR* d=opendir(folder.c_str());if(!d)continue;

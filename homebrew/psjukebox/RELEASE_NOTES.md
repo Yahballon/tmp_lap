@@ -1,14 +1,11 @@
-# PSJukebox v0.1.5 — .album package support (TESTBUILD)
+# PSJukebox v0.1.6 (TESTBUILD)
 
-New custom packed album support: drop a ZIP renamed `.album` straight into any Artist folder, next to existing album folders.
+- Drop `.album` ZIPs directly in Music/ with internal empty `Tupac.artist` (or `<Artist>.artist`) marker. No manual artist folders needed.
+- Keep Music/Artist/*.album and Music/Artist/Album/ folders fully supported.
+- PS5 read-only USB helper can now enumerate Music-root .album files.
+- Album-cover **Down** opens the track list directly; X starts playback as before.
+- Native SMB2/3 read-only share support via `/data/PSJukebox/smb.ini` (server, share, optional path, username, password, domain).
+- Browse NAS/Windows artist folders, stream artwork/track files into the local player cache on demand, and import packed .album packages from SMB.
+- Preserve existing artist themes, Favorites, coverflow, FFmpeg decoding and other controller mappings.
 
-- Detect .album from local folder scan and the PS5 read-only USB helper
-- Stage and safely unpack ZIP members into an isolated PSJukebox cache
-- Support MP3/FLAC/M4A/AAC/WAV/OGG/OPUS/WMA plus cover.png/jpg/jpeg and background.png/jpg/jpeg
-- Display the packed file as an album with cover/background; play extracted tracks with existing FFmpeg player
-- Ignore incidental ZIP/XML/SQLite metadata; strip an optional single wrapping folder
-- Reject path traversal, symlink, encrypted, ZIP64 and oversized/unsupported archive entries
-- Keep existing Artist/Album music folders, favorites, smooth coverflow and DualSense controls unchanged
-- Host regression test covers deflate + stored compression, wrapped song, cover and background
-
-Supported archive size up to 1 GiB; limit 2 GiB expanded. Import needs free PS5 local storage for archive and extraction. Real-console validation required.
+Limitations: SMB requires network access/permissions; one configured share; disk cache for audio and archive extraction; password stored in plaintext in user-managed smb.ini. Tested by CI host compilation/native PS5 package checks, not yet hardware-verified.
