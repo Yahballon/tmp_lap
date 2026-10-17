@@ -47,8 +47,10 @@ cmake -S cmake -B "$root/build" -G Ninja \
   -Donnxruntime_MINIMAL_BUILD=OFF \
   -Donnxruntime_ENABLE_LTO=OFF \
   -DCMAKE_INSTALL_PREFIX="$root/install"
-echo "[PROBE] Compiling PS5 ONNX Runtime CPU library"
-cmake --build "$root/build" --target onnxruntime --parallel 4
+echo "[PROBE] Examining available ONNX static targets"
+ninja -C "$root/build" -t targets all | grep -E 'onnxruntime_(session|providers|graph|framework|optimizer):|onnxruntime_(session|providers|graph|framework|optimizer)\.a' | head -40 || true
+echo "[PROBE] Compiling native PS5 ONNX Runtime C API and CPU kernels"
+cmake --build "$root/build" --target onnxruntime_session onnxruntime_providers onnxruntime_optimizer onnxruntime_framework onnxruntime_graph --parallel 4
 echo "[PROBE] Verifying x86_64-sie-ps5 static library archive"
 find "$root/build" -type f -name 'libonnxruntime*.a' -print
 find "$root/build" -type f -name 'libonnxruntime*.a' | grep .
