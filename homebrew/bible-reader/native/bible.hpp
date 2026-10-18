@@ -30,6 +30,9 @@ struct Settings {
 bool same(Ref a,Ref b);
 bool bookmarked(const Settings& s,Ref r);
 void toggle(Settings& s,Ref r);
+// Retro speech is a temporary language preset, not a permanent Classic mode.
+ // When leaving older saved Retro settings, restore the normal Neural HD default.
+int voiceStyleAfterLanguageChange(int previousLanguage,int nextLanguage,int currentStyle);
 bool readSettings(const std::string& path,Settings& s);
 bool writeSettings(const std::string& path,const Settings& s);
 Ref dailyReference(int dayOfYear);

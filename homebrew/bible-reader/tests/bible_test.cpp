@@ -28,6 +28,28 @@ int main(){
  assert(std::string(bible_i18n::languageName(4))=="Stephen Hawking (Retro TTS)");
  assert(std::string(bible_i18n::code(4))=="en");
  assert(bible_i18n::kLanguageOptions==5);
+ // Regression: v0.1.8 saved voice_style=0 after selecting retro (language 4).
+ // Leaving the retro preset MUST bring back real neural speech.
+ assert(bible::voiceStyleAfterLanguageChange(4,0,0)==1);
+ assert(bible::voiceStyleAfterLanguageChange(4,1,0)==1);
+ assert(bible::voiceStyleAfterLanguageChange(4,2,0)==1);
+ assert(bible::voiceStyleAfterLanguageChange(4,3,0)==1);
+ assert(bible::voiceStyleAfterLanguageChange(0,4,1)==1);
+ assert(bible::voiceStyleAfterLanguageChange(1,2,0)==0);
+ assert(bible::voiceStyleAfterLanguageChange(1,3,1)==1);
+ // Simulate a PS5 reboot with the legacy persisted Retro setting.
+ robot.voiceStyle=0;
+ assert(bible::writeSettings(path,robot));
+ bible::Settings rebooted;
+ assert(bible::readSettings(path,rebooted));
+ assert(rebooted.language==4&&rebooted.voiceStyle==0);
+ rebooted.voiceStyle=bible::voiceStyleAfterLanguageChange(rebooted.language,1,rebooted.voiceStyle);
+ rebooted.language=1;
+ assert(bible::writeSettings(path,rebooted));
+ bible::Settings recovered;
+ assert(bible::readSettings(path,recovered));
+ assert(recovered.language==1&&recovered.voiceStyle==1);
+
  assert(std::string(bible_i18n::bookName(1,0))=="1. Mose");
  assert(std::string(bible_i18n::bookName(2,0))=="Genèse");
  assert(std::string(bible_i18n::bookName(3,0))=="Génesis");
