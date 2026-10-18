@@ -18,6 +18,7 @@ int main(){
  assert(bible_tts::neuralPreviewFilename(1,{0,1,32}).empty());
  assert(bible_tts::neuralPreviewFilename(0,{0,1,1}).empty());
  assert(bible_tts::neuralPreviewFilename(1,{0,2,1}).empty());
- assert(bible_i18n::kLanguageOptions==5);
+ assert(bible_i18n::kLanguageOptions==6);
+ assert(std::string(bible_i18n::code(5))=="ru");
  std::puts("TTS Unicode offsets and Bible end bounds passed");
 }
