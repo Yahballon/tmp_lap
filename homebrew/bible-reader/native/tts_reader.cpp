@@ -197,7 +197,7 @@ void Speaker::run(){
 #if defined(BIBLE_NATIVE_PIPER)
  if(preferNeural_&&!robotPreset_){
   const char* filenames[]={
-   "en/en_US-lessac-medium.onnx",
+   "en/en_US-kristin-medium.onnx",
    "de/de_DE-thorsten-medium.onnx",
    "fr/fr_FR-siwis-medium.onnx",
    "es/es_ES-davefx-medium.onnx"
