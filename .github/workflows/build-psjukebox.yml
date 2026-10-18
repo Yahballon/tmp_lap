@@ -45,7 +45,7 @@ jobs:
           assert 'label(d,font,atlas,std::to_string(library.artists.size()),1616,88,27' in code
           assert 'font.add_fallback(&internationalFont,internationalAtlas)' in code
           assert 'jukebox::utf8_cut(s,n)' in code
-          assert 'NOW BROWSING' in code and 'LIBRARY READY' in code
+          assert 'NOW BROWSING' in code and 'LIBRARY STATUS' in code and '"READY"' in code
           assert 'const auto hp=jukebox::dashboard::header;' in code
           assert 'const auto nav=jukebox::dashboard::nav;' in code
           assert 'const auto box=jukebox::dashboard::player;' in code
