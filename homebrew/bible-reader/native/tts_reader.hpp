@@ -19,6 +19,7 @@ struct Snapshot {
 size_t utf8Offset(const std::string& value,size_t characters);
 bool nextVerse(const bible::Library& lib,bible::Ref& ref);
 std::string neuralPreviewFilename(int language,bible::Ref ref);
+const char* classicVoiceProfile(int language);
 class Speaker {
 public:
  ~Speaker(){stop();}

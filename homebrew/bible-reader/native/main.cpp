@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.2.0 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.2.1 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"

@@ -118,7 +118,7 @@ jobs:
           import json,pathlib
           p=pathlib.Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.011')
+          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.012')
           d['localizedParameters']['en-US']['titleName']='Bible Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -205,14 +205,14 @@ jobs:
           from pathlib import Path
           path=Path('app/sce_sys/param.json')
           data=json.loads(path.read_text())
-          data['contentVersion']='01.000.011'
+          data['contentVersion']='01.000.012'
           data['titleId']='PPSA99793'
           data['conceptId']='99794'
           data['contentId']='UP9000-PPSA99793_00-BIBLEREADER00001'
           data['localizedParameters']['en-US']['titleName']='Bible Reader'
           path.write_text(json.dumps(data,indent=2)+'\n')
           p=Path('app/src/main.cpp')
-          p.write_text(p.read_text().replace('v0.1.6','v0.2.0'))
+          p.write_text(p.read_text().replace('v0.2.0','v0.2.1'))
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Werror \
             -Ihomebrew/bible-reader/native_piper -Iapp/src \
@@ -264,7 +264,7 @@ jobs:
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99793'
           assert meta['contentId']=='UP9000-PPSA99793_00-BIBLEREADER00001'
-          assert meta['contentVersion']=='01.000.011'
+          assert meta['contentVersion']=='01.000.012'
           with zipfile.ZipFile('app/dist/PPSA99793.zip') as archive:
               assert archive.testzip() is None
               paths=set(archive.namelist())
@@ -329,7 +329,7 @@ jobs:
       - name: Upload testbuild
         uses: actions/upload-artifact@v4
         with:
-          name: Bible-Reader-v0.2.0-PPSA99793
+          name: Bible-Reader-v0.2.1-PPSA99793
           path: app/dist/PPSA99793.zip
           if-no-files-found: error
 
@@ -345,7 +345,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: Bible-Reader-v0.2.0-PPSA99793
+          name: Bible-Reader-v0.2.1-PPSA99793
           path: release
       - name: Verify downloaded release ZIP
         run: |
@@ -378,11 +378,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=bible-reader-v0.2.0
+          tag=bible-reader-v0.2.1
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
             echo "Release and binary already exist; preserving immutable version"
             exit 0
           fi
-          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.2.0" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
+          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.2.1" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
           gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'

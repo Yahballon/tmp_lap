@@ -104,3 +104,6 @@ If the computer-like Retro voice was selected, v0.1.8 overwrote the saved voice 
 - **Neural HD Russian** uses Denis Medium (CC0 voice-datasets model), generated from the actual Piper configuration using the existing PS5 ONNX Runtime. Russian eSpeak NG remains available in Classic mode and as a fallback.
 - Fixes font atlas missing-glyph behavior with NFC-normalized corpus text, baked German ÄäÖöÜüß and Cyrillic glyphs, and explicit CI assertions that fonts/bundled verses contain their original Unicode.
 - All five existing settings options plus the Stephen Hawking-inspired **Retro TTS** remain unchanged. Voice attribution is bundled with the homebrew ZIP.
+
+## v0.2.1 Russian voice fix
+Fixed the PS5 Russian eSpeak fallback profile selection (`zle/ru`). v0.2.0 could report **Voice unavailable** because the voice-selection array was shorter than the five bundled language profiles. Both Neural HD and Classic now share a verified Russian initialization path; CI tests all five voice profiles by name.

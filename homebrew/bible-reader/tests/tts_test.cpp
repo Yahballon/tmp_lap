@@ -20,5 +20,12 @@ int main(){
  assert(bible_tts::neuralPreviewFilename(1,{0,2,1}).empty());
  assert(bible_i18n::kLanguageOptions==6);
  assert(std::string(bible_i18n::code(5))=="ru");
+ // Regression: Russian is the fifth real voice (internal index 4), while
+ // language option 4 is the English Retro mode.
+ const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es","zle/ru"};
+ for(int i=0;i<5;++i)
+  assert(std::string(bible_tts::classicVoiceProfile(i))==profiles[i]);
+ assert(bible_tts::classicVoiceProfile(-1)==nullptr);
+ assert(bible_tts::classicVoiceProfile(5)==nullptr);
  std::puts("TTS Unicode offsets and Bible end bounds passed");
 }

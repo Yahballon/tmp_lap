@@ -1,7 +1,7 @@
-# Bible Reader v0.2.0 — Russian Bible, About and Unicode repair
+# Bible Reader v0.2.1 — Russian voice repair
 
-- Adds **About** button at bottom of the sidebar, with developer **YAHBALLON**, version, credits and offline features.
-- Adds **Русский** without replacing Stephen Hawking-inspired English Retro TTS: 66-book Russian Synodal Bible, public domain via eBible.org.
-- Adds native offline neural speech using **Denis Medium** for Russian (CC0 voice-datasets source); Russian eSpeak Classic/fallback remains available.
-- Fixes accented text displaying as '?' by normalizing the Bible corpus to NFC, embedding accented and Cyrillic glyphs in the PS5 SDF font, validating rendered codepoint coverage in CI, and adding Russian case-insensitive search and keyboard pages.
-- Keeps all 4 previous neural voices, karaoke word highlighting, continuous reading, and persisted settings.
+- Fixes the PS5 Russian reading error **Voice unavailable (see BibleReader log)** reported on v0.2.0.
+- Corrects an out-of-bounds eSpeak fallback profile table: the fifth native-language slot now resolves to `zle/ru` instead of an unrelated file path.
+- Centralizes language-to-eSpeak profile mapping so asset validation and actual voice selection always use identical profile names.
+- Adds a regression test for all five classic/fallback voices and an explicit eSpeak `SetVoiceByName` smoke test with the bundled offline assets.
+- Keeps native Piper Denis Medium, five-language neural synthesis, Retro TTS, karaoke word highlighting, full offline Bible, and other language support unchanged.
