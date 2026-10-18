@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "6e28c6e014c0284aa0f51f5f814bf73b0a11459284d34715d094d13998251053",
+  "version": "e358785bb5eb2a1cd89220af58b1dd0256f71e62f027302967868c7614c04043",
   "repository": "Yahballon/tmp_lap",
   "app_count": 16,
   "apps": [
@@ -8,14 +8,14 @@
       "name": "PS5NESX",
       "slug": "ps5nesx",
       "title_id": "PPSA99204",
-      "version": "1.0.12",
-      "tag": "ps5nesx-v1.0.12",
+      "version": "1.0.13",
+      "tag": "ps5nesx-v1.0.13",
       "zip_name": "PPSA99204.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5nesx-v1.0.12/PPSA99204.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5nesx-v1.0.12",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5nesx-v1.0.13/PPSA99204.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5nesx-v1.0.13",
       "source": "homebrew/ps5nesx",
-      "size_bytes": 9144612,
-      "published_at": "2026-10-18T21:17:50Z"
+      "size_bytes": 9323770,
+      "published_at": "2026-10-18T21:34:46Z"
     },
     {
       "name": "Crypto Tracker",
