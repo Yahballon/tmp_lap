@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.7 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.8 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -73,7 +73,7 @@ const bible_i18n::Key tabKeys[]={
 }
 int main(){
  mkdir("/data/BibleReader",0755);
- bible_log::write("BOOT","Bible Reader v0.1.7 title=PPSA99793 log=%s",bible_log::path);
+ bible_log::write("BOOT","Bible Reader v0.1.8 title=PPSA99793 log=%s",bible_log::path);
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;
@@ -195,7 +195,7 @@ int main(){
     else if(page==Page::settings){
      voice.stop();
      if(listScroll==0){
-      const int candidate=(settings.language+1)%bible_i18n::kLangCount;
+      const int candidate=(settings.language+1)%bible_i18n::kLanguageOptions;
       bible::Library replacement;std::string error;
       if(readTranslation(replacement,candidate,error)){
        if(loaded&&!library.chapter(settings.book,settings.chapter).empty())
@@ -260,7 +260,7 @@ int main(){
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   const std::string maker="by Y A H B A L L O N";
   text(d,font,atlas,maker,307,148,20,gold);
-  text(d,font,atlas,"v0.1.7",307+font.measure(maker,20.f)+34.f,148,19,subdued);
+  text(d,font,atlas,"v0.1.8",307+font.measure(maker,20.f)+34.f,148,19,subdued);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;

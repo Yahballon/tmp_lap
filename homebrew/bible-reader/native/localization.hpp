@@ -14,6 +14,7 @@ enum class Key:int {
  exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version, controls, ttsStop, voiceStyle, neuralPreview, classicVoice
 };
 constexpr int kLangCount=4;
+constexpr int kLanguageOptions=5; // fifth is an English retro speech preset
 inline int language(int n){return n>=0&&n<kLangCount?n:0;}
 inline const char* code(int n){
  static constexpr const char* codes[]={"en","de","fr","es"};
@@ -21,7 +22,7 @@ inline const char* code(int n){
 }
 inline const char* languageName(int n){
  static constexpr const char* names[]={"English","Deutsch","Français","Español"};
- return names[language(n)];
+ return n==4?"Stephen Hawking (Retro TTS)":names[language(n)];
 }
 inline const char* translationName(int n){
  static constexpr const char* names[]={
@@ -73,7 +74,7 @@ inline const char* label(int lang,Key key){
    "X Elegir   O Atrás   SQUARE Marcador   TRIANGLE Buscar   L1/R1 Capítulo   OPTIONS Ajustes   L2 Versículo diario"},
   {"READING   O STOP","VORLESEN   O STOP","LECTURE   O ARRÊTER","LEYENDO   O PARAR"},
   {"Voice style","Stimmqualität","Style de voix","Estilo de voz"},
-  {"Neural HD (German)","Neural HD (Deutsch)","Neural HD (allemand)","Neural HD (alemán)"},
+  {"Neural HD (4 languages)","Neural HD (4 Sprachen)","Neural HD (4 langues)","Neural HD (4 idiomas)"},
   {"Classic","Klassisch","Classique","Clásica"}
  };
  const int i=(int)key;

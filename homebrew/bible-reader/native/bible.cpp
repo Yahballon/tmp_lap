@@ -124,7 +124,7 @@ bool readSettings(const std::string& path,Settings& s){
    if(b>=0&&b<=1)next.theme=b;
    next.daily=c!=0;
   }else if(std::sscanf(row,"language=%d",&a)==1){
-   if(a>=0&&a<4)next.language=a;
+   if(a>=0&&a<=4)next.language=a;
   }else if(std::sscanf(row,"voice_style=%d",&a)==1){
    if(a==0||a==1)next.voiceStyle=a;
   }else if(std::sscanf(row,"bookmark=%d,%d,%d",&d,&e,&g)==3){
