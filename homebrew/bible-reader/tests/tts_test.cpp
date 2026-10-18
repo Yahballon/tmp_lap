@@ -1,6 +1,7 @@
 // GPL-3.0-or-later
 #include "../native/bible.hpp"
 #include "../native/tts_reader.hpp"
+#include "../native/localization.hpp"
 #include <cassert>
 #include <cstdio>
 #include <string>
