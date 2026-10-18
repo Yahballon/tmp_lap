@@ -17,12 +17,13 @@ int main(int argc,char** argv){
                                   espeakINITIALIZE_DONT_EXIT);
  if(rate<=0){std::fprintf(stderr,"Initialization failed: %d\n",rate);return 3;}
  espeak_SetSynthCallback(callback);
- const char* languages[]={"en","de","fr","es"};
+ const char* languages[]={"en","de","fr","es","ru"};
  const char* texts[]={"In the beginning, God created the heavens and the earth.",
    "Am Anfang schuf Gott Himmel und Erde.",
    "Au commencement, Dieu créa les cieux et la terre.",
-   "En el principio creó Dios los cielos y la tierra."};
- for(int i=0;i<4;++i){
+   "En el principio creó Dios los cielos y la tierra.",
+   "В начале сотворил Бог небо и землю."};
+ for(int i=0;i<5;++i){
   espeak_VOICE spec{};spec.languages=const_cast<char*>(languages[i]);
   const auto select=espeak_SetVoiceByProperties(&spec);
   if(select!=EE_OK){std::fprintf(stderr,"Cannot select %s: %d\n",languages[i],(int)select);return 4;}
