@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.9 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.2.0 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -57,23 +57,24 @@ std::string name(bible::Ref r,int lang){
 }
 bool readTranslation(bible::Library& lib,int lang,std::string& error){
  const std::string code=bible_i18n::code(lang);
- const char* filename=bible_i18n::language(lang)==0?"webpb.tsv":nullptr;
+ const char* filename=(lang==0||lang==4)?"webpb.tsv":nullptr;
  const std::string file=filename?filename:code+".tsv";
  const std::string appPath="/app0/assets/bible/"+file;
  if(lib.load(appPath,error))return true;
  return lib.load("/data/homebrew/PPSA99793/assets/bible/"+file,error);
 }
-enum class Page {read,books,chapters,search,results,bookmarks,settings};
-const char* tabs[]={"Library","Old Testament","New Testament","Bookmarks","Settings"};
-const char* glyphs[]={"[=]","||","+","[*]","[O]"};
+enum class Page {read,books,chapters,search,results,bookmarks,settings,about};
+const char* tabs[]={"Library","Old Testament","New Testament","Bookmarks","Settings","About"};
+const char* glyphs[]={"[=]","||","+","[*]","[O]","[i]"};
 const bible_i18n::Key tabKeys[]={
  bible_i18n::Key::library,bible_i18n::Key::oldTestament,
- bible_i18n::Key::newTestament,bible_i18n::Key::bookmarks,bible_i18n::Key::settings
+ bible_i18n::Key::newTestament,bible_i18n::Key::bookmarks,bible_i18n::Key::settings,
+ bible_i18n::Key::about
 };
 }
 int main(){
  mkdir("/data/BibleReader",0755);
- bible_log::write("BOOT","Bible Reader v0.1.9 title=PPSA99793 log=%s",bible_log::path);
+ bible_log::write("BOOT","Bible Reader v0.2.0 title=PPSA99793 log=%s",bible_log::path);
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;
@@ -140,7 +141,7 @@ int main(){
    if(pressed&hui::pad_bits::kLeft){if(page==Page::read)focusedSidebar=true;else if(page==Page::search)nav=0;}
    if(pressed&hui::pad_bits::kRight){if(page==Page::read)focusedSidebar=false;else if(page==Page::search)nav=1;}
    if(pressed&hui::pad_bits::kUp){
-    if(page==Page::read&&focusedSidebar)side=(side+4)%5;
+    if(page==Page::read&&focusedSidebar)side=(side+5)%6;
     else if(page==Page::read&&loaded){
      if(verseLineScroll>0)--verseLineScroll;
      else {selected=std::max(0,selected-1);verseScroll=std::min(verseScroll,selected);verseLineScroll=0;}
@@ -151,7 +152,7 @@ int main(){
     else if(page==Page::search)nav=std::max(0,nav-8);
    }
    if(pressed&hui::pad_bits::kDown){
-    if(page==Page::read&&focusedSidebar)side=(side+1)%5;
+    if(page==Page::read&&focusedSidebar)side=(side+1)%6;
     else if(page==Page::read&&loaded){
      const auto& verses=library.chapter(settings.book,settings.chapter);
      const int maxLines=std::max(1,(int)((899.f-454.f-32.f)/(settings.fontSize*1.40f)));
@@ -180,6 +181,7 @@ int main(){
      if(side==2)section(39);
      if(side==3){page=Page::bookmarks;listScroll=0;focusedSidebar=false;}
      if(side==4){page=Page::settings;listScroll=0;focusedSidebar=false;}
+     if(side==5){page=Page::about;focusedSidebar=false;}
     }else if(page==Page::read&&loaded){
      const auto& vv=library.chapter(settings.book,settings.chapter);
      if(selected>=0&&selected<(int)vv.size()){
@@ -269,10 +271,10 @@ int main(){
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   const std::string maker="by Y A H B A L L O N";
   text(d,font,atlas,maker,307,148,20,gold);
-  text(d,font,atlas,"v0.1.9",307+font.measure(maker,20.f)+34.f,148,19,subdued);
+  text(d,font,atlas,"v0.2.0",307+font.measure(maker,20.f)+34.f,148,19,subdued);
   const float left=39,wide=392;panel(d,left,212,wide,759);
-  for(int i=0;i<5;i++){
-   float y=218+i*105;
+  for(int i=0;i<6;i++){
+   float y=i==5?832.f:218.f+i*105.f;
    if(page==Page::read&&focusedSidebar&&side==i)panel(d,40,y,385,91,true);
    text(d,font,atlas,glyphs[i],75,y+59,31,i==side?gold:white);
    text(d,font,atlas,font.fit(bible_i18n::label(settings.language,tabKeys[i]),26,202),155,y+60,26,white);
@@ -429,6 +431,22 @@ int main(){
     if(v)text(d,font,atlas,font.fit(v->text,19,540.f+(cw-927.f)),cx+352,y,19,white);
    }
    if(n==0)text(d,font,atlas,bible_i18n::label(settings.language,search?bible_i18n::Key::noMatches:bible_i18n::Key::noBookmarks),cx+50,473,24,subdued);
+  }else if(page==Page::about){
+   const float x=cx+50.f;
+   text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::about),x,302,44,gold);
+   d.line(x,332,cx+cw-50,332,1,border);
+   text(d,font,atlas,"BIBLE READER",x,391,40,white);
+   text(d,font,atlas,"by YAHBALLON  |  v0.2.0",x,430,23,gold);
+   text(d,font,atlas,"Native PS5 Homebrew | 100% Offline",x,490,25,white);
+   text(d,font,atlas,"66 books, 1189 chapters, 5 Bible languages.",x,540,23,subdued);
+   text(d,font,atlas,"Reading, search, bookmarks and karaoke.",x,583,23,subdued);
+   text(d,font,atlas,"Neural HD: Piper VITS / ONNX Runtime.",x,626,23,subdued);
+   text(d,font,atlas,"Voices: Kristin, Thorsten, Siwis, DaveFX, Denis.",x,669,23,subdued);
+   text(d,font,atlas,"Classic & Retro: eSpeak NG.",x,712,23,subdued);
+   text(d,font,atlas,"Bible text: public domain. Voice attribution and",x,755,21,subdued);
+   text(d,font,atlas,"licences are included with the installation.",x,788,21,subdued);
+   d.line(x,837,cx+cw-50,837,1,border);
+   text(d,font,atlas,"O  Back to reading",x,881,23,gold);
   }else if(page==Page::settings){
    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::settings),cx+48,300,43,gold);
    const bible_i18n::Key labels[]={
