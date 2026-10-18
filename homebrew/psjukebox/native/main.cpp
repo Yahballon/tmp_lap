@@ -846,7 +846,6 @@ int main(){
   artist=currentArtist();album=currentAlbum();
   const uint32_t accent=0xffc735; // screenshot-matched gold UI accent
   const uint32_t secondary=artist?artist->theme.secondary:0x173f37;
-  const uint32_t lettering=artist?artist->theme.text:0xffffff;
   auto cached=[&](const std::string& path)->Texture {
    if(path.empty())return {};
    auto it=images.find(path);return it==images.end()?Texture{}:it->second;
@@ -1086,7 +1085,6 @@ int main(){
      for(int p=0;p<3;p++)d.circle(x+25+p*10,873,3,color(0xb8cada));
     }
    }
-  }
   }else if((screen==1||screen==5)&&album){
    d.shadow({142,259,1636,670},24,24,color(0x000000,.7f));
    d.gradient_rect({142,259,1636,670},24,color(0x111b2b,.96f),color(0x080c17,.92f));
