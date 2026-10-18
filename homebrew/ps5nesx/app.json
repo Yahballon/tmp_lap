@@ -1,0 +1,15 @@
+{
+  "name": "PS5NESX",
+  "slug": "ps5nesx",
+  "titleId": "PPSA99204",
+  "version": "1.0.9",
+  "upstreamVersion": "1.0.0.9",
+  "releaseTag": "ps5nesx-v1.0.9",
+  "sourceRepository": "Yahballon/PS5NESX",
+  "sourceScope": ["nes", "ps5", "3rdparty/include", "3rdparty/vulkan/include"],
+  "dataFolder": "/data/PS5NES",
+  "installFolder": "PPSA99204",
+  "core": "FCEUmm",
+  "frontend": "PS5SX2 cover-flow",
+  "supportedRomExtensions": [".nes", ".unf", ".unif", ".zip"]
+}
