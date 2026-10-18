@@ -15,6 +15,8 @@ int main(){
  assert(artistCard.y<267); // no full-width artist context strip
  assert(coverCenterY<510.f);
  assert(footer.y>=player.y+player.h);
+ assert(player.y<=760.f&&player.h>=200.f);
+ assert(playingArtwork.x<300.f&&playingArtwork.y<800.f);
  assert(!intersect(artistCard,albumCard));
  assert(playingArtwork.x>player.x&&playingArtwork.y>player.y);
  assert(playingArtwork.x+playingArtwork.w<player.x+player.w);

@@ -1,9 +1,10 @@
-# PSJukebox v0.1.22 — Flicker-free Coverflow
+# PSJukebox v0.1.23 — Neon Glass & Spinning Vinyl
 
-- Keep selected and neighboring jackets resident in GPU cache, preventing mid-navigation eviction and cover reloading.
-- Request destination and nearby jackets before optional logos and album backgrounds.
-- Wait for a pending cover to finish loading before beginning a 480 ms carousel transition, preserving the current image in the meantime.
-- Truly missing cover artwork still uses the normal text fallback.
-- Retain SMB/USB support, favorites, playback, DualSense navigation, and all v0.1.21 UI improvements.
+- Updated native PS5 music UI inspired by the user-supplied reggae/gold screenshot: emerald glass, reggae stripes, disc-shaped album counter and refined player/footer.
+- Move **by YAHBALLON · v0.1.23** under the PSJUKE BOX wordmark; status panel keeps live READY, artist count, tracks and clock.
+- In NOW PLAYING, the sleeve sits over a vinyl that rotates at 33 1/3 RPM while the decoder plays, freezes on pause and resumes without jumping.
+- Add real playback codec, channels and sample rate badges (read from FFmpeg; never hardcode FLAC/44.1kHz).
+- Decorative animated reggae-tinted spectrum bars, bigger song typography and extended seek bar.
+- Preserve fast no-flicker album browsing, SMB network shares, favorites and DualSense functions.
 
-GitHub Actions verifies compilation and the installable ZIP. Confirm results on PS5 hardware.
+Github Actions builds and verifies the package; PS5 hardware must still validate smooth rendering.

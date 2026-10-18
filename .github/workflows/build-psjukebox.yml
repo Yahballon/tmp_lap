@@ -37,7 +37,7 @@ jobs:
           assert ver.group(1)=="v"+metadata["version"], "App header and release version differ"
           assert metadata["releaseTag"]=="psjukebox-"+ver.group(1), "Release tag mismatch"
           assert 'std::string("by YAHBALLON  ·  ")+version' in code
-          assert '1853,130,13,muted,Align::right' in code, "Credits must align below clock"
+          assert '182,133,16,color(0xe6f0e9,.89f)' in code, "Credits must be under PSJUKE BOX"
           assert 'label(d,font,atlas,clockText,1853,87,29,white,Align::right)' in code
           assert 'B R O W S I N G   A R T I S T' not in code
           assert 'const float actions[]' not in code
@@ -51,8 +51,10 @@ jobs:
           assert 'const auto box=jukebox::dashboard::player;' in code
           assert 'const auto thumb=jukebox::dashboard::playingArtwork;' in code
           assert 'image_fill(d,art,thumb.x+4,thumb.y+4' in code
-          assert 'label(d,font,atlas,cut(playing->name,64),373,870,31,white);' in code
-          assert 'd.rounded_rect({465,930,1225*progress,11},5,color(accent));' in code
+          assert 'label(d,font,atlas,cut(playing->name,52),375,854,32,white);' in code
+          assert 'd.rounded_rect({471,927,1168*progress,10},5,color(accent));' in code
+          assert 'vinylMotion.tick(frameDt,audioState.playing&&!audioState.paused)' in code
+          assert 'status_.sampleRate=codec->sample_rate;' in Path('homebrew/psjukebox/native/audio_player.cpp').read_text()
           assert 'd.bordered_rect({status.x,status.y,status.w,status.h}' in code
           assert 'const uint32_t accent=jukebox::dashboard::gold;' in code
           assert 'pendingCoverStep=albumStep;' in code
@@ -78,6 +80,10 @@ jobs:
             homebrew/psjukebox/tests/dashboard_layout_test.cpp \
             -o /tmp/psjukebox-dashboard-layout-test
           /tmp/psjukebox-dashboard-layout-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/tests/vinyl_motion_test.cpp \
+            -o /tmp/psjukebox-vinyl-motion-test
+          /tmp/psjukebox-vinyl-motion-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror \
             homebrew/psjukebox/native/library_cache.cpp \
             homebrew/psjukebox/tests/library_cache_test.cpp \

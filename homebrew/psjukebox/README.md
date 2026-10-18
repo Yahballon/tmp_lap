@@ -286,3 +286,7 @@ Removed the wide Browsing Artist hero; live artist and track counts are integrat
 ## v0.1.22 — Coverflow flicker fix
 
 The selected and nearby album covers stay in the decoded texture cache instead of being removed during navigation. Target album covers are loaded with priority, ahead of optional artwork; the carousel waits to animate a previously uncached cover until the image load has completed. Real missing images still display the album-name placeholder. SMB and playback remain unchanged.
+
+## v0.1.23 — Emerald glass UI and spinning vinyl
+
+The native PS5 display is restyled with dark emerald glass surfaces and warm gold highlights based on the supplied reference, keeping the real artist/album backgrounds and coverflow. `by YAHBALLON · v0.1.23` is under the PSJUKE BOX wordmark, not near the clock. NOW PLAYING contains a vector record spinning at 33 1/3 RPM only while audio is actively playing; pausing freezes the record. Small badges show real codec, channel count and input sample rate reported by the FFmpeg decoder. Spectrum bars are decorative. SMB, USB, favorites, navigation and fast cover caching are retained.

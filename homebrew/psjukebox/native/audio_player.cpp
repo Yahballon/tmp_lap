@@ -101,7 +101,11 @@ void Player::decode(){
   if(fmt->duration>0&&fmt->duration!=AV_NOPTS_VALUE)duration=(double)fmt->duration/AV_TIME_BASE;
   else if(fmt->streams[index]->duration>0)duration=fmt->streams[index]->duration*av_q2d(fmt->streams[index]->time_base);
   std::lock_guard<std::mutex> guard(mutex_);
-  status_.duration=duration;status_.playing=true;status_.opening=false;status_.message="Playing audio";
+  status_.duration=duration;status_.playing=true;status_.opening=false;
+  status_.codec=avcodec_get_name(codec->codec_id);
+  status_.channels=codec->ch_layout.nb_channels;
+  status_.sampleRate=codec->sample_rate;
+  status_.message="Playing audio";
  }
  {
   bool wasPaused=false;

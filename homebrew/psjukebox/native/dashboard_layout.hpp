@@ -8,13 +8,13 @@ namespace jukebox::dashboard {
 struct Rect { float x,y,w,h; };
 constexpr Rect header{32,28,1856,134};
 constexpr Rect nav{503,58,912,79};
-// READY, artists, tracks, clock and credits share the compact right header.
+// READY, artist/track totals and clock; developer/version belongs below PSJUKE BOX.
 constexpr Rect status{1430,43,442,102};
 constexpr Rect artistCard{40,205,302,125};
 constexpr Rect albumCard{1575,205,303,125};
-constexpr Rect player{115,793,1690,174};
+constexpr Rect player{50,756,1820,210};
 constexpr Rect footer{0,982,1920,98};
-constexpr Rect playingArtwork{180,810,152,147};
+constexpr Rect playingArtwork{122,787,155,155};
 constexpr float coverCenterY=478.f;
 constexpr float sideCoverCenterY=507.f;
 // Golden focus matches the reference UI independent of album theme hues.

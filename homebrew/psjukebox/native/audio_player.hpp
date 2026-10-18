@@ -8,6 +8,8 @@ namespace audio {
 struct Status {
  bool opening=false, playing=false, paused=false, ended=false, seeking=false;
  double seconds=0, duration=0;
+ std::string codec;
+ int channels=0,sampleRate=0;
  std::string message;
 };
 class Player {
