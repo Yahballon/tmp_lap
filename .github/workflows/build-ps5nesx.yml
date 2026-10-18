@@ -144,24 +144,7 @@ jobs:
           export LIBZ_PREFIX="$PS5NES_DEPS/filesystem-helper/.deps/pacbrew/v0.40.2/sysroot/user/homebrew"
           export PS5NES_PSBC_GENERATED="$GITHUB_WORKSPACE/homebrew/ps5-mesenx/build/ps5-core/generated-psbc.ps5.a"
           export PS5NES_AGC_STUB_DIR="$GITHUB_WORKSPACE/homebrew/ps5-mesenx/build/ps5-core/agc-imports"
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          meta=json.loads(Path('app.json').read_text())
-          version=meta['version']
-          # Keep build-produced metadata aligned to TESTBUILDS SemVer.
-          builder=Path('nes/tools/build_shelf.py')
-          s=builder.read_text()
-          s=s.replace('PS5NES v1.0.0.9', 'PS5NES v'+version)
-          s=s.replace('PS5NES-v1.0.0.9', 'PS5NES-v'+version)
-          builder.write_text(s)
-          param=Path('nes/sce_sys/param.json')
-          p=json.loads(param.read_text())
-          pieces=list(map(int,version.split('.')))
-          p['contentVersion']=f"{pieces[0]:02d}.{pieces[1]:03d}.{pieces[2]:03d}"
-          assert p['titleId']=='PPSA99204'
-          param.write_text(json.dumps(p,indent=2)+'\n')
-          PY
+          # build_shelf.py generates the UI version and title metadata from app.json.
           bash nes/tools/build.sh
           mkdir -p dist
           python3 - <<'PY'
@@ -169,6 +152,9 @@ jobs:
           from pathlib import Path
           src=list(Path('nes/build-shelf').glob('PS5NES-v*-by-YAHBALLON.zip'))
           assert len(src)==1,src
+          meta=json.loads(Path('app.json').read_text())
+          version=meta['version']
+          assert src[0].name==f'PS5NES-v{version}-by-YAHBALLON.zip'
           dst=Path('dist/PPSA99204.zip')
           dst.write_bytes(src[0].read_bytes())
           assert dst.stat().st_size>1_000_000
@@ -178,7 +164,12 @@ jobs:
                            'PPSA99204/sce_sys/icon0.png','PPSA99204/lapy.elf',
                            'PPSA99204/lapy-manifest.json']:
                   assert name in archive.namelist(),name
-              assert json.loads(archive.read('PPSA99204/sce_sys/param.json'))['titleId']=='PPSA99204'
+              param=json.loads(archive.read('PPSA99204/sce_sys/param.json'))
+              assert param['titleId']=='PPSA99204'
+              major,minor,patch=map(int,version.split('.'))
+              assert param['contentVersion']==f'{major:02d}.{minor:03d}.{patch:03d}'
+              manifest=json.loads(archive.read('PPSA99204/build-manifest.json'))
+              assert manifest['version']==version and manifest['build_tag']==f'v{version} by YAHBALLON'
               assert archive.read('PPSA99204/eboot.bin')[:4]==struct.pack('<I',0x1D3D154F)
           print('Validated signed PS5NESX release',dst.stat().st_size)
           PY

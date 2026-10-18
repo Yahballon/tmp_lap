@@ -30,3 +30,12 @@ c++ -std=c++20 -O2 -Wall -Wextra -Werror \
 16-app manifest when PS5NESX was added. While that issue remains open, new
 PS5NESX releases are directly installable from tmp_lap GitHub Releases
 but are intentionally omitted from version.json.
+
+## Embedded version fix (v1.0.11)
+The upstream `nes/src/main_shelf.cpp` had four hardcoded `v1.0.0.9`
+strings for the on-screen build tag, log header and web server.
+`nes/tools/build_shelf.py` now automatically regenerates
+`nes/src/ps5nes_build_version.h` from `app.json` before compilation
+and synchronizes `sce_sys/param.json`, the package filename, and
+`build-manifest.json`. GitHub Actions also verifies the packaged
+manifest and title version before publishing.
