@@ -222,3 +222,7 @@ In the coverflow and now-playing views, **D-pad left/right** now selects the pre
 **L1/R1** still changes artists, **L2/R2** still changes albums, even during playback. **Down** opens the Tracklist, **Square** toggles Pause, **X** plays/opens tracks, **Triangle** toggles Favorites, **OPTIONS** opens Settings. D-pad left/right remains header tab navigation when header focus is active, so the header and artist/track lists retain their dedicated navigation.
 
 This is an input-mapping change only. Packed `.album` scanning, cache extraction, SMB playback, centered jackets and their ~24px spacing are unchanged. Native CI tests validate that D-pad cover navigation and analog seeking are distinct paths; real PS5 behavior still needs a console test.
+
+## v0.1.13 — Creator and build version in header
+
+The upper-right PSJukebox header shows the existing clock with a small, right-aligned credit line directly underneath: **by YAHBALLON · v0.1.13**. The version displayed uses the native application's `version` constant, also used by its BOOT log, and the build workflow checks that it matches the `app.json` release version. The small muted label keeps the clock and other header UI unobstructed. No changes to music scanning, `.album` imports, playback, coverflow, buttons or SMB support.
