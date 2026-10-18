@@ -1,9 +1,23 @@
-# PSJukebox v0.1.9 — Fix ZIP scan crash and clean coverflow (TESTBUILD)
+# PSJukebox v0.1.10 — Fix .album shows 0 tracks on real PS5
 
-- Fix native PS5 `SIGSEGV` during import of valid compressed `.album` containers, observed immediately after `ALBUM_EXTRACT_BEGIN` with archive `wu-tang-forever.album`.
-- In `write_entry()`, compressed input/output scratch buffers were two 32 KiB local arrays on the scanner pthread stack. Now allocated on the heap so the scanner can read and extract albums without blowing its small native stack.
-- Add a regression test that imports a packed album with cover, background and music on a deliberately constrained 64 KiB pthread stack. Keep the previous sandbox EPERM and helper tests.
-- Remove the large album folder name rendered above the selected cover in the album carousel. Keep navigation, album counter, and now-playing track title unchanged.
-- No changes to user music folders, .album contents, cached songs, SMB configuration, favorites or controller mapping.
+From actual hardware v0.1.9 logs:
+`ALBUM_OK wutang/wu-tang-forever tracks=0` and
+`UNAVAILABLE /data/PSJukebox/AlbumCache/.../Music errno=1`.
 
-No real-console confirmation until tested on PS5; if another issue occurs, send log lines from `BOOT v0.1.9`.
+The custom ZIP extraction completed successfully, but the post-extraction
+library scan used `opendir` on a sandbox-protected PS5 cache directory.
+Because `opendir` was denied, the imported album had zero songs and no art.
+
+This release synthesizes the album's media catalog **directly from its validated
+ZIP central directory** instead of scanning cached directories. Music titles,
+file sizes, paths, cover and background artwork are indexed even when directory
+enumeration is impossible. Cache reuse also regenerates the index instead of
+returning early without tracks.
+
+Adds a dedicated CI regression that denies `opendir` on AlbumCache with
+EPERM, verifies two playable tracks + cover/background, and validates
+repeat import on an existing archive-ready cache. Retains v0.1.9 heap ZIP
+buffers, coverflow layout (no folder name above cover), favorites, SMB,
+and controller mappings. No media source files are modified.
+
+Actual playback needs user confirmation on PS5 hardware.

@@ -51,6 +51,15 @@ jobs:
             homebrew/psjukebox/native/library.cpp \
             homebrew/psjukebox/tests/archive_test.cpp -lz -o /tmp/psjukebox-album-test
           /tmp/psjukebox-album-test /tmp/psjukebox-zip-test/Demo.album /tmp/psjukebox-zip-test
+          # Real PS5 v0.1.9 import returned ALBUM_OK tracks=0 because
+          # opendir(AlbumCache/Music) failed with errno=1. This regression
+          # denies directory enumeration, requiring the ZIP metadata index.
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            -Wl,--wrap=opendir \
+            homebrew/psjukebox/native/album_archive.cpp \
+            homebrew/psjukebox/native/library.cpp \
+            homebrew/psjukebox/tests/archive_catalog_test.cpp -lz -o /tmp/jbx-archive-index-test
+          /tmp/jbx-archive-index-test /tmp/psjukebox-zip-test/Demo.album /tmp/psjukebox-zip-test/AlbumCache
           # Real PS5 scan runs on a small pthread stack; a 64 KiB stack
           # reproduces the v0.1.8 crash from the two local ZIP buffers.
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pthread \
@@ -163,7 +172,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.9
+          name: PSJukebox-v0.1.10
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -176,5 +185,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.9 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.10 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
