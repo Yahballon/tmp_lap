@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.16
+// PSJukebox by YAHBALLON v0.1.17
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -14,6 +14,7 @@
 #include "favorites.hpp"
 #include "album_archive.hpp"
 #include "library_cache.hpp"
+#include "utf8_text.hpp"
 #include "smb_music.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -36,10 +37,10 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.16";
+constexpr const char* version="v0.1.17";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
-std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
+std::string cut(const std::string& s,size_t n){return jukebox::utf8_cut(s,n);}
 std::string read(const std::string& path,size_t limit=12*1024*1024){
  FILE* f=fopen(path.c_str(),"rb");if(!f)return {};
  if(fseek(f,0,SEEK_END)){fclose(f);return {};}
@@ -282,13 +283,28 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.16");
+ log("BOOT v0.1.17");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
  if(f.empty())f=read("/data/homebrew/PPSA99947/assets/fonts/inter-semibold.huifont",4*1024*1024);
  if(!font.load(f))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);
+ // The original Inter font is baked for ASCII-only UI. Load a Unicode
+ // fallback atlas for artist names and tracks in other writing systems.
+ // Font::resolve uses the fallback before it substitutes '?'.
+ Font internationalFont;
+ auto intl=read("/app0/assets/fonts/international.huifont",16*1024*1024);
+ if(intl.empty())intl=read("/data/homebrew/PPSA99947/assets/fonts/international.huifont",16*1024*1024);
+ if(internationalFont.load(intl)){
+  const unsigned internationalAtlas=renderer.batch().create_font_texture(internationalFont);
+  if(internationalAtlas){
+   font.add_fallback(&internationalFont,internationalAtlas);
+   log("FONT_INTERNATIONAL_OK bytes="+std::to_string(intl.size()));
+  }else log("FONT_INTERNATIONAL_ATLAS_FAILED");
+ }else log("FONT_INTERNATIONAL_LOAD_FAILED "+internationalFont.error());
+ Texture brandIcon=load_texture(renderer,"/app0/assets/icon0.png");
+ if(!brandIcon.id)brandIcon=load_texture(renderer,"/data/homebrew/PPSA99947/assets/icon0.png");
  hui::ps5::Pad pad;pad.open();
  jukebox::Library library;
  std::string libraryCacheError;
@@ -704,7 +720,7 @@ int main(){
       message="Waiting for file operations to stop...";exitDialog=false;continue;
      }
      player.stop();for(auto& it:images)destroy(it.second);
-     pad.close();renderer.release();display.close();hui::sys::quit();
+     destroy(brandIcon);pad.close();renderer.release();display.close();hui::sys::quit();
     }
     exitDialog=false;
    }
@@ -821,66 +837,78 @@ int main(){
    const float p=coverMotion.progress(),blend=p*p*(3.f-2.f*p);
    image_fill(d,bg,0,0,1920,1080,coverMotion.active()?blend:1.f);
   }
-  // Cinematic menu chrome inspired by the supplied concept image.
-  d.gradient_rect({0,0,1920,160},0,color(0x000000,.75f),color(0x000000,.04f));
-  d.rounded_rect({0,0,1920,140},0,color(0x05070e,.73f));
-  d.line(0,139,1920,139,2,color(accent,.50f));
-  d.rounded_rect({0,972,1920,108},0,color(0x010205,.93f));
-  d.line(0,973,1920,973,1,color(0xffffff,.2f));
-  if(artist){
-   image_fit(d,cached(artist->logo),22,8,465,98);
-   if(!cached(artist->logo).id)label(d,font,atlas,cut(artist->name,24),48,74,41,color(accent));
-  }else label(d,font,atlas,"PSJUKEBOX",48,76,40,color(accent));
-  // Top tabs: UP from the album browser, D-pad left/right, then X.
-  // L2/R2 are previous/next song; D-pad left/right browse covers.
+  // HUD design language adapted from ps5-homebrew-ui Field HUD,
+  // Aurora Shelf and Now Playing: layered translucent surfaces,
+  // quiet chrome, clear focus states, persistent playback visibility.
+  d.shadow({18,10,1884,142},23,25,color(0x000000,.76f));
+  d.gradient_rect({18,10,1884,142},23,color(0x171d2a,.94f),color(0x070a12,.91f));
+  d.bordered_rect({18,10,1884,142},23,color(0x111824,.16f),1,color(0xffffff,.13f));
+  d.rounded_rect({26,20,7,121},3,color(accent));
+  if(brandIcon.id)
+   image_fit(d,brandIcon,52,31,88,88);
+  else{
+   d.bordered_rect({53,38,73,73},20,color(accent,.15f),2,color(accent));
+   d.ring(89,74,22,5,color(accent));
+  }
+  label(d,font,atlas,"PSJUKEBOX",154,70,34,white);
+  label(d,font,atlas,"YOUR MUSIC  /  YOUR CONSOLE",155,103,15,muted);
+  // A single horizontal navigation rail: active pill and focus ring are
+  // distinct, matching the tactile focus treatment in Aurora Shelf.
   static constexpr const char* tabNames[]={"All Albums","Artists","Tracks","Playlists","Favorites"};
-  static constexpr float tabX[]={566.f,716.f,866.f,1016.f,1166.f};
+  static constexpr float tabX[]={615.f,769.f,923.f,1077.f,1231.f};
+  d.rounded_rect({518,43,808,75},23,color(0x000000,.28f));
   for(int i=0;i<5;i++){
    const float x=tabX[i];
    const bool active=(i==headerIndex);
-   if(active)d.glow({x-46,25,92,76},17,12,color(accent,.54f));
-   if(headerFocus&&active)d.bordered_rect({x-65,15,130,108},11,color(accent,.12f),2,color(accent));
-   if(i==0){
-    d.ring(x+4,58,8,2.5f,active?color(accent):white);
-    d.line(x+12,38,x+12,60,3,active?color(accent):white);
-    d.line(x+12,38,x+24,42,2.5f,active?color(accent):white);
-   }else if(i==1){
-    d.circle(x,47,10,active?color(accent):white);
-    d.rounded_rect({x-19,60,38,12},7,active?color(accent):white);
-   }else if(i==2){
-    d.ring(x+5,60,8,2.5f,active?color(accent):white);
-    d.line(x+13,39,x+13,59,3,active?color(accent):white);
-   }else if(i==3){
-    for(int j=0;j<3;j++){
-     d.circle(x-16,43+j*11,2.8f,active?color(accent):white);
-     d.line(x-7,43+j*11,x+17,43+j*11,2.4f,active?color(accent):white);
-    }
-   }else{
-    // A golden favorite star replaces USB in the supplied reference.
-    d.star(x,55,17,active?color(accent):color(0xffffff),0);
+   const Color fg=active?white:muted;
+   if(active){
+    d.glow({x-73,52,146,54},16,16,color(accent,.28f));
+    d.gradient_rect({x-73,49,146,58},16,color(accent,.31f),color(accent,.10f));
+    d.bordered_rect({x-73,49,146,58},16,color(accent,.07f),1.7f,color(accent,.75f));
+    d.rounded_rect({x-21,106,42,3},2,color(accent));
    }
-   label(d,font,atlas,tabNames[i],x,111,19,active?color(accent):white,Align::center);
-   if(active)d.line(x-56,138,x+56,138,3,color(accent));
+   if(headerFocus&&active)d.bordered_rect({x-78,44,156,68},19,color(0x000000,0),2.5f,white);
+   label(d,font,atlas,tabNames[i],x,84,17,fg,Align::center);
   }
+  d.bordered_rect({1532,27,350,105},21,color(0x000000,.21f),1,color(0xffffff,.13f));
+  d.circle(1560,52,4.5f,color(scanBusy.load()?0xffbf57:0x77e6a7));
+  label(d,font,atlas,scanBusy.load()?"INDEXING":"LIBRARY READY",1574,58,14,muted);
+  d.rounded_rect({0,981,1920,99},0,color(0x080b14,.94f));
+  d.line(34,981,1850,981,1.5f,color(accent,.42f));
   const std::time_t nowTime=std::time(nullptr);
   char clockText[32]="--:--";
   if(nowTime>0){
    const auto* tm=std::localtime(&nowTime);
    if(tm)std::strftime(clockText,sizeof(clockText),"%H:%M",tm);
   }
-  label(d,font,atlas,clockText,1850,64,27,white,Align::right);
-  // Build credits stay directly below the clock in every UI tab.
-  // The same version constant is used by the app boot/log header.
+  label(d,font,atlas,clockText,1850,65,28,white,Align::right);
   label(d,font,atlas,std::string("by YAHBALLON  ·  ")+version,
-        1850,99,17,muted,Align::right);
-  if(artist){
-   label(d,font,atlas,cut(artist->name,33)+" LIBRARY",78,186,24,color(accent));
-   label(d,font,atlas,std::string(" /  ")+tabNames[headerIndex],420,186,22,white);
-  }
+        1850,102,16,muted,Align::right);
+  // A compact glass artist context bar frees the hero area for album artwork.
+  d.shadow({40,167,1840,76},19,16,color(0x000000,.50f));
+  d.gradient_rect({40,167,1840,76},19,color(0x141c2a,.89f),color(0x101521,.79f));
+  d.bordered_rect({40,167,1840,76},19,color(0x0b1221,.11f),1,color(0xffffff,.13f));
+  d.rounded_rect({56,183,5,44},2,color(accent));
+  const auto artistLogo=artist?cached(artist->logo):Texture{};
+  if(artistLogo.id)image_fit(d,artistLogo,75,180,76,50);
+  else d.circle(99,205,14,color(accent,.65f));
+  label(d,font,atlas,artist?cut(artist->name,32):"Music Library",170,212,28,white);
+  label(d,font,atlas,"/",602,212,25,color(accent));
+  label(d,font,atlas,tabNames[headerIndex],637,212,22,muted);
+  label(d,font,atlas,std::to_string(library.artists.size())+" ARTISTS",1362,211,17,muted);
+  label(d,font,atlas,std::to_string(library.trackCount)+" TRACKS",1699,211,17,color(accent),Align::right);
+  label(d,font,atlas,scanBusy.load()?"UPDATING...":"READY",1836,211,16,muted,Align::right);
   const bool showCoverflow=(screen==0||screen==2);
   if(showCoverflow&&album&&artist){
-   // Album folder names are not drawn above artwork in coverflow.
-   label(d,font,atlas,std::to_string(albumIndex+1)+" / "+std::to_string(artist->albums.size()),1820,186,21,white,Align::right);
+   // Selected album count and short, frosted side HUD cards.
+   d.bordered_rect({62,268,290,123},17,color(0x0b1220,.79f),1,color(0xffffff,.13f));
+   label(d,font,atlas,"NOW BROWSING",86,306,15,color(accent));
+   label(d,font,atlas,cut(artist->name,16),86,345,24,white);
+   label(d,font,atlas,std::to_string(artist->albums.size())+" ALBUMS",86,377,17,muted);
+   d.bordered_rect({1568,268,290,123},17,color(0x0b1220,.79f),1,color(0xffffff,.13f));
+   label(d,font,atlas,"ALBUM",1592,305,15,color(accent));
+   label(d,font,atlas,std::to_string(albumIndex+1)+"  /  "+std::to_string(artist->albums.size()),1592,346,27,white);
+   label(d,font,atlas,std::to_string(album->tracks.size())+" TRACKS",1592,377,17,muted);
    // 480ms smoothstep: every sleeve moves into its neighbor's position.
    // Draw farther sleeves first so the foreground jacket stays on top.
    const int total=(int)artist->albums.size();
@@ -906,10 +934,10 @@ int main(){
     const float focus=std::clamp(1.f-std::fabs(position),0.f,1.f);
     const auto slot=jukebox::cover_slot(position);
     const float x=slot.x,y=slot.y,w=slot.w,h=slot.h;
-    if(focus>.1f)d.glow({x-8,y-8,w+16,h+16},15,9,color(accent,.5f+focus*.5f));
-    d.shadow({x,y,w,h},8,17,color(0x000000,.82f));
-    d.bordered_rect({x,y,w,h},5,color(0x060913),2.f+3.f*focus,
-      focus>.5f?color(accent):color(0xd4d8e2));
+    if(focus>.1f)d.glow({x-9,y-9,w+18,h+18},17,16,color(accent,.24f+focus*.34f));
+    d.shadow({x,y,w,h},14,20,color(0x000000,.78f));
+    d.bordered_rect({x,y,w,h},12,color(0x060913,.96f),2.f+2.f*focus,
+      focus>.5f?color(accent):color(0x9aa7b9,.76f));
     const auto cover=cached(item.cover);
     if(cover.id){
      image_fill(d,cover,x+4,y+4,w-8,h-8);
@@ -930,11 +958,24 @@ int main(){
      if(playingSong.track<currentAlbum.tracks.size()){
       const auto& track=currentAlbum.tracks[playingSong.track];
       auto state=player.snapshot();
-      label(d,font,atlas,cut(track.name,49),960,836,27,color(accent),Align::center);
-      label(d,font,atlas,cut(current.name,24)+" - "+cut(currentAlbum.name,33),960,866,18,white,Align::center);
+      d.shadow({368,780,1184,191},19,23,color(0x000000,.7f));
+      d.gradient_rect({368,780,1184,191},19,color(0x182130,.95f),color(0x080c17,.95f));
+      d.bordered_rect({368,780,1184,191},19,color(0x0b0f19,.16f),1.4f,color(0xffffff,.16f));
+      d.rounded_rect({378,793,5,164},2,color(accent));
+      label(d,font,atlas,state.paused?"PAUSED":"NOW PLAYING",421,814,14,color(accent));
+      // A lightweight pseudo spectrum for life without FFT/network work.
+      // Shimmer is subdued when paused, like the Now Playing concept.
+      for(int bar=0;bar<19;bar++){
+       const float wave=std::fabs(std::sin((float)frame*.042f+(float)bar*.67f));
+       const float height=state.paused?5.f:5.f+wave*(8.f+(bar%4)*2.f);
+       d.rounded_rect({1270.f+bar*11.f,805.f-height,6.f,height},3,color(accent,.37f+wave*.43f));
+      }
+      label(d,font,atlas,cut(track.name,49),960,846,26,color(accent),Align::center);
+      label(d,font,atlas,cut(current.name,24)+"  /  "+cut(currentAlbum.name,33),960,875,18,white,Align::center);
       const float prog=state.duration>0?std::clamp((float)(state.seconds/state.duration),0.f,1.f):0.f;
-      d.rounded_rect({574,914,760,12},6,color(0x9aa2b4,.7f));
-      d.rounded_rect({574,914,std::max(3.f,760*prog),12},6,color(accent));
+      d.rounded_rect({574,916,760,9},5,color(0x586378,.7f));
+      d.rounded_rect({574,916,std::max(3.f,760*prog),9},5,color(accent));
+      d.circle(574+760*prog,920.5f,9,color(accent));
       label(d,font,atlas,stamp(state.seconds),550,926,18,white,Align::right);
       label(d,font,atlas,stamp(state.duration),1359,926,18,white);
       label(d,font,atlas,state.paused?"PAUSED":"D-PAD  Covers    STICK  Seek 10s    DOWN  Tracklist",960,956,16,muted,Align::center);
@@ -944,7 +985,9 @@ int main(){
     label(d,font,atlas,"L1/R1 Artist  |  L2/R2 Songs  |  D-PAD Covers  |  STICK Seek  |  DOWN Tracks",960,900,18,muted,Align::center);
    }
   }else if((screen==1||screen==5)&&album){
-   d.rounded_rect({142,245,1636,680},13,color(0x050810,.88f));
+   d.shadow({142,259,1636,670},24,24,color(0x000000,.7f));
+   d.gradient_rect({142,259,1636,670},24,color(0x111b2b,.96f),color(0x080c17,.92f));
+   d.bordered_rect({142,259,1636,670},24,color(0x0a121c,.12f),1.5f,color(0xffffff,.17f));
    label(d,font,atlas,screen==5?"CURRENT ALBUM QUEUE":"TRACKS  /  "+cut(album->name,30),
        205,307,33,color(accent));
    label(d,font,atlas,std::to_string(album->tracks.size())+" TRACKS",1700,305,20,muted,Align::right);
@@ -952,7 +995,10 @@ int main(){
    for(int i=start;i<(int)album->tracks.size()&&i<start+10;i++){
     const auto& t=album->tracks[(size_t)i];
     const float y=370+(i-start)*52.f;
-    if(i==trackIndex)d.rounded_rect({190,y-32,1530,48},7,color(accent,.22f));
+    if(i==trackIndex){
+     d.glow({190,y-32,1530,48},10,9,color(accent,.16f));
+     d.bordered_rect({190,y-32,1530,48},10,color(accent,.19f),1,color(accent,.55f));
+    }else if((i-start)%2==0)d.rounded_rect({190,y-32,1530,48},10,color(0xffffff,.035f));
     label(d,font,atlas,std::to_string(i+1),222,y,20,color(accent));
     label(d,font,atlas,cut(t.name,86),290,y,23,white);
     if(favorites.contains(t.path)){
@@ -961,7 +1007,9 @@ int main(){
    }
    if(album->tracks.empty())label(d,font,atlas,"No tracks in this album",960,602,26,muted,Align::center);
   }else if(screen==3){
-   d.rounded_rect({270,246,1380,665},12,color(0x040811,.85f));
+   d.shadow({270,246,1380,665},24,25,color(0x000000,.65f));
+   d.gradient_rect({270,246,1380,665},24,color(0x151d2b,.95f),color(0x080c16,.96f));
+   d.bordered_rect({270,246,1380,665},24,color(0x080e19,.14f),1,color(0xffffff,.17f));
    label(d,font,atlas,"ARTISTS",960,315,38,color(accent),Align::center);
    for(size_t i=0;i<library.artists.size()&&i<11;i++){
     const float y=375+((int)i-std::max(0,artistListIndex-5))*53.f;
@@ -972,7 +1020,9 @@ int main(){
         1540,y,20,muted,Align::right);
    }
   }else if(screen==6){
-   d.rounded_rect({245,239,1430,687},13,color(0x050711,.88f));
+   d.shadow({245,239,1430,687},24,25,color(0x000000,.65f));
+   d.gradient_rect({245,239,1430,687},24,color(0x171e2d,.95f),color(0x080b17,.96f));
+   d.bordered_rect({245,239,1430,687},24,color(0x080f1b,.12f),1,color(0xffffff,.16f));
    label(d,font,atlas,"FAVORITES",960,310,38,color(accent),Align::center);
    label(d,font,atlas,std::to_string(favSongs.size())+" SAVED SONGS",1554,315,19,muted,Align::right);
    if(favSongs.empty())label(d,font,atlas,"No favorites yet - select a song and press Triangle",960,577,25,white,Align::center);
@@ -989,7 +1039,9 @@ int main(){
     label(d,font,atlas,cut(a.name,20),1512,y,17,muted,Align::right);
    }
   }else if(screen==4){
-   d.rounded_rect({330,251,1260,647},14,color(0x040711,.9f));
+   d.shadow({330,251,1260,647},24,24,color(0x000000,.65f));
+   d.gradient_rect({330,251,1260,647},24,color(0x171f2e,.95f),color(0x080c17,.96f));
+   d.bordered_rect({330,251,1260,647},24,color(0x080c16,.17f),1,color(0xffffff,.16f));
    label(d,font,atlas,"SETTINGS",960,318,39,color(accent),Align::center);
    const char* options[]={"Rescan music library","Back to albums"};
    for(int i=0;i<2;i++){
