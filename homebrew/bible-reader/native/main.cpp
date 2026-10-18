@@ -57,7 +57,7 @@ std::string name(bible::Ref r,int lang){
 }
 bool readTranslation(bible::Library& lib,int lang,std::string& error){
  const std::string code=bible_i18n::code(lang);
- const char* filename=lang==0?"webpb.tsv":nullptr;
+ const char* filename=bible_i18n::language(lang)==0?"webpb.tsv":nullptr;
  const std::string file=filename?filename:code+".tsv";
  const std::string appPath="/app0/assets/bible/"+file;
  if(lib.load(appPath,error))return true;
