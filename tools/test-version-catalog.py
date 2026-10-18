@@ -42,8 +42,7 @@ def fake_open(req,timeout=30):
 
 with tempfile.TemporaryDirectory() as tmp:
     root=Path(tmp)
-    # Real upstream NES release is valid but the installed TESTBUILDS parser
-    # fails after this became app #16. Keep it excluded until client support.
+    # PS5NESX must remain discoverable alongside the other releases.
     nes=root/'homebrew/ps5nesx'
     nes.mkdir(parents=True)
     (nes/'app.json').write_text(json.dumps({'titleId':'PPSA99204','name':'PS5NESX','slug':'ps5nesx'}))
@@ -69,9 +68,9 @@ with tempfile.TemporaryDirectory() as tmp:
         catalog.main()
         result=json.loads((root/'version.json').read_text())
         selected={entry['title_id']:entry['version'] for entry in result['apps']}
-        assert 'PPSA99204' not in selected, 'Client-incompatible PS5NESX entry must be suppressed'
-        assert result['app_count']==len(result['apps'])<=15
-        assert selected=={'PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
+        assert selected['PPSA99204']=='1.0.9'
+        assert result['app_count']==len(result['apps'])
+        assert selected=={'PPSA99204':'1.0.9','PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
         jukebox=next(e for e in result['apps'] if e['title_id']=='PPSA99947')
         assert jukebox['zip_url']=='https://github.com/Yahballon/PSJukebox/releases/download/v0.1.24/PPSA99947.zip'
         # A raw.githubusercontent.com artifact does not have a GitHub
@@ -97,4 +96,4 @@ with tempfile.TemporaryDirectory() as tmp:
         before=(root/'version.json').read_bytes()
         catalog.main()
         assert (root/'version.json').read_bytes()==before
-print('PASS: console-compatible TESTBUILDS catalog excludes PS5NESX until 16-app parser support; other releases preserved')
+print('PASS: TESTBUILDS catalog includes PS5NESX and external project releases; other releases preserved')
