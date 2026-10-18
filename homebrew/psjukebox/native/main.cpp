@@ -947,15 +947,7 @@ int main(){
   d.line(0,982,1920,982,1.1f,color(0x31506f,.47f));
   const bool showCoverflow=(screen==0||screen==2);
   if(showCoverflow&&album&&artist){
-   // Selected album count and short, frosted side HUD cards.
-   d.bordered_rect({62,268,290,123},17,color(0x0b1220,.79f),1,color(0xffffff,.13f));
-   label(d,font,atlas,"NOW BROWSING",86,306,15,color(accent));
-   label(d,font,atlas,cut(artist->name,16),86,345,24,white);
-   label(d,font,atlas,std::to_string(artist->albums.size())+" ALBUMS",86,377,17,muted);
-   d.bordered_rect({1568,268,290,123},17,color(0x0b1220,.79f),1,color(0xffffff,.13f));
-   label(d,font,atlas,"ALBUM",1592,305,15,color(accent));
-   label(d,font,atlas,std::to_string(albumIndex+1)+"  /  "+std::to_string(artist->albums.size()),1592,346,27,white);
-   label(d,font,atlas,std::to_string(album->tracks.size())+" TRACKS",1592,377,17,muted);
+   // The screenshot's two glass cards are already rendered behind the jackets.
    // 480ms smoothstep: every sleeve moves into its neighbor's position.
    // Draw farther sleeves first so the foreground jacket stays on top.
    const int total=(int)artist->albums.size();
@@ -981,9 +973,9 @@ int main(){
     const float focus=std::clamp(1.f-std::fabs(position),0.f,1.f);
     const auto slot=jukebox::cover_slot(position);
     const float x=slot.x,y=slot.y,w=slot.w,h=slot.h;
-    if(focus>.1f)d.glow({x-9,y-9,w+18,h+18},17,16,color(accent,.24f+focus*.34f));
+    if(focus>.1f)d.glow({x-9,y-9,w+18,h+18},17,17,color(accent,.28f+focus*.50f));
     d.shadow({x,y,w,h},14,20,color(0x000000,.78f));
-    d.bordered_rect({x,y,w,h},12,color(0x060913,.96f),2.f+2.f*focus,
+    d.bordered_rect({x,y,w,h},12,color(0x060913,.98f),2.4f+2.2f*focus,
       focus>.5f?color(accent):color(0x9aa7b9,.76f));
     const auto cover=cached(item.cover);
     if(cover.id){
@@ -997,40 +989,71 @@ int main(){
      label(d,font,atlas,cut(item.name,19),x+w/2,y+h/2,24,white,Align::center);
     }
    }
-   // Always show a compact mini-player below the center cover like the reference.
+   // Reference-matched full-width NOW PLAYING rail. Its elements are native
+   // and read the actual decoder state; artwork, timestamps and tracks update.
+   const auto box=jukebox::dashboard::player;
+   d.shadow({box.x,box.y,box.w,box.h},23,22,color(0x000000,.79f));
+   d.gradient_rect({box.x,box.y,box.w,box.h},23,
+                   color(0x101925,.97f),color(0x040a14,.97f));
+   d.bordered_rect({box.x,box.y,box.w,box.h},23,
+                   color(0x071321,.18f),1.9f,color(accent,.82f));
+   d.rounded_rect({141,809,7,146},3,color(accent));
+   const jukebox::Track* playing=active_track();
+   const jukebox::Artist* playingArtist=nullptr;
+   const jukebox::Album* playingAlbum=nullptr;
    if(havePlayingSong&&playingSong.artist<library.artists.size()){
-    const auto& current=library.artists[playingSong.artist];
-    if(playingSong.album<current.albums.size()){
-     const auto& currentAlbum=current.albums[playingSong.album];
-     if(playingSong.track<currentAlbum.tracks.size()){
-      const auto& track=currentAlbum.tracks[playingSong.track];
-      auto state=player.snapshot();
-      d.shadow({368,780,1184,191},19,23,color(0x000000,.7f));
-      d.gradient_rect({368,780,1184,191},19,color(0x182130,.95f),color(0x080c17,.95f));
-      d.bordered_rect({368,780,1184,191},19,color(0x0b0f19,.16f),1.4f,color(0xffffff,.16f));
-      d.rounded_rect({378,793,5,164},2,color(accent));
-      label(d,font,atlas,state.paused?"PAUSED":"NOW PLAYING",421,814,14,color(accent));
-      // A lightweight pseudo spectrum for life without FFT/network work.
-      // Shimmer is subdued when paused, like the Now Playing concept.
-      for(int bar=0;bar<19;bar++){
-       const float wave=std::fabs(std::sin((float)frame*.042f+(float)bar*.67f));
-       const float height=state.paused?5.f:5.f+wave*(8.f+(bar%4)*2.f);
-       d.rounded_rect({1270.f+bar*11.f,805.f-height,6.f,height},3,color(accent,.37f+wave*.43f));
-      }
-      label(d,font,atlas,cut(track.name,49),960,846,26,color(accent),Align::center);
-      label(d,font,atlas,cut(current.name,24)+"  /  "+cut(currentAlbum.name,33),960,875,18,white,Align::center);
-      const float prog=state.duration>0?std::clamp((float)(state.seconds/state.duration),0.f,1.f):0.f;
-      d.rounded_rect({574,916,760,9},5,color(0x586378,.7f));
-      d.rounded_rect({574,916,std::max(3.f,760*prog),9},5,color(accent));
-      d.circle(574+760*prog,920.5f,9,color(accent));
-      label(d,font,atlas,stamp(state.seconds),550,926,18,white,Align::right);
-      label(d,font,atlas,stamp(state.duration),1359,926,18,white);
-      label(d,font,atlas,state.paused?"PAUSED":"D-PAD  Covers    STICK  Seek 10s    DOWN  Tracklist",960,956,16,muted,Align::center);
-     }
-    }
-   }else{
-    label(d,font,atlas,"L1/R1 Artist  |  L2/R2 Songs  |  D-PAD Covers  |  STICK Seek  |  DOWN Tracks",960,900,18,muted,Align::center);
+    playingArtist=&library.artists[playingSong.artist];
+    if(playingSong.album<playingArtist->albums.size())
+     playingAlbum=&playingArtist->albums[playingSong.album];
    }
+   const auto art=playingAlbum?cached(playingAlbum->cover):cached(album->cover);
+   const auto thumb=jukebox::dashboard::playingArtwork;
+   d.bordered_rect({thumb.x,thumb.y,thumb.w,thumb.h},13,
+                   color(0x040911,.98f),1.2f,color(0xe3ebf3,.56f));
+   if(art.id)image_fill(d,art,thumb.x+4,thumb.y+4,thumb.w-8,thumb.h-8);
+   else d.gradient_rect({thumb.x+4,thumb.y+4,thumb.w-8,thumb.h-8},10,
+                        color(0x283745),color(0x050917));
+   const auto audioState=player.snapshot();
+   label(d,font,atlas,audioState.paused?"PAUSED":"NOW PLAYING",373,827,15,color(accent));
+   if(playing&&playingArtist&&playingAlbum){
+    const std::string heading=std::to_string(playingSong.track+1)+". "+
+                              cut(playingArtist->name,16)+" - ";
+    label(d,font,atlas,heading,373,868,27,white);
+    // Song title gets reference's yellow emphasis while artist stays white.
+    label(d,font,atlas,cut(playing->name,33),686,868,28,color(accent));
+    label(d,font,atlas,cut(playingArtist->name,26)+"  /  "+
+          cut(playingAlbum->name,47),373,898,19,muted);
+   }else{
+    label(d,font,atlas,"SELECT AN ALBUM TO PLAY",373,867,28,white);
+    label(d,font,atlas,"Choose a cover and press X to start",373,898,19,muted);
+   }
+   const float progress=audioState.duration>0?
+      std::clamp((float)(audioState.seconds/audioState.duration),0.f,1.f):0.f;
+   label(d,font,atlas,stamp(audioState.seconds),373,944,19,white);
+   d.rounded_rect({449,930,940,11},5,color(0x39495f,.95f));
+   if(progress>.002f)d.rounded_rect({449,930,940*progress,11},5,color(accent));
+   d.circle(449+940*progress,935.5f,9.5f,color(accent));
+   label(d,font,atlas,stamp(audioState.duration),1429,944,19,white,Align::right);
+   // Procedural, live decorative spectrum: no FFT allocation / network work.
+   for(int bar=0;bar<22;bar++){
+    const float shape=std::fabs(std::sin(frame*.052f+bar*.52f)*
+                                std::cos(frame*.019f+bar*.18f));
+    const float centerWeight=1.f-std::fabs(bar-10.5f)/13.f;
+    const float height=audioState.paused?5.f:
+                        6.f+shape*(16.f+64.f*std::max(.08f,centerWeight));
+    d.rounded_rect({1197.f+bar*12.f,894.f-height,7.f,height},3,
+                   color(accent,.67f+shape*.33f));
+   }
+   // Reference's three right-hand media controls; gamepad actions remain
+   // the actual playback controls (Square / L2-R2 / OPTIONS).
+   const float actions[]={1543.f,1636.f,1729.f};
+   for(int i=0;i<3;i++)
+    d.bordered_rect({actions[i],843,67,67},16,
+                    color(0x142030,.90f),1.2f,color(i==0?accent:0x526a84,.68f));
+   for(int j=0;j<4;j++)
+    d.rounded_rect({1563.f+j*10.f,876.f-(j%3)*8.f,5,14.f+(j%3)*8.f},2,color(accent));
+   d.ring(1669,876,13,2.5f,color(0xe2e9f8));
+   for(int j=0;j<3;j++)d.circle(1749.f+j*12.f,877.f,3,color(0xe2e9f8));
   }else if((screen==1||screen==5)&&album){
    d.shadow({142,259,1636,670},24,24,color(0x000000,.7f));
    d.gradient_rect({142,259,1636,670},24,color(0x111b2b,.96f),color(0x080c17,.92f));
