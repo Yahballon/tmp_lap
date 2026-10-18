@@ -48,6 +48,10 @@ jobs:
             homebrew/psjukebox/tests/cover_browse_test.cpp \
             -o /tmp/psjukebox-cover-browse-test
           /tmp/psjukebox-cover-browse-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/tests/song_navigation_test.cpp \
+            -o /tmp/psjukebox-song-navigation-test
+          /tmp/psjukebox-song-navigation-test
           # Check integration as well as the standalone input and geometry math.
           python3 - <<'PY'
           from pathlib import Path
@@ -58,6 +62,10 @@ jobs:
           assert 'if((screen==0||screen==2)&&(pressed&hui::pad_bits::kDown))' in code
           assert 'jukebox::cover_slot(position)' in code
           assert 'jukebox::album_browse_step(' in code
+          assert 'jukebox::step_song(library,active,delta,destination)' in code
+          assert 'jukebox::start_song(library,artistIndex,albumIndex,delta,destination)' in code
+          assert 'if(trackStep)next_track(trackStep,true);' in code
+          assert 'next_track(1,false);' in code
           assert 'coverView&&(pressed&hui::pad_bits::kLeft)' in code
           assert 'coverView&&(pressed&hui::pad_bits::kRight)' in code
           assert 'if(havePlayingSong&&analogSeekDirection)player.skip(10*analogSeekDirection)' in code
@@ -211,7 +219,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.13
+          name: PSJukebox-v0.1.14
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -224,5 +232,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.13 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.14 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
