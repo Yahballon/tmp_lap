@@ -3,6 +3,7 @@
 // app receives limited catalog entries/files on localhost, and caches
 // playable music into its writable storage.
 #include "remote_bridge.hpp"
+#include "media_cache.hpp"
 #include <algorithm>
 #include <arpa/inet.h>
 #include <cerrno>
@@ -377,8 +378,7 @@ bool stage_track(const std::string& path,uint64_t expected,std::atomic<bool>& ca
  char hash[32];std::snprintf(hash,sizeof(hash),"%016llx",(unsigned long long)hash_path(path));
  const std::string extension=rel.substr(rel.find_last_of('.'));
  local=cache+"/"+hash+extension;
- struct stat st{};
- if(stat(local.c_str(),&st)==0&&S_ISREG(st.st_mode)&&(uint64_t)st.st_size==expected)return true;
+ if(jukebox::media_cache_matches(local,expected))return true;
  const std::string part=local+".part";
  FILE* f=fopen(part.c_str(),"wb");
  if(!f){error="Cannot write /data/PSJukebox/Cache";return false;}
