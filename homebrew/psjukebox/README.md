@@ -282,3 +282,7 @@ Coordinates are kept in a tested small native layout header, with a host regress
 ## v0.1.21 — Cleaner coverflow dashboard
 
 Removed the wide Browsing Artist hero; live artist and track counts are integrated alongside status, time and developer credits at top right. Raised the remaining context cards and five-cover carousel. Reformatted NOW PLAYING to prioritize track title, artist/album and progress, and removed the three decorative media icons and spectrum. DualSense shortcuts and in-app SMB settings remain available.
+
+## v0.1.22 — Coverflow flicker fix
+
+The selected and nearby album covers stay in the decoded texture cache instead of being removed during navigation. Target album covers are loaded with priority, ahead of optional artwork; the carousel waits to animate a previously uncached cover until the image load has completed. Real missing images still display the album-name placeholder. SMB and playback remain unchanged.

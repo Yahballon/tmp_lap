@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.21
+// PSJukebox by YAHBALLON v0.1.22
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -30,6 +30,7 @@
 #include <cstdio>
 #include <ctime>
 #include <map>
+#include <set>
 #include <mutex>
 #include <pthread.h>
 #include <string>
@@ -38,7 +39,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.21";
+constexpr const char* version="v0.1.22";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(const std::string& s,size_t n){return jukebox::utf8_cut(s,n);}
@@ -295,7 +296,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.21");
+ log("BOOT v0.1.22");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -388,6 +389,8 @@ int main(){
  unsigned held=0,frame=0;int hold=0;
  jukebox::CoverMotion coverMotion;
  std::string previousBackground;
+ int pendingCoverStep=0,pendingCoverArtist=-1,pendingCoverAlbum=-1;
+ std::string pendingCoverPath;
  jukebox::CoverStickEdges coverStick;
  bool waitForListStickNeutral=false;
  int settingsReturnScreen=0;
@@ -404,6 +407,16 @@ int main(){
   auto* a=currentArtist();if(!a||a->albums.empty())return nullptr;
   albumIndex=std::clamp(albumIndex,0,(int)a->albums.size()-1);
   return &a->albums[(size_t)albumIndex];
+ };
+ auto start_album_motion=[&](int direction)->bool{
+  auto* selected=currentAlbum();
+  auto* a=currentArtist();
+  if(!a||!selected||a->albums.size()<2||!coverMotion.begin(direction))return false;
+  previousBackground=jukebox::album_background(*a,*selected);
+  albumIndex=(albumIndex+direction+(int)a->albums.size())%(int)a->albums.size();
+  trackIndex=0;screen=0;headerIndex=0;
+  log("BROWSE_ALBUM "+a->albums[(size_t)albumIndex].name);
+  return true;
  };
  auto rescan=[&](){
   if(scanBusy.load()){message="Music library scan already running";return;}
@@ -621,6 +634,7 @@ int main(){
    library=std::move(updated);
    artistIndex=nextArtist;albumIndex=nextAlbum;trackIndex=0;
    coverMotion.reset();previousBackground.clear();
+   pendingCoverStep=0;pendingCoverPath.clear();
    message=item.complete?
        ("Library updated: "+std::to_string(library.artists.size())+
         " artists / "+std::to_string(library.trackCount)+" tracks"):
@@ -658,6 +672,14 @@ int main(){
   for(auto& result:ready){
    if(images.find(result.path)!=images.end())continue;
    images[result.path]=decode(renderer,result.bytes);
+  }
+  // Wait for the requested cover to load while keeping the selected cover visible.
+  if(pendingCoverStep&&(screen==0||screen==2)&&
+     artistIndex==pendingCoverArtist&&albumIndex==pendingCoverAlbum&&
+     images.find(pendingCoverPath)!=images.end()){
+   const int step=pendingCoverStep;
+   pendingCoverStep=0;pendingCoverPath.clear();
+   if(start_album_motion(step)&&message=="Loading album cover...")message.clear();
   }
   auto* artist=currentArtist();
   auto* album=currentAlbum();
@@ -703,6 +725,7 @@ int main(){
        coverView&&(pressed&hui::pad_bits::kLeft)!=0,
        coverView&&(pressed&hui::pad_bits::kRight)!=0);
    if(artistStep&&!library.artists.empty()){
+    pendingCoverStep=0;pendingCoverPath.clear();
     artistIndex=(artistIndex+artistStep+(int)library.artists.size())%
                 (int)library.artists.size();
     albumIndex=trackIndex=0;
@@ -711,13 +734,18 @@ int main(){
     log("BROWSE_ARTIST "+library.artists[(size_t)artistIndex].name);
    }else if(albumStep){
     auto* current=currentArtist();
-    auto* selected=currentAlbum();
-    if(current&&current->albums.size()>1&&coverMotion.begin(albumStep)){
-     previousBackground=selected?jukebox::album_background(*current,*selected):std::string{};
-     albumIndex=(albumIndex+albumStep+(int)current->albums.size())%
-                 (int)current->albums.size();
-     trackIndex=0;
-     log("BROWSE_ALBUM "+current->albums[(size_t)albumIndex].name);
+    if(current&&current->albums.size()>1&&!coverMotion.active()){
+     const int next=(albumIndex+albumStep+(int)current->albums.size())%
+                    (int)current->albums.size();
+     const std::string& wanted=current->albums[(size_t)next].cover;
+     if(!wanted.empty()&&images.find(wanted)==images.end()){
+      pendingCoverStep=albumStep;pendingCoverArtist=artistIndex;
+      pendingCoverAlbum=albumIndex;pendingCoverPath=wanted;
+      message="Loading album cover...";
+     }else{
+      pendingCoverStep=0;pendingCoverPath.clear();
+      start_album_motion(albumStep);
+     }
     }
     screen=0;headerIndex=0;
    }
@@ -883,30 +911,48 @@ int main(){
   auto queue=[&](const std::string& path){
    if(!path.empty()&&images.find(path)==images.end()&&!imageBusy.load())request_image(path);
   };
-  // First cover MUST load before logo/background or the off-screen jackets.
-  // Image loader intentionally has one in-flight request at a time.
+  // Cover-first prefetch: pending target and carousel neighbors outrank
+  // optional logos and backgrounds on slow USB / SMB shares.
+  if(pendingCoverStep&&!pendingCoverPath.empty())queue(pendingCoverPath);
   if(album)queue(album->cover);
+  if(artist&&album){
+   const int total=(int)artist->albums.size();
+   for(const int delta:{-1,1,-2,2,-3,3,-4,4}){
+    if(std::abs(delta)>=total)continue;
+    queue(artist->albums[(size_t)((albumIndex+delta+total)%total)].cover);
+   }
+  }
+  if(havePlayingSong&&playingSong.artist<library.artists.size()){
+   const auto& activeArtist=library.artists[playingSong.artist];
+   if(playingSong.album<activeArtist.albums.size())
+    queue(activeArtist.albums[playingSong.album].cover);
+  }
   if(artist)queue(artist->logo);
   if(album)queue(jukebox::album_background(*artist,*album));
   if(coverMotion.active()&&!previousBackground.empty())queue(previousBackground);
-  if(havePlayingSong&&playingSong.artist<library.artists.size()){
-   const auto& activeArtist=library.artists[playingSong.artist];
-   if(playingSong.album<activeArtist.albums.size())queue(activeArtist.albums[playingSong.album].cover);
-  }
-  if(artist&&album){
-   const int total=(int)artist->albums.size();
-   for(const int delta:{-1,1,-2,2,-3,3}){
-    if(total<5&&std::abs(delta)>total/2)continue;
-    const int j=(albumIndex+delta+total)%total;
-    queue(artist->albums[(size_t)j].cover);
+  // Never evict a visible or soon-visible jacket; previously eviction
+  // discarded nearby textures, briefly displaying the empty fallback.
+  if(images.size()>28){
+   std::set<std::string> pinned;
+   auto pin=[&](const std::string& path){if(!path.empty())pinned.insert(path);};
+   pin(pendingCoverPath);pin(previousBackground);
+   if(artist&&album){
+    pin(artist->logo);pin(artist->background);
+    pin(album->cover);pin(album->background);
+    const int total=(int)artist->albums.size();
+    for(int delta=-4;delta<=4;delta++){
+     if(std::abs(delta)>=total)continue;
+     pin(artist->albums[(size_t)((albumIndex+delta+total)%total)].cover);
+    }
    }
-  }
-  if(images.size()>24){
-   for(auto it=images.begin();it!=images.end()&&images.size()>16;){
-    const bool keep=(coverMotion.active()&&it->first==previousBackground)||
-      (artist&&(it->first==artist->logo||it->first==artist->background))||
-      (album&&(it->first==album->cover||it->first==album->background));
-    if(keep){++it;continue;}destroy(it->second);it=images.erase(it);
+   if(havePlayingSong&&playingSong.artist<library.artists.size()){
+    const auto& playingArtist=library.artists[playingSong.artist];
+    if(playingSong.album<playingArtist.albums.size())
+     pin(playingArtist.albums[playingSong.album].cover);
+   }
+   for(auto it=images.begin();it!=images.end()&&images.size()>20;){
+    if(pinned.count(it->first)){++it;continue;}
+    destroy(it->second);it=images.erase(it);
    }
   }
   DrawList d;

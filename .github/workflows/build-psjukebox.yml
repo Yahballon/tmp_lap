@@ -55,7 +55,11 @@ jobs:
           assert 'd.rounded_rect({465,930,1225*progress,11},5,color(accent));' in code
           assert 'd.bordered_rect({status.x,status.y,status.w,status.h}' in code
           assert 'const uint32_t accent=jukebox::dashboard::gold;' in code
-          print("PASS: header credits, layout and build version are consistent")
+          assert 'pendingCoverStep=albumStep;' in code
+          assert 'images.find(pendingCoverPath)!=images.end()' in code
+          assert 'std::set<std::string> pinned;' in code
+          assert 'pinned.count(it->first)' in code
+          print("PASS: header credits, cover cache and build version are consistent")
           PY
       - name: Native library regression tests
         run: |

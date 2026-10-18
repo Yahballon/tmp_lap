@@ -1,10 +1,9 @@
-# PSJukebox v0.1.21 — Clean Coverflow Dashboard
+# PSJukebox v0.1.22 — Flicker-free Coverflow
 
-- Remove the full-width Browsing Artist hero strip and reclaim vertical space for album artwork.
-- Show live artist and track counts in the upper-right READY/clock panel with developer credits.
-- Lift NOW BROWSING and ALBUM cards, and the animated five-cover carousel.
-- Polish NOW PLAYING: larger actual song title, readable artist/album line, wider seek bar and aligned duration labels.
-- Remove the three unused right-hand media icons and decorative equalizer/spectrum, without changing controller shortcuts.
-- Preserve v0.1.20 SMB Share settings, music library, playback and favorites.
+- Keep selected and neighboring jackets resident in GPU cache, preventing mid-navigation eviction and cover reloading.
+- Request destination and nearby jackets before optional logos and album backgrounds.
+- Wait for a pending cover to finish loading before beginning a 480 ms carousel transition, preserving the current image in the meantime.
+- Truly missing cover artwork still uses the normal text fallback.
+- Retain SMB/USB support, favorites, playback, DualSense navigation, and all v0.1.21 UI improvements.
 
-Build and ZIP verified in GitHub Actions; PS5 hardware visual validation remains necessary.
+GitHub Actions verifies compilation and the installable ZIP. Confirm results on PS5 hardware.
