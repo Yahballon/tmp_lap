@@ -5,7 +5,7 @@
 namespace {
 jukebox::Album album(int n){
  jukebox::Album a;
- for(int i=0;i<n;i++)a.tracks.push_back({"Track","",""});
+ for(int i=0;i<n;i++)a.tracks.push_back({"Track","",2048});
  return a;
 }
 }
