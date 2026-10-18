@@ -854,7 +854,7 @@ int main(){
   if(brandIcon.id)image_fit(d,brandIcon,60,47,99,101);
   else d.bordered_rect({60,50,98,98},15,color(accent,.18f),2,color(accent));
   label(d,font,atlas,"PSJUKE",180,101,41,white);
-  label(d,font,atlas,"BOX",399,101,41,color(accent));
+  label(d,font,atlas,"BOX",350,101,41,color(accent));
   label(d,font,atlas,"YOUR MUSIC  /  YOUR CONSOLE",182,127,14,color(0xdde9f5,.81f));
   static constexpr const char* tabNames[]={"All Albums","Artists","Tracks","Playlists","Favorites"};
   static constexpr float tabCenter[]={607,803,1004,1183,1331};
@@ -912,24 +912,24 @@ int main(){
   label(d,font,atlas,clockText,1850,88,30,white,Align::right);
   label(d,font,atlas,std::string("by YAHBALLON  ·  ")+version,
         1850,124,16,muted,Align::right);
-  // Persistent artist context line, expanded to match screenshot's hero bar.
+  // Compact artist context rail leaves more space for the coverflow.
   d.shadow({hero.x,hero.y,hero.w,hero.h},18,17,color(0x000000,.50f));
   d.gradient_rect({hero.x,hero.y,hero.w,hero.h},18,
                   color(0x03101c,.82f),color(0x030c17,.67f));
   d.bordered_rect({hero.x,hero.y,hero.w,hero.h},18,
                   color(0x000000,.04f),1.4f,color(0xd4e3f3,.49f));
-  d.rounded_rect({68,196,7,96},3,color(accent));
-  label(d,font,atlas,"B R O W S I N G   A R T I S T",119,226,15,color(0xffd47b));
-  label(d,font,atlas,artist?cut(artist->name,30):"Music Library",118,282,49,white);
-  d.line(1545,208,1545,285,1,color(0xdde9f9,.30f));
-  d.line(1678,208,1678,285,1,color(0xdde9f9,.30f));
-  label(d,font,atlas,std::to_string(library.artists.size()),1495,246,27,white,Align::center);
-  label(d,font,atlas,"ARTISTS",1495,269,14,muted,Align::center);
-  label(d,font,atlas,std::to_string(library.trackCount),1612,246,27,white,Align::center);
-  label(d,font,atlas,"TRACKS",1612,269,14,muted,Align::center);
-  d.circle(1748,234,8,color(scanBusy.load()?0xffbd2d:0x00ec97));
-  label(d,font,atlas,scanBusy.load()?"SCANNING":"READY",1771,242,23,white);
-  label(d,font,atlas,"LIBRARY STATUS",1772,269,13,muted);
+  d.rounded_rect({68,188,7,48},3,color(accent));
+  label(d,font,atlas,"B R O W S I N G   A R T I S T",119,199,13,color(0xffd47b));
+  label(d,font,atlas,artist?cut(artist->name,30):"Music Library",118,234,34,white);
+  d.line(1545,187,1545,242,1,color(0xdde9f9,.30f));
+  d.line(1678,187,1678,242,1,color(0xdde9f9,.30f));
+  label(d,font,atlas,std::to_string(library.artists.size()),1495,211,24,white,Align::center);
+  label(d,font,atlas,"ARTISTS",1495,233,12,muted,Align::center);
+  label(d,font,atlas,std::to_string(library.trackCount),1612,211,24,white,Align::center);
+  label(d,font,atlas,"TRACKS",1612,233,12,muted,Align::center);
+  d.circle(1748,207,7,color(scanBusy.load()?0xffbd2d:0x00ec97));
+  label(d,font,atlas,scanBusy.load()?"SCANNING":"READY",1771,215,20,white);
+  label(d,font,atlas,"LIBRARY STATUS",1772,235,12,muted);
   const auto leftInfo=jukebox::dashboard::artistCard;
   const auto rightInfo=jukebox::dashboard::albumCard;
   // Cards intentionally sit behind the covers, not above the carousel.
@@ -937,13 +937,13 @@ int main(){
                   color(0x061728,.80f),1.4f,color(0xa4cbe7,.55f));
   d.bordered_rect({rightInfo.x,rightInfo.y,rightInfo.w,rightInfo.h},21,
                   color(0x061728,.80f),1.4f,color(0xa4cbe7,.55f));
-  d.rounded_rect({65,340,7,98},3,color(accent));
-  label(d,font,atlas,"NOW BROWSING",98,360,15,color(accent));
-  label(d,font,atlas,artist?cut(artist->name,16):"Library",98,397,27,white);
-  label(d,font,atlas,"ALBUM",1603,360,15,color(accent));
+  d.rounded_rect({65,286,7,98},3,color(accent));
+  label(d,font,atlas,"NOW BROWSING",98,306,15,color(accent));
+  label(d,font,atlas,artist?cut(artist->name,16):"Library",98,343,27,white);
+  label(d,font,atlas,"ALBUM",1603,306,15,color(accent));
   label(d,font,atlas,artist&&!artist->albums.empty()?
        std::to_string(albumIndex+1)+" / "+std::to_string(artist->albums.size()):"0 / 0",
-       1603,403,33,white);
+       1603,349,33,white);
   d.rounded_rect({0,982,1920,98},0,color(0x040a14,.94f));
   d.line(0,982,1920,982,1.1f,color(0x31506f,.47f));
   const bool showCoverflow=(screen==0||screen==2);
