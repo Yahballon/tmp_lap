@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "fe_app.h"
+#include "fe_coverflow_layout.h"
 #include "fe_i18n.h"
 
 #include <algorithm>
@@ -23,12 +24,7 @@ const Vec3 kEye(0.0f, 0.30f, 7.8f);
 const Vec3 kTarget(0.0f, -0.16f, 0.0f);
 constexpr float kFovY = 30.0f;
 constexpr float kFloorY = -kBoxHalfH;
-constexpr float kCenterZ = 1.05f;   // the selected case, pulled forward
-constexpr float kSideX = 1.86f;     // the first neighbour's centre
-constexpr float kStepX = 0.56f;     // each further one
-constexpr float kSideZ = -0.55f;
-constexpr float kStepZ = 0.10f;
-constexpr float kSideTurn = 58.0f;  // degrees the neighbours turn towards the centre
+constexpr float kCenterZ = kClassicCenterZ;  // shared native 3D CoverFlow layout
 constexpr int kVisible = 7;         // cases drawn on each side
 
 uint32_t Rgba(float r, float g, float b, float a = 1.0f)
@@ -331,27 +327,16 @@ void App::Update(double dt, const Input& in)
 
 void App::Pose(float d, float t, Mat4& model, float& brightness) const
 {
-	const float ad = std::fabs(d);
-	const float s = d < 0 ? -1.0f : 1.0f;
-	const float e = Smoothstep(0.0f, 1.0f, std::min(ad, 1.0f));
-	const float far_ = std::max(ad - 1.0f, 0.0f);
-	const float side_x = kSideX + far_ * kStepX;
-	const float side_z = kSideZ - far_ * kStepZ;
-	const float sway = (1.0f - e) * 0.10f * std::sin(t * 0.7f);
-	// The picked case hovers: it lifts off the floor as it is picked, then bobs between 0.03 and
-	// 0.054 above it. Resting on the floor at the bottom of the bob (vk-285-46) still put the
-	// halo's bottom line, drawn 0.016 outside the case, into the reflection.
-	const float bob = (1.0f - e) * (0.030f + 0.012f * (1.0f + std::sin(t * 1.3f)));
-	float x = s * Mix(0.0f, side_x, e);
-	float z = Mix(kCenterZ, side_z, e);
-	const float turn = Mix(sway, -s * Radians(kSideTurn), e);
-	if (m_launching && ad < 0.5f)
-	{
-		const float l = Smoothstep(0.0f, 0.6f, static_cast<float>(m_time - m_launch_time));
-		z += l * 2.2f;
-	}
-	model = Mat4::Translate(x, bob, z) * Mat4::RotateY(turn);
-	brightness = Mix(1.0f, 0.74f, e) - 0.05f * std::min(far_, 5.0f);
+    // Same 3D renderer and cover textures, but now using the reusable classic
+    // perspective carousel pose (centre 128%, angled receding neighbours).
+    const ClassicCoverPose pose = ClassicCoverflowPose(d, t);
+    model = pose.model;
+    brightness = pose.brightness;
+    if (m_launching && std::fabs(d) < 0.5f)
+    {
+        const float l = Smoothstep(0.0f, 0.6f, static_cast<float>(m_time - m_launch_time));
+        model = Mat4::Translate(0.0f, 0.0f, l * 2.2f) * model;
+    }
 }
 
 void App::Build(FrameDesc& f, const std::string& clock)
@@ -373,8 +358,8 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	f.glow[2] = m_glow[2];
 	f.glow[3] = 1.0f;
 	f.floor_y = kFloorY;
-	f.reflect_strength = 0.24f;
-	f.reflect_falloff = 3.6f;
+	f.reflect_strength = 0.40f;
+	f.reflect_falloff = 2.55f;
 	f.boxes.clear();
 	f.reflections.clear();
 	f.ui.clear();
@@ -384,10 +369,10 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	const Vec2 centre = Project(f.view_proj, Vec3(0, 0.1f, kCenterZ - 0.6f));
 	const Vec2 floor_pt = Project(f.view_proj, Vec3(0, kFloorY, kCenterZ));
 	BgParams& bg = f.bg;
-	bg.glow_color[0] = 1.0f;
-	bg.glow_color[1] = 0.035f;
-	bg.glow_color[2] = 0.07f;
-	bg.glow_color[3] = 0.50f;
+	bg.glow_color[0] = 0.40f;
+	bg.glow_color[1] = 0.40f;
+	bg.glow_color[2] = 0.44f;
+	bg.glow_color[3] = 0.18f;
 	bg.glow_pos[0] = centre.x;
 	bg.glow_pos[1] = centre.y;
 	bg.glow_pos[2] = 0.58f;
@@ -396,8 +381,8 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	bg.floor_glow[1] = floor_pt.y;
 	bg.floor_glow[2] = 0.30f;
 	bg.floor_glow[3] = 0.035f;
-	const float top[4] = {0.022f, 0.022f, 0.026f, 1}, mid[4] = {0.060f, 0.038f, 0.042f, 1},
-				bottom[4] = {0.008f, 0.008f, 0.010f, 1};
+	const float top[4] = {0.085f, 0.087f, 0.091f, 1}, mid[4] = {0.065f, 0.066f, 0.072f, 1},
+				bottom[4] = {0.008f, 0.009f, 0.012f, 1};
 	std::copy(top, top + 4, bg.top);
 	std::copy(mid, mid + 4, bg.mid);
 	std::copy(bottom, bottom + 4, bg.bottom);
@@ -521,12 +506,12 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	if (n > 0)
 	{
 		const GameInfo& g = m_games[static_cast<size_t>(m_selected)];
-		// Title, shrunk to fit (narrower beside the QR tile, which sits bottom right).
-		const float title_w = W * (qr_shown ? 0.72f : 0.8f);
-		float px = 96.0f * k;
-		while (px > 64.0f * k && m_fonts->Measure(g.title.c_str(), px) > title_w)
+		// Classic coverflow: selected game title at the top, above the cases.
+		const float title_w = W * 0.66f;
+		float px = 104.0f * k;
+		while (px > 56.0f * k && m_fonts->Measure(g.title.c_str(), px) > title_w)
 			px -= 4.0f * k;
-		m_fonts->AddText(ui, g.title.c_str(), W * 0.5f, H * 0.842f, px, white, 0.55f, Fonts::Center);
+		m_fonts->AddText(ui, g.title.c_str(), W * 0.5f, 174.0f * k, px, white, 0.55f, Fonts::Center);
         // (AI-assisted) Show the actual selected ROM source beneath its title.
         const std::string rom_path="ROM: "+g.path;float path_px=28.0f*k;
         while(path_px>1.0f*k&&m_fonts->Measure(rom_path.c_str(),path_px)>title_w)path_px-=1.0f*k;
