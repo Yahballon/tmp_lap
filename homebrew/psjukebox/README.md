@@ -226,3 +226,13 @@ This is an input-mapping change only. Packed `.album` scanning, cache extraction
 ## v0.1.13 — Creator and build version in header
 
 The upper-right PSJukebox header shows the existing clock with a small, right-aligned credit line directly underneath: **by YAHBALLON · v0.1.13**. The version displayed uses the native application's `version` constant, also used by its BOOT log, and the build workflow checks that it matches the `app.json` release version. The small muted label keeps the clock and other header UI unobstructed. No changes to music scanning, `.album` imports, playback, coverflow, buttons or SMB support.
+
+## v0.1.14 — R2/L2 song navigation across album boundaries
+
+**R2** plays the next song, **L2** plays the previous song, based on the current playback rather than whichever cover is being browsed. If the current song is the last track in an album, R2 starts **track 1 of the next album** under the same artist. If it's the first track, L2 starts the **last track of the previous album**. Albums without playable tracks are skipped, and the first/last album wrap cyclically within the same artist.
+
+If music isn't playing yet, R2 starts the first track of the highlighted album and L2 starts its final track; empty albums are skipped.
+
+On manual trigger navigation, the album cover and highlighted Tracklist song follow the new playing track, including USB/SMB staging. Auto-advance uses the same cross-album traversal but preserves unrelated browsing focus.
+
+**L1/R1** still switch artists, **D-pad LEFT/RIGHT** changes album covers, analog sticks LEFT/RIGHT seek 10 seconds, **DOWN** opens the Tracklist, **Square** pauses and **OPTIONS** opens settings. Triggers also work from Favorites. Packed album files, SMB, themes and cache remain unchanged.

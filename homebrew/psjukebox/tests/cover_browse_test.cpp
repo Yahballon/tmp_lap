@@ -17,13 +17,10 @@ int main(){
  assert(jukebox::allows_live_album_browse(2)); // currently playing
  assert(jukebox::allows_live_album_browse(1)); // tracklist
  assert(!jukebox::allows_live_album_browse(4)); // settings owns controls
- // D-pad navigation changes album jackets, even while a song is playing.
- // Triggers retain priority; selection is independent from analog seeking.
- assert(jukebox::album_browse_step(false,false,true,false)==-1);
- assert(jukebox::album_browse_step(false,false,false,true)==1);
- assert(jukebox::album_browse_step(true,false,false,true)==-1);
- assert(jukebox::album_browse_step(false,true,true,false)==1);
- assert(jukebox::album_browse_step(false,false,false,false)==0);
+ // Only the D-pad changes covers. R2/L2 are tested as song controls.
+ assert(jukebox::album_browse_step(true,false)==-1);
+ assert(jukebox::album_browse_step(false,true)==1);
+ assert(jukebox::album_browse_step(false,false)==0);
  jukebox::CoverStickEdges sticks;
  assert(sticks.tick(128,128,128,128)==0);
  assert(sticks.tick(0,128,128,128)==-1);
@@ -36,5 +33,5 @@ int main(){
  assert(sticks.tick(128,128,128,128)==0);
  assert(sticks.tick(128,128,128,0)==-2);
  assert(sticks.tick(128,128,128,128)==0);
- std::puts("PASS centered coverflow, L2/R2 and D-pad album browse, independent stick seek");
+ std::puts("PASS centered coverflow, D-pad-only album browse, independent stick seek");
 }
