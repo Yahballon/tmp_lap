@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.11
+// PSJukebox by YAHBALLON v0.1.12
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -34,7 +34,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.11";
+constexpr const char* version="v0.1.12";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -269,7 +269,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.11");
+ log("BOOT v0.1.12");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -406,21 +406,21 @@ int main(){
   const float frameDt=std::clamp(std::chrono::duration<float>(currentFrame-lastFrame).count(),0.f,0.05f);
   lastFrame=currentFrame;
   coverMotion.tick(frameDt);
-  // On the album/playing view both analog sticks use horizontal seek and
-  // vertical tracklist/header navigation. They no longer rapidly skip covers.
+  // Keep analog-stick seek separate from D-pad cover navigation. Never
+  // synthesize D-pad left/right from stick movement: both may be used while
+  // playback is active and must perform independent actions.
+  int analogSeekDirection=0;
   if((screen==0||screen==2)&&!headerFocus&&analogSample.connected&&
      !(analogSample.buttons&hui::pad_bits::kIntercepted)){
    const int dir=coverStick.tick(analogSample.left_x,analogSample.left_y,
                                 analogSample.right_x,analogSample.right_y);
-   if(dir==-1)pressed|=hui::pad_bits::kLeft;
-   if(dir==1)pressed|=hui::pad_bits::kRight;
+   if(dir==-1||dir==1)analogSeekDirection=dir;
    if(dir==-2)pressed|=hui::pad_bits::kUp;
    if(dir==2){pressed|=hui::pad_bits::kDown;waitForListStickNeutral=true;}
   }else coverStick.reset();
   if(--hold<=0){
-   // Never synthesize repeated left/right cover presses.
-   // Seek and tracklist navigation on the cover/player view are edge-only:
-   // holding left/right does not unexpectedly jump through a whole song.
+   // D-pad album changes and stick seeking are edge-triggered in coverflow.
+   // Holding a direction must never race through multiple album covers.
    if(screen!=0&&screen!=2&&now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;
    if(screen!=0&&screen!=2&&now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
    if(screen!=0&&screen!=2&&now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;
@@ -505,8 +505,12 @@ int main(){
   if(!exitDialog&&!headerFocus&&jukebox::allows_live_album_browse(screen)){
    const int artistStep=(pressed&hui::pad_bits::kL1)?-1:
                         (pressed&hui::pad_bits::kR1)?1:0;
-   const int albumStep=(pressed&hui::pad_bits::kL2)?-1:
-                       (pressed&hui::pad_bits::kR2)?1:0;
+   const bool coverView=screen==0||screen==2;
+   const int albumStep=jukebox::album_browse_step(
+       (pressed&hui::pad_bits::kL2)!=0,
+       (pressed&hui::pad_bits::kR2)!=0,
+       coverView&&(pressed&hui::pad_bits::kLeft)!=0,
+       coverView&&(pressed&hui::pad_bits::kRight)!=0);
    if(artistStep&&!library.artists.empty()){
     artistIndex=(artistIndex+artistStep+(int)library.artists.size())%
                 (int)library.artists.size();
@@ -528,11 +532,11 @@ int main(){
    }
    pressed&=~(hui::pad_bits::kL1|hui::pad_bits::kR1|
               hui::pad_bits::kL2|hui::pad_bits::kR2);
-   // D-pad or analog left/right seek in the active audio without changing
-   // selected album. The analog stick emits only a single edge per tilt.
-   if(havePlayingSong&&(pressed&hui::pad_bits::kLeft))player.skip(-10);
-   if(havePlayingSong&&(pressed&hui::pad_bits::kRight))player.skip(10);
-   pressed&=~(hui::pad_bits::kLeft|hui::pad_bits::kRight);
+   // The sticks SEEK; the D-pad CHANGES COVERS. Never mix the two inputs.
+   // One seek per stick deflection, with a neutral return required to repeat.
+   if(havePlayingSong&&analogSeekDirection)player.skip(10*analogSeekDirection);
+   // D-pad left/right was consumed as an album-selection action in coverflow.
+   if(coverView)pressed&=~(hui::pad_bits::kLeft|hui::pad_bits::kRight);
    // Down opens the selected album's tracklist on both views, even if a
    // song is already playing. Focus the playing track when it is this album.
    if((screen==0||screen==2)&&(pressed&hui::pad_bits::kDown)){
@@ -786,11 +790,11 @@ int main(){
       d.rounded_rect({574,914,std::max(3.f,760*prog),12},6,color(accent));
       label(d,font,atlas,stamp(state.seconds),550,926,18,white,Align::right);
       label(d,font,atlas,stamp(state.duration),1359,926,18,white);
-      label(d,font,atlas,state.paused?"PAUSED":"LEFT / RIGHT  Seek 10s    DOWN  Tracklist",960,956,16,muted,Align::center);
+      label(d,font,atlas,state.paused?"PAUSED":"D-PAD  Covers    STICK  Seek 10s    DOWN  Tracklist",960,956,16,muted,Align::center);
      }
     }
    }else{
-    label(d,font,atlas,"L1/R1 Artist  |  L2/R2 Albums  |  DOWN Tracks  |  X Play",960,900,18,muted,Align::center);
+    label(d,font,atlas,"L1/R1 Artist  |  L2/R2 or D-PAD Covers  |  STICK Seek  |  DOWN Tracks",960,900,18,muted,Align::center);
    }
   }else if((screen==1||screen==5)&&album){
    d.rounded_rect({142,245,1636,680},13,color(0x050810,.88f));
@@ -846,7 +850,7 @@ int main(){
     label(d,font,atlas,options[i],960,430+i*85.f,27,white,Align::center);
    }
    label(d,font,atlas,"Favorites: /data/PSJukebox/favorites.json",960,721,21,muted,Align::center);
-   label(d,font,atlas,"L1/R1 Artist | L2/R2 Albums | LEFT/RIGHT Seek | DOWN Tracklist",960,765,19,muted,Align::center);
+   label(d,font,atlas,"L1/R1 Artist | L2/R2 or D-PAD Albums | STICK Seek | DOWN Tracks",960,765,19,muted,Align::center);
   }else{
    label(d,font,atlas,"NO ALBUMS FOUND",960,485,34,color(accent),Align::center);
    label(d,font,atlas,"Music/Artist/Album/cover.jpg + song.mp3",960,534,23,white,Align::center);
