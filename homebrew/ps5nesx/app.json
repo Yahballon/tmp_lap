@@ -2,9 +2,9 @@
   "name": "PS5NESX",
   "slug": "ps5nesx",
   "titleId": "PPSA99204",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "upstreamVersion": "1.0.0.9",
-  "releaseTag": "ps5nesx-v1.0.12",
+  "releaseTag": "ps5nesx-v1.0.13",
   "sourceRepository": "Yahballon/PS5NESX",
   "sourceScope": [
     "nes",
@@ -21,5 +21,11 @@
     ".unf",
     ".unif",
     ".zip"
-  ]
+  ],
+  "hdPacks": {
+    "enabledByDefault": false,
+    "format": "Mesen hires.txt <= v109",
+    "path": "/data/PS5NES/HdPacks/<ROM filename without extension>/",
+    "status": "experimental - console testing required"
+  }
 }

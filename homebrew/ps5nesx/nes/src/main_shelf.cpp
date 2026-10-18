@@ -15,7 +15,7 @@ int main() {
     std::string root="/data/PS5NES";
     if(mkdir(root.c_str(),0777)!=0&&errno!=EEXIST)root="/download0/PS5NES";
     mkdir(root.c_str(),0777);
-    for(const char* dir:{"games","roms","saves","settings","covers","cache","logs"})mkdir((root+"/"+dir).c_str(),0777);
+    for(const char* dir:{"games","roms","saves","settings","covers","cache","logs","HdPacks"})mkdir((root+"/"+dir).c_str(),0777);
     mkdir((root+"/cache/ps5vk-shader-cache").c_str(),0777);
     setenv("PS5VK_SHADER_CACHE_DIR",(root+"/cache/ps5vk-shader-cache").c_str(),1);
     int fd=open((root+"/logs/boot.log").c_str(),O_WRONLY|O_CREAT|O_TRUNC|O_APPEND,0666);

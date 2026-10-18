@@ -52,3 +52,31 @@ The original pinned Lapy upstream is currently unavailable. The build uses only
 `ps5nesx-v1.0.11` ZIP, with an exact SHA-256 archive pin, and verifies the
 helper's ELF signature, title ID and per-file hash. This does not overwrite
 the newly compiled and signed `eboot.bin` for v1.0.12.
+
+## v1.0.13 — Experimental Mesen-format HD texture packs
+
+The vendored FCEUmm includes a Mesen `hires.txt` HD pack engine (formats
+through v109). PS5NESX previously disabled it with `HAVE_HDPACK := 0`.
+This opt-in test build enables HD-pack rendering, graphics/audio decoding
+and the wider HD-frame path. HD pack execution has **not yet** been tested
+on physical PS5 hardware.
+
+Install an extracted pack with a matching ROM file (never bundle commercial
+ROMs or unlicensed artwork):
+
+```text
+/data/PS5NES/games/Zelda.nes
+/data/PS5NES/HdPacks/Zelda/hires.txt
+/data/PS5NES/HdPacks/Zelda/<referenced assets>
+```
+
+In the game Options (Square), Emulation > HD texture packs > On, then
+start the ROM. The setting defaults Off to preserve vanilla gameplay.
+Individual-game or global preferences are supported. `[HDPACK]` in
+`/data/PS5NES/logs/boot.log` records enable state, expected path,
+and whether the manifest exists. Automatic fallback uses normal NES
+emulation without a matching pack. Maximum video callback 2560x2400;
+Integer mode downscales a larger image to fit the screen.
+
+Test on PS5 with a legally sourced Mesen-format HD pack. Newer pack
+formats, performance and audio compatibility are unverified.

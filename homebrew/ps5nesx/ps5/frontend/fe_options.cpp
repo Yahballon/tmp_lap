@@ -275,7 +275,10 @@ const std::vector<OptionGroup>& OptionGroups()
     // (AI-assisted) NES values in the unchanged original options-sheet layout.
     static const std::vector<OptionGroup> groups = {
         {"Emulation", {Seg("NES/Region", "Region", "Auto", "", {{"Auto","Automatic"},{"NTSC","NTSC"},{"PAL","PAL"},{"Dendy","Dendy"}}),
-                       Seg("NES/Palette", "Palette", "default", "", {{"default","Default"},{"rgb","RGB"},{"nintendo-vc","Nintendo VC"}})}, kTabSettings},
+                       Seg("NES/Palette", "Palette", "default", "", {{"default","Default"},{"rgb","RGB"},{"nintendo-vc","Nintendo VC"}}),
+                       Toggle("NES/HDPacks", "HD texture packs", "false", "",
+                           "Load a Mesen hires.txt pack from /data/PS5NES/HdPacks/<ROM name>/ on game launch (experimental).",
+                           true)}, kTabSettings},
         {"Display", {Seg("NES/Aspect", "Picture", "4:3", "", {{"4:3","4:3"},{"Integer","Integer pixels"}})}, kTabSettings},
         {"Audio", {Toggle("NES/Sound", "Game sound", "true", "")}, kTabSettings},
         {"NES buttons", NesButtonRows(), kTabControls},

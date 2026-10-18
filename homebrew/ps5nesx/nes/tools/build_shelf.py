@@ -39,7 +39,7 @@ sources=subprocess.check_output(['make','-s','-f',str(nes/'tools/core-sources.mk
 incs=['-I'+str(core/'src'),'-I'+str(core/'src/drivers/libretro'),'-I'+str(core/'src/drivers/libretro/libretro-common/include')]
 base=['-O2','-march=znver2','-ffunction-sections','-fdata-sections','-fno-stack-protector','-fno-plt']
 cflags=['-target','x86_64-sie-ps5','-isysroot',str(sdk),'-isystem',str(sdk/'target/include'),'-std=gnu99',
-        '-D__LIBRETRO__','-DPATH_MAX=1024','-DFCEU_VERSION_NUMERIC=9900','-DFRONTEND_SUPPORTS_RGB888',
+        '-D__LIBRETRO__','-DPATH_MAX=1024','-DFCEU_VERSION_NUMERIC=9900','-DFRONTEND_SUPPORTS_RGB888','-DHAVE_HDPACK',
         '-DINLINE=inline','-DHAVE_STDINT_H','-Wno-macro-redefined','-Wno-unused-result',*base,*incs]
 objects=[]
 def compile_c(name):
