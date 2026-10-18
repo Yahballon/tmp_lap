@@ -125,8 +125,24 @@ subprocess.run([str(tool),'self','--sign','--in',str(out/'eboot.elf'),'--out',st
 subprocess.run([str(tool),'self','--inspect','--file',str(app/'eboot.bin')],check=True)
 shutil.copytree(nes/'sce_sys',app/'sce_sys',dirs_exist_ok=True)
 shutil.copy2(deps/'PS5_Vulkan/runtime/libc.prx',app/'sce_module/libc.prx')
-subprocess.run(['python3',str(deps/'filesystem-helper/tools/build-lapy-helper.py'),'PPSA99204',str(out/'filesystem-helper')],check=True)
-for name in ['lapy.elf','lapy-manifest.json']:shutil.copy2(out/'filesystem-helper'/name,app/name)
+# The original Lapy helper source is no longer publicly available.
+# Reuse exactly the previously signed and checked v1.0.11 helper from our
+# OWN PPSA99204 release (the title and helper ABI have not changed).
+baseline=Path(os.environ['PS5NES_LAPY_BASELINE'])
+if not baseline.is_file():raise RuntimeError('Pinned prior helper ZIP unavailable: '+str(baseline))
+with zipfile.ZipFile(baseline) as archive:
+    assert archive.testzip() is None
+    helper=archive.read('PPSA99204/lapy.elf')
+    encoded=archive.read('PPSA99204/lapy-manifest.json')
+    manifest_lapy=json.loads(encoded)
+    assert manifest_lapy['target_title']=='PPSA99204'
+    assert manifest_lapy['mode']=='elf-helper'
+    assert manifest_lapy['service'] is False
+    assert manifest_lapy['elf_sha256']==hashlib.sha256(helper).hexdigest()
+    assert helper.startswith(b'\\x7fELF\\x02\\x01')
+    (app/'lapy.elf').write_bytes(helper)
+    (app/'lapy-manifest.json').write_bytes(encoded)
+print('Reused verified signed previous Lapy helper for PPSA99204',flush=True)
 licenses=app/'licenses';licenses.mkdir(exist_ok=True)
 for path,name in [(core/'Copying','FCEUmm-GPL.txt'),(project/'COPYING.GPLv3','GPLv3.txt'),
                   (out/'filesystem-helper/Lapy-MIT.txt','Lapy-MIT.txt'),(deps/'libnfs/COPYING','libnfs.txt')]:

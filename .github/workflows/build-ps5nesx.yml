@@ -133,6 +133,21 @@ jobs:
           test -s homebrew/ps5-mesenx/build/ps5-core/generated-psbc.ps5.a
           test -s homebrew/ps5-mesenx/build/ps5-core/agc-imports/libSceAgc.so
           test -s homebrew/ps5-mesenx/build/ps5-core/agc-imports/libSceAgcDriver.so
+      - name: Restore signed prior Lapy helper (source no longer public)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ps5nesx-helper-baseline"
+          gh release download ps5nesx-v1.0.11 --repo "$GITHUB_REPOSITORY" \\
+            --pattern PPSA99204.zip --dir "$RUNNER_TEMP/ps5nesx-helper-baseline"
+          printf '%s  %s\\n' '1dca2ad14d5e02f71eb8e2a71b527b92297f060a79d5df9b4613f01ff51d8500' \\
+            "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | sha256sum -c -
+          unzip -Z1 "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | \\
+            grep -Fx 'PPSA99204/lapy.elf'
+          unzip -Z1 "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | \\
+            grep -Fx 'PPSA99204/lapy-manifest.json'
       - name: Build and sign PS5NESX from tmp_lap source
         timeout-minutes: 110
         shell: bash
@@ -145,6 +160,7 @@ jobs:
           export LIBZ_PREFIX="$PS5NES_DEPS/filesystem-helper/.deps/pacbrew/v0.40.2/sysroot/user/homebrew"
           export PS5NES_PSBC_GENERATED="$GITHUB_WORKSPACE/homebrew/ps5-mesenx/build/ps5-core/generated-psbc.ps5.a"
           export PS5NES_AGC_STUB_DIR="$GITHUB_WORKSPACE/homebrew/ps5-mesenx/build/ps5-core/agc-imports"
+          export PS5NES_LAPY_BASELINE="$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip"
           # build_shelf.py generates the UI version and title metadata from app.json.
           bash nes/tools/build.sh
           mkdir -p dist

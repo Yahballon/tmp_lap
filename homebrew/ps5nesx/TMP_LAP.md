@@ -45,3 +45,10 @@ manifest and title version before publishing.
 - Remove corner QR tile, large Triangle QR overlay and QR controller hint.
 - Web settings remain accessible; the QR encoder stays linked internally for compatibility.
 - Embedded app version and package are generated from app.json.
+
+## Deterministic Lapy packaging
+The original pinned Lapy upstream is currently unavailable. The build uses only
+`PPSA99204/lapy.elf` and its manifest from this repository's already signed
+`ps5nesx-v1.0.11` ZIP, with an exact SHA-256 archive pin, and verifies the
+helper's ELF signature, title ID and per-file hash. This does not overwrite
+the newly compiled and signed `eboot.bin` for v1.0.12.
