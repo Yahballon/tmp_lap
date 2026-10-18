@@ -140,14 +140,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/ps5nesx-helper-baseline"
-          gh release download ps5nesx-v1.0.11 --repo "$GITHUB_REPOSITORY" \\
-            --pattern PPSA99204.zip --dir "$RUNNER_TEMP/ps5nesx-helper-baseline"
-          printf '%s  %s\\n' '1dca2ad14d5e02f71eb8e2a71b527b92297f060a79d5df9b4613f01ff51d8500' \\
-            "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | sha256sum -c -
-          unzip -Z1 "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | \\
-            grep -Fx 'PPSA99204/lapy.elf'
-          unzip -Z1 "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | \\
-            grep -Fx 'PPSA99204/lapy-manifest.json'
+          gh release download ps5nesx-v1.0.11 --repo "$GITHUB_REPOSITORY" --pattern PPSA99204.zip --dir "$RUNNER_TEMP/ps5nesx-helper-baseline"
+          echo "1dca2ad14d5e02f71eb8e2a71b527b92297f060a79d5df9b4613f01ff51d8500  $RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | sha256sum -c -
+          unzip -Z1 "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | grep -Fx 'PPSA99204/lapy.elf'
+          unzip -Z1 "$RUNNER_TEMP/ps5nesx-helper-baseline/PPSA99204.zip" | grep -Fx 'PPSA99204/lapy-manifest.json'
       - name: Build and sign PS5NESX from tmp_lap source
         timeout-minutes: 110
         shell: bash

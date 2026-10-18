@@ -139,7 +139,7 @@ with zipfile.ZipFile(baseline) as archive:
     assert manifest_lapy['mode']=='elf-helper'
     assert manifest_lapy['service'] is False
     assert manifest_lapy['elf_sha256']==hashlib.sha256(helper).hexdigest()
-    assert helper.startswith(b'\\x7fELF\\x02\\x01')
+    assert helper[:6]==bytes((0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01))
     (app/'lapy.elf').write_bytes(helper)
     (app/'lapy-manifest.json').write_bytes(encoded)
 print('Reused verified signed previous Lapy helper for PPSA99204',flush=True)
