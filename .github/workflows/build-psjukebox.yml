@@ -34,12 +34,21 @@ jobs:
           assert ver.group(1)=="v"+metadata["version"], "App header and release version differ"
           assert metadata["releaseTag"]=="psjukebox-"+ver.group(1), "Release tag mismatch"
           assert 'std::string("by YAHBALLON  ·  ")+version' in code
-          assert '1850,102,16,muted,Align::right' in code, "Credits must align right below clock"
-          assert 'label(d,font,atlas,clockText,1850,65,28,white,Align::right)' in code
+          assert '1858,126,17,color(0xd7dce9),Align::right' in code, "Credits must align below the HUD clock"
+          assert 'label(d,font,atlas,clockText,1859,91,32,white,Align::right)' in code
           assert 'font.add_fallback(&internationalFont,internationalAtlas)' in code
           assert 'jukebox::utf8_cut(s,n)' in code
           assert 'NOW BROWSING' in code and 'LIBRARY READY' in code
-          assert 'd.gradient_rect({18,10,1884,142}' in code
+          assert 'hud_glass(d,head.x,head.y,head.w,head.h' in code
+          assert 'hud_glass(d,hero.x,hero.y,hero.w,hero.h' in code
+          assert 'hud_glass(d,panel.x,panel.y,panel.w,panel.h' in code
+          assert 'hud_tab_icon(d,i,x+29,84,ink)' in code
+          assert 'hud_equalizer(d,1202,907' in code
+          assert 'hud_arrow(d,51,560,false)' in code
+          assert 'hud_arrow(d,1868,560,true)' in code
+          assert 'image_fill(d,cover,x+4,y+4,w-8,h-8)' in code
+          assert 'image_fill(d,thumb,artbox.x+4' in code
+          assert 'const std::string scene=artist&&!artist->background.empty()' in code
           print("PASS: header credits, layout and build version are consistent")
           PY
       - name: Native library regression tests
@@ -55,6 +64,10 @@ jobs:
             homebrew/psjukebox/tests/cover_browse_test.cpp \
             -o /tmp/psjukebox-cover-browse-test
           /tmp/psjukebox-cover-browse-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/tests/hud_layout_test.cpp \
+            -o /tmp/psjukebox-hud-layout-test
+          /tmp/psjukebox-hud-layout-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror \
             homebrew/psjukebox/native/library_cache.cpp \
             homebrew/psjukebox/tests/library_cache_test.cpp \
@@ -268,7 +281,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.17
+          name: PSJukebox-v0.1.18
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -281,5 +294,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.17 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.18 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

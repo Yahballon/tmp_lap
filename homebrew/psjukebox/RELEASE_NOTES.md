@@ -1,14 +1,13 @@
-# PSJukebox v0.1.17 — Unicode + New HUD Design
+# PSJukebox v0.1.18 — New Screenshot Dashboard
 
-- Fix missing German umlauts and accented letters using a checked DejaVu international SDF fallback atlas, alongside Inter
-- Support verified extended Latin, Greek and Cyrillic glyphs, including Eastern European and Ukrainian names
-- Correct UTF-8 title truncation to preserve complete multibyte characters
-- Replace plain header with a glass HUD including the neon app icon, focus pills, indexing status and clock / by YAHBALLON / build version
-- Add artist / track-count context bar and album statistics cards
-- Enhance coverflow focus, layered shadows and glow while preserving album spacing
-- Add Now Playing glass player, progress bar, subtle animated equalizer
-- Harmonize Tracklist, Artists, Favorites and Settings with readable frosted glass panels
-- Design cues follow ps5-homebrew-ui Field HUD, Aurora Shelf and Now Playing; no framework replacement
-- Retains native PS5 playback, .album, SMB, favorites, fast library cache and all gamepad mappings
+- Rebuild the native PS5 UI to closely match the supplied gold/dark-glass reference image, with no static screenshot or frozen art
+- Large **PSJUKEBOX** white/gold wordmark, neon PSJukebox logo, subtitle and gold-selected icon tabs in the top header
+- Right header status glass card with live indexing status, current clock, and **by YAHBALLON · v0.1.18**
+- Cinematic artist background and glass **BROWSING ARTIST** hero panel with artists/tracks/ready stats
+- **NOW BROWSING** left card, **ALBUM x / y** right card, circular carousel arrows and five 3D-ish album jackets with reflections and glowing selected border
+- Persistent gold-framed **NOW PLAYING** card with dynamically playing album art, title, artist/album name, live progress times/bar, 23-bar animated equalizer and action glyphs
+- Controller hints displayed in nine glass footer chips matching the reference, preserving existing DualSense mappings
+- Keep multilingual glyph fallback from v0.1.17, .album + SMB + USB + fast library cache + favorite/tracklist/settings features
+- New layout regression checks for full-screen 1920x1080 positioning, center jacket, player, status and spacing
 
-Limits: Arabic shaping / RTL and full CJK ideograph coverage are not implemented. Native build tests pass independently of real-console validation.
+The supplied screenshot is a visual design reference; real user-provided album sleeves/artist backgrounds appear at runtime. Final 1:1 visual acceptance and UI readability must be verified on a PS5.

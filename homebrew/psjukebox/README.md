@@ -264,3 +264,13 @@ The font is baked into the native PS5 package at build time from openly licensed
 The HUD is inspired by the open-source [ps5-homebrew-ui design guide](https://github.com/blackbearreloaded/ps5-homebrew-ui/blob/main/docs/DESIGNS.md#hud): the Field HUD layered status surfaces, Aurora Shelf focus states and frosted chrome, and Now Playing progress/spectrum. A new floating top header includes the neon app logo, tab pills and the clock. The artist bar, selected album stats, focus glows, playback panel and list/settings/favorites glass panels share a consistent look.
 
 All v0.1.16 native audio decoders, DualSense controls, cached music index, .album handling, SMB shares, favorites and dynamic artist theme colors are retained.
+
+## v0.1.18 — Screenshot-inspired 1920 × 1080 dashboard redesign
+
+The native PS5 homebrew UI now follows the supplied dark glass/gold dashboard design: left neon PSJukebox icon and white/gold wordmark, subtitle, five icon-bearing top tabs with gold active selection, right status/clock/developer version card, a full-width artist title and library statistics panel, left/right browsing and album-count cards, large animated five-cover carousel with gold-selected border and reflections, persistent full-width now-playing panel with current album thumbnail, live playback progress, visualizer and action glyphs, and nine DualSense control chips in a dark footer.
+
+The art remains dynamic and real: the currently selected artist's provided background is shown if present, otherwise an album background is used, all album sleeves and artwork are loaded from local, USB, SMB, or packed .album data. No screenshot is baked into the interface; numbers, clock, titles, progress and playback indicators are calculated from the actual player and library. This also preserves the Unicode font fallback from v0.1.17 for ä/ö/ü, ß and international titles.
+
+**Controls unchanged:** L1/R1 artists, L2/R2 previous/next song across album boundaries, D-pad left/right carousel, both joysticks left/right seeking, Down Tracklist, X Play, Square Pause, Triangle Favorite, OPTIONS Settings and Circle Back. All music scanner, fast-start library cache, SMB, .album extraction, favorites and logged errors remain as before.
+
+CI tests HUD layout geometry and validates critical static integration with PSJukebox's real rendering pipeline; the native 1920x1080 UI should be visually checked on a PS5 for exact proportions.
