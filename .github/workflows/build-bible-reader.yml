@@ -15,13 +15,13 @@ permissions:
 jobs:
   ps5:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make wget curl unzip tar git python3 python3-pil fonts-dejavu-core pkg-config ca-certificates g++ cmake ninja-build libespeak-ng-dev libsdl2-dev
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make wget curl unzip tar git python3 python3-pil fonts-dejavu-core libeigen3-dev pkg-config ca-certificates g++ cmake ninja-build libespeak-ng-dev libsdl2-dev protobuf-compiler
       - name: Test host-side Bible engine
         run: |
           python3 -m unittest discover -s homebrew/bible-reader/tests -p 'test_*.py' -v
@@ -96,7 +96,7 @@ jobs:
           import json,pathlib
           p=pathlib.Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.007')
+          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.008')
           d['localizedParameters']['en-US']['titleName']='Bible Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -115,6 +115,77 @@ jobs:
           PS5_CLANG: clang-18
           USE_CCACHE: '0'
         run: bash ../homebrew/bible-reader/tools/build_offline_tts.sh
+      - name: Build ONNX Runtime CPU natively for PS5
+        env:
+          SOURCE_ROOT: ${{ github.workspace }}
+        run: |
+          bash homebrew/bible-reader/native_piper/probe_native_onnx.sh
+      - name: Install ONNX CPU libs, native inference and Thorsten model in app
+        run: |
+          set -euo pipefail
+          model=/tmp/piper-model/de_DE-thorsten-medium.onnx
+          test -s "$model"
+          mkdir -p app/assets/tts/neural/de app/src/third_party/onnx app/lib/nativeort
+          cp "$model" app/assets/tts/neural/de/de_DE-thorsten-medium.onnx
+          cp homebrew/bible-reader/native_piper/{piper_onnx.cpp,piper_onnx.hpp,phoneme_ids.cpp,phoneme_ids.hpp} app/src/
+          cp homebrew/bible-reader/native_piper/ps5_thread_atexit.cpp app/src/
+
+          cp /tmp/piper-onnx-ps5/onnxruntime/include/onnxruntime/core/session/onnxruntime_c_api.h app/src/third_party/onnx/
+          python3 homebrew/bible-reader/native_piper/generate_phonemes.py \
+            /tmp/piper-model/de_DE-thorsten-medium.onnx.json \
+            app/src/thorsten_phonemes.generated.hpp
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          root=Path('/tmp/piper-onnx-ps5/build')
+          target=Path('app/lib/nativeort')
+          files=sorted(root.rglob('*.a'))
+          assert len(files)>=9, len(files)
+          names={x.name for x in files}
+          assert {'libonnxruntime_session.a','libonnxruntime_graph.a',
+                  'libonnxruntime_framework.a','libonnxruntime_providers.a',
+                  'libonnxruntime_optimizer.a'}.issubset(names), names
+          # Enforce required PS5 cross-compiled dependency archives. All
+          # inputs must originate from the same CMake cross-build directory.
+          assert 'libnsync_cpp.a' in names, 'Missing nsync_cpp static archive'
+          assert 'libre2.a' in names, 'Missing RE2 static archive'
+          # Archive dependency order matters for static linkers. Keep ONNX
+          # archives first and put RE2/nsync last, after consumers.
+          tail={'libre2.a','libnsync_cpp.a','libnsync.a'}
+          ordered=[x for x in files if x.name not in tail]
+          ordered.extend(x for x in files if x.name in tail)
+          lines=[]
+          for lib in ordered:
+              relative=lib.relative_to(root)
+              path=target/relative
+              path.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copyfile(lib,path)
+              lines.append(str(path.relative_to('app')))
+          Path('/tmp/ps5_ort_archives.txt').write_text(' '.join(lines))
+          print('ONNX Runtime + RE2/nsync static archives:',len(files))
+          print('Archive bytes:',sum(lib.stat().st_size for lib in files))
+          PY
+          cp /tmp/piper-onnx-ps5/onnxruntime/LICENSE app/assets/licenses/ONNXRuntime-MIT.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path('app/sce_sys/param.json')
+          data=json.loads(path.read_text())
+          data['contentVersion']='01.000.008'
+          data['titleId']='PPSA99793'
+          data['conceptId']='99794'
+          data['contentId']='UP9000-PPSA99793_00-BIBLEREADER00001'
+          data['localizedParameters']['en-US']['titleName']='Bible Reader'
+          path.write_text(json.dumps(data,indent=2)+'\n')
+          p=Path('app/src/main.cpp')
+          p.write_text(p.read_text().replace('v0.1.6','v0.1.7'))
+          PY
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -Ihomebrew/bible-reader/native_piper -Iapp/src \
+            homebrew/bible-reader/native_piper/phoneme_ids.cpp \
+            homebrew/bible-reader/native_piper/test_phoneme_ids.cpp \
+            -o /tmp/bible-native-piper-ids
+          /tmp/bible-native-piper-ids
       - name: Validate real offline English German French Spanish speech
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror \
@@ -126,13 +197,28 @@ jobs:
           mkdir -p app/build/jb-json
           cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
           llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Test C++ thread-local destructor hook on Linux
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+            homebrew/bible-reader/native_piper/ps5_thread_atexit.cpp \
+            homebrew/bible-reader/native_piper/test_thread_atexit.cpp \
+            -o /tmp/bible-piper-thread-atexit-test
+          /tmp/bible-piper-thread-atexit-test
+          echo "PS5 __cxa_thread_atexit_impl hook host smoke test passed"
       - name: Compile native PS5 executable
         working-directory: app
         env:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES='sdl2' APP_INCLUDE_PATHS='src .deps/ps5-opengl/current/include src/third_party/espeak/include' APP_STATIC_ARCHIVES='.deps/ps5-opengl/libps5opengl-group.a lib/libespeak-ng.a lib/libucd.a' app
+        run: |
+          set -euo pipefail
+          ort_archives=$(cat /tmp/ps5_ort_archives.txt)
+          make USE_CCACHE=0 BUILD_JOBS=4 \
+            PACBREW_PACKAGES='sdl2' \
+            APP_DEFINITIONS='GL_GLEXT_PROTOTYPES=1 BIBLE_NATIVE_PIPER=1' \
+            APP_INCLUDE_PATHS='src .deps/ps5-opengl/current/include src/third_party/espeak/include src/third_party/onnx' \
+            APP_STATIC_ARCHIVES=".deps/ps5-opengl/libps5opengl-group.a lib/libespeak-ng.a lib/libucd.a $ort_archives" app
       - name: Verify installation ZIP and offline corpus
         run: |
           python3 - <<'PY'
@@ -144,7 +230,7 @@ jobs:
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99793'
           assert meta['contentId']=='UP9000-PPSA99793_00-BIBLEREADER00001'
-          assert meta['contentVersion']=='01.000.007'
+          assert meta['contentVersion']=='01.000.008'
           with zipfile.ZipFile('app/dist/PPSA99793.zip') as archive:
               assert archive.testzip() is None
               paths=set(archive.namelist())
@@ -163,6 +249,8 @@ jobs:
                            'assets/tts/neural/de/genesis1/preview-manifest.txt',
                            'assets/tts/neural/de/genesis1/1.pcm',
                            'assets/tts/neural/de/genesis1/31.pcm',
+                           'assets/tts/neural/de/de_DE-thorsten-medium.onnx',
+                           'assets/licenses/ONNXRuntime-MIT.txt',
                            'assets/bible/webpb.tsv','assets/bible/de.tsv',
                            'assets/bible/fr.tsv','assets/bible/es.tsv'):
                   assert 'PPSA99793/'+path in paths,path
@@ -179,6 +267,7 @@ jobs:
               for verse in range(1,32):
                   raw=archive.read(preview+str(verse)+'.pcm')
                   assert len(raw)>1000 and len(raw)%2==0,verse
+              assert len(archive.read('PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx'))>50_000_000
               assert b"God's Spirit" in verse_data
               assert b'God\xe2\x80\x99s' not in verse_data
           print('PS5 native ZIP and complete offline Bible verified')
@@ -186,9 +275,10 @@ jobs:
       - name: Upload testbuild
         uses: actions/upload-artifact@v4
         with:
-          name: Bible-Reader-v0.1.6-PPSA99793
+          name: Bible-Reader-v0.1.7-PPSA99793
           path: app/dist/PPSA99793.zip
           if-no-files-found: error
+
 
   publish:
     name: Publish verified Bible Reader TESTBUILD
@@ -201,7 +291,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: Bible-Reader-v0.1.6-PPSA99793
+          name: Bible-Reader-v0.1.7-PPSA99793
           path: release
       - name: Verify downloaded release ZIP
         run: |
@@ -219,6 +309,7 @@ jobs:
                   assert z.read('PPSA99793/assets/bible/'+lang+'.tsv').count(b'\n')>30000
               for lang in ('en','de','fr','es'):
                   assert len(z.read('PPSA99793/assets/tts/espeak-ng-data/'+lang+'_dict'))>512
+              assert len(z.read('PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx'))>50_000_000
               neural='PPSA99793/assets/tts/neural/de/genesis1/'
               for verse in range(1,32):
                   assert len(z.read(neural+str(verse)+'.pcm'))>1000
@@ -229,11 +320,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=bible-reader-v0.1.6
+          tag=bible-reader-v0.1.7
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
             echo "Release and binary already exist; preserving immutable version"
             exit 0
           fi
-          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.1.6" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
+          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.1.7" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
           gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'

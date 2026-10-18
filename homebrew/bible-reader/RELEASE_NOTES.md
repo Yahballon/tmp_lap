@@ -1,10 +1,11 @@
-# Bible Reader v0.1.6 - German Piper Neural HD Preview
+# Bible Reader v0.1.7 — Native Piper Neural HD
 
-- New Voice style setting: Classic / Neural HD (1. Mose 1).
-- Genuine offline Piper Thorsten Medium neural speech for all 31 verses of German Genesis chapter 1.
-- Speech rendered at GitHub Actions build time using a pinned real neural model, then delivered as PCM with the install ZIP.
-- Continuous reading switches automatically to eSpeak for chapters without Neural HD previews.
-- Yellow karaoke still present with approximate word-onset alignment in preview.
-- eSpeak voice fallback for English, French, Spanish and the full Bible remains fully functional.
-- Logs neural sample usage and fallback in /data/BibleReader/bible-reader.log.
-- This preview is **not native on-console Piper ONNX synthesis**. That requires an unsupported PS5/FreeBSD ONNX runtime port and hardware validation.
+- Native **Thorsten Medium** offline neural text-to-speech for German Bible verses, synthesized directly on PS5 with ONNX Runtime.
+- Not limited to the pre-rendered German Genesis 1 samples: arbitrary German verses are supported.
+- Same title ID PPSA99793; saved settings, bookmarks and reading progress remain.
+- The previous word-by-word yellow karaoke highlighting and continuous chapter/book reading remain. Neural word timing is approximate.
+- Four complete offline Bible translations in English, German, French and Spanish remain.
+- English, French and Spanish continue using eSpeak NG.
+- Fallback to Genesis 1 prerecorded neural audio or classic eSpeak if native Piper cannot load or synthesize.
+- PS5 hardware test confirmed speech in experimental Piper LAB. Synchronous per-verse inference can delay stop and long sessions should be validated.
+- Diagnostics: /data/BibleReader/bible-reader.log.
