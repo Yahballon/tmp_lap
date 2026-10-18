@@ -288,9 +288,9 @@ void App::Update(double dt, const Input& in)
 
 void App::Pose(float d, float t, Mat4& model, float& brightness) const
 {
-    // Same 3D renderer and cover textures, but now using the reusable classic
-    // perspective carousel pose (centre 128%, angled receding neighbours).
-    const ClassicCoverPose pose = ClassicCoverflowPose(d, t);
+    // Porpoise-inspired shallow-angle perspective case geometry.
+    // Keep our native Vulkan cover texture caching and reflected floor.
+    const ClassicCoverPose pose = PorpoiseCoverflowPose(d, t);
     model = pose.model;
     brightness = pose.brightness;
     if (m_launching && std::fabs(d) < 0.5f)
@@ -323,6 +323,7 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	f.reflect_falloff = 2.55f;
 	f.boxes.clear();
 	f.reflections.clear();
+	f.backdrop_set = VK_NULL_HANDLE;
 	f.ui.clear();
 	f.halo = HaloDraw();
 
@@ -330,10 +331,10 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	const Vec2 centre = Project(f.view_proj, Vec3(0, 0.1f, kCenterZ - 0.6f));
 	const Vec2 floor_pt = Project(f.view_proj, Vec3(0, kFloorY, kCenterZ));
 	BgParams& bg = f.bg;
-	bg.glow_color[0] = 0.40f;
-	bg.glow_color[1] = 0.40f;
-	bg.glow_color[2] = 0.44f;
-	bg.glow_color[3] = 0.18f;
+	bg.glow_color[0] = Mix(0.25f, m_glow[0], 0.32f);
+	bg.glow_color[1] = Mix(0.45f, m_glow[1], 0.32f);
+	bg.glow_color[2] = Mix(0.95f, m_glow[2], 0.32f);
+	bg.glow_color[3] = 0.26f;
 	bg.glow_pos[0] = centre.x;
 	bg.glow_pos[1] = centre.y;
 	bg.glow_pos[2] = 0.58f;
@@ -341,9 +342,9 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	bg.floor_glow[0] = floor_pt.x;
 	bg.floor_glow[1] = floor_pt.y;
 	bg.floor_glow[2] = 0.30f;
-	bg.floor_glow[3] = 0.035f;
-	const float top[4] = {0.085f, 0.087f, 0.091f, 1}, mid[4] = {0.065f, 0.066f, 0.072f, 1},
-				bottom[4] = {0.008f, 0.009f, 0.012f, 1};
+	bg.floor_glow[3] = 0.0f; // repurposed as optional blurred cover-backdrop opacity
+	const float top[4] = {0.045f, 0.072f, 0.13f, 1}, mid[4] = {0.022f, 0.043f, 0.095f, 1},
+				bottom[4] = {0.005f, 0.009f, 0.028f, 1};
 	std::copy(top, top + 4, bg.top);
 	std::copy(mid, mid + 4, bg.mid);
 	std::copy(bottom, bottom + 4, bg.bottom);
@@ -351,6 +352,22 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	bg.misc[1] = floor_pt.y;
 	bg.misc[2] = 0.55f;
 	bg.misc[3] = t;
+
+	// Porpoise-style soft spotlight: blur the chosen game's own cover behind
+	// the 3D shelf. The Vulkan background pass samples the existing texture
+	// descriptor; no art is duplicated or downloaded solely for ambience.
+	if (!m_slots.empty() && m_selected >= 0 &&
+	    static_cast<size_t>(m_selected) < m_slots.size())
+	{
+		const Slot& chosen = m_slots[static_cast<size_t>(m_selected)];
+		if (chosen.set && chosen.cover)
+		{
+			f.backdrop_set = chosen.set;
+			const float settle = 1.0f - Clamp(
+				std::fabs(m_scroll - static_cast<float>(m_selected)) * 1.2f, 0.0f, 1.0f);
+			bg.floor_glow[3] = 0.23f * settle * chosen.cover_mix * (1.0f - slide);
+		}
+	}
 
 	// The cases, nearest the selection last so the halo lands on top of its neighbours.
 	const int n = static_cast<int>(m_games.size());

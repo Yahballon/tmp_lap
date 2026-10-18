@@ -713,7 +713,8 @@ bool Renderer::Init(Vk* vk, VkPhysicalDevice physical_device, VkDevice device, u
 	if (!m_white)
 		return false;
 	m_post_set = AllocTextureSet(&m_scene, m_white, m_white);
-	return m_post_set != VK_NULL_HANDLE;
+	m_bg_fallback_set = AllocTextureSet(m_white, m_white, m_white);
+	return m_post_set != VK_NULL_HANDLE && m_bg_fallback_set != VK_NULL_HANDLE;
 }
 
 Texture* Renderer::CreateTexture(uint32_t w, uint32_t h, VkFormat format, const void* pixels)
@@ -924,7 +925,8 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 		m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &s.frame_set, 0, nullptr);
 
 		m_vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_bg);
-		m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 1, 1, &m_post_set, 0, nullptr);
+		const VkDescriptorSet background_set = f.backdrop_set ? f.backdrop_set : m_bg_fallback_set;
+		m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 1, 1, &background_set, 0, nullptr);
 		m_vk->vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
 			sizeof(BgParams), &f.bg);
 		m_vk->vkCmdBindVertexBuffers(cmd, 0, 1, &m_quad_vb.buffer, &zero);

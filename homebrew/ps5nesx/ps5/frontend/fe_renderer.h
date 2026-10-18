@@ -63,6 +63,7 @@ struct FrameDesc
 	float glow[4] = {0.5f, 0.4f, 1.0f, 1.0f};
 	float floor_y = -1, reflect_strength = 0.3f, reflect_falloff = 2.0f;
 	BgParams bg = {};
+	VkDescriptorSet backdrop_set = VK_NULL_HANDLE; // selected cover, or fallback
 	std::vector<BoxDraw> reflections;
 	std::vector<BoxDraw> boxes;
 	HaloDraw halo;
@@ -187,6 +188,7 @@ private:
 	Texture* m_white = nullptr;
 	Texture* m_atlas = nullptr;
 	VkDescriptorSet m_post_set = VK_NULL_HANDLE;
+	VkDescriptorSet m_bg_fallback_set = VK_NULL_HANDLE;
 	VkDescriptorSet m_atlas_set = VK_NULL_HANDLE;
 
 	VkCommandPool m_cmd_pool = VK_NULL_HANDLE;

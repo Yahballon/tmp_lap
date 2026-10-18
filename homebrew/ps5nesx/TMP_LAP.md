@@ -100,3 +100,28 @@ guarantee without testing on physical PS5 hardware.
 
 Normal NES emulation, HD pack directories, saves and the coverflow stay intact.
 Compare the same World 1-1 HUD/left-edge scene on v1.0.13 versus v1.0.14.
+
+## v1.0.15 — Porpoise-inspired CoverFlow and authentic menu sounds
+
+The 3D shelf now follows the shallow-yaw, wide-spacing, shrinking outer case
+geometry in elripalda/Porpoise-Dolphin-Emulator-for-PS5, src/ui_app_views.cpp,
+(c) 2026 Ruben (@elripalda), GPL-3.0-or-later.
+The existing PS5NESX renderer, floor reflections and cover handling are retained.
+
+An unobtrusive blurred/dimmed selected-cover backdrop is sampled through
+the existing Vulkan descriptor for that game. The fallback sampler is a
+standalone white pixel (never the scene render target). The actual background
+shader SPIR-V is rebuilt from shaders/bg.frag on every PS5 CI build.
+
+Authentic Porpoise game-row.wav and menu-scroll.wav (copyright Ruben) are
+downloaded from source commit 2ed1ab5a06995aa198f7bccd4da0f90c3fc29d39
+and verified by their Git blob hashes in CI. These are embedded inside the
+signed eboot.bin with .incbin; NO live runtime download or extra installed
+assets are needed. The frontend mixer decodes 48 kHz 16-bit stereo RIFF WAVs
+and uses the original synthesized menu sounds if audio decoding fails.
+
+Credits/source: https://github.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5
+Licence: GPL-3.0-or-later. No original Dolphin or console brand graphics are
+copied. This is a PS5NESX adaptation, not the entire Porpoise frontend.
+Requires on-console verification of blurred background, cover transitions,
+sound panning, memory use and game launch.

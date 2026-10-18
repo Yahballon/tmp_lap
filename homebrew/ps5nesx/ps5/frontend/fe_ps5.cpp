@@ -143,6 +143,10 @@ FE_INCBIN_ASSET(fe_web_discord, "web/discord.svg");
 FE_INCBIN_ASSET(fe_web_x, "web/x-twitter.svg");
 // vk-285-51: the recommended settings the page's Recommended button restores.
 FE_INCBIN_ASSET(fe_presets, "presets.ini");
+// Project Porpoise original menu effects, copyright Ruben (@elripalda),
+// GPL-3.0-or-later; fetched from a pinned upstream commit during CI.
+FE_INCBIN_ASSET(fe_porpoise_game_row, "sounds/game-row.wav");
+FE_INCBIN_ASSET(fe_porpoise_menu_scroll, "sounds/menu-scroll.wav");
 extern "C" const uint8_t fe_font_brands[], fe_font_brands_end[], fe_web_page[], fe_web_page_end[], fe_web_discord[],
 	fe_web_discord_end[], fe_web_x[], fe_web_x_end[], fe_presets[], fe_presets_end[];
 

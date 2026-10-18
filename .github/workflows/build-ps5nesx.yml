@@ -46,6 +46,12 @@ jobs:
             homebrew/ps5nesx/tests/coverflow_layout_test.cpp \
             -o /tmp/ps5nesx-layout-test
           /tmp/ps5nesx-layout-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            -Ihomebrew/ps5nesx/ps5/frontend \
+            homebrew/ps5nesx/tests/porpoise_coverflow_test.cpp \
+            -o /tmp/ps5nesx-porpoise-layout-test
+          /tmp/ps5nesx-porpoise-layout-test
+          python3 homebrew/ps5nesx/tests/test_porpoise_integration.py
           python3 homebrew/ps5nesx/tests/ui_layout_check.py
           python3 homebrew/ps5nesx/tests/test_hdpack_integration.py
           python3 homebrew/ps5nesx/tests/test_hd_visual_regressions.py
@@ -58,6 +64,37 @@ jobs:
             libssl-dev libzstd-dev libx11-dev libgl1-mesa-dev \
             python3 python3-mako python3-numpy python3-pil
           echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+      - name: Embed verified Porpoise cover navigation sounds
+        shell: bash
+        run: |
+          set -euo pipefail
+          rev=2ed1ab5a06995aa198f7bccd4da0f90c3fc29d39
+          root="$GITHUB_WORKSPACE/homebrew/ps5nesx/ps5/frontend/assets/sounds"
+          mkdir -p "$root"
+          for entry in \
+            'game-row.wav d10d7d6ef5f8cb7343539e8aafb57fcb49f90a0f' \
+            'menu-scroll.wav abab02c03a9a8181f3c81ad6d027de6b9940213a'; do
+            read -r name expected <<< "$entry"
+            curl -fL --retry 5 --retry-all-errors --connect-timeout 20 \
+              "https://raw.githubusercontent.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5/$rev/assets/sounds/$name" \
+              -o "$root/$name"
+            test "$(git hash-object "$root/$name")" = "$expected" || { echo "Porpoise WAV hash mismatch: $name" >&2; exit 1; }
+          done
+          python3 - <<'PY'
+          import wave
+          from pathlib import Path
+          root=Path("homebrew/ps5nesx/ps5/frontend/assets/sounds")
+          for name in ("game-row.wav", "menu-scroll.wav"):
+              with wave.open(str(root/name),'rb') as f:
+                  assert f.getnchannels()==2 and f.getframerate()==48000 and f.getsampwidth()==2
+                  assert 0 < f.getnframes() <= 48000*3
+                  print("Verified Porpoise sound:",name,"frames=",f.getnframes())
+          PY
+      - name: Rebuild modified native background SPIR-V
+        run: |
+          bash homebrew/ps5nesx/ps5/frontend/build_shaders.sh
+          test -s homebrew/ps5nesx/ps5/frontend/fe_shaders.inc
+          grep -q 'static const uint32_t fe_spv_bg_frag\[\]' homebrew/ps5nesx/ps5/frontend/fe_shaders.inc
       - name: Restore pinned original PS5NESX embedded fonts
         shell: bash
         run: |

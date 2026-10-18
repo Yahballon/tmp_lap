@@ -44,4 +44,35 @@ inline ClassicCoverPose ClassicCoverflowPose(float offset, float time_seconds)
     out.brightness = std::max(0.56f, Mix(1.0f, 0.84f, side) - 0.040f * tail);
     return out;
 }
+
+/* Porpoise-inspired shallow-angle cover flow for PS5NESX.
+ * Adapted to the native Vulkan case mesh from elripalda/Porpoise
+ * src/ui_app_views.cpp (Ruben, 2026), GPL-3.0-or-later. We keep our
+ * centre case enlarged to fit the NES shelf but use the shallow
+ * yaw, 1st/2nd neighbour spacing and receding scale profile. */
+inline ClassicCoverPose PorpoiseCoverflowPose(float offset, float time_seconds)
+{
+    const float a = std::fabs(offset);
+    const float sign = offset < 0.0f ? -1.0f : 1.0f;
+    const float outward = std::max(0.0f, a - 1.0f);
+    const float x = sign * (1.65f * std::min(a, 1.0f) + 1.23f * outward);
+    const float scale = a <= 1.0f
+        ? 1.28f - 0.18f * a
+        : std::max(0.62f, 1.10f - 0.125f * outward);
+    const float yaw = sign * (0.22f * std::min(a, 1.0f));
+    const float center_sway = 0.045f * std::sin(time_seconds * 0.9f)
+        * (1.0f - Smoothstep(0.0f, 0.7f, std::min(a, 0.7f)));
+    const float z = kClassicCenterZ - 0.54f * std::min(a, 1.0f) - 0.18f * outward;
+    const float hover = (1.0f - Smoothstep(0.0f, 1.0f, std::min(a, 1.0f)))
+        * 0.017f * (1.0f + std::sin(time_seconds * 0.9f));
+    const float y = (scale - 1.0f) * kClassicCaseHalfHeight + hover;
+    ClassicCoverPose out;
+    out.model = Mat4::Translate(x, y, z)
+        * Mat4::RotateY(yaw + center_sway)
+        * Mat4::Scale(scale, scale, scale);
+    out.scale = scale;
+    out.brightness = std::max(0.65f, 1.0f - 0.10f * std::min(a, 1.0f) - 0.035f * outward);
+    return out;
+}
+
 } // namespace fe
