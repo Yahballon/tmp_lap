@@ -62,7 +62,7 @@ def main():
             for release in external_releases:
                 if release.get("draft") or release.get("prerelease"):continue
                 tag=release.get("tag_name","")
-                m=re.fullmatch(r"v(\\d+)\\.(\\d+)\\.(\\d+)",tag)
+                m=re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)",tag)
                 if not m:continue
                 semver=tuple(map(int,m.groups()))
                 for asset in release.get("assets",[]):
