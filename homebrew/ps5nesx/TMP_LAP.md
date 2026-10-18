@@ -80,3 +80,23 @@ Integer mode downscales a larger image to fit the screen.
 
 Test on PS5 with a legally sourced Mesen-format HD pack. Newer pack
 formats, performance and audio compatibility are unverified.
+
+## v1.0.14 — HD edge and HUD flicker regression build
+
+The SMB1 4x HD pack showed glitches at the left border and below the in-game HUD.
+Suspected causes are fixed by guarded tile caching, a proper left-edge mask,
+and complete HD-frame clearing. These are code-level changes, not a visual
+guarantee without testing on physical PS5 hardware.
+
+- Scanline tile cache now validates the entire tile key (CHR index/data
+  and palette) before reusing a match. HUD splits can switch tiles within
+  the previous 8-pixel fast-cache window.
+- The first 8 pixels respect the NES background-mask palette when that
+  mask is enabled; no old XBuf colours are allowed into that strip.
+- Each HD frame buffer is fully cleared before composition; source frames
+  are converted across every pixel and the frame geometry and pitch logged.
+- View /data/PS5NES/logs/boot.log for [HDPACK] HD compose: and
+  [HDPACK] video_frame= messages.
+
+Normal NES emulation, HD pack directories, saves and the coverflow stay intact.
+Compare the same World 1-1 HUD/left-edge scene on v1.0.13 versus v1.0.14.

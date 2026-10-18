@@ -173,7 +173,17 @@ void Session::Video(const void* data, unsigned w, unsigned h, size_t pitch) {
         pitch < static_cast<size_t>(w) * bytes) {
         s.error = "Invalid or oversized NES/HD video frame"; return;
     }
-    s.width = w; s.height = h; s.pixels.resize(w * h);
+    /* Full-width copy/convert is performed for every row. Track unusual
+     * pitch/geometry changes without flooding the console boot log. */
+    static unsigned last_w = 0, last_h = 0;
+    static size_t last_pitch = 0;
+    if (w != last_w || h != last_h || pitch != last_pitch) {
+        std::printf("[HDPACK] video_frame=%ux%u pitch=%zu format=%u full_rows=active\n",
+                    w, h, pitch, static_cast<unsigned>(s.m_format));
+        last_w = w; last_h = h; last_pitch = pitch;
+    }
+    s.width = w; s.height = h;
+    s.pixels.resize(static_cast<size_t>(w) * h);
     for (unsigned y=0;y<h;++y) for (unsigned x=0;x<w;++x) {
         const auto* at = static_cast<const uint8_t*>(data) + y * pitch + x * bytes;
         uint32_t r,g,b;
