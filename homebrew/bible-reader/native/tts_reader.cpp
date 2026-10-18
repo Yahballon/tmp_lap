@@ -10,6 +10,7 @@
 #include "voice_en_phonemes.generated.hpp"
 #include "voice_fr_phonemes.generated.hpp"
 #include "voice_es_phonemes.generated.hpp"
+#include "voice_ru_phonemes.generated.hpp"
 #include <chrono>
 #endif
 #include <SDL.h>
@@ -106,7 +107,7 @@ bool Speaker::start(const bible::Library& lib,bible::Ref from,int lang,bool pref
  if(!lib.verse(from)){bible_log::write("TTS_BAD_REF","book=%d chapter=%d verse=%d",from.book,from.chapter,from.verse);return false;}
  bible_log::write("TTS_START","language=%d book=%d chapter=%d verse=%d",lang,from.book,from.chapter,from.verse);
  library_=&lib;from_=from;robotPreset_=(lang==4);
- language_=robotPreset_?0:std::clamp(lang,0,3);
+ language_=robotPreset_?0:(lang==5?4:std::clamp(lang,0,3));
  preferNeural_=preferNeural&&!robotPreset_;cancelled_=false;
  if(robotPreset_)bible_log::write("RETRO_MODE","Stephen Hawking inspired retro computer voice; English; eSpeak only");
  bible_log::write("TTS_ENGINE","preferNeural=%d language=%d",preferNeural?1:0,language_);
@@ -146,8 +147,8 @@ void Speaker::run(){
  const char* roots[]={"/app0/assets/tts","/data/homebrew/PPSA99793/assets/tts"};
  const char* chosenRoot=nullptr;
  int rate=-1;
- const char* languages[]={"en","de","fr","es"};
- const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es"};
+ const char* languages[]={"en","de","fr","es","ru"};
+ const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es","zle/ru"};
  for(const char* root:roots){
   const std::string data=std::string(root)+"/espeak-ng-data/";
   const long phon=bible_log::fileSize(data+"phondata");
@@ -162,7 +163,7 @@ void Speaker::run(){
  if(rate<=0){error="Offline voice initialization failed";goto done;}
  initialized=true;
  {
-  const char* codes[]={"en","de","fr","es"};
+  const char* codes[]={"en","de","fr","es","ru"};
   const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es"};
   const char* code=codes[language_];
   const char* profile=profiles[language_];
@@ -204,7 +205,8 @@ void Speaker::run(){
    "en/en_US-kristin-medium.onnx",
    "de/de_DE-thorsten-medium.onnx",
    "fr/fr_FR-siwis-medium.onnx",
-   "es/es_ES-davefx-medium.onnx"
+   "es/es_ES-davefx-medium.onnx",
+   "ru/ru_RU-denis-medium.onnx"
   };
   const std::string relative=std::string("/neural/")+filenames[language_];
   const std::string local=std::string("/app0/assets/tts")+relative;
@@ -265,7 +267,8 @@ void Speaker::run(){
      language_==0?bible_piper::voice_en::thorstenTable():
      language_==1?bible_piper::thorstenTable():
      language_==2?bible_piper::voice_fr::thorstenTable():
-                  bible_piper::voice_es::thorstenTable();
+     language_==3?bible_piper::voice_es::thorstenTable():
+                  bible_piper::voice_ru::thorstenTable();
     const auto ids=bible_piper::encode(ipa,table);
     if(ids.success){
      std::vector<std::int16_t> generated;

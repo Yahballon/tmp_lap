@@ -23,7 +23,7 @@ private:
 struct Settings {
  int book=0, chapter=1, selectedVerse=1, fontSize=29, theme=0;
  bool daily=true;
- int language=0; // English, German, French, Spanish, or English retro robot (4)
+ int language=0; // EN 0, DE 1, FR 2, ES 3, retro EN 4, Russian 5
  int voiceStyle=1; // 0 classic, 1 neural preview when supplied (else classic fallback)
  std::vector<Ref> bookmarks;
 };
