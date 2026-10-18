@@ -1,9 +1,9 @@
-# PSJukebox v0.1.12 — D-pad Covers / Analog Seeking
+# PSJukebox v0.1.13 — Header Credits and Build Version
 
-- **D-pad LEFT/RIGHT**: previous/next album cover in Album/Now Playing views, with the smooth 480ms animation and background transitions
-- **Left or right analog stick LEFT/RIGHT**: backward/forward seek (10 seconds per tilt) while music is playing; return to center to seek again
-- Keep **L1/R1 Artist**, **L2/R2 Album**, **Down Tracklist**, **X Play**, **Square Pause**, **Triangle Favorite**, and **OPTIONS Settings**
-- Cover browsing works while songs keep playing; header navigation with Up + D-pad left/right is unchanged
-- With the Tracklist or settings open, D-pad keeps its list/menu behavior; press Circle to return to the covers before using left/right to change albums
-- Preserve centered coverflow and small gaps, artist themes, packed .album handling and SMB features
-- Native tests check mapping and PS5 package compilation; console testing remains necessary
+- Display **by YAHBALLON · v0.1.13** just below the time at the top right of all PSJukebox screens
+- Right-align the subtle text with the existing clock, without changing the center tabs or theme
+- Read the displayed version from the native build version constant rather than hardcoding it separately in the label
+- Add CI check matching the on-screen version to app.json release metadata
+- Keep all prior v0.1.12 UI, gamepad controls, packed .album support, SMB, favorites and playback behavior
+
+PS5-build and automated host tests validate the change; final visual verification requires a console test.

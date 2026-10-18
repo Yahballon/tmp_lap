@@ -22,6 +22,22 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev zlib1g-dev zip
+      - name: Verify on-screen build credits match release metadata
+        run: |
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          metadata=json.loads(Path("homebrew/psjukebox/app.json").read_text())
+          code=Path("homebrew/psjukebox/native/main.cpp").read_text()
+          ver=re.search(r'constexpr const char\* version="(v[^"]+)";',code)
+          assert ver, "PSJukebox version declaration missing"
+          assert ver.group(1)=="v"+metadata["version"], "App header and release version differ"
+          assert metadata["releaseTag"]=="psjukebox-"+ver.group(1), "Release tag mismatch"
+          assert 'std::string("by YAHBALLON  ·  ")+version' in code
+          assert '1850,99,17,muted,Align::right' in code, "Credits must align right below clock"
+          assert 'label(d,font,atlas,clockText,1850,64,27,white,Align::right)' in code
+          print("PASS: header credits, layout and build version are consistent")
+          PY
       - name: Native library regression tests
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/psjukebox/native/library.cpp homebrew/psjukebox/tests/library_test.cpp -o /tmp/psjukebox-test
@@ -195,7 +211,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.12
+          name: PSJukebox-v0.1.13
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -208,5 +224,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.12 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.13 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
