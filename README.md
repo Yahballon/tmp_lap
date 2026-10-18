@@ -1,5 +1,7 @@
-# PS5 Homebrew Projects
-
+# PS5 AI Homebrew Projects
+<p align="center">
+  <img src="testbuilds/info.png">
+</p>
 This repository hosts **multiple independent native PlayStation 5 homebrew applications**. Each app keeps its source code, build assets, and documentation in its own folder under `homebrew/`. GitHub Actions workflows remain in the repository-wide `.github/workflows/` directory (as GitHub requires).
 
 ## Projects
