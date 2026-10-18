@@ -11,10 +11,6 @@
 #include <cmath>
 #include <cstdio>
 
-extern "C" {
-#include "third_party/qrcodegen/qrcodegen.h"
-}
-
 namespace fe
 {
 namespace
@@ -85,28 +81,9 @@ bool App::Init(Renderer* renderer, const Fonts* fonts, std::vector<GameInfo> gam
 
 void App::SetWebUrl(const std::string& url, const std::string& shown)
 {
-	m_web_known = true;
-	if (url == m_web_url && shown == m_web_shown)
-		return;
-	m_web_url = url;
-	m_web_shown = shown;
-	m_qr.clear();
-	m_qr_size = 0;
-	if (url.empty())
-		return;
-	// Byte mode up to version 10 (57 modules) is plenty for "http://255.255.255.255:65535/" (vk-285-118: no key
-	// after it any more); medium error correction.
-	uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(10)], tmp[qrcodegen_BUFFER_LEN_FOR_VERSION(10)];
-	if (!qrcodegen_encodeText(url.c_str(), tmp, qr, qrcodegen_Ecc_MEDIUM, 1, 10, qrcodegen_Mask_AUTO, true))
-	{
-		std::printf("[frontend] QR: \"%s\" does not fit\n", url.c_str());
-		return;
-	}
-	m_qr_size = qrcodegen_getSize(qr);
-	m_qr.resize(static_cast<size_t>(m_qr_size) * m_qr_size);
-	for (int y = 0; y < m_qr_size; y++)
-		for (int x = 0; x < m_qr_size; x++)
-			m_qr[static_cast<size_t>(y) * m_qr_size + x] = qrcodegen_getModule(qr, x, y) ? 1 : 0;
+    // Web configuration remains available, but no QR tile is drawn.
+    m_web_url = url;
+    m_web_shown = shown;
 }
 
 // (AI-assisted) Restore the same shelf after the NES core stops, retaining its selection.
@@ -267,26 +244,15 @@ void App::Update(double dt, const Input& in)
 				Sound(Step(-5) ? Sfx::JumpLeft : Sfx::Edge, -0.25f);
 			if (in.r1 && !m_prev.r1)
 				Sound(Step(5) ? Sfx::JumpRight : Sfx::Edge, 0.25f);
-            if(in.r2&&!m_prev.r2&&!m_games.empty()&&!m_qr_big){bool okay=m_covers&&m_covers->Refresh(m_selected);m_sheet_status=okay?"Updating selected cover...":"Cover update unavailable";m_sheet_status_time=m_time;}
-			if (((in.cross && !m_prev.cross) || (in.options && !m_prev.options)) && !m_games.empty() && !m_qr_big)
+            if(in.r2&&!m_prev.r2&&!m_games.empty()){bool okay=m_covers&&m_covers->Refresh(m_selected);m_sheet_status=okay?"Updating selected cover...":"Cover update unavailable";m_sheet_status_time=m_time;}
+			if (((in.cross && !m_prev.cross) || (in.options && !m_prev.options)) && !m_games.empty())
 			{
 				m_launching = true;
 				m_launch_time = m_time;
 				Sound(Sfx::Launch, 0.0f);
 			}
-			// vk-285-118: Triangle shows the QR code large (and Triangle or Circle puts it back).
-			else if (m_qr_big && ((in.triangle && !m_prev.triangle) || (in.circle && !m_prev.circle)))
-			{
-				m_qr_big = false;
-				Sound(Sfx::Move, -0.3f);
-			}
-			else if (!m_qr_big && in.triangle && !m_prev.triangle && m_qr_size > 0 && m_sheet_anim < 0.05f)
-			{
-				m_qr_big = true;
-				Sound(Sfx::Move, 0.3f);
-			}
-			// vk-285-114: Square opens the selected game's options sheet (the settings for all games when there is no game).
-			else if (!m_qr_big && in.square && !m_prev.square && m_sheet_anim < 0.05f)
+			// Square opens the options sheet without a QR overlay.
+			else if (in.square && !m_prev.square && m_sheet_anim < 0.05f)
 			{
 				OpenSheet(m_games.empty());
 				Sound(Sfx::Move, 0.3f);
@@ -294,11 +260,6 @@ void App::Update(double dt, const Input& in)
 		}
 		m_prev = in;
 	}
-
-	m_qr_big_anim += (m_qr_big ? 1.0f : -1.0f) * fdt / 0.18f; // vk-285-118
-	m_qr_big_anim = std::min(1.0f, std::max(0.0f, m_qr_big_anim));
-	if (m_qr_size <= 0)
-		m_qr_big = false;
 
 	// The shelf follows the selection on a critically damped spring.
 	const float k = 150.0f, c = 2.0f * std::sqrt(k);
@@ -462,56 +423,21 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	if (!clock.empty())
 		m_fonts->AddText(ui, clock.c_str(), W - margin, 150.0f * k, 58.0f * k, white, 0.2f, Fonts::Right);
 
-	// The settings page's QR tile, bottom right (vk-285-50). The code is dark on a light tile, as
-	// cameras expect; neighbouring dark modules are merged into runs and grown by a pixel so the
-	// rectangles' anti-aliased edges leave no seams between them. vk-285-51: smaller and dimmer (the
-	// user's choice: "less"); it still scans from a metre or so, and a phone keeps the page's key
-	// once it has opened it, so the code is mostly needed once.
-	const bool qr_shown = m_qr_size > 0;
-	const size_t qr_begin = ui.size();
-	if (qr_shown)
-	{
-		const float tile = 220.0f * k;
-		const int quiet = 4; // the standard quiet zone
-		const float mod = std::floor(tile / static_cast<float>(m_qr_size + 2 * quiet));
-		const float side = mod * static_cast<float>(m_qr_size + 2 * quiet);
-		const float tx = std::floor(W - margin - side), ty = std::floor(H - 150.0f * k - side);
-		Fonts::AddRoundedRect(ui, tx, ty, side, side, 12.0f * k, Rgba(0.60f, 0.59f, 0.66f));
-		const uint32_t ink = Rgba(0.07f, 0.06f, 0.16f);
-		const float grow = 0.4f; // enough to close the seams, little enough to keep the modules their size
-		for (int y = 0; y < m_qr_size; y++)
-			for (int x0 = 0; x0 < m_qr_size;)
-			{
-				if (!m_qr[static_cast<size_t>(y) * m_qr_size + x0])
-				{
-					x0++;
-					continue;
-				}
-				int x1 = x0;
-				while (x1 < m_qr_size && m_qr[static_cast<size_t>(y) * m_qr_size + x1])
-					x1++;
-				Fonts::AddRoundedRect(ui, tx + (x0 + quiet) * mod - grow, ty + (y + quiet) * mod - grow,
-					(x1 - x0) * mod + 2 * grow, mod + 2 * grow, 0.0f, ink);
-				x0 = x1;
-			}
-		// vk-285-52: no caption, the user's call ("qr is enough"); 51 had "Settings on your phone" and
-		// the address beside it.
-	}
-	else if (m_web_known)
-		m_fonts->AddText(ui, Tr(Str::NoNetwork), W - margin, H - 170.0f * k, 32.0f * k, faint, 0.1f, Fonts::Right);
 	const float sheet_e = Smoothstep(0.0f, 1.0f, m_sheet_anim);
-	FadeRange(ui, qr_begin, ui.size(), 1.0f - sheet_e); // vk-285-114: under the options sheet
 
 	const size_t title_begin = ui.size();
 	if (n > 0)
 	{
 		const GameInfo& g = m_games[static_cast<size_t>(m_selected)];
-		// Classic coverflow: selected game title at the top, above the cases.
-		const float title_w = W * 0.66f;
-		float px = 104.0f * k;
-		while (px > 56.0f * k && m_fonts->Measure(g.title.c_str(), px) > title_w)
-			px -= 4.0f * k;
-		m_fonts->AddText(ui, g.title.c_str(), W * 0.5f, 174.0f * k, px, white, 0.55f, Fonts::Center);
+		// Selected game title below the main 3D cover, never on its artwork.
+		const float title_w = W * 0.64f;
+		float px = 92.0f * k;
+		while (px > 48.0f * k && m_fonts->Measure(g.title.c_str(), px) > title_w)
+			px -= 2.0f * k;
+		const float title_y = H * 0.795f;
+		m_fonts->AddText(ui, g.title.c_str(), W * 0.5f + 2.0f * k, title_y + 2.0f * k,
+			px, Rgba(0, 0, 0, 0.52f), 0.55f, Fonts::Center);
+		m_fonts->AddText(ui, g.title.c_str(), W * 0.5f, title_y, px, white, 0.55f, Fonts::Center);
         // (AI-assisted) Show the actual selected ROM source beneath its title.
         const std::string rom_path="ROM: "+g.path;float path_px=28.0f*k;
         while(path_px>1.0f*k&&m_fonts->Measure(rom_path.c_str(),path_px)>title_w)path_px-=1.0f*k;
@@ -606,8 +532,7 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	else
 	{
 		hint(icon::Cross, nullptr, Tr(Str::HintPlay)); // vk-285-110: hints in the PS5's language
-		// vk-285-69: the shelf opens with one game too (its QR code leads to the settings page and the
-		// logs); browsing needs two.
+		// Browsing needs two games; the first can still be launched.
 		if (n > 1)
 		{
 			hint(icon::DpadLeftRight, nullptr, Tr(Str::HintBrowse));
@@ -615,8 +540,6 @@ void App::Build(FrameDesc& f, const std::string& clock)
 		}
 		hint(icon::Square, nullptr, Tr(Str::HintSettings)); // vk-285-114
         hint("#R2", nullptr, "Update cover");
-		if (m_qr_size > 0)
-			hint(icon::Triangle, nullptr, Tr(m_qr_big ? Str::HintBack : Str::HintQrCode)); // vk-285-118
 	}
 
 	std::string status = m_time - m_sheet_status_time < 6 && !m_sheet_status.empty() ? m_sheet_status : (m_covers ? m_covers->Status() : std::string());
@@ -658,34 +581,6 @@ void App::Build(FrameDesc& f, const std::string& clock)
 		}
 	}
 
-	// vk-285-118 (AI-assisted): the QR code large in the middle, black on white for any phone camera (Triangle).
-	if (m_qr_big_anim > 0.0f && m_qr_size > 0)
-	{
-		const float e = Smoothstep(0.0f, 1.0f, m_qr_big_anim);
-		const size_t begin = ui.size();
-		Fonts::AddRoundedRect(ui, 0, 0, W, H, 0.0f, Rgba(0.01f, 0.01f, 0.012f, 0.80f));
-		const int quiet = 4;
-		const float mod = std::floor(H * 0.62f / static_cast<float>(m_qr_size + 2 * quiet));
-		const float side = mod * static_cast<float>(m_qr_size + 2 * quiet);
-		const float tx = std::floor((W - side) * 0.5f), ty = std::floor((H - side) * 0.5f - 40.0f * k);
-		Fonts::AddRoundedRect(ui, tx, ty, side, side, 16.0f * k, Rgba(1.0f, 1.0f, 1.0f));
-		const uint32_t ink = Rgba(0.0f, 0.0f, 0.0f);
-		for (int y = 0; y < m_qr_size; y++)
-			for (int x0 = 0; x0 < m_qr_size;)
-			{
-				if (!m_qr[static_cast<size_t>(y) * m_qr_size + x0])
-				{
-					x0++;
-					continue;
-				}
-				int x1 = x0;
-				while (x1 < m_qr_size && m_qr[static_cast<size_t>(y) * m_qr_size + x1])
-					x1++;
-				Fonts::AddRoundedRect(ui, tx + (x0 + quiet) * mod - 0.4f, ty + (y + quiet) * mod - 0.4f, (x1 - x0) * mod + 0.8f, mod + 0.8f, 0.0f, ink);
-				x0 = x1;
-			}
-		FadeRange(ui, begin, ui.size(), e);
-	}
 	if (m_nfs_keyboard_open)
 		BuildNfsKeyboard(ui, W, H, k);
 }

@@ -39,3 +39,9 @@ strings for the on-screen build tag, log header and web server.
 and synchronizes `sce_sys/param.json`, the package filename, and
 `build-manifest.json`. GitHub Actions also verifies the packaged
 manifest and title version before publishing.
+
+## v1.0.12 - QR-free shelf and title placement
+- Move selected game title below the central 3D cover, above ROM metadata.
+- Remove corner QR tile, large Triangle QR overlay and QR controller hint.
+- Web settings remain accessible; QR generator no longer compiled.
+- Embedded app version and package are generated from app.json.

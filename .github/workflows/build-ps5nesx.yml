@@ -46,6 +46,7 @@ jobs:
             homebrew/ps5nesx/tests/coverflow_layout_test.cpp \
             -o /tmp/ps5nesx-layout-test
           /tmp/ps5nesx-layout-test
+          python3 homebrew/ps5nesx/tests/ui_layout_check.py
       - name: Install toolchain packages
         run: |
           sudo apt-get update
