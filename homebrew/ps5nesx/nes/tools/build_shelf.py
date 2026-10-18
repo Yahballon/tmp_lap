@@ -63,6 +63,12 @@ for src in cpp_sources:
     obj=out/'obj'/f'{src.stem}.o';obj.parent.mkdir(exist_ok=True)
     subprocess.run(['sh',str(wrapper),*cpp,'-c',str(src),'-o',str(obj)],check=True);objects.append(obj)
 
+# The companion web settings service still exposes orbis_web_qr().
+# Keep the QR encoder linked for that API even though no QR code is shown
+# anywhere in the native console game's coverflow interface.
+qrcode=out/'obj/qrcodegen.o'
+subprocess.run(['clang-18',*cflags,'-I'+str(project/'ps5/frontend/third_party/qrcodegen'),'-c',str(project/'ps5/frontend/third_party/qrcodegen/qrcodegen.c'),'-o',str(qrcode)],check=True)
+objects.append(qrcode)
 vulkan=deps/'PS5_Vulkan'
 mesa=Path(os.environ.get('PS5NES_MESA_UTIL_DIR',str(out/'mesa-util')))
 if not all((mesa/name).exists() for name in ['u_thread.o','anon_file.o','os_file.o']):

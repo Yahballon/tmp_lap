@@ -43,5 +43,5 @@ manifest and title version before publishing.
 ## v1.0.12 - QR-free shelf and title placement
 - Move selected game title below the central 3D cover, above ROM metadata.
 - Remove corner QR tile, large Triangle QR overlay and QR controller hint.
-- Web settings remain accessible; QR generator no longer compiled.
+- Web settings remain accessible; the QR encoder stays linked internally for compatibility.
 - Embedded app version and package are generated from app.json.
