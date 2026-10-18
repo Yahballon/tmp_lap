@@ -264,3 +264,15 @@ The font is baked into the native PS5 package at build time from openly licensed
 The HUD is inspired by the open-source [ps5-homebrew-ui design guide](https://github.com/blackbearreloaded/ps5-homebrew-ui/blob/main/docs/DESIGNS.md#hud): the Field HUD layered status surfaces, Aurora Shelf focus states and frosted chrome, and Now Playing progress/spectrum. A new floating top header includes the neon app logo, tab pills and the clock. The artist bar, selected album stats, focus glows, playback panel and list/settings/favorites glass panels share a consistent look.
 
 All v0.1.16 native audio decoders, DualSense controls, cached music index, .album handling, SMB shares, favorites and dynamic artist theme colors are retained.
+
+## v0.1.18 — Native screenshot-inspired PS5 music dashboard
+
+The native 1920 × 1080 interface has been rebuilt to match the supplied PSJukebox screenshot: a large glass header with the neon app icon, split white/gold PSJUKEBOX title, centered five-tab navigation with gold active pill and vector tab glyphs, and a right-hand library/clock/by YAHBALLON build panel. Below it sits the tall translucent artist hero bar and actual artist count, track count and scan status.
+
+The five-cover carousel remains a real interactive SDL/PS5 homebrew view, not a static screenshot: the selected sleeve floats larger and higher with glowing gold framing, four neighboring jackets sit lower with genuine album art and reflected textures, and the left/right directional arrows appear at the sides. The left 'NOW BROWSING' panel and right 'ALBUM N / TOTAL' card are anchored behind the covers as in the reference.
+
+The Now Playing section has been rebuilt as a wide 1690 × 174 glass panel with gold outline, the real playing-album thumbnail, artist and highlighted track title, animated gold music bars, actual playback progress/timestamps, and right-side media-icon surfaces. All original actions remain accessible through the DualSense; visual action decorations do not imply separate clickable controls.
+
+The footer now matches the reference's compact row of nine colored DualSense instructions. Real-time artist- and album-specific backgrounds are still read from the user's library; the Haftbefehl artwork in the screenshot is **not** bundled or hardcoded. Unicode international font fallback and UTF-8-safe song titles from v0.1.17 remain supported. All existing .album, SMB, favorites, caching, fast startup and playback functions are maintained.
+
+Coordinates are kept in a tested small native layout header, with a host regression verifying positioning, panel separation and focus geometry. Release pipeline checks actual PS5 native compilation and package verification. Console testing is still necessary to compare the visual composition and smoothness.

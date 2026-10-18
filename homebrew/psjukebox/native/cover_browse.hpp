@@ -3,17 +3,18 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include "dashboard_layout.hpp"
 namespace jukebox {
 constexpr float kCoverCenterX=960.f;
-constexpr float kCoverCenterY=525.f;
+constexpr float kCoverCenterY=dashboard::coverCenterY;
 constexpr float kCoverSpacing=380.f;
 struct CoverSlot {float x,y,w,h;};
 inline CoverSlot cover_slot(float position){
  const float focus=std::clamp(1.f-std::fabs(position),0.f,1.f);
  const float w=318.f+77.f*focus;
  const float h=320.f+96.f*focus;
- return {kCoverCenterX+position*kCoverSpacing-w*.5f,
-         kCoverCenterY-h*.5f,w,h};
+ return {dashboard::cover_center_x(position)-w*.5f,
+         dashboard::center_y(focus)-h*.5f,w,h};
 }
 // Active playback must not disable artist/album browsing. All these screens
 // can return to the album carousel without stopping the current decoder.
