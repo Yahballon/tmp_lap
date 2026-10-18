@@ -278,9 +278,11 @@ void hud_equalizer(DrawList& d,float x,float base,float seconds,bool paused,
 
 void footer_chip(DrawList& d,const Font& font,unsigned atlas,float x,float y,
                  char symbol,const char* action,uint32_t tint,float width=195.f){
- d.rounded_rect({x,y,width,48},11,color(0x191c25,.92f));
- d.bordered_rect({x+5,y+6,36,36},18,color(tint,.17f),2,color(tint));
- const float cx=x+23,cy=y+24;
+ d.shadow({x,y,width,57},15,9,color(0x000000,.48f));
+ d.gradient_rect({x,y,width,57},15,color(0x152132,.91f),color(0x07111d,.96f));
+ d.bordered_rect({x,y,width,57},15,color(0x050c16,.10f),1,color(0xabc6e3,.25f));
+ d.bordered_rect({x+7,y+8,39,39},20,color(tint,.10f),2.4f,color(tint));
+ const float cx=x+26,cy=y+27;
  const Color ink=color(tint);
  switch(symbol){
   case 'X':
@@ -305,10 +307,12 @@ void footer_chip(DrawList& d,const Font& font,unsigned atlas,float x,float y,
   case '2':label(d,font,atlas,"L2",cx,cy+7,16,ink,Align::center);break;
   case '3':label(d,font,atlas,"R2",cx,cy+7,16,ink,Align::center);break;
  }
- label(d,font,atlas,action,x+49,y+31,19,white);
+ label(d,font,atlas,action,x+53,y+35,18,white);
 }
 void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
- const float y=1015;
+ const float y=1007;
+ d.gradient_rect({0,986,1920,94},0,color(0x030711,.88f),color(0x050a13,.97f));
+ d.line(38,987,1882,987,1.2f,color(0x7e9ab9,.18f));
  if(screen==0||screen==2){
   footer_chip(d,font,atlas,38,y,'L',"Artist",0xc5c7ce,165);
   footer_chip(d,font,atlas,216,y,'R',"Artist",0xc5c7ce,165);
@@ -854,6 +858,7 @@ int main(){
   // Image loader intentionally has one in-flight request at a time.
   if(album)queue(album->cover);
   if(artist)queue(artist->logo);
+  if(artist)queue(artist->background);
   if(album)queue(jukebox::album_background(*artist,*album));
   if(coverMotion.active()&&!previousBackground.empty())queue(previousBackground);
   if(havePlayingSong&&playingSong.artist<library.artists.size()){
