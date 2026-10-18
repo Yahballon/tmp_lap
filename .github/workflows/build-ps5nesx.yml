@@ -8,6 +8,7 @@ on:
       - 'homebrew/ps5nesx/ps5/**'
       - 'homebrew/ps5nesx/3rdparty/**'
       - 'homebrew/ps5nesx/app.json'
+      - 'homebrew/ps5nesx/tests/**'
       - '.github/workflows/build-ps5nesx.yml'
 permissions:
   contents: write
