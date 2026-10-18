@@ -1,10 +1,14 @@
-# PSJukebox v0.1.16 — New Neon App Icon
+# PSJukebox v0.1.17 — Unicode + New HUD Design
 
-- Replace the old generated PSJukebox app icon with the user-supplied neon retro-futuristic jukebox design (pink/cyan jukebox, vinyl and PSJukebox lettering)
-- Apply the updated image to both `sce_sys/icon0.png` (native PS5 Home menu) and `assets/icon0.png` (app asset)
-- Package 512 × 512 PNG files from the checked-in optimized artwork
-- Release verification now checks actual image content and requires both copies to be identical to the new artwork
-- README preview displays the new icon
-- Preserve Title ID `PPSA99947`, settings, library index, SMB/.album support, coverflow, favorites and controller mapping
+- Fix missing German umlauts and accented letters using a checked DejaVu international SDF fallback atlas, alongside Inter
+- Support verified extended Latin, Greek and Cyrillic glyphs, including Eastern European and Ukrainian names
+- Correct UTF-8 title truncation to preserve complete multibyte characters
+- Replace plain header with a glass HUD including the neon app icon, focus pills, indexing status and clock / by YAHBALLON / build version
+- Add artist / track-count context bar and album statistics cards
+- Enhance coverflow focus, layered shadows and glow while preserving album spacing
+- Add Now Playing glass player, progress bar, subtle animated equalizer
+- Harmonize Tracklist, Artists, Favorites and Settings with readable frosted glass panels
+- Design cues follow ps5-homebrew-ui Field HUD, Aurora Shelf and Now Playing; no framework replacement
+- Retains native PS5 playback, .album, SMB, favorites, fast library cache and all gamepad mappings
 
-Native CI verifies image content and package structure; the PS5 Home menu should display the new icon after installing the new package. The real-console result still needs testing.
+Limits: Arabic shaping / RTL and full CJK ideograph coverage are not implemented. Native build tests pass independently of real-console validation.
