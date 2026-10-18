@@ -231,9 +231,10 @@ bool begin_transfer(const std::string& path,uint64_t size){
 }
 void footer_chip(DrawList& d,const Font& font,unsigned atlas,float x,float y,
                  char symbol,const char* action,uint32_t tint,float width=195.f){
- d.rounded_rect({x,y,width,48},11,color(0x191c25,.92f));
- d.bordered_rect({x+5,y+6,36,36},18,color(tint,.17f),2,color(tint));
- const float cx=x+23,cy=y+24;
+ d.gradient_rect({x,y,width,52},14,color(0x152132,.96f),color(0x090e19,.96f));
+ d.bordered_rect({x,y,width,52},14,color(0x080f1a,.13f),1.1f,color(0xa6b8ce,.17f));
+ d.bordered_rect({x+6,y+7,37,37},18,color(tint,.13f),2.1f,color(tint));
+ const float cx=x+24.5f,cy=y+25.5f;
  const Color ink=color(tint);
  switch(symbol){
   case 'X':
@@ -258,20 +259,20 @@ void footer_chip(DrawList& d,const Font& font,unsigned atlas,float x,float y,
   case '2':label(d,font,atlas,"L2",cx,cy+7,16,ink,Align::center);break;
   case '3':label(d,font,atlas,"R2",cx,cy+7,16,ink,Align::center);break;
  }
- label(d,font,atlas,action,x+49,y+31,19,white);
+ label(d,font,atlas,action,x+52,y+33,18,white);
 }
 void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
- const float y=1015;
+ const float y=997;
  if(screen==0||screen==2){
-  footer_chip(d,font,atlas,38,y,'L',"Artist",0xc5c7ce,165);
-  footer_chip(d,font,atlas,216,y,'R',"Artist",0xc5c7ce,165);
-  footer_chip(d,font,atlas,394,y,'2',"Prev Song",0xffd06a,184);
-  footer_chip(d,font,atlas,591,y,'3',"Next Song",0xffd06a,184);
-  footer_chip(d,font,atlas,788,y,'X',screen==2?"Tracklist":"Play",0x78adff,204);
-  footer_chip(d,font,atlas,1004,y,'S',"Pause",0xf69abe,168);
-  footer_chip(d,font,atlas,1185,y,'T',"Favorite",0x67e6a7,190);
-  footer_chip(d,font,atlas,1388,y,'M',"Settings",0xbdb3fb,205);
-  footer_chip(d,font,atlas,1606,y,'O',"Back",0xfd8696,180);
+  footer_chip(d,font,atlas,64,y,'L',"Artist",0xe7e8f3,156);
+  footer_chip(d,font,atlas,238,y,'R',"Artist",0xe7e8f3,158);
+  footer_chip(d,font,atlas,414,y,'2',"Prev Song",0xffc52f,188);
+  footer_chip(d,font,atlas,617,y,'3',"Next Song",0xffc52f,188);
+  footer_chip(d,font,atlas,819,y,'X',screen==2?"Tracks":"Play",0x59a8ff,177);
+  footer_chip(d,font,atlas,1011,y,'S',"Pause",0xff69b5,182);
+  footer_chip(d,font,atlas,1208,y,'T',"Favorite",0x05dda0,201);
+  footer_chip(d,font,atlas,1424,y,'M',"Settings",0xb69bff,189);
+  footer_chip(d,font,atlas,1628,y,'O',"Back",0xff6983,185);
  }else if(screen==4){
   footer_chip(d,font,atlas,720,y,'X',"Select",0x78adff,215);
   footer_chip(d,font,atlas,950,y,'O',"Back",0xfd8696,200);
@@ -989,6 +990,16 @@ int main(){
      label(d,font,atlas,cut(item.name,19),x+w/2,y+h/2,24,white,Align::center);
     }
    }
+   // Carousel edge arrows echo the reference and reflect D-pad browsing.
+   // Navigation remains bound to actual left/right gamepad input.
+   for(const float x:{53.f,1868.f}){
+    d.circle(x,563.f,27.f,color(0x04101c,.72f));
+    d.ring(x,563.f,26.f,1.4f,color(0xdde9fb,.68f));
+   }
+   d.line(61,548,46,563,3.2f,white);
+   d.line(46,563,61,578,3.2f,white);
+   d.line(1860,548,1875,563,3.2f,white);
+   d.line(1875,563,1860,578,3.2f,white);
    // Reference-matched full-width NOW PLAYING rail. Its elements are native
    // and read the actual decoder state; artwork, timestamps and tracks update.
    const auto box=jukebox::dashboard::player;
