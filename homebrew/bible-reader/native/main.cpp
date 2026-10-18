@@ -411,12 +411,15 @@ int main(){
    panel(d,cx+40,321,cw-80,70,true);
    text(d,font,atlas,font.fit(query.empty()?bible_i18n::label(settings.language,bible_i18n::Key::searchHint):query,27,cw-125),cx+60,365,27);
    const auto keys=bible_i18n::searchKeys(settings.language);
-   for(size_t i=0;i<keys.size();i++){
-    float x=cx+47+(i%8)*100,y=431+(i/8)*53;
+   const size_t keyPage=(size_t)(std::max(0,nav)/64)*64;
+   for(size_t i=keyPage;i<keys.size()&&i<keyPage+64;i++){
+    const size_t relative=i-keyPage;
+    float x=cx+47+(relative%8)*100,y=431+(relative/8)*53;
     if((int)i==nav)panel(d,x-11,y-31,81,49,true);
     text(d,font,atlas,keys[i],x+32,y,27,gold,Align::center);
    }
    text(d,font,atlas,bible_i18n::label(settings.language,bible_i18n::Key::searchHelp),cx+47,920,20,subdued);
+   if(keys.size()>64)text(d,font,atlas,std::to_string(keyPage/64+1)+"/"+std::to_string((keys.size()+63)/64),cx+cw-62,919,18,gold,Align::right);
   }else if(page==Page::results||page==Page::bookmarks){
    const bool search=page==Page::results;
    text(d,font,atlas,search?bible_i18n::label(settings.language,bible_i18n::Key::searchResults):bible_i18n::label(settings.language,bible_i18n::Key::bookmarks),cx+42,295,38,gold);
