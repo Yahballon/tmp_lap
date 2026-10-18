@@ -73,7 +73,7 @@ inline const char* label(int lang,Key key){
    "X Elegir   O Atrás   SQUARE Marcador   TRIANGLE Buscar   L1/R1 Capítulo   OPTIONS Ajustes   L2 Versículo diario"},
   {"READING   O STOP","VORLESEN   O STOP","LECTURE   O ARRÊTER","LEYENDO   O PARAR"},
   {"Voice style","Stimmqualität","Style de voix","Estilo de voz"},
-  {"Neural HD (DE Gen 1)","Neural HD (1. Mose 1)","Neural HD (DE Gen 1)","Neural HD (DE Gén 1)"},
+  {"Neural HD (German)","Neural HD (Deutsch)","Neural HD (allemand)","Neural HD (alemán)"},
   {"Classic","Klassisch","Classique","Clásica"}
  };
  const int i=(int)key;
