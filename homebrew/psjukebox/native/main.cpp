@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.14
+// PSJukebox by YAHBALLON v0.1.15
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -13,6 +13,7 @@
 #include "song_navigation.hpp"
 #include "favorites.hpp"
 #include "album_archive.hpp"
+#include "library_cache.hpp"
 #include "smb_music.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -35,7 +36,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.14";
+constexpr const char* version="v0.1.15";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -115,20 +116,32 @@ Texture decode(Renderer& renderer,const std::string& bytes){
  result.w=w;result.h=h;stbi_image_free(rgba);return result;
 }
 
-struct ScanReady {jbx::CatalogResult remote;jukebox::Library local;};
+struct ScanReady {jukebox::Library library;bool complete=false;};
 std::mutex scanMutex;std::vector<ScanReady> finishedScans;
 std::atomic<bool> scanBusy{false};
 void* scan_worker(void*){
  auto local=jukebox::scan(jukebox::music_roots());
  auto remote=jbx::scan();
  auto network=smb_music::scan();
+ const std::string remoteStatus=remote.status,networkStatus=network.status;
  auto packs=jukebox::find_packed_albums(jukebox::music_roots());
  for(const auto& p:remote.archives)packs.push_back(p);
  for(const auto& p:network.archives)packs.push_back(p);
  log("ALBUM_SCAN local_or_helper="+std::to_string(packs.size())+
      " helper="+std::to_string(remote.archives.size())+
      " smb="+std::to_string(network.archives.size())+
-     " helper_status="+remote.status);
+     " helper_status="+remoteStatus);
+ // Publish directory/SMB catalog immediately: do not make the UI wait for
+ // packed archive transfers and ZIP indexing.
+ jukebox::merge(local,std::move(remote.library));
+ jukebox::merge(local,std::move(network.library));
+ auto publish=[&](bool complete){
+  std::lock_guard<std::mutex> lk(scanMutex);
+  // Keep only the latest snapshot to avoid a frame-by-frame backlog.
+  finishedScans.clear();
+  finishedScans.push_back({local,complete});
+ };
+ if(!local.artists.empty())publish(false);
  std::atomic<bool> cancelled{false};
  std::string importedStatus;
  unsigned processed=0;
@@ -174,13 +187,12 @@ void* scan_worker(void*){
   if(songs==0){log("ALBUM_EMPTY_INDEX "+artist+"/"+name);continue;}
   log("ALBUM_INDEX_OK "+artist+"/"+name+" tracks="+std::to_string(songs));
   jukebox::merge(local,std::move(entry));
+  publish(false); // display the next cover immediately, other .albums continue
   log("ALBUM_OK "+artist+"/"+name+" tracks="+std::to_string(songs));
   importedStatus+="ALBUM_OK "+artist+"/"+name+" tracks="+std::to_string(songs)+"; ";
  }
- jukebox::merge(local,std::move(network.library));
- local.report+=" | "+network.status+" | "+importedStatus;
- {std::lock_guard<std::mutex> lk(scanMutex);
-  finishedScans.push_back({std::move(remote),std::move(local)});}
+ local.report+=" | "+remoteStatus+" | "+networkStatus+" | "+importedStatus;
+ publish(true);
  scanBusy.store(false);
  return nullptr;
 }
@@ -270,7 +282,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.14");
+ log("BOOT v0.1.15");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -279,13 +291,22 @@ int main(){
  unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  jukebox::Library library;
- begin_scan();log("SCAN_START helper discovery, local + USB");
+ std::string libraryCacheError;
+ bool cacheLoaded=jukebox::load_library_cache(jukebox::library_cache_path(),
+                                              library,libraryCacheError);
+ if(cacheLoaded)log("LIBRARY_CACHE_HIT artists="+std::to_string(library.artists.size())+
+                    " tracks="+std::to_string(library.trackCount));
+ else log("LIBRARY_CACHE_MISS "+libraryCacheError);
+ begin_scan();log("SCAN_START async refresh, library cache="+
+                   std::string(cacheLoaded?"HIT":"MISS"));
  audio::Player player;
  jukebox::Favorites favorites;
  std::string favoritesError;
  if(!favorites.load(favoritesError))log("FAVORITES_LOAD_ERROR "+favoritesError);
  std::map<std::string,Texture> images;
- std::string playingPath,message="Scanning music (USB helper via elfldr :9021)...";
+ std::string playingPath,message=cacheLoaded?
+   "Library ready - checking for new albums...":
+   "Scanning music (covers appear as they are found)...";
  int artistIndex=0,albumIndex=0,trackIndex=0,screen=0,settingsIndex=0;
  int headerIndex=0,artistListIndex=0,favoritesIndex=0,playlistIndex=0;
  bool headerFocus=false;
@@ -339,12 +360,9 @@ int main(){
  auto rescan=[&](){
   if(scanBusy.load()){message="Music library scan already running";return;}
   if(transferBusy.load()){message="Wait until song transfer finishes";return;}
-  player.stop();playingPath.clear();havePlayingSong=false;
-  for(auto& it:images)destroy(it.second);images.clear();
-  library={};
-  artistIndex=0;albumIndex=0;trackIndex=0;screen=0;
-  coverMotion.reset();previousBackground.clear();
-  if(begin_scan()){message="Scanning music via read-only USB helper...";log("SCAN_BEGIN");}
+  // Refresh in the background WITHOUT wiping the cached covers, queued
+  // music or the active decoder. A new library is swapped in when ready.
+  if(begin_scan()){message="Refreshing music in background...";log("SCAN_BEGIN");}
   else {message="Cannot launch music scanner";log("SCAN_THREAD_FAIL");}
  };
  auto play_track=[&]()->bool{
@@ -519,15 +537,58 @@ int main(){
   std::vector<ScanReady> scanned;
   {std::lock_guard<std::mutex> lk(scanMutex);scanned.swap(finishedScans);}
   for(auto& item:scanned){
-   library=std::move(item.local);
-   jukebox::merge(library,std::move(item.remote.library));
-   library.report+=" | "+item.remote.status;
-   artistIndex=albumIndex=trackIndex=0;havePlayingSong=false;playingPath.clear();
+   // The previous on-disk catalog already gives us a usable UI: don't let
+   // early incomplete scans replace it with only some of the artists.
+   if(!item.complete&&(cacheLoaded||havePlayingSong))continue;
+   std::string selectedArtist,selectedAlbum;
+   if(artistIndex>=0&&(size_t)artistIndex<library.artists.size()){
+    const auto& a=library.artists[(size_t)artistIndex];
+    selectedArtist=a.name;
+    if(albumIndex>=0&&(size_t)albumIndex<a.albums.size())
+     selectedAlbum=a.albums[(size_t)albumIndex].path;
+   }
+   auto updated=std::move(item.library);
+   int nextArtist=0,nextAlbum=0;
+   for(size_t a=0;a<updated.artists.size();a++){
+    if(updated.artists[a].name!=selectedArtist)continue;
+    nextArtist=(int)a;
+    for(size_t b=0;b<updated.artists[a].albums.size();b++)
+     if(updated.artists[a].albums[b].path==selectedAlbum){nextAlbum=(int)b;break;}
+    break;
+   }
+   // Remap the decoder's currently playing path before swapping a library
+   // that may have reordered albums or tracks.
+   bool foundPlaying=!havePlayingSong;
+   SongLocation moved{};
+   if(havePlayingSong){
+    for(size_t a=0;a<updated.artists.size()&&!foundPlaying;a++)
+     for(size_t b=0;b<updated.artists[a].albums.size()&&!foundPlaying;b++)
+      for(size_t t=0;t<updated.artists[a].albums[b].tracks.size();t++)
+       if(updated.artists[a].albums[b].tracks[t].path==playingPath){
+        moved={a,b,t};foundPlaying=true;break;
+       }
+    if(!foundPlaying){player.stop();havePlayingSong=false;playingPath.clear();}
+    else playingSong=moved;
+   }
+   library=std::move(updated);
+   artistIndex=nextArtist;albumIndex=nextAlbum;trackIndex=0;
    coverMotion.reset();previousBackground.clear();
-   message=library.artists.empty()?
-      ("No music. "+cut(item.remote.status,94)):("Loaded "+std::to_string(library.artists.size())+
-        " artists / "+std::to_string(library.trackCount)+" tracks");
-   log("SCAN_RESULT "+library.report);
+   message=item.complete?
+       ("Library updated: "+std::to_string(library.artists.size())+
+        " artists / "+std::to_string(library.trackCount)+" tracks"):
+       ("Found "+std::to_string(library.artists.size())+" artists / "+
+        std::to_string(library.trackCount)+" tracks (scanning...)");
+   if(item.complete){
+    cacheLoaded=true;
+    if(!library.artists.empty()){
+     std::string err;
+     if(!jukebox::save_library_cache(jukebox::library_cache_path(),library,err))
+      log("LIBRARY_CACHE_SAVE_ERROR "+err);
+     else log("LIBRARY_CACHE_SAVED tracks="+std::to_string(library.trackCount));
+    }
+    log("SCAN_RESULT "+library.report);
+   }else log("SCAN_PARTIAL artists="+std::to_string(library.artists.size())+
+             " tracks="+std::to_string(library.trackCount));
   }
   std::vector<TransferDone> transfers;
   {std::lock_guard<std::mutex> lk(transferMutex);transfers.swap(finishedTransfers);}
@@ -725,16 +786,19 @@ int main(){
   auto queue=[&](const std::string& path){
    if(!path.empty()&&images.find(path)==images.end()&&!imageBusy.load())request_image(path);
   };
+  // First cover MUST load before logo/background or the off-screen jackets.
+  // Image loader intentionally has one in-flight request at a time.
+  if(album)queue(album->cover);
   if(artist)queue(artist->logo);
-  if(coverMotion.active()&&!previousBackground.empty())queue(previousBackground);
- if(havePlayingSong&&playingSong.artist<library.artists.size()){
-  const auto& activeArtist=library.artists[playingSong.artist];
-  if(playingSong.album<activeArtist.albums.size())queue(activeArtist.albums[playingSong.album].cover);
- }
   if(album)queue(jukebox::album_background(*artist,*album));
+  if(coverMotion.active()&&!previousBackground.empty())queue(previousBackground);
+  if(havePlayingSong&&playingSong.artist<library.artists.size()){
+   const auto& activeArtist=library.artists[playingSong.artist];
+   if(playingSong.album<activeArtist.albums.size())queue(activeArtist.albums[playingSong.album].cover);
+  }
   if(artist&&album){
    const int total=(int)artist->albums.size();
-   for(int delta=-3;delta<=3;delta++){
+   for(const int delta:{-1,1,-2,2,-3,3}){
     if(total<5&&std::abs(delta)>total/2)continue;
     const int j=(albumIndex+delta+total)%total;
     queue(artist->albums[(size_t)j].cover);
@@ -946,7 +1010,7 @@ int main(){
    d.rounded_rect({424,923,1070,16},7,color(0x3b4352));
    d.rounded_rect({424,923,std::max(3.f,1070*frac),16},7,color(accent));
   }
-  if(scanBusy.load())label(d,font,atlas,"Scanning local and USB music via helper...",960,933,21,color(accent),Align::center);
+  if(scanBusy.load())label(d,font,atlas,"Checking for new music in background...",960,933,21,color(accent),Align::center);
   if(!message.empty())label(d,font,atlas,cut(message,126),960,962,17,color(0xffa65d),Align::center);
   footer(d,font,atlas,screen);
   if(exitDialog){
