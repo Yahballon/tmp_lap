@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "179fc81233894945570f0d51809cdbd9f89154c2c94b63cce5f2d19db187ce52",
+  "version": "7117c13acc1f8fcfc77b74787caeee2a4e92060bdb7310c4ad35ddf8042bb815",
   "repository": "Yahballon/tmp_lap",
   "app_count": 15,
   "apps": [
@@ -138,14 +138,14 @@
       "name": "Bible Reader",
       "slug": "bible-reader",
       "title_id": "PPSA99793",
-      "version": "0.2.0",
-      "tag": "bible-reader-v0.2.0",
+      "version": "0.2.1",
+      "tag": "bible-reader-v0.2.1",
       "zip_name": "PPSA99793.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/bible-reader-v0.2.0/PPSA99793.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/bible-reader-v0.2.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/bible-reader-v0.2.1/PPSA99793.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/bible-reader-v0.2.1",
       "source": "homebrew/bible-reader",
-      "size_bytes": 327856933,
-      "published_at": "2026-10-18T10:14:59Z"
+      "size_bytes": 327809697,
+      "published_at": "2026-10-18T11:58:57Z"
     },
     {
       "name": "Payload LauncherX",
