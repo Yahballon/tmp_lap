@@ -58,6 +58,8 @@ cpp=[*base,'-std=c++20','-fno-exceptions','-fno-rtti','-pthread','-DORBIS_NFS=1'
 cpp_sources=[nes/'src'/n for n in ['core_session.cpp','games.cpp','shelf_games.cpp','shelf_runtime.cpp','main_shelf.cpp','loading.cpp','library_cache.cpp','controller_bindings.cpp']]
 cpp_sources += [project/'ps5/frontend'/f'{name}.cpp' for name in ['fe_app','fe_covers','fe_renderer','fe_sound','fe_text','fe_vk','fe_ps5','fe_web','fe_i18n','fe_settings','fe_options']]
 cpp_sources += [project/'ps5/frontend/fe_nfs.cpp',project/'ps5/coreorbis/orbis-shims/filesystem-elevation/src/elevation.cpp']
+# Original Porpoise Vulkan/UI renderer and the NES adapter (GPLv3).
+cpp_sources += [project/'ps5/porpoise_original/src/ui_gfx.cpp',project/'ps5/frontend/fe_exact_porpoise.cpp']
 cpp_sources += [native/'tooling/native'/f'{name}.cpp' for name in ['app_crt','app_cpp_runtime']]
 for src in cpp_sources:
     obj=out/'obj'/f'{src.stem}.o';obj.parent.mkdir(exist_ok=True)
@@ -124,6 +126,12 @@ app=out/'package/PPSA99204';(app/'sce_module').mkdir(parents=True,exist_ok=True)
 subprocess.run([str(tool),'self','--sign','--in',str(out/'eboot.elf'),'--out',str(app/'eboot.bin'),'--magic','0x1D3D154F'],check=True)
 subprocess.run([str(tool),'self','--inspect','--file',str(app/'eboot.bin')],check=True)
 shutil.copytree(nes/'sce_sys',app/'sce_sys',dirs_exist_ok=True)
+porpoise_assets=project/'ps5/porpoise_original/assets'
+if not all((porpoise_assets/p).is_file() for p in ['fonts/Nunito-Regular.ttf','fonts/Nunito-SemiBold.ttf',
+        'fonts/Nunito-Bold.ttf','fonts/Nunito-ExtraBold.ttf','brand/dolphin-mask.png','ui/buttons.png']):
+    raise RuntimeError('Missing pinned Porpoise UI assets (prepare in CI first)')
+shutil.copytree(porpoise_assets,app/'porpoise-ui',dirs_exist_ok=True)
+shutil.copy2(project/'ps5/porpoise_original/LICENSE',app/'porpoise-ui/LICENSE')
 shutil.copy2(deps/'PS5_Vulkan/runtime/libc.prx',app/'sce_module/libc.prx')
 # The original Lapy helper source is no longer publicly available.
 # Reuse exactly the previously signed and checked v1.0.11 helper from our
@@ -153,7 +161,7 @@ revision_file=core/'UPSTREAM_REVISION.txt'
 if revision_file.exists():commit=revision_file.read_text().strip()
 else:commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=core,text=True).strip()
 manifest={'ai_assisted':True,'name':report_header,'version':version,'build_tag':build_tag,'title':'PPSA99204','core':'FCEUmm',
-          'frontend':'Classic 3D CoverFlow (native PS5 Vulkan)',
+          'frontend':'Original Porpoise Gfx, shaders and glass CoverFlow on NES adapter',
           'frontend_source_sha256':{str(p.relative_to(project)):hashlib.sha256(p.read_bytes()).hexdigest() for p in cpp_sources if '/ps5/frontend/' in str(p)},
           'core_commit':commit,'core_source':'https://github.com/libretro/libretro-fceumm','console_tested':False,
           'files':{str(p.relative_to(app)):hashlib.sha256(p.read_bytes()).hexdigest() for p in app.rglob('*')

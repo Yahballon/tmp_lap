@@ -2,7 +2,7 @@ name: Build PS5NESX Native
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'feature/ps5nesx-porpoise-original']
     paths:
       - 'homebrew/ps5nesx/nes/**'
       - 'homebrew/ps5nesx/ps5/**'
@@ -96,6 +96,43 @@ jobs:
           bash homebrew/ps5nesx/ps5/frontend/build_shaders.sh
           test -s homebrew/ps5nesx/ps5/frontend/fe_shaders.inc
           grep -q 'static const uint32_t fe_spv_bg_frag\[\]' homebrew/ps5nesx/ps5/frontend/fe_shaders.inc
+      - name: Prepare exact Porpoise renderer include dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=homebrew/ps5nesx/ps5/porpoise_original/src
+          third=homebrew/ps5nesx/ps5/frontend/third_party
+          mkdir -p "$src/stb"
+          cp "$third/stb_image.h" "$src/stb/stb_image.h"
+          cp "$third/stb_truetype.h" "$src/stb/stb_truetype.h"
+          # The exact upstream UI shader bytecode is kept unchanged.
+          test -s "$src/ui_frag.inc" && test -s "$src/ui_vert.inc"
+          root=homebrew/ps5nesx/ps5/porpoise_original/assets
+          mkdir -p "$root/fonts" "$root/brand" "$root/ui"
+          rev=2ed1ab5a06995aa198f7bccd4da0f90c3fc29d39
+          for spec in \
+            'fonts/Nunito-Regular.ttf 2f4a2f8467657c1f039800f7af0f85d719d92bf6' \
+            'fonts/Nunito-SemiBold.ttf 2588d394a7b5773e8355c1d923877bef338f2adf' \
+            'fonts/Nunito-Bold.ttf c642a28adb3b5b89bc37dca9b76b81fa114c022b' \
+            'fonts/Nunito-ExtraBold.ttf 5dab2fd42d061b7f69ecbee7ac3f73d50053978c' \
+            'brand/dolphin-mask.png bd51e74f7e11c79de9d40d626d3685038cf5d792' \
+            'ui/buttons.png 43902f0bccdab08fb74efb0a99ae3f282299543a'; do
+            read -r name expected <<< "$spec"
+            curl -fL --retry 5 --retry-all-errors --connect-timeout 15 \
+              "https://raw.githubusercontent.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5/$rev/assets/$name" \
+              -o "$root/$name"
+            test "$(git hash-object "$root/$name")" = "$expected" || exit 1
+          done
+          curl -fL --retry 5 \
+            "https://raw.githubusercontent.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5/$rev/assets/fonts/OFL.txt" \
+            -o "$root/fonts/OFL.txt"
+      - name: Verify exact upstream source hashes
+        run: |
+          set -euo pipefail
+          root=homebrew/ps5nesx/ps5/porpoise_original/src
+          test "$(git hash-object "$root/ui_app_views.cpp")" = a98f455313dd926238c9d76a72d5fd7f50e6ee2d
+          test "$(git hash-object "$root/ui_gfx.cpp")" = 6a9e73454b51cc0a8ce93ecf27abd20febfbdfbe
+          test "$(git hash-object "$root/ui_frag.inc")" = 27007d02d4279a2cf6cb9e8324a2dced93da5e59
       - name: Restore pinned original PS5NESX embedded fonts
         shell: bash
         run: |
@@ -233,6 +270,7 @@ jobs:
           path: homebrew/ps5nesx/dist/PPSA99204.zip
           if-no-files-found: error
       - name: Publish immutable versioned GitHub Release for TESTBUILDS
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.info.outputs.tag }}

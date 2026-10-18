@@ -16,6 +16,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace fe
 {
@@ -80,6 +81,13 @@ public:
 		uint32_t width, uint32_t height, VkFormat out_format, const std::vector<VkImage>& out_images,
 		VkImageLayout out_final_layout);
 	void Shutdown();
+	VkRenderPass ExactFinalPass() const { return m_final_pass; }
+	void SetExactCallbacks(std::function<void(unsigned,float,float)> prepare,
+		std::function<void(VkCommandBuffer)> upload, std::function<void(VkCommandBuffer)> draw)
+	{
+		m_exact_prepare=std::move(prepare);m_exact_upload=std::move(upload);m_exact_draw=std::move(draw);
+	}
+	void ExactEnabled(bool active) { m_exact_enabled=active; }
 
 	// An RGBA8 (4 bytes a pixel) or R8 texture; the upload happens with the next frame.
 	Texture* CreateTexture(uint32_t w, uint32_t h, VkFormat format, const void* pixels);
@@ -187,6 +195,9 @@ private:
 
 	Texture* m_white = nullptr;
 	Texture* m_atlas = nullptr;
+	std::function<void(unsigned,float,float)> m_exact_prepare;
+	std::function<void(VkCommandBuffer)> m_exact_upload,m_exact_draw;
+	bool m_exact_enabled=false;
 	VkDescriptorSet m_post_set = VK_NULL_HANDLE;
 	VkDescriptorSet m_bg_fallback_set = VK_NULL_HANDLE;
 	VkDescriptorSet m_atlas_set = VK_NULL_HANDLE;

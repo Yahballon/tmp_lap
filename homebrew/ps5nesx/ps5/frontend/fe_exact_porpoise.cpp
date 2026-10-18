@@ -11,6 +11,7 @@
 namespace fe {
 using namespace porpoise::ui;
 using namespace porpoise::ui::look;
+using PorpoiseTexture = porpoise::ui::Texture;
 
 bool ExactPorpoiseShelf::Init(const GfxInit& config, const std::vector<GameInfo>& games)
 {
@@ -25,7 +26,7 @@ bool ExactPorpoiseShelf::Init(const GfxInit& config, const std::vector<GameInfo>
 void ExactPorpoiseShelf::Shutdown()
 {
     if (!m_ready) return;
-    for (Texture* t : m_art) if (t) m_gfx.free_texture(t);
+    for (PorpoiseTexture* t : m_art) if (t) m_gfx.free_texture(t);
     m_art.clear();
     m_gfx.shutdown();
     m_ready = false;
@@ -37,8 +38,8 @@ void ExactPorpoiseShelf::Cover(const CoverImage& image)
         image.width <= 0 || image.height <= 0 ||
         image.rgba.size() != static_cast<size_t>(image.width) * image.height * 4)
         return;
-    Texture*& art = m_art[static_cast<size_t>(image.game)];
-    Texture* replacement = m_gfx.texture_rgba(image.rgba.data(), image.width, image.height);
+    PorpoiseTexture*& art = m_art[static_cast<size_t>(image.game)];
+    PorpoiseTexture* replacement = m_gfx.texture_rgba(image.rgba.data(), image.width, image.height);
     if (replacement) {
         if (art) m_gfx.free_texture(art);
         art = replacement;
@@ -61,7 +62,7 @@ void ExactPorpoiseShelf::DrawTile(int i, float cx, float cy, float w, float h,
     const float m = 13.0f; /* glass frame margin */
     const float glow = focused ? 20.0f : 0.0f;
     const float inner_r = kR * 0.6f;
-    Texture* cover = i >= 0 && static_cast<size_t>(i) < m_art.size() ? m_art[static_cast<size_t>(i)] : nullptr;
+    PorpoiseTexture* cover = i >= 0 && static_cast<size_t>(i) < m_art.size() ? m_art[static_cast<size_t>(i)] : nullptr;
     if (reflection)
     {
         const float base = cy + h * 0.5f + m;

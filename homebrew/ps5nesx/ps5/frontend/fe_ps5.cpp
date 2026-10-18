@@ -15,6 +15,7 @@
 
 #include "fe_app.h"
 #include "fe_covers.h"
+#include "fe_exact_porpoise.h"
 #include "cover_urls.h"
 #include "fe_games.h"
 #include "fe_i18n.h"
@@ -1471,6 +1472,31 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	std::printf("[frontend] starting bounded cover worker\n");
 	covers->Start(games, fonts, cc, [](const std::string& url, std::vector<uint8_t>& out) { return g_http.Get(url, out); });
 
+	// The actual Porpoise Gfx renderer, not an NES case shader approximation.
+	// This is opt-in at runtime: if assets, shaders or GPU init fail, the
+	// previously working NES CoverFlow remains the safe fallback.
+	ExactPorpoiseShelf exact;
+	porpoise::ui::GfxInit original_ui{};
+	original_ui.instance=display->instance;
+	original_ui.gpu=display->pd;
+	original_ui.device=display->device;
+	original_ui.queue=display->queue;
+	original_ui.queue_family=display->qf;
+	original_ui.render_pass=renderer.ExactFinalPass();
+	original_ui.slots=2;
+	original_ui.get_instance_proc=vk_icdGetInstanceProcAddr;
+	original_ui.get_device_proc=display->vk.vkGetDeviceProcAddr;
+	original_ui.asset_dir="/app0/porpoise-ui";
+	original_ui.cache_dir=paths.cache_dir+"/porpoise";
+	const bool exact_ready=exact.Init(original_ui,games);
+	if(exact_ready)
+		renderer.SetExactCallbacks(
+			[&exact](unsigned s,float w,float h){exact.Prepare(s,w,h);},
+			[&exact](VkCommandBuffer cmd){exact.Upload(cmd);},
+			[&exact](VkCommandBuffer cmd){exact.Record(cmd);});
+	std::printf("[Porpoise Exact] original Gfx %s; NES emulation remains separate\\n",
+		exact_ready?"active":"unavailable, legacy fallback");
+
 	// The key sounds (vk-285-47). Without an audio port the shelf is simply quiet.
 	Mixer* mixer = nullptr;
 	AudioOut* audio = nullptr;
@@ -1502,6 +1528,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	acfg.test_note = paths.test_note; // vk-285-105
 	acfg.preselect = preselect;
 	acfg.sound = mixer;
+	acfg.exact = exact_ready ? &exact : nullptr;
 	// vk-285-114: the options sheet (Square) edits the files the settings page does, and logs as it does.
 	acfg.options.settings_dir = paths.settings_dir;
 	acfg.options.gs_ini = paths.gs_ini;
@@ -1605,6 +1632,8 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
                 else orbis_web_now_playing(games[static_cast<size_t>(app.Chosen())].path);
             }
         }
+		// The unmodified NES game renderer runs without any menu overlay.
+		renderer.ExactEnabled(exact_ready && !nes_game.Active());
 		if (!renderer.WaitForSlot())
 		{
 			ok = false;
@@ -1665,6 +1694,9 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	const int chosen = app.Chosen();
 	const bool picked = ok && app.Done();
 	renderer.WaitIdle();
+	renderer.ExactEnabled(false);
+	renderer.SetExactCallbacks({}, {}, {});
+	exact.Shutdown();
 	app.Shutdown();
 	// The worker may be inside a download: stop it from starting another, fail the one in flight,
 	// give it a moment, then leave it behind if need be.

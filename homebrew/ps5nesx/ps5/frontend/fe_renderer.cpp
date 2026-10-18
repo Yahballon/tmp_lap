@@ -885,6 +885,11 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 	if (r != VK_SUCCESS)
 		return Fail("vkBeginCommandBuffer", r);
 	VkCommandBuffer cmd = s.cmd;
+	if (m_exact_enabled && m_exact_prepare)
+	{
+		m_exact_prepare(static_cast<unsigned>(m_slot),float(m_width),float(m_height));
+		if (m_exact_upload) m_exact_upload(cmd);
+	}
 
 	// Texture uploads.
 	for (Upload& up : m_pending)
@@ -1006,6 +1011,7 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 			m_vk->vkCmdBindVertexBuffers(cmd, 0, 1, &s.ui.buffer, &zero);
 			m_vk->vkCmdDraw(cmd, static_cast<uint32_t>(f.ui.size()), 1, 0, 0);
 		}
+		if (m_exact_enabled && m_exact_draw) m_exact_draw(cmd);
 		m_vk->vkCmdEndRenderPass(cmd);
 	}
 
