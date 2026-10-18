@@ -214,3 +214,11 @@ Controller actions are now consistent while a song is playing:
 The playing track metadata and progress continue updating while you browse other artists or albums. The play queue can advance automatically without forcing the visible browsing focus back to the playing album. No change to user music folders, .album files or SMB settings.
 
 CI includes geometry/spacing, analog edge detection and live navigation wiring checks; confirm all controls and animation on PS5 hardware.
+
+## v0.1.12 — D-pad coverflow / analog-only seeking
+
+In the coverflow and now-playing views, **D-pad left/right** now selects the previous/next album cover with the existing 480ms easing and background transitions. **Either analog joystick left/right** seeks the currently playing song by -/+10 seconds, one step per deflection; returning to neutral rearms the next seek. D-pad no longer seeks, and analog left/right no longer changes album covers.
+
+**L1/R1** still changes artists, **L2/R2** still changes albums, even during playback. **Down** opens the Tracklist, **Square** toggles Pause, **X** plays/opens tracks, **Triangle** toggles Favorites, **OPTIONS** opens Settings. D-pad left/right remains header tab navigation when header focus is active, so the header and artist/track lists retain their dedicated navigation.
+
+This is an input-mapping change only. Packed `.album` scanning, cache extraction, SMB playback, centered jackets and their ~24px spacing are unchanged. Native CI tests validate that D-pad cover navigation and analog seeking are distinct paths; real PS5 behavior still needs a console test.

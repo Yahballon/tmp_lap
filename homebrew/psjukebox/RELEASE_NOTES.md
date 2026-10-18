@@ -1,12 +1,8 @@
-# PSJukebox v0.1.11 — Centered Covers and Live Navigation
+# PSJukebox v0.1.12 — D-pad Covers / Analog Seeking
 
-- Vertically center the album coverflow (midpoint y=525); create a ~23.5px gap between the highlighted cover and adjacent jackets by increasing sleeve spacing to 380px
-- L1/R1 switch artists consistently, including during song playback; the music keeps playing
-- L2/R2 switch album covers consistently during playback; return to coverflow view when triggered from the playing/tracklist screen
-- D-pad LEFT/RIGHT or either joystick LEFT/RIGHT: seek playing song -/+10 seconds without changing selected cover; analog tilt is edge-triggered to avoid rapid jumps
-- D-pad DOWN or either joystick DOWN: open the selected album's Tracklist directly from carousel or while playback is displayed
-- Preserve X Play/Tracklist, Square Pause/Resume, Triangle Favorite and OPTIONS Settings
-- Auto-advance preserves the visible browsing context rather than snapping back to the playing album
-- Tested with host layout/controller tests plus native PS5 build and package verification. Actual PS5 functionality still requires console validation
-
-This release retains v0.1.10 packed .album, artist theming, Favorites, USB and SMB features.
+- **D-pad LEFT/RIGHT**: previous/next album cover in Album/Now Playing views, with the smooth 480ms animation and background transitions
+- **Left or right analog stick LEFT/RIGHT**: backward/forward seek (10 seconds per tilt) while music is playing; return to center to seek again
+- Keep **L1/R1 Artist**, **L2/R2 Album**, **Down Tracklist**, **X Play**, **Square Pause**, **Triangle Favorite**, and **OPTIONS Settings**
+- Cover browsing works while songs keep playing; header navigation with Up + D-pad left/right is unchanged
+- Preserve centered coverflow and small gaps, artist themes, packed .album handling and SMB features
+- Native tests check mapping and PS5 package compilation; console testing remains necessary
