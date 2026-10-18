@@ -84,7 +84,15 @@ def main():
     # Do not inject a raw.githubusercontent.com Actions artifact as a release:
     # that entry makes the console reject the whole version.json manifest.
     if not latest:raise ValueError("No valid releases; refusing empty catalog")
+    # COMPATIBILITY: The released TESTBUILDS PS5 client rejects the 16-entry
+    # manifest produced after adding PS5NESX (PPSA99204). Keep the known-good
+    # 15-entry catalog while the installed client's entry/count limit is
+    # investigated. PS5NESX source + signed release remain available on GitHub.
+    # Remove this temporary omission only when a PS5 client accepts 16 entries.
+    latest.pop("PPSA99204", None)
     apps=[latest[key][1] for key in sorted(latest)]
+    if len(apps)>15:
+        raise ValueError("TESTBUILDS client compatibility: refusing catalog with >15 app entries")
     checksum=hashlib.sha256(json.dumps(apps,sort_keys=True,separators=(",",":")).encode()).hexdigest()
     manifest={"schema":2,"version":checksum,"repository":REPO,"app_count":len(apps),"apps":apps}
     output=json.dumps(manifest,indent=2,ensure_ascii=False)+"\n"

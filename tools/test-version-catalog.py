@@ -19,7 +19,8 @@ def release(slug,version,title,prerelease=False,draft=False):
             'assets':[{'name':title+'.zip','state':'uploaded','size':1000,
                        'browser_download_url':f'https://github.com/Yahballon/tmp_lap/releases/download/{tag}/{title}.zip'}]}
 
-releases=[release('starbound-rebased','0.1.19','PPSA99642'),
+releases=[release('ps5nesx','1.0.9','PPSA99204'),
+          release('starbound-rebased','0.1.19','PPSA99642'),
           release('starbound-rebased','0.1.20','PPSA99642',True),
           release('starbound-rebased','0.1.21','PPSA99642',True,True),
           release('crypto-tracker','1.0.0','PPSA99442'),
@@ -41,6 +42,11 @@ def fake_open(req,timeout=30):
 
 with tempfile.TemporaryDirectory() as tmp:
     root=Path(tmp)
+    # Real upstream NES release is valid but the installed TESTBUILDS parser
+    # fails after this became app #16. Keep it excluded until client support.
+    nes=root/'homebrew/ps5nesx'
+    nes.mkdir(parents=True)
+    (nes/'app.json').write_text(json.dumps({'titleId':'PPSA99204','name':'PS5NESX','slug':'ps5nesx'}))
     app=root/'homebrew/starbound-rebased'
     app.mkdir(parents=True)
     (app/'app.json').write_text(json.dumps({'titleId':'PPSA99642','name':'Starbound Rebased'}))
@@ -63,6 +69,8 @@ with tempfile.TemporaryDirectory() as tmp:
         catalog.main()
         result=json.loads((root/'version.json').read_text())
         selected={entry['title_id']:entry['version'] for entry in result['apps']}
+        assert 'PPSA99204' not in selected, 'Client-incompatible PS5NESX entry must be suppressed'
+        assert result['app_count']==len(result['apps'])<=15
         assert selected=={'PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
         jukebox=next(e for e in result['apps'] if e['title_id']=='PPSA99947')
         assert jukebox['zip_url']=='https://github.com/Yahballon/PSJukebox/releases/download/v0.1.24/PPSA99947.zip'
@@ -89,4 +97,4 @@ with tempfile.TemporaryDirectory() as tmp:
         before=(root/'version.json').read_bytes()
         catalog.main()
         assert (root/'version.json').read_bytes()==before
-print('PASS: Audiobook Reader, System Info, Bible Reader and PS5DreamcastX included; newest semantic versions selected; prerelease filtering and deterministic output verified')
+print('PASS: console-compatible TESTBUILDS catalog excludes PS5NESX until 16-app parser support; other releases preserved')
