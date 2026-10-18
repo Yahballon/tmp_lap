@@ -18,6 +18,7 @@ int main(int argc,char** argv){
  if(rate<=0){std::fprintf(stderr,"Initialization failed: %d\n",rate);return 3;}
  espeak_SetSynthCallback(callback);
  const char* languages[]={"en","de","fr","es","ru"};
+ const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es","zle/ru"};
  const char* texts[]={"In the beginning, God created the heavens and the earth.",
    "Am Anfang schuf Gott Himmel und Erde.",
    "Au commencement, Dieu créa les cieux et la terre.",
@@ -27,6 +28,13 @@ int main(int argc,char** argv){
   espeak_VOICE spec{};spec.languages=const_cast<char*>(languages[i]);
   const auto select=espeak_SetVoiceByProperties(&spec);
   if(select!=EE_OK){std::fprintf(stderr,"Cannot select %s: %d\n",languages[i],(int)select);return 4;}
+  // PS5's espeak_ListVoices() sometimes lists zero languages even though
+  // language profile data is present. Test the exact production fallback.
+  const auto byName=espeak_SetVoiceByName(profiles[i]);
+  if(byName!=EE_OK){
+   std::fprintf(stderr,"Cannot select fallback %s: %d\n",profiles[i],(int)byName);
+   return 6;
+  }
   soundSamples=0;
   const std::string passage=texts[i];
   const auto rc=espeak_Synth(passage.c_str(),passage.size()+1,0,POS_CHARACTER,0,espeakCHARS_UTF8,nullptr,nullptr);

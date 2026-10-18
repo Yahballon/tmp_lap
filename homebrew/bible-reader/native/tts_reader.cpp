@@ -78,6 +78,12 @@ bool nextVerse(const bible::Library& lib,bible::Ref& ref){
 void Speaker::status(Snapshot s){std::lock_guard<std::mutex> lock(mutex_);status_=std::move(s);}
 Snapshot Speaker::snapshot() const{std::lock_guard<std::mutex> lock(mutex_);return status_;}
 bool Speaker::active() const{return snapshot().active;}
+const char* classicVoiceProfile(int language){
+ // One canonical mapping for asset validation and eSpeak fallback selection.
+ // Russian is index 4 internally (UI index 5; index 4 in the UI is Retro).
+ static const char* const profiles[]={"gmw/en","gmw/de","roa/fr","roa/es","zle/ru"};
+ return (language>=0&&language<5)?profiles[language]:nullptr;
+}
 std::string neuralPreviewFilename(int language,bible::Ref ref){
  if(language!=1||ref.book!=0||ref.chapter!=1||ref.verse<1||ref.verse>31)return {};
  return "neural/de/genesis1/"+std::to_string(ref.verse)+".pcm";
@@ -148,12 +154,12 @@ void Speaker::run(){
  const char* chosenRoot=nullptr;
  int rate=-1;
  const char* languages[]={"en","de","fr","es","ru"};
- const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es","zle/ru"};
  for(const char* root:roots){
   const std::string data=std::string(root)+"/espeak-ng-data/";
   const long phon=bible_log::fileSize(data+"phondata");
   const long dict=bible_log::fileSize(data+languages[language_]+std::string("_dict"));
-  const long profile=bible_log::fileSize(data+"lang/"+profiles[language_]);
+  const char* voiceProfile=classicVoiceProfile(language_);
+  const long profile=voiceProfile?bible_log::fileSize(data+"lang/"+voiceProfile):-1;
   bible_log::write("TTS_PATH","root=%s phondata=%ld dictionary=%ld profile=%ld",root,phon,dict,profile);
   if(phon>0&&dict>0&&profile>0){chosenRoot=root;break;}
  }
@@ -164,9 +170,10 @@ void Speaker::run(){
  initialized=true;
  {
   const char* codes[]={"en","de","fr","es","ru"};
-  const char* profiles[]={"gmw/en","gmw/de","roa/fr","roa/es"};
   const char* code=codes[language_];
-  const char* profile=profiles[language_];
+  const char* profile=classicVoiceProfile(language_);
+  // The PS5 eSpeak voice enumerator can return zero even with valid data.
+  // Always use the corresponding name-based fallback, including zle/ru.
   const espeak_VOICE** list=espeak_ListVoices(nullptr);
   int count=0;
   if(list)for(int i=0;i<256&&list[i];++i){
