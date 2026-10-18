@@ -45,6 +45,40 @@ def main():
                 if old is None or (semver,entry["published_at"] or "")>(old[0],old[1]["published_at"] or ""):latest[title]=(semver,entry)
         if len(releases)<100:break
     else:raise ValueError("Release pagination limit exceeded")
+    # Standalone PSJukebox releases are authoritative for PPSA99947.
+    # Retain the original tmp_lap releases as a fallback for older versions.
+    external_repo="Yahballon/PSJukebox"
+    title="PPSA99947"
+    if title in titles:
+        label,slug=titles[title]
+        for page in range(1,11):
+            headers={"Accept":"application/vnd.github+json","User-Agent":"testbuilds-catalog"}
+            if os.getenv("GH_TOKEN"):headers["Authorization"]="Bearer "+os.environ["GH_TOKEN"]
+            req=urllib.request.Request(
+                "https://api.github.com/repos/"+external_repo+"/releases?per_page=100&page="+str(page),
+                headers=headers)
+            with urllib.request.urlopen(req,timeout=30) as response: external_releases=json.load(response)
+            if not isinstance(external_releases,list):raise ValueError("Invalid standalone release response")
+            for release in external_releases:
+                if release.get("draft") or release.get("prerelease"):continue
+                tag=release.get("tag_name","")
+                m=re.fullmatch(r"v(\\d+)\\.(\\d+)\\.(\\d+)",tag)
+                if not m:continue
+                semver=tuple(map(int,m.groups()))
+                for asset in release.get("assets",[]):
+                    if asset.get("name")!="PPSA99947.zip" or asset.get("state")!="uploaded" or not asset.get("size"):continue
+                    zip_url="https://github.com/"+external_repo+"/releases/download/"+tag+"/PPSA99947.zip"
+                    release_url="https://github.com/"+external_repo+"/releases/tag/"+tag
+                    if asset.get("browser_download_url")!=zip_url or release.get("html_url")!=release_url:continue
+                    entry={"name":label,"slug":slug,"title_id":title,"version":".".join(m.groups()),
+                           "tag":tag,"zip_name":"PPSA99947.zip","zip_url":zip_url,
+                           "release_url":release_url,"source":"https://github.com/"+external_repo,
+                           "size_bytes":asset["size"],"published_at":release.get("published_at")}
+                    old=latest.get(title)
+                    if old is None or (semver,entry["published_at"] or "")>(old[0],old[1]["published_at"] or ""):
+                        latest[title]=(semver,entry)
+            if len(external_releases)<100:break
+        else:raise ValueError("Standalone release pagination exceeded")
     # TESTBUILD's existing PS5 parser expects release-shaped entries. In
     # particular zip_url and release_url must be real GitHub Release links.
     # Do not inject a raw.githubusercontent.com Actions artifact as a release:

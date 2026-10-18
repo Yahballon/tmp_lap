@@ -29,6 +29,16 @@ releases=[release('starbound-rebased','0.1.19','PPSA99642'),
           release('ps5-system-info','0.1.0','PPSA99786'),
           release('bible-reader','0.1.0','PPSA99793'),
           release('ps5-dreamcastx','0.1.0','PPSA99765')]
+standalone=[{
+    'tag_name':'v0.1.24','prerelease':False,'draft':False,
+    'html_url':'https://github.com/Yahballon/PSJukebox/releases/tag/v0.1.24',
+    'published_at':'2026-10-18T18:54:10Z',
+    'assets':[{'name':'PPSA99947.zip','state':'uploaded','size':21797369,
+               'browser_download_url':'https://github.com/Yahballon/PSJukebox/releases/download/v0.1.24/PPSA99947.zip'}]
+}]
+def fake_open(req,timeout=30):
+    return BytesIO(json.dumps(standalone if '/Yahballon/PSJukebox/' in req.full_url else releases).encode())
+
 with tempfile.TemporaryDirectory() as tmp:
     root=Path(tmp)
     app=root/'homebrew/starbound-rebased'
@@ -46,12 +56,16 @@ with tempfile.TemporaryDirectory() as tmp:
     dc=root/'homebrew/ps5-dreamcastx'
     dc.mkdir(parents=True)
     (dc/'app.json').write_text(json.dumps({'titleId':'PPSA99765','name':'PS5DreamcastX','slug':'ps5-dreamcastx'}))
-    with patch.object(catalog,'ROOT',root), patch.object(catalog.urllib.request,'urlopen',
-         side_effect=lambda *a,**k: BytesIO(json.dumps(releases).encode())):
+    p=root/'homebrew/psjukebox'
+    p.mkdir(parents=True)
+    (p/'app.json').write_text(json.dumps({'titleId':'PPSA99947','name':'PSJukebox','slug':'psjukebox'}))
+    with patch.object(catalog,'ROOT',root), patch.object(catalog.urllib.request,'urlopen',side_effect=fake_open):
         catalog.main()
         result=json.loads((root/'version.json').read_text())
         selected={entry['title_id']:entry['version'] for entry in result['apps']}
-        assert selected=={'PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0'},selected
+        assert selected=={'PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
+        jukebox=next(e for e in result['apps'] if e['title_id']=='PPSA99947')
+        assert jukebox['zip_url']=='https://github.com/Yahballon/PSJukebox/releases/download/v0.1.24/PPSA99947.zip'
         # A raw.githubusercontent.com artifact does not have a GitHub
         # Release; it must not silently replace a compatible console entry.
         fallback=root/'testbuilds/ps5-dreamcastx.json'
