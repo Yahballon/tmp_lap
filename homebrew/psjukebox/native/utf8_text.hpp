@@ -19,7 +19,7 @@ inline std::string utf8_cut(std::string_view input,std::size_t max_chars){
   for(std::size_t k=1;k<len;k++)
    if((static_cast<unsigned char>(input[pos+k])&0xc0)!=0x80){valid=false;break;}
   // Invalid bytes are omitted rather than fed to the SDF renderer.
-  if(!valid||len==1&&b>=0x80){++pos;continue;}
+  if(!valid||(len==1&&b>=0x80)){++pos;continue;}
   pos+=len;++chars;
  }
  if(pos==input.size())return std::string(input);
@@ -33,7 +33,7 @@ inline std::string utf8_cut(std::string_view input,std::size_t max_chars){
   bool valid=true;
   for(std::size_t k=1;k<len;k++)
    if((static_cast<unsigned char>(input[pos+k])&0xc0)!=0x80){valid=false;break;}
-  if(!valid||len==1&&b>=0x80){++pos;continue;}
+  if(!valid||(len==1&&b>=0x80)){++pos;continue;}
   pos+=len;++chars;
  }
  return std::string(input.substr(0,pos))+"...";
