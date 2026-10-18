@@ -10,6 +10,7 @@ import pathlib
 import re
 import urllib.request
 import zipfile
+import unicodedata
 
 # Each corpus is the actual, independently translated public-domain Bible,
 # never machine-translated verses. All downloads occur at build time only.
@@ -18,6 +19,7 @@ TRANSLATIONS = {
     "de": ("deu1912", "Lutherbibel 1912"),
     "fr": ("fraLSG", "Louis Segond 1910"),
     "es": ("spaRV1909", "Reina-Valera 1909"),
+    "ru": ("russyn", "Синодальный перевод 1876"),
 }
 def sources(code):
     identity = TRANSLATIONS[code][0]
@@ -27,7 +29,7 @@ NAMES = """Genesis|Exodus|Leviticus|Numbers|Deuteronomy|Joshua|Judges|Ruth|1 Sam
 CODES = """Gen Exo Lev Num Deu Jos Jdg Rut 1Sa 2Sa 1Ki 2Ki 1Ch 2Ch Ezr Neh Est Job Psa Pro Ecc Sol Isa Jer Lam Eze Dan Hos Joe Amo Oba Jon Mic Nah Hab Zep Hag Zec Mal Mat Mar Luk Joh Act Rom 1Co 2Co Gal Eph Phi Col 1Th 2Th 1Ti 2Ti Tit Phm Heb Jam 1Pe 2Pe 1Jo 2Jo 3Jo Jud Rev""".split()
 ALIASES = {}
 def normal(s):
-    return re.sub(r"[^a-z0-9]", "", s.lower())
+    return "".join(ch for ch in unicodedata.normalize("NFC", s).casefold() if ch.isalnum())
 for i, (name, code) in enumerate(zip(NAMES, CODES)):
     ALIASES[normal(name)] = i
     ALIASES[normal(code)] = i
@@ -39,6 +41,22 @@ ALIASES.update({normal(k):v for k,v in {
     "Genèse":0,"Exode":1,"Génesis":0,"Éxodo":1,"Ésaïe":22,
     "1Cor":45,"2Cor":46,"1Th":51,"2Th":52,"1Tim":53,"2Tim":54
 }.items()})
+# Russian Synodal books in the original Russian naming order. These are the
+# 66 canonical books; extra non-canonical material is deliberately excluded.
+RU_BOOKS = """Бытие|Исход|Левит|Числа|Второзаконие|Книга Иисуса Навина|Книга Судей Израилевых|Книга Руфь|Первая книга Царств|Вторая книга Царств|Третья книга Царств|Четвертая книга Царств|Первая книга Паралипоменон|Вторая книга Паралипоменон|Книга Ездры|Неемия|Книга Есфирь|Книга Иова|Псалтырь|Притчи Соломона|Книга Екклесиаста|Песни Песней|Книга пророка Исаии|Книга пророка Иеремии|Плач Иеремии|Книга пророка Иезекииля|Книга пророка Даниила|Книга пророка Осии|Книга пророка Иоиля|Книга пророка Амоса|Книга пророка Авдия|Книга пророка Ионы|Книга пророка Михея|Книга пророка Наума|Книга пророка Аввакума|Книга пророка Софонии|Книга пророка Аггея|Книга пророка Захарии|Книга пророка Малахии|Евангелие от Матфея|Евангелие от Марка|Евангелие от Луки|Евангелие от Иоанна|Деяния|Послание к Римлянам|Первое послание к Коринфянам|Второе послание к Коринфянам|Послание к Галатам|Послание к Ефесянам|Послание к Филиппийцам|Послание к Колоссянам|Первое послание к Фессалоникийцам|Второе послание к Фессалоникийцам|Первое послание к Тимофею|Второе послание к Тимофею|Послание к Титу|Послание к Филимону|Послание к Евреям|Послание Иакова|Первое послание Петра|Второе послание Петра|Первое послание Иоанна|Второе послание Иоанна|Третье послание Иоанна|Послание Иуды|Откровение Иоанна Богослова""".split("|")
+assert len(RU_BOOKS) == 66
+for n, title in enumerate(RU_BOOKS):
+    ALIASES[normal(title)] = n
+RU_SHORT = """Быт|Исх|Лев|Чис|Втор|Нав|Суд|Руф|1Цар|2Цар|3Цар|4Цар|1Пар|2Пар|Езд|Неем|Есф|Иов|Пс|Притч|Еккл|Песн|Ис|Иер|Плач|Иез|Дан|Ос|Иоил|Ам|Авд|Ион|Мих|Наум|Авв|Соф|Агг|Зах|Мал|Мф|Мк|Лк|Ин|Деян|Рим|1Кор|2Кор|Гал|Еф|Флп|Кол|1Фес|2Фес|1Тим|2Тим|Тит|Флм|Евр|Иак|1Пет|2Пет|1Ин|2Ин|3Ин|Иуд|Откр""".split("|")
+assert len(RU_SHORT) == 66
+for n, label in enumerate(RU_SHORT):
+    ALIASES[normal(label)] = n
+for n, title in enumerate(("1 Царств", "2 Царств", "3 Царств", "4 Царств", "1 Паралипоменон", "2 Паралипоменон",
+                            "1 Коринфянам", "2 Коринфянам", "1 Фессалоникийцам", "2 Фессалоникийцам",
+                            "1 Тимофею", "2 Тимофею", "1 Петра", "2 Петра", "1 Иоанна", "2 Иоанна", "3 Иоанна")):
+    book=(8,9,10,11,12,13,45,46,51,52,53,54,59,60,61,62,63)[n]
+    ALIASES[normal(title)] = book
+
 # Our baked Inter UI font lacks Unicode smart punctuation. Preserve Bible wording
 # while converting typographic punctuation to visually equivalent ASCII glyphs.
 # Never use Unicode decoding with 'replace': invalid source data should fail.
@@ -54,7 +72,7 @@ DISPLAY_PUNCTUATION = str.maketrans({
     "\ufeff": "",
 })
 def normalize_display_text(text):
-    return re.sub(r"\s+", " ", text.translate(DISPLAY_PUNCTUATION)).strip()
+    return unicodedata.normalize("NFC", re.sub(r"\s+", " ", text.translate(DISPLAY_PUNCTUATION)).strip())
 
 REF = re.compile(r"^\s*(.*?)\s+(\d{1,3}):(\d{1,3})(?:-\d+)?\s+(.+?)\s*$")
 def parse_line(line):
