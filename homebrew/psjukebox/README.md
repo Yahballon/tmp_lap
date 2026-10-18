@@ -236,3 +236,15 @@ If music isn't playing yet, R2 starts the first track of the highlighted album a
 On manual trigger navigation, the album cover and highlighted Tracklist song follow the new playing track, including USB/SMB staging. Auto-advance uses the same cross-album traversal but preserves unrelated browsing focus.
 
 **L1/R1** still switch artists, **D-pad LEFT/RIGHT** changes album covers, analog sticks LEFT/RIGHT seek 10 seconds, **DOWN** opens the Tracklist, **Square** pauses and **OPTIONS** opens settings. Triggers also work from Favorites. Packed album files, SMB, themes and cache remain unchanged.
+
+## v0.1.15 — Fast startup and progressive album discovery
+
+PSJukebox now saves a **versioned, CRC-checked library snapshot** to `/data/PSJukebox/library-v3.cache` after a successful full discovery. Next boot, it reads this small catalog before starting the async local/USB/SMB refresh so artist selection, track lists and first album cover render immediately rather than waiting for the full rescanning of .album archives. This is an index containing title/path/artwork metadata only; it does not cache song bytes, SMB passwords or remote credentials.
+
+On first use (or with a deleted/invalid index), the scan reports **partial libraries** as each packed album is found, rather than blocking all ten jackets until the last .album is processed. During a regular refresh, the current library and playback continue on screen; the fresh index replaces them only after discovery finishes. A corrupted/truncated cache is discarded safely, and the usual scan rebuilds it automatically.
+
+Artwork fetching is prioritized: **current album cover first**, then artist logo and album background, then adjacent jackets (closest first). The UI can therefore show a cover before waiting on off-screen assets.
+
+App-managed staged .album/audio cache reuse now tolerates the PS5 `EPERM` bug for stat/lstat/fstat (as seen on this console): the app can open and size an already downloaded file by file descriptor instead of copying a multi-hundred-megabyte ZIP from USB/SMB again. Existing staged data is reused only if its expected size matches, with symlink rejection.
+
+Notes: The very first scan can still take time to stage a new .album; the snapshot accelerates subsequent startups. Files changed on disk are rechecked by the background scan. A complete rebuild may be initiated with Options → Rescan. New media and album covers appear progressively on a cold scan. Source .album files, user favorites, gamepad controls and playback logic are untouched.

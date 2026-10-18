@@ -1,12 +1,11 @@
-# PSJukebox v0.1.14 — R2/L2 Song Skip with Album Wrap
+# PSJukebox v0.1.15 — Fast Coverflow Startup
 
-- **R2** skips forward one song; from an album's last track, plays track 1 of the next album
-- **L2** skips backward one song; from track 1, plays the final track of the preceding album
-- Skips empty albums and wraps between last and first albums **within the same artist**
-- During playback the carousel and Tracklist follow manual R2/L2 changes, including local, packed album, USB and SMB tracks
-- Natural song-end auto-advance uses the same album traversal logic
-- L1/R1 remain artist navigation, D-pad left/right album covers, analog stick left/right seeks 10 seconds
-- Clock with creator/version, Favorites, settings and all other features remain
-- Host tests cover album boundaries, skipping empty albums, cyclic edges, artist isolation and single-track albums
+- **Instant repeat launches:** restore last known artist/album/cover catalog from `/data/PSJukebox/library-v3.cache` before background discovery
+- **Progressive first discovery:** publish each .album into the UI as its import finishes instead of waiting for every packed album
+- **Artwork priority:** selected cover ahead of large backgrounds, artist logos and off-screen jackets
+- **Avoid redundant transfers:** reuse previously staged USB/SMB .album archives and audio despite PS5 EPERM restrictions on stat/lstat/fstat; verify file length and reject symbolic links
+- **Non-blocking refresh:** retain the current coverflow and ongoing song playback while the music library scans in the background
+- **Safe persistent index:** bounded size, checksum, atomic update, corruption recovery, no credentials or song data inside
+- Maintains PSJukebox .album, SMB shares, background/artist themes, Favorites, and v0.1.14 L2/R2 song navigation
 
-Native PS5 build and package checks run in CI; real-console testing is still required.
+First-ever scan may still stage fresh archives; subsequent boots get the cached catalog immediately. Real hardware timing and permission behavior need PS5 confirmation.

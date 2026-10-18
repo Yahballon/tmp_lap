@@ -49,6 +49,22 @@ jobs:
             -o /tmp/psjukebox-cover-browse-test
           /tmp/psjukebox-cover-browse-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/native/library_cache.cpp \
+            homebrew/psjukebox/tests/library_cache_test.cpp \
+            -lz -o /tmp/psjukebox-library-cache-test
+          /tmp/psjukebox-library-cache-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/tests/media_cache_test.cpp \
+            -o /tmp/psjukebox-media-cache-test
+          /tmp/psjukebox-media-cache-test
+          # Reproduce sandbox metadata failure (errno=1): a valid previously
+          # staged 100 MB .album must be reused without recopying over USB.
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            -DTEST_PS5_BLOCKED_METADATA -Wl,--wrap=lstat -Wl,--wrap=fstat \
+            homebrew/psjukebox/tests/media_cache_test.cpp \
+            -o /tmp/psjukebox-media-cache-eperm-test
+          /tmp/psjukebox-media-cache-eperm-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
             homebrew/psjukebox/tests/song_navigation_test.cpp \
             -o /tmp/psjukebox-song-navigation-test
           /tmp/psjukebox-song-navigation-test
@@ -62,6 +78,10 @@ jobs:
           assert 'if((screen==0||screen==2)&&(pressed&hui::pad_bits::kDown))' in code
           assert 'jukebox::cover_slot(position)' in code
           assert 'jukebox::album_browse_step(' in code
+          assert 'jukebox::load_library_cache(jukebox::library_cache_path()' in code
+          assert 'jukebox::save_library_cache(jukebox::library_cache_path(),library,err)' in code
+          assert 'publish(false); // display the next cover immediately' in code
+          assert 'if(album)queue(album->cover);' in code
           assert 'jukebox::step_song(library,active,delta,destination)' in code
           assert 'jukebox::start_song(library,artistIndex,albumIndex,delta,destination)' in code
           assert 'if(trackStep)next_track(trackStep,true);' in code
@@ -219,7 +239,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.14
+          name: PSJukebox-v0.1.15
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -232,5 +252,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.14 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.15 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
