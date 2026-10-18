@@ -1,11 +1,11 @@
 {
   "name": "Bible Reader",
   "slug": "bible-reader",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "titleId": "PPSA99793",
   "contentId": "UP9000-PPSA99793_00-BIBLEREADER00001",
-  "contentVersion": "01.000.008",
-  "releaseTag": "bible-reader-v0.1.7",
+  "contentVersion": "01.000.009",
+  "releaseTag": "bible-reader-v0.1.8",
   "developer": "YAHBALLON",
   "bibleTranslation": "World English Bible British Edition (WEBPB)",
   "offline": true,
@@ -15,10 +15,22 @@
     "Louis Segond 1910",
     "Reina-Valera 1909"
   ],
-  "ttsEngine": "eSpeak NG 1.52.0 + native Piper Thorsten Medium / ONNX Runtime 1.18.2 / SDL2",
+  "ttsEngine": "eSpeak NG 1.52.0 + 4 native Piper ONNX VITS medium models / ONNX Runtime 1.18.2 / SDL2",
   "ttsOffline": true,
   "voiceEnginePreview": "Piper Thorsten Medium Genesis 1 prerecorded audio as neural fallback",
   "neuralOnDevice": true,
-  "neuralLanguage": "de",
-  "neuralVoice": "Thorsten Medium"
+  "neuralLanguage": [
+    "en",
+    "de",
+    "fr",
+    "es"
+  ],
+  "neuralVoice": "Thorsten Medium",
+  "neuralVoices": {
+    "en": "Kristin Medium",
+    "de": "Thorsten Medium",
+    "fr": "Siwis Medium",
+    "es": "DaveFX Medium"
+  },
+  "retroVoicePreset": "Stephen Hawking (Retro TTS) — eSpeak computer-voice homage, not original voice"
 }
