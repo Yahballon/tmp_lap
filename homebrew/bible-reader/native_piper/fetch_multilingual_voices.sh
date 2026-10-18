@@ -39,4 +39,8 @@ fetch_one fr fr/fr_FR/siwis/medium fr_FR-siwis-medium \
   641d1ab097da2b81128c076810edb052b385decc8be3381814802a64a73baf99 fr_FR
 fetch_one es es/es_ES/davefx/medium es_ES-davefx-medium \
   6658b03b1a6c316ee4c265a9896abc1393353c2d9e1bca7d66c2c442e222a917 es_ES
-echo "[PIPER_MODEL] All 3 language models downloaded and SHA256 verified."
+# Russian Denis medium is trained on CC0 voice-datasets, unlike the
+# noncommercial Ruslan dataset; include the original model card in the ZIP.
+fetch_one ru ru/ru_RU/denis/medium ru_RU-denis-medium \
+  15fab56e11a097858ee115545d0f697fc2a316c41a291a5362349fb870411b0a ru_RU
+echo "[PIPER_MODEL] All 4 additional language models downloaded and SHA256 verified."
