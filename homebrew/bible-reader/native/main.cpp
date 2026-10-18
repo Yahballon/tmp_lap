@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Bible Reader by YAHBALLON v0.1.7 - offline native PS5 homebrew.
+// Bible Reader by YAHBALLON v0.1.8 - offline native PS5 homebrew.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -57,7 +57,7 @@ std::string name(bible::Ref r,int lang){
 }
 bool readTranslation(bible::Library& lib,int lang,std::string& error){
  const std::string code=bible_i18n::code(lang);
- const char* filename=lang==0?"webpb.tsv":nullptr;
+ const char* filename=bible_i18n::language(lang)==0?"webpb.tsv":nullptr;
  const std::string file=filename?filename:code+".tsv";
  const std::string appPath="/app0/assets/bible/"+file;
  if(lib.load(appPath,error))return true;
@@ -73,7 +73,7 @@ const bible_i18n::Key tabKeys[]={
 }
 int main(){
  mkdir("/data/BibleReader",0755);
- bible_log::write("BOOT","Bible Reader v0.1.7 title=PPSA99793 log=%s",bible_log::path);
+ bible_log::write("BOOT","Bible Reader v0.1.8 title=PPSA99793 log=%s",bible_log::path);
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;
@@ -195,12 +195,13 @@ int main(){
     else if(page==Page::settings){
      voice.stop();
      if(listScroll==0){
-      const int candidate=(settings.language+1)%bible_i18n::kLangCount;
+      const int candidate=(settings.language+1)%bible_i18n::kLanguageOptions;
       bible::Library replacement;std::string error;
       if(readTranslation(replacement,candidate,error)){
        if(loaded&&!library.chapter(settings.book,settings.chapter).empty())
         settings.selectedVerse=library.chapter(settings.book,settings.chapter)[(size_t)std::clamp(selected,0,(int)library.chapter(settings.book,settings.chapter).size()-1)].number;
        library=std::move(replacement);loaded=true;settings.language=candidate;
+       if(candidate==4)settings.voiceStyle=0; // retro English always uses eSpeak
        settings.chapter=std::clamp(settings.chapter,1,library.chapterCount(settings.book));
        const auto& vv=library.chapter(settings.book,settings.chapter);
        selected=0;
@@ -214,7 +215,7 @@ int main(){
      if(listScroll==1)settings.fontSize=settings.fontSize>=38?22:settings.fontSize+2;
      if(listScroll==2)settings.daily=!settings.daily;
      if(listScroll==3)settings.theme=1-settings.theme;
-     if(listScroll==4)settings.voiceStyle=1-settings.voiceStyle;
+     if(listScroll==4&&settings.language!=4)settings.voiceStyle=1-settings.voiceStyle;
      if(listScroll==5){page=Page::read;focusedSidebar=true;}
      save();
     }else if(page==Page::search){
@@ -260,7 +261,7 @@ int main(){
   text(d,font,atlas,"+  B I B L E   R E A D E R",80,100,56,gold);
   const std::string maker="by Y A H B A L L O N";
   text(d,font,atlas,maker,307,148,20,gold);
-  text(d,font,atlas,"v0.1.7",307+font.measure(maker,20.f)+34.f,148,19,subdued);
+  text(d,font,atlas,"v0.1.8",307+font.measure(maker,20.f)+34.f,148,19,subdued);
   const float left=39,wide=392;panel(d,left,212,wide,759);
   for(int i=0;i<5;i++){
    float y=218+i*105;
@@ -431,7 +432,7 @@ int main(){
     std::to_string(settings.fontSize),
     bible_i18n::label(settings.language,settings.daily?bible_i18n::Key::on:bible_i18n::Key::off),
     bible_i18n::label(settings.language,settings.theme?bible_i18n::Key::slate:bible_i18n::Key::midnight),
-    bible_i18n::label(settings.language,settings.voiceStyle?bible_i18n::Key::neuralPreview:bible_i18n::Key::classicVoice),""};
+    settings.language==4?"Retro Computer (eSpeak)":bible_i18n::label(settings.language,settings.voiceStyle?bible_i18n::Key::neuralPreview:bible_i18n::Key::classicVoice),""};
    for(int i=0;i<6;i++){
     const float y=379+i*90;
     if(i==listScroll)panel(d,cx+35,y-54,cw-70,80,true);

@@ -21,6 +21,13 @@ int main(){
  b.language=2;assert(bible::writeSettings(path,b));
  bible::Settings restored;assert(bible::readSettings(path,restored));
  assert(restored.language==2 && restored.book==42);
+ restored.language=4;
+ assert(bible::writeSettings(path,restored));
+ bible::Settings robot;
+ assert(bible::readSettings(path,robot) && robot.language==4);
+ assert(std::string(bible_i18n::languageName(4))=="Stephen Hawking (Retro TTS)");
+ assert(std::string(bible_i18n::code(4))=="en");
+ assert(bible_i18n::kLanguageOptions==5);
  assert(std::string(bible_i18n::bookName(1,0))=="1. Mose");
  assert(std::string(bible_i18n::bookName(2,0))=="Genèse");
  assert(std::string(bible_i18n::bookName(3,0))=="Génesis");

@@ -6,6 +6,7 @@ import argparse
 import json
 import pathlib
 import hashlib
+import re
 
 def symbols(config: dict):
     table = config["phoneme_id_map"]
@@ -31,9 +32,15 @@ def symbols(config: dict):
         values += ids
     return entries, values
 
-def generate(config_path, output):
+def generate(config_path, output, namespace="", expected_language=None):
+    if not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*",namespace or "default_"):
+        raise ValueError("Invalid C++ namespace")
     payload=pathlib.Path(config_path).read_bytes()
     obj=json.loads(payload)
+    if expected_language and obj.get("language",{}).get("code")!=expected_language:
+        raise ValueError(f"Wrong language for voice: expected {expected_language}")
+    if obj.get("num_speakers") != 1:
+        raise ValueError("Use only single-speaker Piper models (no optional sid tensor)")
     items, ids=symbols(obj)
     lines=[
         "// Generated from Piper Thorsten medium JSON; DO NOT EDIT.",
@@ -41,7 +48,7 @@ def generate(config_path, output):
         "#pragma once",
         '#include "phoneme_ids.hpp"',
         "#include <array>",
-        "namespace bible_piper {",
+        "namespace bible_piper {"+(" namespace "+namespace+" {" if namespace else ""),
         f"inline constexpr std::array<Symbol,{len(items)}> kThorstenSymbols{{{{",
     ]
     lines += [f"  {{0x{code:04X},{offset},{count}}}," for code,offset,count in items]
@@ -56,7 +63,7 @@ def generate(config_path, output):
         " return {kThorstenSymbols.data(),kThorstenSymbols.size(),",
         "         kThorstenValues.data(),kThorstenValues.size()};",
         "}",
-        "}",
+        "}"+(" }" if namespace else ""),
     ]
     pathlib.Path(output).write_text("\n".join(lines)+"\n",encoding="utf-8")
     print(f"Generated Thorsten Piper table with {len(items)} phonemes and {len(ids)} ids")
@@ -65,8 +72,10 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("config",type=pathlib.Path)
     parser.add_argument("output",type=pathlib.Path)
+    parser.add_argument("--namespace",default="")
+    parser.add_argument("--expected-language",default=None)
     a=parser.parse_args()
-    generate(a.config,a.output)
+    generate(a.config,a.output,a.namespace,a.expected_language)
 
 if __name__=="__main__":
     main()

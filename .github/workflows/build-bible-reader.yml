@@ -78,10 +78,17 @@ jobs:
             --config /tmp/piper-model/de_DE-thorsten-medium.onnx.json \
             --corpus /tmp/bible-assets/de.tsv \
             --output /tmp/neural-preview/de/genesis1
+      - name: Fetch three extra neural voices with verified hashes and license cards
+        run: |
+          bash homebrew/bible-reader/native_piper/fetch_multilingual_voices.sh /tmp/ps5-piper-voices
       - name: Prepare native framework
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
+          # zlib.net/fossils intermittently returns a nonmatching download on CI.
+          # Use the official GitHub release mirror; retain the pinned SHA256 check.
+          sed -i 's|zlib_url="https://zlib.net/fossils/zlib-$zlib_version.tar.gz"|zlib_url="https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"|' app/tools/setup-native-dependencies.sh
+          grep -F 'zlib_url="https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"' app/tools/setup-native-dependencies.sh
           cp homebrew/bible-reader/native/*.cpp homebrew/bible-reader/native/*.hpp app/src/
           mkdir -p app/assets/bible
           cp /tmp/bible-assets/en.tsv app/assets/bible/webpb.tsv
@@ -92,11 +99,24 @@ jobs:
           cp /tmp/neural-preview/de/genesis1/preview-manifest.txt app/assets/tts/neural/de/genesis1/
           mkdir -p app/assets/licenses
           cp /usr/share/doc/fonts-dejavu-core/copyright app/assets/licenses/DejaVu-COPYRIGHT.txt
+          for lang in en fr es; do
+            mkdir -p "app/assets/tts/neural/$lang"
+            cp /tmp/ps5-piper-voices/"$lang"/*.onnx "app/assets/tts/neural/$lang/"
+            cp /tmp/ps5-piper-voices/"$lang"/MODEL_CARD "app/assets/licenses/PiperVoice-$lang-MODEL_CARD.txt"
+          done
+          cat > app/assets/licenses/NEURAL_VOICE_CREDITS.txt <<'EOF'
+          EN: Kristin Medium, public-domain LibriVox audio dataset, rhasspy/piper-voices.
+          DE: Thorsten Medium, Thorsten Voice, rhasspy/Thorsten-Voice.
+          FR: Siwis Medium, SIWIS dataset CC BY 4.0 (https://datashare.is.ed.ac.uk/handle/10283/2353).
+          ES: DaveFX Medium, source voice-datasets CC0 (https://github.com/OHF-Voice/voice-datasets).
+          Model cards included alongside this credit. Piper-voices repository: https://huggingface.co/rhasspy/piper-voices
+          These are independent synthetic voices. Stephen Hawking (Retro TTS) is only an eSpeak computer voice preset.
+          EOF
           python3 - <<'PY'
           import json,pathlib
           p=pathlib.Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.008')
+          d.update(titleId='PPSA99793',conceptId='99793',contentId='UP9000-PPSA99793_00-BIBLEREADER00001',contentVersion='01.000.009')
           d['localizedParameters']['en-US']['titleName']='Bible Reader'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -133,7 +153,19 @@ jobs:
           cp /tmp/piper-onnx-ps5/onnxruntime/include/onnxruntime/core/session/onnxruntime_c_api.h app/src/third_party/onnx/
           python3 homebrew/bible-reader/native_piper/generate_phonemes.py \
             /tmp/piper-model/de_DE-thorsten-medium.onnx.json \
-            app/src/thorsten_phonemes.generated.hpp
+            app/src/thorsten_phonemes.generated.hpp --expected-language de_DE
+          for entry in 'en en_US-kristin-medium en_US' 'fr fr_FR-siwis-medium fr_FR' 'es es_ES-davefx-medium es_ES'; do
+            read -r lang voice locale <<<"$entry"
+            python3 homebrew/bible-reader/native_piper/generate_phonemes.py \
+              "/tmp/ps5-piper-voices/$lang/$voice.onnx.json" \
+              "app/src/voice_${lang}_phonemes.generated.hpp" \
+              --namespace "voice_$lang" --expected-language "$locale"
+          done
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -Iapp/src homebrew/bible-reader/native_piper/phoneme_ids.cpp \
+            homebrew/bible-reader/native_piper/test_multilang_phonemes.cpp \
+            -o /tmp/test-multilang-piper
+          /tmp/test-multilang-piper
           python3 - <<'PY'
           from pathlib import Path
           import shutil
@@ -171,14 +203,14 @@ jobs:
           from pathlib import Path
           path=Path('app/sce_sys/param.json')
           data=json.loads(path.read_text())
-          data['contentVersion']='01.000.008'
+          data['contentVersion']='01.000.009'
           data['titleId']='PPSA99793'
           data['conceptId']='99794'
           data['contentId']='UP9000-PPSA99793_00-BIBLEREADER00001'
           data['localizedParameters']['en-US']['titleName']='Bible Reader'
           path.write_text(json.dumps(data,indent=2)+'\n')
           p=Path('app/src/main.cpp')
-          p.write_text(p.read_text().replace('v0.1.6','v0.1.7'))
+          p.write_text(p.read_text().replace('v0.1.6','v0.1.8'))
           PY
           g++ -std=c++17 -O2 -Wall -Wextra -Werror \
             -Ihomebrew/bible-reader/native_piper -Iapp/src \
@@ -230,7 +262,7 @@ jobs:
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99793'
           assert meta['contentId']=='UP9000-PPSA99793_00-BIBLEREADER00001'
-          assert meta['contentVersion']=='01.000.008'
+          assert meta['contentVersion']=='01.000.009'
           with zipfile.ZipFile('app/dist/PPSA99793.zip') as archive:
               assert archive.testzip() is None
               paths=set(archive.namelist())
@@ -250,6 +282,13 @@ jobs:
                            'assets/tts/neural/de/genesis1/1.pcm',
                            'assets/tts/neural/de/genesis1/31.pcm',
                            'assets/tts/neural/de/de_DE-thorsten-medium.onnx',
+                           'assets/tts/neural/en/en_US-kristin-medium.onnx',
+                           'assets/tts/neural/fr/fr_FR-siwis-medium.onnx',
+                           'assets/tts/neural/es/es_ES-davefx-medium.onnx',
+                           'assets/licenses/NEURAL_VOICE_CREDITS.txt',
+                           'assets/licenses/PiperVoice-en-MODEL_CARD.txt',
+                           'assets/licenses/PiperVoice-fr-MODEL_CARD.txt',
+                           'assets/licenses/PiperVoice-es-MODEL_CARD.txt',
                            'assets/licenses/ONNXRuntime-MIT.txt',
                            'assets/bible/webpb.tsv','assets/bible/de.tsv',
                            'assets/bible/fr.tsv','assets/bible/es.tsv'):
@@ -268,6 +307,10 @@ jobs:
                   raw=archive.read(preview+str(verse)+'.pcm')
                   assert len(raw)>1000 and len(raw)%2==0,verse
               assert len(archive.read('PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx'))>50_000_000
+              for lang,filename in (
+                ('en','en_US-kristin-medium'),('fr','fr_FR-siwis-medium'),('es','es_ES-davefx-medium')):
+                  voice=archive.read('PPSA99793/assets/tts/neural/'+lang+'/'+filename+'.onnx')
+                  assert len(voice)>50_000_000,(lang,len(voice))
               assert b"God's Spirit" in verse_data
               assert b'God\xe2\x80\x99s' not in verse_data
           print('PS5 native ZIP and complete offline Bible verified')
@@ -275,7 +318,7 @@ jobs:
       - name: Upload testbuild
         uses: actions/upload-artifact@v4
         with:
-          name: Bible-Reader-v0.1.7-PPSA99793
+          name: Bible-Reader-v0.1.8-PPSA99793
           path: app/dist/PPSA99793.zip
           if-no-files-found: error
 
@@ -291,7 +334,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: Bible-Reader-v0.1.7-PPSA99793
+          name: Bible-Reader-v0.1.8-PPSA99793
           path: release
       - name: Verify downloaded release ZIP
         run: |
@@ -310,6 +353,10 @@ jobs:
               for lang in ('en','de','fr','es'):
                   assert len(z.read('PPSA99793/assets/tts/espeak-ng-data/'+lang+'_dict'))>512
               assert len(z.read('PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx'))>50_000_000
+              for lang,filename in (
+                ('en','en_US-kristin-medium'),('fr','fr_FR-siwis-medium'),('es','es_ES-davefx-medium')):
+                  assert len(z.read('PPSA99793/assets/tts/neural/'+lang+'/'+filename+'.onnx'))>50_000_000
+                  assert len(z.read('PPSA99793/assets/licenses/PiperVoice-'+lang+'-MODEL_CARD.txt'))>20
               neural='PPSA99793/assets/tts/neural/de/genesis1/'
               for verse in range(1,32):
                   assert len(z.read(neural+str(verse)+'.pcm'))>1000
@@ -320,11 +367,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=bible-reader-v0.1.7
+          tag=bible-reader-v0.1.8
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
             echo "Release and binary already exist; preserving immutable version"
             exit 0
           fi
-          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.1.7" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
+          gh release create "$tag" release/PPSA99793.zip --target "$GITHUB_SHA" --title "Bible Reader v0.1.8" --notes-file homebrew/bible-reader/RELEASE_NOTES.md
           gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fx 'PPSA99793.zip'
