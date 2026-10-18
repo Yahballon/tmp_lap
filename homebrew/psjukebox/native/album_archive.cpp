@@ -229,8 +229,9 @@ std::string archive_cache_root(){
 bool unpack_album(const std::string& path,const std::string& artist,
                   const std::string& album,const std::string& sourceKey,
                   const std::string& cacheRoot,std::string& musicRoot,
-                  std::string& error){
+                  std::string& error,Library* imported){
  musicRoot.clear();error.clear();
+ if(imported)*imported=Library{};
  if(!safe(artist)||!safe(album)||sourceKey.empty()){error="Invalid album/artist name";return false;}
  uint64_t length=0;
  FILE* z=open_album(path,length,error);
@@ -242,8 +243,14 @@ bool unpack_album(const std::string& path,const std::string& artist,
  musicRoot=home+"/Music";
  const std::string folder=musicRoot+"/"+artist+"/"+album;
  const std::string marker=folder+"/.album-ready";
- if(access(marker.c_str(),R_OK)==0){fclose(z);return true;}
+ // Even an already-imported archive needs an index on consoles where
+ // opendir() is denied for the app-owned /data/.../AlbumCache directory.
+ // Do not return early for the .album-ready marker.
+ FILE* ready=fopen(marker.c_str(),"rb");
+ const bool cached=ready!=nullptr;
+ if(ready)fclose(ready);
  bool okay=false;
+ std::vector<Entry> validatedFiles;
  do{
   const size_t tailSize=(size_t)std::min<uint64_t>(length,65557);
   std::vector<unsigned char> tail(tailSize);
@@ -293,21 +300,65 @@ bool unpack_album(const std::string& path,const std::string& artist,
    files.push_back({base,u32(h+16),compressed,plain,u32(h+42),method,flags});
   }
   if(invalid||files.empty()){if(error.empty())error="Invalid or empty packed album";break;}
-  if(!dir(cacheRoot)||!dir(home)||!dir(musicRoot)||!dir(musicRoot+"/"+artist)||!dir(folder)){
-   error="Could not create album cache";break;
+  unsigned playable=0;
+  for(const auto& entry:files)if(is_music(entry.name))++playable;
+  if(!playable){error="Packed album has no supported playable tracks";break;}
+  if(!cached){
+   if(!dir(cacheRoot)||!dir(home)||!dir(musicRoot)||!dir(musicRoot+"/"+artist)||!dir(folder)){
+    error="Could not create album cache";break;
+   }
+   bool extracted=true;
+   for(const auto& entry:files){
+    if(!write_entry(z,entry,folder+"/"+entry.name,
+                    is_music(entry.name)?maxTrack:maxArt,error)){extracted=false;break;}
+   }
+   if(!extracted)break;
+   FILE* done=fopen(marker.c_str(),"wb");
+   if(!done){error="Cannot write archive-ready marker";break;}
+   fprintf(done,"ZIP %llu entries=%zu\n",(unsigned long long)length,files.size());
+   fclose(done);
   }
-  bool extracted=true;
-  for(const auto& entry:files){
-   if(!write_entry(z,entry,folder+"/"+entry.name,
-                   is_music(entry.name)?maxTrack:maxArt,error)){extracted=false;break;}
-  }
-  if(!extracted)break;
-  FILE* done=fopen(marker.c_str(),"wb");
-  if(!done){error="Cannot write archive-ready marker";break;}
-  fprintf(done,"ZIP %llu entries=%zu\n",(unsigned long long)length,files.size());
-  fclose(done);okay=true;
+  validatedFiles=std::move(files);
+  okay=true;
  }while(false);
  fclose(z);
- return okay;
+ if(!okay)return false;
+ // Build the media catalog from the verified ZIP central-directory entries.
+ // opendir/stat on our new AlbumCache can fail with EPERM on PS5, even though
+ // files created by the app can be opened by FFmpeg, so never rescan the path.
+ if(imported){
+  Library catalog;
+  Artist a;a.name=artist;a.path=musicRoot+"/"+artist;
+  Album albumEntry;albumEntry.name=album;albumEntry.path=folder;
+  int coverRank=100,backgroundRank=100;
+  for(const auto& e:validatedFiles){
+   const std::string filename=lower(e.name),filepath=folder+"/"+e.name;
+   auto rank=[&](const char* stem)->int{
+    const std::string prefix=stem;
+    if(filename==prefix+".png")return 0;
+    if(filename==prefix+".jpg")return 1;
+    if(filename==prefix+".jpeg")return 2;
+    return 99;
+   };
+   if(is_music(e.name)){
+    auto dot=e.name.find_last_of('.');
+    std::string title=e.name.substr(0,dot);
+    for(char& c:title)if(c=='_')c=' ';
+    albumEntry.tracks.push_back({std::move(title),filepath,e.plain});
+   }
+   const int c=rank("cover"),b=rank("background");
+   if(c<coverRank){coverRank=c;albumEntry.cover=filepath;}
+   if(b<backgroundRank){backgroundRank=b;albumEntry.background=filepath;}
+  }
+  std::sort(albumEntry.tracks.begin(),albumEntry.tracks.end(),[](const Track& x,const Track& y){
+   return lower(x.name)<lower(y.name);
+  });
+  catalog.trackCount=albumEntry.tracks.size();
+  catalog.report="ARCHIVE_INDEX "+artist+"/"+album+" tracks="+std::to_string(catalog.trackCount);
+  a.albums.push_back(std::move(albumEntry));
+  catalog.artists.push_back(std::move(a));
+  *imported=std::move(catalog);
+ }
+ return true;
 }
 }

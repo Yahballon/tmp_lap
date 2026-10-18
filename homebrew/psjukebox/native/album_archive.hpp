@@ -2,6 +2,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include "library.hpp"
 namespace jukebox {
 // A .album is a regular ZIP file renamed to .album. Audio/cover/background
 // entries can be stored at archive root or inside one wrapping folder.
@@ -15,5 +16,5 @@ std::string archive_cache_root();
 bool unpack_album(const std::string& archive,const std::string& artist,
                   const std::string& album,const std::string& sourceKey,
                   const std::string& cacheRoot,std::string& musicRoot,
-                  std::string& error);
+                  std::string& error,Library* imported=nullptr);
 }

@@ -192,3 +192,7 @@ Actual PS5 logs from v0.1.7 show that the new helper finds `Music/wu-tang-foreve
 ## v0.1.9 — Native ZIP import crash fix / cleaner album header
 
 An actual PS5 fault (`SIGSEGV` directly after `ALBUM_EXTRACT_BEGIN`) exposed excessive stack usage in the ZIP extraction routine: two 32 KiB local buffers on a background worker stack. v0.1.9 uses heap-owned scratch and includes a **64 KiB thread-stack regression test** for archive extraction, artist marker, cover/background and music scanning. The large album-directory name above the selected cover was also removed, leaving the carousel and playing track display intact. PS5 hardware acceptance remains necessary.
+
+## v0.1.10 — Sandboxed .album cache indexing
+
+The v0.1.9 console log showed the new packed album was found, copied and extracted, but the library displayed `ALBUM_OK ... tracks=0`. The PS5 sandbox refused `opendir` on app-owned AlbumCache paths (`errno=1`). Packed album files now **produce a complete Artist → Album → Track catalog directly from validated ZIP directory entries**. Audio paths, sizes, album covers, and album backgrounds are imported without scanning protected cache directories, including for already-extracted archive caches. CI tests simulate blocked `opendir` and verify playback paths can still be opened.
