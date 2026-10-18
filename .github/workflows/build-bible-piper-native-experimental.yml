@@ -130,6 +130,8 @@ jobs:
           mkdir -p app/assets/tts/neural/de app/src/third_party/onnx app/lib/nativeort
           cp "$model" app/assets/tts/neural/de/de_DE-thorsten-medium.onnx
           cp homebrew/bible-reader/native_piper/{piper_onnx.cpp,piper_onnx.hpp,phoneme_ids.cpp,phoneme_ids.hpp} app/src/
+          cp homebrew/bible-reader/native_piper/ps5_thread_atexit.cpp app/src/
+
           cp /tmp/piper-onnx-ps5/onnxruntime/include/onnxruntime/core/session/onnxruntime_c_api.h app/src/third_party/onnx/
           python3 homebrew/bible-reader/native_piper/generate_phonemes.py \
             /tmp/piper-model/de_DE-thorsten-medium.onnx.json \
@@ -197,6 +199,14 @@ jobs:
           mkdir -p app/build/jb-json
           cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
           llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Test C++ thread-local destructor hook on Linux
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread \
+            homebrew/bible-reader/native_piper/ps5_thread_atexit.cpp \
+            homebrew/bible-reader/native_piper/test_thread_atexit.cpp \
+            -o /tmp/bible-piper-thread-atexit-test
+          /tmp/bible-piper-thread-atexit-test
+          echo "PS5 __cxa_thread_atexit_impl hook host smoke test passed"
       - name: Compile native PS5 executable
         working-directory: app
         env:
