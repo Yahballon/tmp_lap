@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json,sys,zipfile,struct
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageChops
 meta=json.loads(Path("homebrew/psjukebox/app.json").read_text())
 name=meta["titleId"]
 p=Path(sys.argv[1])
@@ -14,6 +14,13 @@ assert param["titleId"]==name
 assert param["contentId"]==meta["contentId"]
 with Image.open(root/"sce_sys/icon0.png") as icon:
  assert icon.size==(512,512)
+ with Image.open("homebrew/psjukebox/assets/neon-icon.webp") as source:
+  expected=source.convert("RGB").resize((512,512),Image.Resampling.LANCZOS)
+  assert ImageChops.difference(icon.convert("RGB"),expected).getbbox() is None, "PS5 menu icon is not the new neon jukebox artwork"
+with Image.open(root/"assets/icon0.png") as app_icon:
+ assert app_icon.size==(512,512)
+ with Image.open(root/"sce_sys/icon0.png") as menu_icon:
+  assert ImageChops.difference(app_icon.convert("RGB"),menu_icon.convert("RGB")).getbbox() is None, "In-app icon differs from PS5 tile icon"
 helper=root/"jbxscan.elf"
 assert helper.is_file() and helper.stat().st_size>1024
 assert helper.read_bytes()[:4]==bytes([127,69,76,70])
