@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.10
+// PSJukebox by YAHBALLON v0.1.11
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -9,6 +9,7 @@
 #include "remote_bridge.hpp"
 #include "stick_nav.hpp"
 #include "cover_motion.hpp"
+#include "cover_browse.hpp"
 #include "favorites.hpp"
 #include "album_archive.hpp"
 #include "smb_music.hpp"
@@ -33,7 +34,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.10";
+constexpr const char* version="v0.1.11";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -268,7 +269,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.10");
+ log("BOOT v0.1.11");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -317,7 +318,8 @@ int main(){
  unsigned held=0,frame=0;int hold=0;
  jukebox::CoverMotion coverMotion;
  std::string previousBackground;
- bool analogCoverArmed=true;
+ jukebox::CoverStickEdges coverStick;
+ bool waitForListStickNeutral=false;
  int settingsReturnScreen=0;
  std::chrono::steady_clock::time_point lastFrame=std::chrono::steady_clock::now();
  jukebox::StickNavigator analogNavigator;
@@ -357,6 +359,8 @@ int main(){
   else{message="Audio file inaccessible: "+cut(t.name,36);log(message);}
  };
  auto next_track=[&](int delta){
+  const int selectedArtist=artistIndex,selectedAlbum=albumIndex,selectedTrack=trackIndex;
+  const int previousScreen=screen;
   if(havePlayingSong){
    artistIndex=static_cast<int>(playingSong.artist);
    albumIndex=static_cast<int>(playingSong.album);
@@ -365,6 +369,12 @@ int main(){
   auto* a=currentAlbum();if(!a||a->tracks.empty())return;
   trackIndex=(trackIndex+delta+(int)a->tracks.size())%(int)a->tracks.size();
   play_track();
+  // Continue the queue without yanking the browsing focus back to the
+  // playing artist whenever an unrelated song finishes.
+  if(previousScreen==0||previousScreen==1||previousScreen==5){
+   artistIndex=selectedArtist;albumIndex=selectedAlbum;trackIndex=selectedTrack;
+   screen=previousScreen;
+  }
  };
  auto toggle_favorite=[&](const std::string& path){
   if(path.empty()){message="Select a track first";return;}
@@ -396,30 +406,46 @@ int main(){
   const float frameDt=std::clamp(std::chrono::duration<float>(currentFrame-lastFrame).count(),0.f,0.05f);
   lastFrame=currentFrame;
   coverMotion.tick(frameDt);
-  int analogCoverDirection=0;
-  if(screen==0&&!headerFocus&&analogSample.connected&&
+  // On the album/playing view both analog sticks use horizontal seek and
+  // vertical tracklist/header navigation. They no longer rapidly skip covers.
+  if((screen==0||screen==2)&&!headerFocus&&analogSample.connected&&
      !(analogSample.buttons&hui::pad_bits::kIntercepted)){
-   const int x=analogSample.left_x<60||analogSample.right_x<60?-1:
-               (analogSample.left_x>195||analogSample.right_x>195?1:0);
-   if(x==0)analogCoverArmed=true;
-   else if(analogCoverArmed){analogCoverDirection=x;analogCoverArmed=false;}
-  }else analogCoverArmed=true;
+   const int dir=coverStick.tick(analogSample.left_x,analogSample.left_y,
+                                analogSample.right_x,analogSample.right_y);
+   if(dir==-1)pressed|=hui::pad_bits::kLeft;
+   if(dir==1)pressed|=hui::pad_bits::kRight;
+   if(dir==-2)pressed|=hui::pad_bits::kUp;
+   if(dir==2){pressed|=hui::pad_bits::kDown;waitForListStickNeutral=true;}
+  }else coverStick.reset();
   if(--hold<=0){
    // Never synthesize repeated left/right cover presses.
-   if(screen!=0&&now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;
-   if(screen!=0&&now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
-   if(now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;
-   if(now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;
+   // Seek and tracklist navigation on the cover/player view are edge-only:
+   // holding left/right does not unexpectedly jump through a whole song.
+   if(screen!=0&&screen!=2&&now&hui::pad_bits::kLeft)pressed|=hui::pad_bits::kLeft;
+   if(screen!=0&&screen!=2&&now&hui::pad_bits::kRight)pressed|=hui::pad_bits::kRight;
+   if(screen!=0&&screen!=2&&now&hui::pad_bits::kUp)pressed|=hui::pad_bits::kUp;
+   if(screen!=0&&screen!=2&&now&hui::pad_bits::kDown)pressed|=hui::pad_bits::kDown;
    hold=11;
   }
-  if(screen!=0&&analogSample.connected&&!(analogSample.buttons&hui::pad_bits::kIntercepted)){
-   switch(analogNavigator.tick(analogSample.left_x,analogSample.left_y,
-                               analogSample.right_x,analogSample.right_y)){
-    case -1: pressed|=hui::pad_bits::kLeft;break;
-    case 1: pressed|=hui::pad_bits::kRight;break;
-    case -2: pressed|=hui::pad_bits::kUp;break;
-    case 2: pressed|=hui::pad_bits::kDown;break;
-    default:break;
+  if(screen!=0&&screen!=2&&analogSample.connected&&
+     !(analogSample.buttons&hui::pad_bits::kIntercepted)){
+   const bool neutral=
+      analogSample.left_x>=60&&analogSample.left_x<=195&&
+      analogSample.left_y>=60&&analogSample.left_y<=195&&
+      analogSample.right_x>=60&&analogSample.right_x<=195&&
+      analogSample.right_y>=60&&analogSample.right_y<=195;
+   if(waitForListStickNeutral){
+    if(neutral)waitForListStickNeutral=false;
+    analogNavigator.reset();
+   }else{
+    switch(analogNavigator.tick(analogSample.left_x,analogSample.left_y,
+                                analogSample.right_x,analogSample.right_y)){
+     case -1: pressed|=hui::pad_bits::kLeft;break;
+     case 1: pressed|=hui::pad_bits::kRight;break;
+     case -2: pressed|=hui::pad_bits::kUp;break;
+     case 2: pressed|=hui::pad_bits::kDown;break;
+     default:break;
+    }
    }
   }else analogNavigator.reset();
   std::vector<ScanReady> scanned;
@@ -455,8 +481,9 @@ int main(){
   if(transferBusy.load()&&(pressed&hui::pad_bits::kCircle)){
    transferCancel.store(true);message="Cancelling USB song transfer...";pressed=0;
   }
-  // Tabs use UP + LEFT/RIGHT + X. L2/R2 are reserved for albums.
-  // Square never opens settings; Options is the sole Settings shortcut.
+  // Tabs use UP + LEFT/RIGHT + X. L1/R1 always browse artists and
+  // L2/R2 always browse album covers while library/playing/tracklist is open.
+  // Square pauses; OPTIONS is the only settings shortcut.
   if(!exitDialog&&pressed&hui::pad_bits::kOptions){
    if(screen==4){screen=settingsReturnScreen;}
    else{settingsReturnScreen=screen;screen=4;}
@@ -471,6 +498,54 @@ int main(){
     pressed=0;
    }else{
     if(screen==0&&(pressed&hui::pad_bits::kUp)){headerFocus=true;pressed=0;}
+   }
+  }
+  // Route shoulder buttons BEFORE individual screens, so navigating artists
+  // or album covers works during playback without stopping the audio decoder.
+  if(!exitDialog&&!headerFocus&&jukebox::allows_live_album_browse(screen)){
+   const int artistStep=(pressed&hui::pad_bits::kL1)?-1:
+                        (pressed&hui::pad_bits::kR1)?1:0;
+   const int albumStep=(pressed&hui::pad_bits::kL2)?-1:
+                       (pressed&hui::pad_bits::kR2)?1:0;
+   if(artistStep&&!library.artists.empty()){
+    artistIndex=(artistIndex+artistStep+(int)library.artists.size())%
+                (int)library.artists.size();
+    albumIndex=trackIndex=0;
+    coverMotion.reset();previousBackground.clear();
+    screen=0;headerIndex=0;
+    log("BROWSE_ARTIST "+library.artists[(size_t)artistIndex].name);
+   }else if(albumStep){
+    auto* current=currentArtist();
+    auto* selected=currentAlbum();
+    if(current&&current->albums.size()>1&&coverMotion.begin(albumStep)){
+     previousBackground=selected?jukebox::album_background(*current,*selected):std::string{};
+     albumIndex=(albumIndex+albumStep+(int)current->albums.size())%
+                 (int)current->albums.size();
+     trackIndex=0;
+     log("BROWSE_ALBUM "+current->albums[(size_t)albumIndex].name);
+    }
+    screen=0;headerIndex=0;
+   }
+   pressed&=~(hui::pad_bits::kL1|hui::pad_bits::kR1|
+              hui::pad_bits::kL2|hui::pad_bits::kR2);
+   // D-pad or analog left/right seek in the active audio without changing
+   // selected album. The analog stick emits only a single edge per tilt.
+   if(havePlayingSong&&(pressed&hui::pad_bits::kLeft))player.skip(-10);
+   if(havePlayingSong&&(pressed&hui::pad_bits::kRight))player.skip(10);
+   pressed&=~(hui::pad_bits::kLeft|hui::pad_bits::kRight);
+   // Down opens the selected album's tracklist on both views, even if a
+   // song is already playing. Focus the playing track when it is this album.
+   if((screen==0||screen==2)&&(pressed&hui::pad_bits::kDown)){
+    auto* a=currentAlbum();
+    if(a){
+     trackIndex=(havePlayingSong&&playingSong.artist==(size_t)artistIndex&&
+                 playingSong.album==(size_t)albumIndex)?
+                 (int)playingSong.track:0;
+     screen=1;headerIndex=2;headerFocus=false;
+     analogNavigator.reset();
+     log("TRACKLIST_OPEN "+a->name);
+    }else message="Select an album to view its tracks";
+    pressed&=~hui::pad_bits::kDown;
    }
   }
   auto favSongs=current_queue();
@@ -495,32 +570,9 @@ int main(){
    else if(screen==1&&havePlayingSong){screen=2;headerIndex=0;}
    else activate_tab(0);
   }else if(screen==0){
-   if(!library.artists.empty()){
-    if(pressed&hui::pad_bits::kL1){
-     artistIndex=(artistIndex+(int)library.artists.size()-1)%(int)library.artists.size();
-     albumIndex=trackIndex=0;coverMotion.reset();previousBackground.clear();
-    }
-    if(pressed&hui::pad_bits::kR1){
-     artistIndex=(artistIndex+1)%(int)library.artists.size();
-     albumIndex=trackIndex=0;coverMotion.reset();previousBackground.clear();
-    }
-   }
-   // Triggers select exactly one jacket per press; while sliding, skip input.
-   const int step=(pressed&hui::pad_bits::kL2)?-1:
-                  (pressed&hui::pad_bits::kR2)?1:
-                  (pressed&hui::pad_bits::kLeft)?-1:
-                  (pressed&hui::pad_bits::kRight)?1:analogCoverDirection;
+   // Album and artist selection was handled above, including when playing.
+   // Refresh pointers so X always plays the newly selected album.
    artist=currentArtist();album=currentAlbum();
-   if(artist&&artist->albums.size()>1&&step&&coverMotion.begin(step)){
-    previousBackground=album?jukebox::album_background(*artist,*album):std::string{};
-    const int count=(int)artist->albums.size();
-    albumIndex=(albumIndex+step+count)%count;
-    trackIndex=0;
-   }
-   if(pressed&hui::pad_bits::kDown){
-    if(album){trackIndex=0;screen=1;headerIndex=2;headerFocus=false;}
-    else message="Select an album to view its tracks";
-   }
    if(pressed&hui::pad_bits::kCross&&album&&!album->tracks.empty()){trackIndex=0;play_track();}
    if(pressed&hui::pad_bits::kTriangle){
     if(const auto* song=active_track())toggle_favorite(song->path);
@@ -540,12 +592,15 @@ int main(){
    }
    if(pressed&hui::pad_bits::kSquare&&havePlayingSong)player.toggle_pause();
   }else if(screen==2){
-   if(pressed&hui::pad_bits::kCross){screen=1;headerIndex=2;}
+   if(pressed&hui::pad_bits::kCross){
+    if(album){
+     trackIndex=(havePlayingSong&&playingSong.artist==(size_t)artistIndex&&
+                 playingSong.album==(size_t)albumIndex)?
+                 (int)playingSong.track:0;
+     screen=1;headerIndex=2;
+    }
+   }
    if(pressed&hui::pad_bits::kSquare)player.toggle_pause();
-   if(pressed&hui::pad_bits::kLeft)player.skip(-10);
-   if(pressed&hui::pad_bits::kRight)player.skip(10);
-   if(pressed&hui::pad_bits::kL1)next_track(-1);
-   if(pressed&hui::pad_bits::kR1)next_track(1);
    if(pressed&hui::pad_bits::kTriangle){
     const auto* track=active_track();toggle_favorite(track?track->path:std::string{});
    }
@@ -629,8 +684,8 @@ int main(){
    image_fit(d,cached(artist->logo),22,8,465,98);
    if(!cached(artist->logo).id)label(d,font,atlas,cut(artist->name,24),48,74,41,color(accent));
   }else label(d,font,atlas,"PSJUKEBOX",48,76,40,color(accent));
-  // Top library tabs are controller accessible: UP then left/right + X,
-  // or L2/R2 cycles when not playing.
+  // Top tabs: UP from the album browser, D-pad left/right, then X.
+  // L2/R2 stay dedicated to album browsing, even during playback.
   static constexpr const char* tabNames[]={"All Albums","Artists","Tracks","Playlists","Favorites"};
   static constexpr float tabX[]={566.f,716.f,866.f,1016.f,1166.f};
   for(int i=0;i<5;i++){
@@ -698,8 +753,8 @@ int main(){
     const float position=(float)delta+slide;
     if(std::fabs(position)>2.7f)continue;
     const float focus=std::clamp(1.f-std::fabs(position),0.f,1.f);
-    const float w=318.f+77.f*focus,h=320.f+96.f*focus;
-    const float x=960.f+position*350.f-w*.5f,y=424.f-51.f*focus;
+    const auto slot=jukebox::cover_slot(position);
+    const float x=slot.x,y=slot.y,w=slot.w,h=slot.h;
     if(focus>.1f)d.glow({x-8,y-8,w+16,h+16},15,9,color(accent,.5f+focus*.5f));
     d.shadow({x,y,w,h},8,17,color(0x000000,.82f));
     d.bordered_rect({x,y,w,h},5,color(0x060913),2.f+3.f*focus,
@@ -731,11 +786,11 @@ int main(){
       d.rounded_rect({574,914,std::max(3.f,760*prog),12},6,color(accent));
       label(d,font,atlas,stamp(state.seconds),550,926,18,white,Align::right);
       label(d,font,atlas,stamp(state.duration),1359,926,18,white);
-      label(d,font,atlas,state.paused?"PAUSED":"NOW PLAYING",960,955,16,muted,Align::center);
+      label(d,font,atlas,state.paused?"PAUSED":"LEFT / RIGHT  Seek 10s    DOWN  Tracklist",960,956,16,muted,Align::center);
      }
     }
    }else{
-    label(d,font,atlas,"L2/R2 Albums   DOWN Tracklist   X Play   Triangle Favorite",960,902,19,muted,Align::center);
+    label(d,font,atlas,"L1/R1 Artist  |  L2/R2 Albums  |  DOWN Tracks  |  X Play",960,900,18,muted,Align::center);
    }
   }else if((screen==1||screen==5)&&album){
    d.rounded_rect({142,245,1636,680},13,color(0x050810,.88f));
@@ -791,7 +846,7 @@ int main(){
     label(d,font,atlas,options[i],960,430+i*85.f,27,white,Align::center);
    }
    label(d,font,atlas,"Favorites: /data/PSJukebox/favorites.json",960,721,21,muted,Align::center);
-   label(d,font,atlas,"L1/R1 Artist | L2/R2 Album | Down Tracklist | SMB: /data/PSJukebox/smb.ini",960,765,19,muted,Align::center);
+   label(d,font,atlas,"L1/R1 Artist | L2/R2 Albums | LEFT/RIGHT Seek | DOWN Tracklist",960,765,19,muted,Align::center);
   }else{
    label(d,font,atlas,"NO ALBUMS FOUND",960,485,34,color(accent),Align::center);
    label(d,font,atlas,"Music/Artist/Album/cover.jpg + song.mp3",960,534,23,white,Align::center);

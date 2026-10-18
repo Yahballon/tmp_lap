@@ -28,6 +28,23 @@ jobs:
           /tmp/psjukebox-test
           g++ -std=c++20 -Wall -Wextra -Werror homebrew/psjukebox/tests/stick_nav_test.cpp -o /tmp/psjukebox-stick-test
           /tmp/psjukebox-stick-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/tests/cover_browse_test.cpp \
+            -o /tmp/psjukebox-cover-browse-test
+          /tmp/psjukebox-cover-browse-test
+          # Check integration as well as the standalone input and geometry math.
+          python3 - <<'PY'
+          from pathlib import Path
+          code=Path('homebrew/psjukebox/native/main.cpp').read_text()
+          assert 'jukebox::allows_live_album_browse(screen)' in code
+          assert 'screen=0;headerIndex=0;' in code
+          assert 'player.skip(-10)' in code and 'player.skip(10)' in code
+          assert 'if((screen==0||screen==2)&&(pressed&hui::pad_bits::kDown))' in code
+          assert 'jukebox::cover_slot(position)' in code
+          assert 'if(pressed&hui::pad_bits::kL1)next_track(-1);' not in code
+          assert 'if(pressed&hui::pad_bits::kR1)next_track(1);' not in code
+          print('PASS: live player controls connected to browser and album layout')
+          PY
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/psjukebox/tests/cover_motion_test.cpp -o /tmp/psjukebox-cover-motion-test
           /tmp/psjukebox-cover-motion-test
           g++ -std=c++20 -Wall -Wextra -Werror homebrew/psjukebox/native/favorites.cpp homebrew/psjukebox/tests/favorites_test.cpp -o /tmp/psjukebox-favorites-test
@@ -172,7 +189,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.10
+          name: PSJukebox-v0.1.11
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -185,5 +202,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.10 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.11 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
