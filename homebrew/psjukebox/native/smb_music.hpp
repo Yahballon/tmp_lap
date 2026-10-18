@@ -5,6 +5,12 @@
 #include <string>
 #include <vector>
 namespace smb_music {
+// SMB configuration is stored on the console, never bundled in the release.
+struct Settings {
+ std::string server,share,path,username="Guest",password,domain;
+};
+bool read_settings(Settings& settings,std::string& error);
+bool save_settings(const Settings& settings,std::string& error);
 struct ScanResult{
  jukebox::Library library;
  std::vector<jukebox::PackedAlbum> archives;
