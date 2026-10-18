@@ -1,0 +1,118 @@
+name: Import PS5NESX Sources
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-ps5nesx.yml'
+permissions:
+  contents: write
+concurrency:
+  group: import-ps5nesx
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Import PS5NESX native source (one-time)
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          dst=homebrew/ps5nesx
+          if test -s "$dst/nes/tools/build_shelf.py"; then
+            echo "Already imported; preserving tmp_lap edits"
+            echo 'imported=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git clone --quiet --depth=1 --filter=blob:none --sparse \
+            https://github.com/Yahballon/PS5NESX.git "$RUNNER_TEMP/PS5NESX"
+          git -C "$RUNNER_TEMP/PS5NESX" sparse-checkout set --cone \
+            nes ps5 3rdparty/include 3rdparty/vulkan/include
+          src="$RUNNER_TEMP/PS5NESX"
+          mkdir -p "$dst/3rdparty/vulkan"
+          cp -a "$src/nes" "$src/ps5" "$dst/"
+          cp -a "$src/3rdparty/include" "$dst/3rdparty/"
+          cp -a "$src/3rdparty/vulkan/include" "$dst/3rdparty/vulkan/"
+          for f in README.md BUILDING.md COPYING.GPLv3 LICENSE RELEASE_NOTES.md THIRD_PARTY_NOTICES.md; do
+            cp -a "$src/$f" "$dst/$f"
+          done
+          git -C "$src" rev-parse HEAD > "$dst/UPSTREAM_COMMIT"
+          cat > "$dst/app.json" <<'JSON'
+          {
+            "name": "PS5NESX",
+            "slug": "ps5nesx",
+            "titleId": "PPSA99204",
+            "version": "1.0.9",
+            "upstreamVersion": "1.0.0.9",
+            "releaseTag": "ps5nesx-v1.0.9",
+            "sourceRepository": "Yahballon/PS5NESX",
+            "sourceScope": ["nes", "ps5", "3rdparty/include", "3rdparty/vulkan/include"],
+            "dataFolder": "/data/PS5NES",
+            "installFolder": "PPSA99204",
+            "core": "FCEUmm",
+            "frontend": "PS5SX2 cover-flow",
+            "supportedRomExtensions": [".nes", ".unf", ".unif", ".zip"]
+          }
+          JSON
+          cat > "$dst/TMP_LAP.md" <<'MD'
+          # PS5NESX TESTBUILDS port
+          Source snapshot from https://github.com/Yahballon/PS5NESX.
+          The native app is in `nes/` and uses `ps5/` and Vulkan headers in `3rdparty/`.
+          The unrelated PCSX2 desktop scaffold is excluded deliberately.
+          Edit this folder in tmp_lap, update `app.json` to the next SemVer
+          (e.g. 1.0.10), and run **Build PS5NESX Native**.
+          The resulting GitHub Release is named `ps5nesx-v<version>`
+          with the installable `PPSA99204.zip` and is discovered by `version.json`.
+          `1.0.9` is an unchanged rehost of the upstream `v1.0.0.9` binary.
+          Never bundle commercial NES ROMs.
+          MD
+          test -f "$dst/nes/sce_sys/param.json"
+          test -f "$dst/ps5/frontend/fe_app.cpp"
+          test -f "$dst/3rdparty/vulkan/include/vulkan/vulkan.h"
+          python3 -m py_compile "$dst/nes/tools/build_shelf.py" "$dst/nes/tools/check_memory.py"
+          git add -f "$dst"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: import PS5NESX native NES source for TESTBUILDS [skip ci]'
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push origin HEAD:main; then break; fi
+            if (( attempt == 3 )); then exit 1; fi
+            sleep 3
+          done
+          echo 'imported=true' >> "$GITHUB_OUTPUT"
+      - name: Import existing signed v1.0.0.9 baseline as TESTBUILD v1.0.9
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=ps5nesx-v1.0.9
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq PPSA99204.zip
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/ps5nesx-dist"
+          gh release download v1.0.0.9 \
+            --repo Yahballon/PS5NESX --pattern PPSA99204.zip \
+            --dir "$RUNNER_TEMP/ps5nesx-dist"
+          python3 - "$RUNNER_TEMP/ps5nesx-dist/PPSA99204.zip" <<'PY'
+          import sys,zipfile,json
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              assert archive.testzip() is None
+              names=archive.namelist()
+              assert 'PPSA99204/eboot.bin' in names, names[:15]
+              assert 'PPSA99204/sce_sys/param.json' in names
+              assert json.loads(archive.read('PPSA99204/sce_sys/param.json'))['titleId']=='PPSA99204'
+          print('Verified original upstream install ZIP')
+          PY
+          gh release create "$TAG" "$RUNNER_TEMP/ps5nesx-dist/PPSA99204.zip" \
+            --repo "$GITHUB_REPOSITORY" --target main \
+            --title 'PS5NESX v1.0.9 - baseline TESTBUILD' \
+            --notes 'Unmodified signed PPSA99204.zip from Yahballon/PS5NESX v1.0.0.9. PS5NESX native source mirrored to homebrew/ps5nesx for future changes and builds.'

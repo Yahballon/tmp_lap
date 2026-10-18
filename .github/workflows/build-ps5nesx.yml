@@ -1,0 +1,158 @@
+name: Build PS5NESX Native
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5nesx/nes/**'
+      - 'homebrew/ps5nesx/ps5/**'
+      - 'homebrew/ps5nesx/3rdparty/**'
+      - 'homebrew/ps5nesx/app.json'
+permissions:
+  contents: write
+concurrency:
+  group: ps5nesx-native-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify imported source and release version
+        id: info
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s homebrew/ps5nesx/nes/tools/build_shelf.py
+          test -s homebrew/ps5nesx/ps5/frontend/fe_app.cpp
+          python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          x=json.loads(Path('homebrew/ps5nesx/app.json').read_text())
+          assert x['titleId']=='PPSA99204' and x['slug']=='ps5nesx'
+          assert re.fullmatch(r'\d+\.\d+\.\d+',x['version'])
+          assert x['releaseTag']==f"ps5nesx-v{x['version']}"
+          with open(os.environ['GITHUB_OUTPUT'],'a') as o:
+              o.write(f"version={x['version']}\n")
+              o.write(f"tag={x['releaseTag']}\n")
+          print('Build native PS5NESX',x['releaseTag'])
+          PY
+      - name: Install toolchain packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git wget curl unzip zip make cmake ninja-build clang-18 lld-18 llvm-18 \
+            build-essential pkg-config meson glslang-tools zstd bison flex \
+            libssl-dev libzstd-dev libx11-dev libgl1-mesa-dev \
+            python3 python3-mako python3-numpy python3-pil
+          echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+      - name: Restore native PS5 graphics cache shared with MesenX
+        id: graphics
+        uses: actions/cache/restore@v4
+        with:
+          path: homebrew/ps5-mesenx/build/deps
+          key: ps5-mesenx-graphics-v1-${{ hashFiles('homebrew/ps5-mesenx/scripts/bootstrap_native.sh') }}
+      - name: Bootstrap pinned PS5 Vulkan and payload SDK when not cached
+        if: steps.graphics.outputs.cache-hit != 'true'
+        timeout-minutes: 280
+        run: bash homebrew/ps5-mesenx/scripts/bootstrap_native.sh
+      - name: Save native graphics cache for reuse
+        if: steps.graphics.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: homebrew/ps5-mesenx/build/deps
+          key: ps5-mesenx-graphics-v1-${{ hashFiles('homebrew/ps5-mesenx/scripts/bootstrap_native.sh') }}
+      - name: Resolve PS5NESX network and filesystem dependencies
+        timeout-minutes: 70
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/homebrew/ps5nesx"
+          deps="$root/deps"
+          mkdir -p "$deps"
+          ln -s "$GITHUB_WORKSPACE/homebrew/ps5-mesenx/build/deps/PS5_Vulkan" "$deps/PS5_Vulkan"
+          test -s "$deps/PS5_Vulkan/build/driver/ps5/libps5vk.ps5.a"
+          git clone -q --depth 1 --branch libnfs-5.0.3 \
+            https://github.com/sahlberg/libnfs.git "$deps/libnfs"
+          bash "$root/ps5/tools/build-libnfs.sh" \
+            "$deps/libnfs" "$deps/libnfs-output" \
+            "$deps/PS5_Vulkan/.deps/native/ps5-payload-sdk/toolchain/prospero.cmake"
+          git clone -q --depth 1 \
+            https://github.com/blackbearreloaded/ps5-native-app-boilerplate.git \
+            "$deps/filesystem-helper"
+          bash "$deps/filesystem-helper/tools/setup-pacbrew-dependencies.sh" --resolve libcurl
+          for lib in curl psl ssl crypto zstd z; do
+            test -s "$deps/filesystem-helper/.deps/pacbrew/v0.40.2/sysroot/user/homebrew/lib/lib$lib.a"
+          done
+          test -s "$deps/libnfs-output/install/lib/libnfs.a"
+      - name: Build and sign PS5NESX from tmp_lap source
+        timeout-minutes: 110
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd homebrew/ps5nesx
+          export PS5NES_DEPS="$PWD/deps"
+          export PS5_PAYLOAD_SDK="$PS5NES_DEPS/PS5_Vulkan/.deps/native/ps5-payload-sdk"
+          export LIBNFS_PREFIX="$PS5NES_DEPS/libnfs-output/install"
+          export LIBZ_PREFIX="$PS5NES_DEPS/filesystem-helper/.deps/pacbrew/v0.40.2/sysroot/user/homebrew"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          meta=json.loads(Path('app.json').read_text())
+          version=meta['version']
+          # Keep build-produced metadata aligned to TESTBUILDS SemVer.
+          builder=Path('nes/tools/build_shelf.py')
+          s=builder.read_text()
+          s=s.replace('PS5NES v1.0.0.9', 'PS5NES v'+version)
+          s=s.replace('PS5NES-v1.0.0.9', 'PS5NES-v'+version)
+          builder.write_text(s)
+          param=Path('nes/sce_sys/param.json')
+          p=json.loads(param.read_text())
+          pieces=list(map(int,version.split('.')))
+          p['contentVersion']=f"{pieces[0]:02d}.{pieces[1]:03d}.{pieces[2]:03d}"
+          assert p['titleId']=='PPSA99204'
+          param.write_text(json.dumps(p,indent=2)+'\n')
+          PY
+          bash nes/tools/build.sh
+          mkdir -p dist
+          python3 - <<'PY'
+          import zipfile,json,struct
+          from pathlib import Path
+          src=list(Path('nes/build-shelf').glob('PS5NES-v*-by-YAHBALLON.zip'))
+          assert len(src)==1,src
+          dst=Path('dist/PPSA99204.zip')
+          dst.write_bytes(src[0].read_bytes())
+          assert dst.stat().st_size>1_000_000
+          with zipfile.ZipFile(dst) as archive:
+              assert archive.testzip() is None
+              for name in ['PPSA99204/eboot.bin','PPSA99204/sce_module/libc.prx',
+                           'PPSA99204/sce_sys/icon0.png','PPSA99204/lapy.elf',
+                           'PPSA99204/lapy-manifest.json']:
+                  assert name in archive.namelist(),name
+              assert json.loads(archive.read('PPSA99204/sce_sys/param.json'))['titleId']=='PPSA99204'
+              assert archive.read('PPSA99204/eboot.bin')[:4]==struct.pack('<I',0x1D3D154F)
+          print('Validated signed PS5NESX release',dst.stat().st_size)
+          PY
+      - name: Upload installable PS5 TESTBUILD ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: PS5NESX-${{ steps.info.outputs.version }}-PPSA99204
+          path: homebrew/ps5nesx/dist/PPSA99204.zip
+          if-no-files-found: error
+      - name: Publish immutable versioned GitHub Release for TESTBUILDS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.info.outputs.tag }}
+          VERSION: ${{ steps.info.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Bump app.json version for a new TESTBUILD." >&2
+            exit 1
+          fi
+          gh release create "$TAG" homebrew/ps5nesx/dist/PPSA99204.zip \
+            --repo "$GITHUB_REPOSITORY" --target main \
+            --title "PS5NESX v$VERSION by YAHBALLON" \
+            --notes "Native PS5NESX source built from tmp_lap/homebrew/ps5nesx. Install PPSA99204.zip. Core: FCEUmm."

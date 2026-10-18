@@ -41,6 +41,8 @@ on:
       - Build PS5MesenX (native MesenCE)
       - Build PSJukebox
       - Publish PS5MesenX TESTBUILD
+      - Import PS5NESX Sources
+      - Build PS5NESX Native
     types: [completed]
   schedule:
     - cron: '17 * * * *'
