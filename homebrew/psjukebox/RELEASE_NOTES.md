@@ -1,11 +1,10 @@
-# PSJukebox v0.1.15 — Fast Coverflow Startup
+# PSJukebox v0.1.16 — New Neon App Icon
 
-- **Instant repeat launches:** restore last known artist/album/cover catalog from `/data/PSJukebox/library-v3.cache` before background discovery
-- **Progressive first discovery:** publish each .album into the UI as its import finishes instead of waiting for every packed album
-- **Artwork priority:** selected cover ahead of large backgrounds, artist logos and off-screen jackets
-- **Avoid redundant transfers:** reuse previously staged USB/SMB .album archives and audio despite PS5 EPERM restrictions on stat/lstat/fstat; verify file length and reject symbolic links
-- **Non-blocking refresh:** retain the current coverflow and ongoing song playback while the music library scans in the background
-- **Safe persistent index:** bounded size, checksum, atomic update, corruption recovery, no credentials or song data inside
-- Maintains PSJukebox .album, SMB shares, background/artist themes, Favorites, and v0.1.14 L2/R2 song navigation
+- Replace the old generated PSJukebox app icon with the user-supplied neon retro-futuristic jukebox design (pink/cyan jukebox, vinyl and PSJukebox lettering)
+- Apply the updated image to both `sce_sys/icon0.png` (native PS5 Home menu) and `assets/icon0.png` (app asset)
+- Package 512 × 512 PNG files from the checked-in optimized artwork
+- Release verification now checks actual image content and requires both copies to be identical to the new artwork
+- README preview displays the new icon
+- Preserve Title ID `PPSA99947`, settings, library index, SMB/.album support, coverflow, favorites and controller mapping
 
-First-ever scan may still stage fresh archives; subsequent boots get the cached catalog immediately. Real hardware timing and permission behavior need PS5 confirmation.
+Native CI verifies image content and package structure; the PS5 Home menu should display the new icon after installing the new package. The real-console result still needs testing.

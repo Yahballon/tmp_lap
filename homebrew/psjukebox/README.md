@@ -1,5 +1,7 @@
 # PSJukebox by YAHBALLON
 
+![New PSJukebox neon icon](assets/neon-icon.webp)
+
 Native PS5 offline music player with a five-cover album carousel, per-artist logo and colors, per-album changing background, track list and native FFmpeg/SDL2 music playback.
 
 ## Artist-customizable themes
@@ -248,3 +250,7 @@ Artwork fetching is prioritized: **current album cover first**, then artist logo
 App-managed staged .album/audio cache reuse now tolerates the PS5 `EPERM` bug for stat/lstat/fstat (as seen on this console): the app can open and size an already downloaded file by file descriptor instead of copying a multi-hundred-megabyte ZIP from USB/SMB again. Existing staged data is reused only if its expected size matches, with symlink rejection.
 
 Notes: The very first scan can still take time to stage a new .album; the snapshot accelerates subsequent startups. Files changed on disk are rechecked by the background scan. A complete rebuild may be initiated with Options → Rescan. New media and album covers appear progressively on a cold scan. Source .album files, user favorites, gamepad controls and playback logic are untouched.
+
+## v0.1.16 — New PS5 menu icon
+
+The former programmatically generated PSJukebox icon is replaced by the user's neon pink-and-cyan retro jukebox artwork. The same source is resized to 512 × 512 and written to both `sce_sys/icon0.png` (PS5 system menu tile) and `assets/icon0.png` (homebrew/app asset). The verified release ZIP includes these two matching PNG files. The icon source is `homebrew/psjukebox/assets/neon-icon.webp`; package verification compares the installed icon pixels against this artwork to prevent accidentally shipping the old fallback. Title ID remains `PPSA99947` and all features, settings, music, albums and control mappings remain unchanged.

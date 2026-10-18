@@ -197,6 +197,24 @@ jobs:
             homebrew/psjukebox/native/remote_bridge.cpp \
             homebrew/psjukebox/tests/bridge_test.cpp -o /tmp/jbx-bridge-test
           /tmp/jbx-bridge-test
+      - name: Verify uploaded PSJukebox neon icon source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import hashlib
+          path=Path("homebrew/psjukebox/assets/neon-icon.webp")
+          assert path.is_file(),"No custom icon asset"
+          assert hashlib.sha256(path.read_bytes()).hexdigest()=="1255dcf4b1b7dcc239e9790f2ea3eaa211fc78f6b7488fc0a58058b675b67cf5","Artwork source changed unexpectedly"
+          with Image.open(path) as artwork:
+              assert artwork.size==(320,320)
+              assert artwork.mode in ("RGB","RGBA")
+          code=Path("homebrew/psjukebox/tools/prepare.py").read_text()
+          assert 'img.save(app/"sce_sys/icon0.png"' in code
+          assert 'img.save(app/"assets/icon0.png"' in code
+          assert 'Image.new("RGB"' not in code
+          print("PASS new neon artwork configured for both PS5 tile and app icon")
+          PY
       - name: Prepare app and assets
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -239,7 +257,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.15
+          name: PSJukebox-v0.1.16
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -252,5 +270,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.15 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.16 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'
