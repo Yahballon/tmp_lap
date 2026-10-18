@@ -161,7 +161,9 @@ Inside 2pac-the-don-killuminati-the-7-day-theory.album:
 
 ### SMB2/SMB3 share playback (read-only)
 
-Create `/data/PSJukebox/smb.ini` using the PS5 file manager, then press Rescan in Settings. Configure a Windows/NAS SMB2 or SMB3 share with its Music root (or set the path to an existing Music subfolder):
+**Since v0.1.20:** Press **OPTIONS > Settings > SMB Network Share**. Edit Server/IP, Share, optional Subfolder, Username, Password and optional Domain with the built-in DualSense keyboard. Use **L1/R1** to switch lower/upper/symbols, **X** to type, **Square** to delete, **R2** to insert a space, **Triangle** to accept the edited field and **Circle** to cancel. Select **SAVE & RESCAN** to write settings and refresh your library without restarting. The password is masked on screen. SMB credentials are saved locally with owner-only file permissions when supported by the PS5 environment.
+
+Alternatively, create `/data/PSJukebox/smb.ini` manually using the PS5 file manager, then press Rescan in Settings. Configure a Windows/NAS SMB2 or SMB3 share with its Music root (or set the path to an existing Music subfolder):
 
 ```ini
 server=192.168.1.50
