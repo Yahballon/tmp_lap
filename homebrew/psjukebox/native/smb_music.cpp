@@ -181,6 +181,50 @@ uint64_t hash(const std::string& path){
  for(unsigned char c:path){h^=c;h*=1099511628211ULL;}return h;
 }
 }
+bool read_settings(Settings& output,std::string& error){
+ Config c;
+ if(!config(c,error))return false;
+ output.server=c.server;output.share=c.share;output.path=c.path;
+ output.username=c.username;output.password=c.password;output.domain=c.domain;
+ return true;
+}
+bool save_settings(const Settings& c,std::string& error){
+ error.clear();
+ auto field_ok=[](const std::string& s)->bool {
+  if(s.size()>255)return false;
+  for(unsigned char ch:s)if(ch<32||ch==127)return false;
+  return s.empty()||(
+   s.find_first_not_of(" \\t")!=std::string::npos &&
+   s.front()!=' '&&s.back()!=' '&&s.front()!='\\t'&&s.back()!='\\t');
+ };
+ if(!field_ok(c.server)||c.server.empty()||
+    c.server.find_first_of(" /\\\\\\t\\r\\n")!=std::string::npos||
+    !safe(c.share)||!field_ok(c.share)||!field_ok(c.username)||
+    c.username.empty()||!field_ok(c.password)||!field_ok(c.domain)||
+    !field_ok(c.path)||(!c.path.empty()&&!relative(c.path))){
+  error="Invalid SMB settings: check server, share, path and credentials";return false;
+ }
+ const std::string dir=JUKEBOX_DATA_ROOT;
+ if(mkdir(dir.c_str(),0700)!=0&&errno!=EEXIST){
+  error="Cannot create PSJukebox settings directory";return false;
+ }
+ const std::string dst=dir+"/smb.ini",tmp=dir+"/smb.ini.tmp";
+ int fd=open(tmp.c_str(),O_CREAT|O_TRUNC|O_WRONLY,0600);
+ if(fd<0){error="Cannot create smb.ini";return false;}
+ // Never include passwords or other credentials in the application log.
+ FILE* f=fdopen(fd,"wb");
+ if(!f){close(fd);remove(tmp.c_str());error="Cannot write smb.ini";return false;}
+ const int written=fprintf(f,"# PSJukebox SMB2/3 share (local credentials)\\nserver=%s\\nshare=%s\\npath=%s\\nusername=%s\\npassword=%s\\ndomain=%s\\n",
+     c.server.c_str(),c.share.c_str(),c.path.c_str(),c.username.c_str(),
+     c.password.c_str(),c.domain.c_str());
+ const bool ok=written>0&&fflush(f)==0&&fsync(fd)==0;
+ const bool closed=fclose(f)==0;
+ if(!ok||!closed||rename(tmp.c_str(),dst.c_str())!=0){
+  remove(tmp.c_str());error="Could not save SMB configuration";return false;
+ }
+ chmod(dst.c_str(),0600);
+ return true;
+}
 bool is_smb(const std::string& path){std::string rel;return decode(path,rel);}
 ScanResult scan(){
  ScanResult result;Config cfg;std::string error;
