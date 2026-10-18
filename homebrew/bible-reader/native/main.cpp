@@ -201,6 +201,7 @@ int main(){
        if(loaded&&!library.chapter(settings.book,settings.chapter).empty())
         settings.selectedVerse=library.chapter(settings.book,settings.chapter)[(size_t)std::clamp(selected,0,(int)library.chapter(settings.book,settings.chapter).size()-1)].number;
        library=std::move(replacement);loaded=true;settings.language=candidate;
+       if(candidate==4)settings.voiceStyle=0; // retro English always uses eSpeak
        settings.chapter=std::clamp(settings.chapter,1,library.chapterCount(settings.book));
        const auto& vv=library.chapter(settings.book,settings.chapter);
        selected=0;
@@ -214,7 +215,7 @@ int main(){
      if(listScroll==1)settings.fontSize=settings.fontSize>=38?22:settings.fontSize+2;
      if(listScroll==2)settings.daily=!settings.daily;
      if(listScroll==3)settings.theme=1-settings.theme;
-     if(listScroll==4)settings.voiceStyle=1-settings.voiceStyle;
+     if(listScroll==4&&settings.language!=4)settings.voiceStyle=1-settings.voiceStyle;
      if(listScroll==5){page=Page::read;focusedSidebar=true;}
      save();
     }else if(page==Page::search){
@@ -431,7 +432,7 @@ int main(){
     std::to_string(settings.fontSize),
     bible_i18n::label(settings.language,settings.daily?bible_i18n::Key::on:bible_i18n::Key::off),
     bible_i18n::label(settings.language,settings.theme?bible_i18n::Key::slate:bible_i18n::Key::midnight),
-    bible_i18n::label(settings.language,settings.voiceStyle?bible_i18n::Key::neuralPreview:bible_i18n::Key::classicVoice),""};
+    settings.language==4?"Retro Computer (eSpeak)":bible_i18n::label(settings.language,settings.voiceStyle?bible_i18n::Key::neuralPreview:bible_i18n::Key::classicVoice),""};
    for(int i=0;i<6;i++){
     const float y=379+i*90;
     if(i==listScroll)panel(d,cx+35,y-54,cw-70,80,true);
