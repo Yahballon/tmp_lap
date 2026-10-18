@@ -3,6 +3,7 @@
 // Listing is small/metadata-only; music and .album files are downloaded only
 // when the song is played or the packed album is imported.
 #include "smb_music.hpp"
+#include "media_cache.hpp"
 #include "album_archive.hpp"
 #include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
@@ -273,9 +274,7 @@ bool stage(const std::string& path,uint64_t expected,std::atomic<bool>& cancel,
  mkdir(JUKEBOX_DATA_ROOT,0755);mkdir(dir.c_str(),0755);
  char id[32];snprintf(id,sizeof(id),"%016llx",(unsigned long long)hash(path));
  local=dir+"/"+id+rel.substr(rel.find_last_of('.'));
- struct stat cached{};
- if(lstat(local.c_str(),&cached)==0&&S_ISREG(cached.st_mode)&&
-    (uint64_t)cached.st_size==expected)return true;
+ if(jukebox::media_cache_matches(local,expected))return true;
  const auto part=local+".part";FILE* f=fopen(part.c_str(),"wb");
  if(!f){error="Cannot write SMB music cache";return false;}
  const bool ok=transfer(session,cfg,rel,expected,f,nullptr,&cancel,copied,error);
