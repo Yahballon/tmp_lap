@@ -185,14 +185,18 @@ void Speaker::run(){
   if(result!=EE_OK){error="Voice unavailable (see BibleReader log)";goto done;}
   const espeak_VOICE* chosen=espeak_GetCurrentVoice();
   bible_log::write("TTS_READY","voice=%s",chosen&&chosen->identifier?chosen->identifier:"?");
-  if(robotPreset_){
-   // Intentional retro computer speech effect, NOT original Stephen Hawking
-   // DECtalk voice sampling, cloning or impersonation.
-   espeak_SetParameter(espeakRATE,145,0);
-   espeak_SetParameter(espeakPITCH,36,0);
-   espeak_SetParameter(espeakRANGE,1,0);
-   bible_log::write("RETRO_READY","rate=145 pitch=36 range=1 (espeak)");
-  }
+  // eSpeak is process-global: a previous Retro worker can leave modified
+  // pitch/rate/range after espeak_Terminate(). Always set all three at start.
+  // Classic remains deliberately available, but must sound normal again.
+  const int speed=robotPreset_?145:175;
+  const int pitch=robotPreset_?36:50;
+  const int range=robotPreset_?1:50;
+  espeak_SetParameter(espeakRATE,speed,0);
+  espeak_SetParameter(espeakPITCH,pitch,0);
+  espeak_SetParameter(espeakRANGE,range,0);
+  bible_log::write(robotPreset_?"RETRO_READY":"TTS_PARAMS_RESET",
+                   "rate=%d pitch=%d range=%d language=%d",
+                   speed,pitch,range,language_);
  }
 #if defined(BIBLE_NATIVE_PIPER)
  if(preferNeural_&&!robotPreset_){

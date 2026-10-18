@@ -109,6 +109,14 @@ void toggle(Settings& s,Ref r){
  if(it!=s.bookmarks.end())s.bookmarks.erase(it);
  else if(s.bookmarks.size()<512)s.bookmarks.push_back(r);
 }
+int voiceStyleAfterLanguageChange(int previousLanguage,int nextLanguage,int currentStyle){
+ // Legacy v0.1.8 forced voice_style=0 when the retro preset was selected.
+ // Restore neural speech on exit, including after loading those saved states.
+ if(previousLanguage==4 && nextLanguage>=0 && nextLanguage<4)return 1;
+ // Do not destroy the user's voice choice when entering retro or when
+ // switching among the four normal languages.
+ return std::clamp(currentStyle,0,1);
+}
 bool readSettings(const std::string& path,Settings& s){
  FILE* f=std::fopen(path.c_str(),"rb");if(!f)return false;
  Settings next;char row[256];bool valid=false;
