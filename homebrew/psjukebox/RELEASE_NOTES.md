@@ -1,23 +1,12 @@
-# PSJukebox v0.1.10 — Fix .album shows 0 tracks on real PS5
+# PSJukebox v0.1.11 — Centered Covers and Live Navigation
 
-From actual hardware v0.1.9 logs:
-`ALBUM_OK wutang/wu-tang-forever tracks=0` and
-`UNAVAILABLE /data/PSJukebox/AlbumCache/.../Music errno=1`.
+- Vertically center the album coverflow (midpoint y=525); create a ~23.5px gap between the highlighted cover and adjacent jackets by increasing sleeve spacing to 380px
+- L1/R1 switch artists consistently, including during song playback; the music keeps playing
+- L2/R2 switch album covers consistently during playback; return to coverflow view when triggered from the playing/tracklist screen
+- D-pad LEFT/RIGHT or either joystick LEFT/RIGHT: seek playing song -/+10 seconds without changing selected cover; analog tilt is edge-triggered to avoid rapid jumps
+- D-pad DOWN or either joystick DOWN: open the selected album's Tracklist directly from carousel or while playback is displayed
+- Preserve X Play/Tracklist, Square Pause/Resume, Triangle Favorite and OPTIONS Settings
+- Auto-advance preserves the visible browsing context rather than snapping back to the playing album
+- Tested with host layout/controller tests plus native PS5 build and package verification. Actual PS5 functionality still requires console validation
 
-The custom ZIP extraction completed successfully, but the post-extraction
-library scan used `opendir` on a sandbox-protected PS5 cache directory.
-Because `opendir` was denied, the imported album had zero songs and no art.
-
-This release synthesizes the album's media catalog **directly from its validated
-ZIP central directory** instead of scanning cached directories. Music titles,
-file sizes, paths, cover and background artwork are indexed even when directory
-enumeration is impossible. Cache reuse also regenerates the index instead of
-returning early without tracks.
-
-Adds a dedicated CI regression that denies `opendir` on AlbumCache with
-EPERM, verifies two playable tracks + cover/background, and validates
-repeat import on an existing archive-ready cache. Retains v0.1.9 heap ZIP
-buffers, coverflow layout (no folder name above cover), favorites, SMB,
-and controller mappings. No media source files are modified.
-
-Actual playback needs user confirmation on PS5 hardware.
+This release retains v0.1.10 packed .album, artist theming, Favorites, USB and SMB features.

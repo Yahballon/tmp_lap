@@ -196,3 +196,21 @@ An actual PS5 fault (`SIGSEGV` directly after `ALBUM_EXTRACT_BEGIN`) exposed exc
 ## v0.1.10 — Sandboxed .album cache indexing
 
 The v0.1.9 console log showed the new packed album was found, copied and extracted, but the library displayed `ALBUM_OK ... tracks=0`. The PS5 sandbox refused `opendir` on app-owned AlbumCache paths (`errno=1`). Packed album files now **produce a complete Artist → Album → Track catalog directly from validated ZIP directory entries**. Audio paths, sizes, album covers, and album backgrounds are imported without scanning protected cache directories, including for already-extracted archive caches. CI tests simulate blocked `opendir` and verify playback paths can still be opened.
+
+## v0.1.11 — Centered coverflow, spacing and live DualSense browsing
+
+Cover jackets are centered vertically at y=525 rather than hanging lower in the screen. Adjacent jackets are spaced 380px center-to-center, leaving about 23.5px clear air between the focused jacket and each neighbor. The 480ms eased transitions, background image and reflection remain in place.
+
+Controller actions are now consistent while a song is playing:
+- **L1 / R1**: previous/next artist in the coverflow **without stopping playback**. Browsing automatically brings the carousel into view if you are on the player or tracklist page.
+- **L2 / R2**: previous/next album cover, also while audio continues. The current song plays independently of the browsing selection.
+- **D-pad LEFT / RIGHT**: jump backward/forward 10 seconds in the currently playing track; the cover does **not** change. No action if there is no active track.
+- **Left or right joystick LEFT / RIGHT**: same 10-second seek, one jump per stick deflection (return to neutral to seek again).
+- **D-pad DOWN or left/right joystick DOWN**: open the selected album's tracklist from the coverflow **or while the now-playing panel is visible**. If it is the playing album, highlight the currently playing track; Circle returns to playback.
+- **X**: play the selected album/track, or open Tracklist from the player view.
+- **Square**: pause/resume. **Triangle**: Favorites. **OPTIONS**: Settings.
+- **UP on album view**: focus the header tabs (then Left/Right + X). Tracklist Up/Down still changes highlighted song.
+
+The playing track metadata and progress continue updating while you browse other artists or albums. The play queue can advance automatically without forcing the visible browsing focus back to the playing album. No change to user music folders, .album files or SMB settings.
+
+CI includes geometry/spacing, analog edge detection and live navigation wiring checks; confirm all controls and animation on PS5 hardware.
