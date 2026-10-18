@@ -20,6 +20,15 @@ inline CoverSlot cover_slot(float position){
 inline bool allows_live_album_browse(int screen){
  return screen==0||screen==1||screen==2||screen==5;
 }
+// Shoulder buttons always browse albums; D-pad left/right browse covers
+// only in the album/player view (never steal header/list navigation).
+inline int album_browse_step(bool l2,bool r2,bool dpadLeft,bool dpadRight){
+ if(l2)return -1;
+ if(r2)return 1;
+ if(dpadLeft)return -1;
+ if(dpadRight)return 1;
+ return 0;
+}
 class CoverStickEdges {
  int direction_=0;
  static int axis(uint8_t value){
