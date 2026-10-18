@@ -1,11 +1,11 @@
 {
   "name": "Bible Reader",
   "slug": "bible-reader",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "titleId": "PPSA99793",
   "contentId": "UP9000-PPSA99793_00-BIBLEREADER00001",
-  "contentVersion": "01.000.007",
-  "releaseTag": "bible-reader-v0.1.6",
+  "contentVersion": "01.000.008",
+  "releaseTag": "bible-reader-v0.1.7",
   "developer": "YAHBALLON",
   "bibleTranslation": "World English Bible British Edition (WEBPB)",
   "offline": true,
@@ -15,8 +15,10 @@
     "Louis Segond 1910",
     "Reina-Valera 1909"
   ],
-  "ttsEngine": "eSpeak NG 1.52.0 / SDL2",
+  "ttsEngine": "eSpeak NG 1.52.0 + native Piper Thorsten Medium / ONNX Runtime 1.18.2 / SDL2",
   "ttsOffline": true,
-  "voiceEnginePreview": "Piper Thorsten Medium (German Genesis 1, pre-rendered PCM)",
-  "neuralOnDevice": false
+  "voiceEnginePreview": "Piper Thorsten Medium Genesis 1 prerecorded audio as neural fallback",
+  "neuralOnDevice": true,
+  "neuralLanguage": "de",
+  "neuralVoice": "Thorsten Medium"
 }

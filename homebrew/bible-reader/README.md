@@ -1,6 +1,6 @@
 # Bible Reader by YAHBALLON
 
-Native PlayStation 5 offline Bible reader v0.1.6, designed from the provided three-column blue-and-gold reference screenshot. No network access is required at runtime.
+Native PlayStation 5 offline Bible reader v0.1.7, designed from the provided three-column blue-and-gold reference screenshot. No network access is required at runtime.
 
 ## Features
 - 66 books / 1189 chapters of the public-domain World English Bible British Edition (WEBPB), shipped as plain verse data in the installation ZIP
@@ -17,7 +17,7 @@ D-pad: Navigate; **X**: Select/Open; **O**: Back (exit confirmation from the mai
 - Title ID: `PPSA99793`
 - Persistent preferences: `/data/BibleReader/settings.txt`
 - Offline Bible dataset: `assets/bible/webpb.tsv`
-- Release naming: `bible-reader-v0.1.6`
+- Release naming: `bible-reader-v0.1.7`
 
 ## Building
 The dedicated [GitHub Actions workflow](../../.github/workflows/build-bible-reader.yml) downloads and validates the public-domain Bible **at build time**, then assembles a PS5 native homebrew install ZIP with all 66 books. The release only exists after a successful build and explicit publication. You may also prepare `webpb.tsv` with:
@@ -29,7 +29,7 @@ The build uses the GPL-3.0-or-later [PS5-DevBridge](https://github.com/Yahballon
 Once Actions creates a verified `PPSA99793.zip`, extract the `PPSA99793/` folder to `/data/homebrew/PPSA99793/` and register/start the app with your compatible native homebrew loader. Do not confuse this with a Sony-installable PKG. Existing `/data/BibleReader/` settings persist across updates.
 
 ## Status
-The GitHub Actions workflow compiles, verifies and publishes immutable installable ZIPs on successful main-branch builds. Hardware verification of v0.1.6 is still needed.
+The GitHub Actions workflow compiles, verifies and publishes immutable installable ZIPs on successful main-branch builds. Native German Piper output was tested successfully on PS5 hardware in the experimental LAB. Long-session stability and stop latency require more testing.
 
 ## v0.1.6 formatting fix
 - Converts unsupported WEBPB curly quotes, typographic apostrophes, dashes and Unicode spaces into equivalent glyphs supported by the native UI font at build time (for example `God's` and `"Let there be light"`).
@@ -76,3 +76,13 @@ The GitHub Actions workflow compiles, verifies and publishes immutable installab
 
 ## v0.1.6 Piper Neural HD pilot
 See [PIPER_HD_PILOT.md](./PIPER_HD_PILOT.md). This version packs real neural audio for German Genesis chapter 1, but **does not yet run the ONNX network on the PS5**. Select Settings > Voice style > Neural HD (1. Mose 1). Only this chapter uses higher-quality pre-rendered speech. The rest of the Bible and other languages remain classic eSpeak offline. Karaoke synchronization in this preview is approximate. All existing v0.1.5 functionality is preserved.
+
+## v0.1.7 Native Piper — offline PS5 neural speech
+
+- **German Lutherbibel 1912:** Native Thorsten Medium synthesis using ONNX Runtime CPU on the PS5 for arbitrary verses, not just Genesis 1. Model and dependencies are bundled in the installation ZIP. No Internet required on the console.
+- Settings > Voice style > **Neural HD (Deutsch)** to use the native voice. English, French and Spanish remain offline classic eSpeak NG.
+- **Continuous speech** across verses, chapters and books; keeps live yellow karaoke highlighting (word offsets approximated by rescaling eSpeak timings to Piper PCM length, not forced alignment).
+- If model initialization or native synthesis fails, automatically uses the pre-rendered German Genesis 1 preview where available or classic eSpeak otherwise.
+- Diagnostics are written to `/data/BibleReader/bible-reader.log`; check `PIPER_READY`, `PIPER_NATIVE`, `PIPER_RUN_ERR` and `PIPER_FALLBACK`.
+- Caveat: ONNX inference is still synchronous per verse, so stopping during synthesis may incur a delay; heavy/endurance use is not fully validated. The native model adds download size and RAM use.
+- Pinned ONNX Runtime 1.18.2 (MIT), Piper Thorsten model and eSpeak NG 1.52.0 (GPL); build sources are under `native_piper/`.
