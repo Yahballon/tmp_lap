@@ -1,4 +1,4 @@
-name: Bible Reader Piper Four-Voice Fast Check
+name: Bible Reader Piper Five-Voice Fast Check
 on:
   workflow_dispatch:
   push:
@@ -15,30 +15,30 @@ on:
 permissions:
   contents: read
 jobs:
-  four-voice-phonemes:
+  five-voice-phonemes:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Download four model configurations only (no heavy ONNX binaries)
+      - name: Download five model configurations only (no heavy ONNX binaries)
         run: |
           set -euo pipefail
           mkdir -p /tmp/bible-piper-config app/src
           curl -fLsS --retry 3 \
             https://huggingface.co/Thorsten-Voice/Piper/resolve/4c56824d7a76ee98b08a6e9046e640727397fac7/de_DE-thorsten-medium.onnx.json \
             -o /tmp/bible-piper-config/de.json
-          for triplet in 'en en_US kristin' 'fr fr_FR siwis' 'es es_ES davefx'; do
+          for triplet in 'en en_US kristin' 'fr fr_FR siwis' 'es es_ES davefx' 'ru ru_RU denis'; do
             read -r lang locale voice <<<"$triplet"
             url="https://huggingface.co/rhasspy/piper-voices/resolve/main/$lang/$locale/$voice/medium/${locale}-${voice}-medium.onnx.json"
             curl -fLsS --retry 3 "$url" -o "/tmp/bible-piper-config/$lang.json"
           done
-      - name: Generate and compile all four native phoneme tables
+      - name: Generate and compile all five native phoneme tables
         run: |
           set -euo pipefail
           python3 homebrew/bible-reader/native_piper/generate_phonemes.py \
             /tmp/bible-piper-config/de.json app/src/thorsten_phonemes.generated.hpp \
             --expected-language de_DE
-          for pair in 'en en_US' 'fr fr_FR' 'es es_ES'; do
+          for pair in 'en en_US' 'fr fr_FR' 'es es_ES' 'ru ru_RU'; do
             read -r lang locale <<<"$pair"
             python3 homebrew/bible-reader/native_piper/generate_phonemes.py \
               "/tmp/bible-piper-config/$lang.json" "app/src/voice_${lang}_phonemes.generated.hpp" \
