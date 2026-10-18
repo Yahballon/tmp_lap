@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.12
+// PSJukebox by YAHBALLON v0.1.13
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -34,7 +34,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.12";
+constexpr const char* version="v0.1.13";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(std::string s,size_t n){if(s.size()>n){s.resize(n-3);s+="...";}return s;}
@@ -269,7 +269,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.12");
+ log("BOOT v0.1.13");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -726,6 +726,10 @@ int main(){
    if(tm)std::strftime(clockText,sizeof(clockText),"%H:%M",tm);
   }
   label(d,font,atlas,clockText,1850,64,27,white,Align::right);
+  // Build credits stay directly below the clock in every UI tab.
+  // The same version constant is used by the app boot/log header.
+  label(d,font,atlas,std::string("by YAHBALLON  ·  ")+version,
+        1850,99,17,muted,Align::right);
   if(artist){
    label(d,font,atlas,cut(artist->name,33)+" LIBRARY",78,186,24,color(accent));
    label(d,font,atlas,std::string(" /  ")+tabNames[headerIndex],420,186,22,white);
