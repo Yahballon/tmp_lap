@@ -41,6 +41,7 @@ private:
  bible::Ref from_{};
  int language_=0;
  bool preferNeural_=false;
+ bool robotPreset_=false;
  pthread_t thread_{};
  bool joined_=true;
  std::atomic<bool> cancelled_{false};

@@ -7,6 +7,9 @@
 #include "piper_onnx.hpp"
 #include "phoneme_ids.hpp"
 #include "thorsten_phonemes.generated.hpp"
+#include "voice_en_phonemes.generated.hpp"
+#include "voice_fr_phonemes.generated.hpp"
+#include "voice_es_phonemes.generated.hpp"
 #include <chrono>
 #endif
 #include <SDL.h>
@@ -102,7 +105,10 @@ bool Speaker::start(const bible::Library& lib,bible::Ref from,int lang,bool pref
  stop();
  if(!lib.verse(from)){bible_log::write("TTS_BAD_REF","book=%d chapter=%d verse=%d",from.book,from.chapter,from.verse);return false;}
  bible_log::write("TTS_START","language=%d book=%d chapter=%d verse=%d",lang,from.book,from.chapter,from.verse);
- library_=&lib;from_=from;language_=std::clamp(lang,0,3);preferNeural_=preferNeural;cancelled_=false;
+ library_=&lib;from_=from;robotPreset_=(lang==4);
+ language_=robotPreset_?0:std::clamp(lang,0,3);
+ preferNeural_=preferNeural&&!robotPreset_;cancelled_=false;
+ if(robotPreset_)bible_log::write("RETRO_MODE","Stephen Hawking inspired retro computer voice; English; eSpeak only");
  bible_log::write("TTS_ENGINE","preferNeural=%d language=%d",preferNeural?1:0,language_);
  Snapshot st{};st.active=true;st.ref=from;status(st);
  pthread_attr_t attrs{};pthread_attr_init(&attrs);pthread_attr_setstacksize(&attrs,2*1024*1024);
@@ -179,13 +185,27 @@ void Speaker::run(){
   if(result!=EE_OK){error="Voice unavailable (see BibleReader log)";goto done;}
   const espeak_VOICE* chosen=espeak_GetCurrentVoice();
   bible_log::write("TTS_READY","voice=%s",chosen&&chosen->identifier?chosen->identifier:"?");
+  if(robotPreset_){
+   // Intentional retro computer speech effect, NOT original Stephen Hawking
+   // DECtalk voice sampling, cloning or impersonation.
+   espeak_SetParameter(espeakRATE,145,0);
+   espeak_SetParameter(espeakPITCH,36,0);
+   espeak_SetParameter(espeakRANGE,1,0);
+   bible_log::write("RETRO_READY","rate=145 pitch=36 range=1 (espeak)");
+  }
  }
 #if defined(BIBLE_NATIVE_PIPER)
- if(preferNeural_&&language_==1){
-  const char* models[]={
-   "/app0/assets/tts/neural/de/de_DE-thorsten-medium.onnx",
-   "/data/homebrew/PPSA99793/assets/tts/neural/de/de_DE-thorsten-medium.onnx"
+ if(preferNeural_&&!robotPreset_){
+  const char* filenames[]={
+   "en/en_US-lessac-medium.onnx",
+   "de/de_DE-thorsten-medium.onnx",
+   "fr/fr_FR-siwis-medium.onnx",
+   "es/es_ES-davefx-medium.onnx"
   };
+  const std::string relative=std::string("/neural/")+filenames[language_];
+  const std::string local=std::string("/app0/assets/tts")+relative;
+  const std::string fallback=std::string("/data/homebrew/PPSA99793/assets/tts")+relative;
+  const char* models[]={local.c_str(),fallback.c_str()};
   for(const char* model:models){
    if(bible_log::fileSize(model)<1000000)continue;
    std::string why;
@@ -234,10 +254,15 @@ void Speaker::run(){
    bool usingNeural=false;
    int inputRate=rate;
 #if defined(BIBLE_NATIVE_PIPER)
-   if(nativeReady&&!cancelled_){
+   if(preferNeural_&&nativeReady&&!cancelled_){
     const auto started=std::chrono::steady_clock::now();
     const std::string ipa=ipaForPiper(phrase_);
-    const auto ids=bible_piper::encode(ipa,bible_piper::thorstenTable());
+    const bible_piper::PhonemeTable table=
+     language_==0?bible_piper::voice_en::thorstenTable():
+     language_==1?bible_piper::thorstenTable():
+     language_==2?bible_piper::voice_fr::thorstenTable():
+                  bible_piper::voice_es::thorstenTable();
+    const auto ids=bible_piper::encode(ipa,table);
     if(ids.success){
      std::vector<std::int16_t> generated;
      std::string why;
