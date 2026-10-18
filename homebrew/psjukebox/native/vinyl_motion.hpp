@@ -17,3 +17,4 @@ public:
 private:
  float angle_=0.f;
 };
+} // namespace jukebox
