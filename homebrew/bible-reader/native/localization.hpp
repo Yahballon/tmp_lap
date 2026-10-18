@@ -11,27 +11,76 @@ enum class Key:int {
  savedVerses, matches, noMatches, noBookmarks, fontSize, dailyPanel,
  colourTheme, language, returnReading, midnight, slate, on, off,
  changeChapter, searchHelp, dailyVerse, offlineMissing, reinstall,
- exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version, controls, ttsStop, voiceStyle, neuralPreview, classicVoice
+ exitQuestion, exitAnswer, offlineStatus, reading, booksTitle, version, controls, ttsStop, voiceStyle, neuralPreview, classicVoice, about
 };
 constexpr int kLangCount=4;
-constexpr int kLanguageOptions=5; // fifth is an English retro speech preset
+constexpr int kLanguageOptions=6; // old 0-3, retro 4, Russian 5
 inline int language(int n){return n>=0&&n<kLangCount?n:0;}
 inline const char* code(int n){
  static constexpr const char* codes[]={"en","de","fr","es"};
- return codes[language(n)];
+ return n==5?"ru":codes[language(n)];
 }
 inline const char* languageName(int n){
  static constexpr const char* names[]={"English","Deutsch","Français","Español"};
- return n==4?"Stephen Hawking (Retro TTS)":names[language(n)];
+ return n==4?"Stephen Hawking (Retro TTS)":n==5?"Русский":names[language(n)];
 }
 inline const char* translationName(int n){
  static constexpr const char* names[]={
   "World English Bible (WEBPB)", "Lutherbibel 1912",
   "Louis Segond 1910", "Reina-Valera 1909"
  };
- return names[language(n)];
+ return n==5?"Синодальный перевод 1876":names[language(n)];
 }
 inline const char* label(int lang,Key key){
+ if(lang==5){
+  switch(key){
+   case Key::library:return "Библиотека";
+   case Key::oldTestament:return "Ветхий Завет";
+   case Key::newTestament:return "Новый Завет";
+   case Key::bookmarks:return "Закладки";
+   case Key::settings:return "Настройки";
+   case Key::bible:return "БИБЛИЯ";
+   case Key::chooseBook:return "Выберите книгу";
+   case Key::chooseChapter:return "Выберите главу";
+   case Key::searchBible:return "ПОИСК ПО БИБЛИИ";
+   case Key::searchHint:return "Введите слово или фразу";
+   case Key::searchResults:return "РЕЗУЛЬТАТЫ ПОИСКА";
+   case Key::savedVerses:return "сохранённые стихи";
+   case Key::matches:return "совпадения (до 150)";
+   case Key::noMatches:return "Совпадений нет.";
+   case Key::noBookmarks:return "Закладок нет.";
+   case Key::fontSize:return "Размер шрифта";
+   case Key::dailyPanel:return "Стих дня";
+   case Key::colourTheme:return "Цветовая тема";
+   case Key::language:return "Язык";
+   case Key::returnReading:return "Вернуться к чтению";
+   case Key::midnight:return "Ночь";
+   case Key::slate:return "Тёмно-синий";
+   case Key::on:return "Вкл.";
+   case Key::off:return "Выкл.";
+   case Key::changeChapter:return "L1 / R1  Сменить главу";
+   case Key::searchHelp:return "R2 Поиск   КВАДРАТ Удалить   O Назад";
+   case Key::dailyVerse:return "С Т И Х   Д Н Я";
+   case Key::offlineMissing:return "Библия недоступна";
+   case Key::reinstall:return "Переустановите архив приложения";
+   case Key::exitQuestion:return "ВЫЙТИ ИЗ BIBLE READER?";
+   case Key::exitAnswer:return "X Да, выйти     O Нет, продолжить";
+   case Key::offlineStatus:return "100% офлайн - ";
+   case Key::reading:return "Чтение ";
+   case Key::booksTitle:return "КНИГИ";
+   case Key::version:return "Версия";
+   case Key::controls:return "X Выбор   O Назад   КВАДРАТ Закладка   L1/R1 Главы";
+   case Key::ttsStop:return "ЧИТАЕТ   O СТОП";
+   case Key::voiceStyle:return "Тип голоса";
+   case Key::neuralPreview:return "Neural HD (5 языков)";
+   case Key::classicVoice:return "Классика";
+   case Key::about:return "О программе";
+  }
+ }
+ if(key==Key::about){
+  static constexpr const char* labels[]={"About","Über","À propos","Acerca de"};
+  return labels[language(lang)];
+ }
  static constexpr const char* entries[][kLangCount]={
   {"Library","Bibliothek","Bibliothèque","Biblioteca"},
   {"Old Testament","Altes Testament","Ancien Testament","Antiguo Testamento"},
@@ -74,7 +123,7 @@ inline const char* label(int lang,Key key){
    "X Elegir   O Atrás   SQUARE Marcador   TRIANGLE Buscar   L1/R1 Capítulo   OPTIONS Ajustes   L2 Versículo diario"},
   {"READING   O STOP","VORLESEN   O STOP","LECTURE   O ARRÊTER","LEYENDO   O PARAR"},
   {"Voice style","Stimmqualität","Style de voix","Estilo de voz"},
-  {"Neural HD (4 languages)","Neural HD (4 Sprachen)","Neural HD (4 langues)","Neural HD (4 idiomas)"},
+  {"Neural HD (5 languages)","Neural HD (5 Sprachen)","Neural HD (5 langues)","Neural HD (5 idiomas)"},
   {"Classic","Klassisch","Classique","Clásica"}
  };
  const int i=(int)key;
@@ -117,7 +166,76 @@ inline const char* bookName(int lang,int index){
  "1 Timoteo","2 Timoteo","Tito","Filemón","Hebreos","Santiago",
  "1 Pedro","2 Pedro","1 Juan","2 Juan","3 Juan","Judas","Apocalipsis"
  };
+ static constexpr const char* ru[]={
+  "Бытие",
+  "Исход",
+  "Левит",
+  "Числа",
+  "Второзаконие",
+  "Иисус Навин",
+  "Судьи",
+  "Руфь",
+  "1 Царств",
+  "2 Царств",
+  "3 Царств",
+  "4 Царств",
+  "1 Паралипоменон",
+  "2 Паралипоменон",
+  "Ездра",
+  "Неемия",
+  "Есфирь",
+  "Иов",
+  "Псалтирь",
+  "Притчи",
+  "Екклесиаст",
+  "Песнь Песней",
+  "Исаия",
+  "Иеремия",
+  "Плач Иеремии",
+  "Иезекииль",
+  "Даниил",
+  "Осия",
+  "Иоиль",
+  "Амос",
+  "Авдий",
+  "Иона",
+  "Михей",
+  "Наум",
+  "Аввакум",
+  "Софония",
+  "Аггей",
+  "Захария",
+  "Малахия",
+  "Матфей",
+  "Марк",
+  "Лука",
+  "Иоанн",
+  "Деяния",
+  "Римлянам",
+  "1 Коринфянам",
+  "2 Коринфянам",
+  "Галатам",
+  "Ефесянам",
+  "Филиппийцам",
+  "Колоссянам",
+  "1 Фессалоникийцам",
+  "2 Фессалоникийцам",
+  "1 Тимофею",
+  "2 Тимофею",
+  "Титу",
+  "Филимону",
+  "Евреям",
+  "Иаков",
+  "1 Петра",
+  "2 Петра",
+  "1 Иоанна",
+  "2 Иоанна",
+  "3 Иоанна",
+  "Иуда",
+  "Откровение"
+ };
  if(index<0||index>=66)return "";
+ if(lang==5)return ru[index];
  if(lang==1)return de[index];
  if(lang==2)return fr[index];
  if(lang==3)return es[index];
@@ -127,7 +245,7 @@ inline std::vector<std::string> searchKeys(int lang){
  std::vector<std::string> v;
  const std::string latin="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -'<";
  for(char c:latin)v.emplace_back(1,c);
- const char* accent=lang==1?"ÄÖÜäöüß":lang==2?"ÉÈÊËÀÂÔÎÙÛÇŒéèêëàâôîùûçœ":lang==3?"ÁÉÍÓÚÜÑáéíóúüñ¿¡":"";
+ const char* accent=lang==5?"АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя":lang==1?"ÄÖÜäöüß":lang==2?"ÉÈÊËÀÂÔÎÙÛÇŒéèêëàâôîùûçœ":lang==3?"ÁÉÍÓÚÜÑáéíóúüñ¿¡":"";
  // UTF-8 split (never cut a multibyte input glyph).
  for(size_t i=0;accent[i];){
   unsigned char b=(unsigned char)accent[i];size_t n=b<0x80?1:b<0xe0?2:b<0xf0?3:4;

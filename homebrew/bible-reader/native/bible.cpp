@@ -24,6 +24,13 @@ static std::string lower(std::string s){
   unsigned char c=(unsigned char)s[i];
   if(c<128){s[i]=(char)std::tolower(c);continue;}
   // UTF-8 Latin-1 accented uppercase (À..Ö, Ø..Þ), maintaining byte width.
+  // Russian uppercase Cyrillic is UTF-8 D0 xx: fold А-Я and Ё.
+  if(c==0xd0&&i+1<s.size()){
+   unsigned char following=(unsigned char)s[i+1];
+   if(following==0x81){s[i]=(char)0xd1;s[i+1]=(char)0x91;++i;continue;}
+   if(following>=0x90&&following<=0x9f){s[i+1]=(char)(following+0x20);++i;continue;}
+   if(following>=0xa0&&following<=0xaf){s[i]=(char)0xd1;s[i+1]=(char)(following-0x20);++i;continue;}
+  }
   if(c==0xc3&&i+1<s.size()){
    unsigned char b=(unsigned char)s[i+1];
    if((b>=0x80&&b<=0x96)||(b>=0x98&&b<=0x9e)){s[i+1]=(char)(b+0x20);++i;}
@@ -112,7 +119,7 @@ void toggle(Settings& s,Ref r){
 int voiceStyleAfterLanguageChange(int previousLanguage,int nextLanguage,int currentStyle){
  // Legacy v0.1.8 forced voice_style=0 when the retro preset was selected.
  // Restore neural speech on exit, including after loading those saved states.
- if(previousLanguage==4 && nextLanguage>=0 && nextLanguage<4)return 1;
+ if(previousLanguage==4 && (nextLanguage==5||(nextLanguage>=0&&nextLanguage<4)))return 1;
  // Do not destroy the user's voice choice when entering retro or when
  // switching among the four normal languages.
  return std::clamp(currentStyle,0,1);
@@ -132,7 +139,7 @@ bool readSettings(const std::string& path,Settings& s){
    if(b>=0&&b<=1)next.theme=b;
    next.daily=c!=0;
   }else if(std::sscanf(row,"language=%d",&a)==1){
-   if(a>=0&&a<=4)next.language=a;
+   if(a>=0&&a<=5)next.language=a;
   }else if(std::sscanf(row,"voice_style=%d",&a)==1){
    if(a==0||a==1)next.voiceStyle=a;
   }else if(std::sscanf(row,"bookmark=%d,%d,%d",&d,&e,&g)==3){

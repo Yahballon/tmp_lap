@@ -27,13 +27,18 @@ int main(){
  assert(bible::readSettings(path,robot) && robot.language==4);
  assert(std::string(bible_i18n::languageName(4))=="Stephen Hawking (Retro TTS)");
  assert(std::string(bible_i18n::code(4))=="en");
- assert(bible_i18n::kLanguageOptions==5);
+ assert(bible_i18n::kLanguageOptions==6);
+ assert(std::string(bible_i18n::languageName(5))=="Русский");
+ assert(std::string(bible_i18n::code(5))=="ru");
+ assert(std::string(bible_i18n::bookName(5,0))=="Бытие");
+ assert(bible_i18n::searchKeys(5).size()>80);
  // Regression: v0.1.8 saved voice_style=0 after selecting retro (language 4).
  // Leaving the retro preset MUST bring back real neural speech.
  assert(bible::voiceStyleAfterLanguageChange(4,0,0)==1);
  assert(bible::voiceStyleAfterLanguageChange(4,1,0)==1);
  assert(bible::voiceStyleAfterLanguageChange(4,2,0)==1);
  assert(bible::voiceStyleAfterLanguageChange(4,3,0)==1);
+ assert(bible::voiceStyleAfterLanguageChange(4,5,0)==1);
  assert(bible::voiceStyleAfterLanguageChange(0,4,1)==1);
  assert(bible::voiceStyleAfterLanguageChange(1,2,0)==0);
  assert(bible::voiceStyleAfterLanguageChange(1,3,1)==1);
@@ -50,6 +55,11 @@ int main(){
  assert(bible::readSettings(path,recovered));
  assert(recovered.language==1&&recovered.voiceStyle==1);
 
+ bible::Settings russian=restored;
+ russian.language=5;
+ assert(bible::writeSettings(path,russian));
+ bible::Settings loadedRussian;
+ assert(bible::readSettings(path,loadedRussian)&&loadedRussian.language==5);
  assert(std::string(bible_i18n::bookName(1,0))=="1. Mose");
  assert(std::string(bible_i18n::bookName(2,0))=="Genèse");
  assert(std::string(bible_i18n::bookName(3,0))=="Génesis");

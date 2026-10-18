@@ -8,6 +8,7 @@ Only required glyphs are baked: no raw TTF is distributed.
 import argparse
 import pathlib
 import struct
+import unicodedata
 from PIL import Image, ImageDraw, ImageFont
 
 CHAR_SIZE = 60
@@ -59,7 +60,7 @@ def create(out, texts, fontfile):
     chars=set(chr(c) for c in range(32,127))
     chars.update("—–•…←↑→↓▲▶▼◀✓ ÄäÖöÜüß ÉéÈèÀàÂâÊêÎîÔôÙùÛûËëÏïÇçÑñÍíÓóÚúŒœ¿¡")
     for path in texts:
-        chars.update(pathlib.Path(path).read_text(encoding="utf-8"))
+        chars.update(unicodedata.normalize("NFC",pathlib.Path(path).read_text(encoding="utf-8")))
     chars={ch for ch in chars if ch.isprintable()}
     font=ImageFont.truetype(str(fontfile),CHAR_SIZE)
     ascent,descent=font.getmetrics()
@@ -105,7 +106,7 @@ def create(out, texts, fontfile):
     output=pathlib.Path(out);output.parent.mkdir(parents=True,exist_ok=True)
     output.write_bytes(header+glyph_bytes+atlas.tobytes())
     print(f"Glyphs={len(records)} atlas={ATLAS_WIDTH}x{height} bytes={output.stat().st_size}")
-    for ch in "ÄäÖöÜüßÉéÑñÇç¿¡Œœ":
+    for ch in "ÄäÖöÜüßÉéÑñÇç¿¡ŒœЁёБбЯяЖжШшЪъЫы":
         if ord(ch) not in {r[0] for r in records}:
             raise ValueError(f"Required Western-language glyph absent: {ch}")
 

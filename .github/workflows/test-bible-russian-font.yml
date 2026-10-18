@@ -1,0 +1,53 @@
+name: Bible Russian Text and Unicode Atlas Smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/bible-reader-v0.2.0-russian-about-unicode]
+    paths:
+      - 'homebrew/bible-reader/tools/prepare_bible.py'
+      - 'homebrew/bible-reader/tools/build_unicode_font.py'
+      - 'homebrew/bible-reader/native/localization.hpp'
+      - '.github/workflows/test-bible-russian-font.yml'
+  pull_request:
+    paths:
+      - 'homebrew/bible-reader/tools/prepare_bible.py'
+      - 'homebrew/bible-reader/tools/build_unicode_font.py'
+      - 'homebrew/bible-reader/native/localization.hpp'
+      - '.github/workflows/test-bible-russian-font.yml'
+permissions:
+  contents: read
+jobs:
+  corpus-and-font:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PIL and DejaVu font
+        run: sudo apt-get update && sudo apt-get install -y python3-pil fonts-dejavu-core
+      - name: Validate complete public-domain Russian Synodal canon
+        run: |
+          python3 homebrew/bible-reader/tools/prepare_bible.py /tmp/ru.tsv --translation ru
+          python3 - <<'PY'
+          from pathlib import Path
+          verses=Path('/tmp/ru.tsv').read_text(encoding='utf-8').splitlines()
+          lines=verses[1:]
+          assert 30000<=len(lines)<=40000,len(lines)
+          assert lines[0].startswith('0\t1\t1\t')
+          assert lines[-1].startswith('65\t22\t21\t')
+          assert any('Бог' in line for line in lines[:500])
+          print("Validated complete Cyrillic Bible",len(lines))
+          PY
+      - name: Validate German umlauts and Russian Cyrillic font glyphs
+        run: |
+          python3 homebrew/bible-reader/tools/build_unicode_font.py /tmp/cyrillic.huifont             /tmp/ru.tsv homebrew/bible-reader/native/localization.hpp
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          blob=Path('/tmp/cyrillic.huifont').read_bytes()
+          assert struct.unpack_from('<I',blob,0)[0]==0x46505A50
+          count=struct.unpack_from('<I',blob,32)[0]
+          chars={struct.unpack_from('<I',blob,40+i*24)[0] for i in range(count)}
+          for ch in 'ÄäÖöÜüßÉéÑñЁёБбЯяЖж':
+            assert ord(ch) in chars,(ch,hex(ord(ch)))
+          print("Validated all accent and Cyrillic codepoints:",count)
+          PY

@@ -12,14 +12,17 @@ spec.loader.exec_module(bible)
 
 class BibleConverterTests(unittest.TestCase):
     def test_available_translations(self):
-        self.assertEqual(set(bible.TRANSLATIONS), {"en","de","fr","es"})
+        self.assertEqual(set(bible.TRANSLATIONS), {"en","de","fr","es","ru"})
         self.assertTrue(bible.sources("de")[0].endswith("/deu1912_vpl.zip"))
         self.assertTrue(bible.sources("fr")[0].endswith("/fraLSG_vpl.zip"))
         self.assertTrue(bible.sources("es")[0].endswith("/spaRV1909_vpl.zip"))
+        self.assertTrue(bible.sources("ru")[0].endswith("/russyn_vpl.zip"))
     def test_refs(self):
         self.assertEqual(bible.parse_line("Gen 1:1 In the beginning"),(0,1,1,"In the beginning"))
         self.assertEqual(bible.parse_line("1Co 13:4 Love is patient"),(45,13,4,"Love is patient"))
         self.assertEqual(bible.parse_line("Revelation 22:21 Amen."),(65,22,21,"Amen."))
+        self.assertEqual(bible.parse_line("Бытие 1:1 В начале сотворил Бог небо и землю."),(0,1,1,"В начале сотворил Бог небо и землю."))
+        self.assertEqual(bible.parse_line("Мф 1:1 Родословие Иисуса Христа."),(39,1,1,"Родословие Иисуса Христа."))
         self.assertIsNone(bible.parse_line("random heading"))
         self.assertIsNone(bible.parse_line("Gen 1000:1 Invalid"))
     def test_typographic_punctuation_from_webpb(self):

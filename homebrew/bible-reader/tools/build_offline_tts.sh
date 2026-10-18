@@ -16,7 +16,7 @@ cmake -S "$source_root" -B /tmp/bible-espeak-host \
     -DUSE_SPEECHPLAYER=OFF -DUSE_LIBPCAUDIO=OFF -DUSE_LIBSONIC=OFF \
     -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
 cmake --build /tmp/bible-espeak-host --target data --parallel 4
-for language in en de fr es; do test -s "/tmp/bible-espeak-host/espeak-ng-data/${language}_dict"; done
+for language in en de fr es ru; do test -s "/tmp/bible-espeak-host/espeak-ng-data/${language}_dict"; done
 
 cat >/tmp/bible-espeak-ps5-toolchain.cmake <<EOF
 set(CMAKE_SYSTEM_NAME FreeBSD)
@@ -46,10 +46,10 @@ find /tmp/bible-espeak-cross -name libucd.a -exec cp {} "$root/lib/libucd.a" \;
 test -s "$root/lib/libespeak-ng.a"
 test -s "$root/lib/libucd.a"
 cp -a /tmp/bible-espeak-host/espeak-ng-data "$root/assets/tts/"
-for language in en de fr es; do test -s "$root/assets/tts/espeak-ng-data/${language}_dict"; done
-for profile in gmw/en gmw/de roa/fr roa/es; do
+for language in en de fr es ru; do test -s "$root/assets/tts/espeak-ng-data/${language}_dict"; done
+for profile in gmw/en gmw/de roa/fr roa/es zle/ru; do
     test -s "$root/assets/tts/espeak-ng-data/lang/$profile" || { echo "Missing voice profile $profile" >&2; exit 1; }
 done
 test -s "$root/assets/tts/espeak-ng-data/phondata"
 test -s "$root/assets/tts/espeak-ng-data/phontab"
-printf 'Offline TTS engine ready: %s bytes library and four languages\n' "$(stat -c %s "$root/lib/libespeak-ng.a")"
+printf 'Offline TTS engine ready: %s bytes library and five languages\n' "$(stat -c %s "$root/lib/libespeak-ng.a")"
