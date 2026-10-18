@@ -121,6 +121,17 @@ jobs:
             test -s "$deps/filesystem-helper/.deps/pacbrew/v0.40.2/sysroot/user/homebrew/lib/lib$lib.a"
           done
           test -s "$deps/libnfs-output/install/lib/libnfs.a"
+      - name: Build missing native PSBC objects and AGC link imports
+        timeout-minutes: 40
+        env:
+          PS5_VULKAN_DIR: ${{ github.workspace }}/homebrew/ps5-mesenx/build/deps/PS5_Vulkan
+          PS5_PAYLOAD_SDK: ${{ github.workspace }}/homebrew/ps5-mesenx/build/deps/PS5_Vulkan/.deps/native/ps5-payload-sdk
+        run: |
+          python3 homebrew/ps5-mesenx/scripts/build_generated_psbc.py
+          python3 homebrew/ps5-mesenx/scripts/build_agc_imports.py
+          test -s homebrew/ps5-mesenx/build/ps5-core/generated-psbc.ps5.a
+          test -s homebrew/ps5-mesenx/build/ps5-core/agc-imports/libSceAgc.so
+          test -s homebrew/ps5-mesenx/build/ps5-core/agc-imports/libSceAgcDriver.so
       - name: Build and sign PS5NESX from tmp_lap source
         timeout-minutes: 110
         shell: bash
@@ -131,6 +142,8 @@ jobs:
           export PS5_PAYLOAD_SDK="$PS5NES_DEPS/PS5_Vulkan/.deps/native/ps5-payload-sdk"
           export LIBNFS_PREFIX="$PS5NES_DEPS/libnfs-output/install"
           export LIBZ_PREFIX="$PS5NES_DEPS/filesystem-helper/.deps/pacbrew/v0.40.2/sysroot/user/homebrew"
+          export PS5NES_PSBC_GENERATED="$GITHUB_WORKSPACE/homebrew/ps5-mesenx/build/ps5-core/generated-psbc.ps5.a"
+          export PS5NES_AGC_STUB_DIR="$GITHUB_WORKSPACE/homebrew/ps5-mesenx/build/ps5-core/agc-imports"
           python3 - <<'PY'
           import json
           from pathlib import Path

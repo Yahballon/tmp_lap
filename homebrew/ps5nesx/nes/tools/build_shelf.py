@@ -47,10 +47,23 @@ for name in ['u_thread.o','anon_file.o','os_file.o']:objects.append(mesa/name)
 vkarchive=out/'vulkan/libps5vk.ps5.a'
 shutil.copy2(vulkan/'build/driver/ps5/libps5vk.ps5.a',vkarchive)
 subprocess.run(['llvm-objcopy-18','--redefine-sym','vkGetInstanceProcAddr=ps5vk_driver_vkGetInstanceProcAddr',str(vkarchive)],check=True)
-vklibs=[vkarchive,vulkan/'.deps/native/vulkan-runtime/lib/libvk_runtime.ps5.a',vulkan/'build/driver/ps5/libpsbc_driver.ps5.a',vulkan/'.deps/native/psbc/lib/libpsbc_support.ps5.a']
+# Reuse the verified generated NIR/ACO/SPIR-V object archive built by the
+# native PS5MesenX toolchain. A first-pass PSBC build omits these generated
+# objects, resulting in undefined nir_* and spirv_* symbols at link time.
+psbc_extra=Path(os.environ['PS5NES_PSBC_GENERATED'])
+if not psbc_extra.is_file() or psbc_extra.stat().st_size < 10000:
+    raise RuntimeError('Missing generated PS5 PSBC archive: '+str(psbc_extra))
+vklibs=[vkarchive,vulkan/'.deps/native/vulkan-runtime/lib/libvk_runtime.ps5.a',vulkan/'build/driver/ps5/libpsbc_driver.ps5.a',psbc_extra,vulkan/'.deps/native/psbc/lib/libpsbc_support.ps5.a']
 netlibs=[z/'lib'/f'lib{name}.a' for name in ['curl','psl','ssl','crypto','zstd','z']]
 
 stubs=sorted(str(p) for p in (sdk/'target/lib').glob('*.so') if p.name not in ('libScePosixForWebKit.so','libSceGLSlimVSH.so'))
+# AGC imports must be resolved against the native console modules, never
+# bundled as fake runtime libraries. Identical to the MesenX import scheme.
+agc=Path(os.environ['PS5NES_AGC_STUB_DIR'])
+agc_stubs=[agc/'libSceAgc.so',agc/'libSceAgcDriver.so']
+for stub in agc_stubs:
+    if not stub.is_file(): raise RuntimeError('Missing native AGC import stub: '+str(stub))
+stubs.extend(str(p) for p in agc_stubs)
 pie=out/'llvm-pie.elf'
 link=['ld.lld-18','-m','elf_x86_64','-pie','-z','max-page-size=0x4000','-mllvm','-emulated-tls',
       '--hash-style=gnu','-T',str(native/'tooling/native/ps5-pie.ld'),
@@ -70,6 +83,7 @@ subprocess.run(['clang++-18','-std=c++20','-O2','-o',str(tool),
                 *(str(native/'tooling/native'/f'{name}.cpp') for name in
                   ['native_app_builder','elf_object','self_container','sce_module_writer']),'-lz'],check=True)
 subprocess.run([str(tool),'link','--in',str(pie),'--out',str(out/'eboot.elf'),'--stub-dir',str(sdk/'target/lib'),
+                '--stub',str(agc_stubs[0]),'--stub',str(agc_stubs[1]),
                 '--module-sdk','0x02000009','--companion-sdk','0x08050001','--file-name','eboot.elf'],check=True)
 subprocess.run(['python3',str(nes/'tools/check_memory.py'),str(out/'eboot.elf')],check=True)
 subprocess.run(['python3',str(project/'ps5/tools/prepare_console_elf.py'),'--input',str(out/'eboot.elf'),
