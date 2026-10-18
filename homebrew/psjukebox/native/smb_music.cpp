@@ -314,7 +314,7 @@ bool stage(const std::string& path,uint64_t expected,std::atomic<bool>& cancel,
  }
  const std::string dir=std::string(JUKEBOX_DATA_ROOT)+"/Cache";
  mkdir(JUKEBOX_DATA_ROOT,0755);mkdir(dir.c_str(),0755);
- char id[32];snprintf(id,sizeof(id),"%016llx",(unsigned long long)hash(path));
+ char id[32];snprintf(id,sizeof(id),"%016llx",(unsigned long long)hash(cfg.server+"/"+cfg.share+"/"+cfg.path+"/"+cfg.username+"/"+path));
  local=dir+"/"+id+rel.substr(rel.find_last_of('.'));
  if(jukebox::media_cache_matches(local,expected))return true;
  const auto part=local+".part";FILE* f=fopen(part.c_str(),"wb");
