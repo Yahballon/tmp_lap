@@ -21,7 +21,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev zlib1g-dev zip
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates g++ fonts-dejavu-core libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev zlib1g-dev zip
       - name: Verify on-screen build credits match release metadata
         run: |
           python3 - <<'PY'
@@ -34,8 +34,12 @@ jobs:
           assert ver.group(1)=="v"+metadata["version"], "App header and release version differ"
           assert metadata["releaseTag"]=="psjukebox-"+ver.group(1), "Release tag mismatch"
           assert 'std::string("by YAHBALLON  ·  ")+version' in code
-          assert '1850,99,17,muted,Align::right' in code, "Credits must align right below clock"
-          assert 'label(d,font,atlas,clockText,1850,64,27,white,Align::right)' in code
+          assert '1850,102,16,muted,Align::right' in code, "Credits must align right below clock"
+          assert 'label(d,font,atlas,clockText,1850,65,28,white,Align::right)' in code
+          assert 'font.add_fallback(&internationalFont,internationalAtlas)' in code
+          assert 'jukebox::utf8_cut(s,n)' in code
+          assert 'NOW BROWSING' in code and 'LIBRARY READY' in code
+          assert 'd.gradient_rect({18,10,1884,142}' in code
           print("PASS: header credits, layout and build version are consistent")
           PY
       - name: Native library regression tests
@@ -44,6 +48,9 @@ jobs:
           /tmp/psjukebox-test
           g++ -std=c++20 -Wall -Wextra -Werror homebrew/psjukebox/tests/stick_nav_test.cpp -o /tmp/psjukebox-stick-test
           /tmp/psjukebox-stick-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/psjukebox/tests/utf8_text_test.cpp -o /tmp/psjukebox-utf8-test
+          /tmp/psjukebox-utf8-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror \
             homebrew/psjukebox/tests/cover_browse_test.cpp \
             -o /tmp/psjukebox-cover-browse-test
@@ -222,6 +229,8 @@ jobs:
           cp homebrew/psjukebox/native/*.cpp homebrew/psjukebox/native/*.hpp app/src/
           curl --fail --location --silent --show-error https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h -o app/src/stb_image.h
           python3 homebrew/psjukebox/tools/prepare.py app
+      - name: Bake and validate Unicode SDF fallback
+        run: bash homebrew/psjukebox/tools/build-international-font.sh app
       - name: Prepare PS5 OpenGL SDK
         working-directory: app
         env:
@@ -257,7 +266,7 @@ jobs:
       - name: Upload installable test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PSJukebox-v0.1.16
+          name: PSJukebox-v0.1.17
           path: app/dist/PPSA99947.zip
           if-no-files-found: error
       - name: Publish verified PSJukebox TESTBUILD release
@@ -270,5 +279,5 @@ jobs:
             echo "::error::Release $tag already exists; refusing to overwrite published bytes."
             exit 1
           fi
-          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.16 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
+          gh release create "$tag" "app/dist/PPSA99947.zip" --target "$GITHUB_SHA" --title "PSJukebox v0.1.17 (TESTBUILD)" --notes-file homebrew/psjukebox/RELEASE_NOTES.md
           gh release view "$tag" --json tagName,assets,url --jq '{tag:.tagName,url:.url,assets:[.assets[].name]}'

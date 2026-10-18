@@ -254,3 +254,13 @@ Notes: The very first scan can still take time to stage a new .album; the snapsh
 ## v0.1.16 — New PS5 menu icon
 
 The former programmatically generated PSJukebox icon is replaced by the user's neon pink-and-cyan retro jukebox artwork. The same source is resized to 512 × 512 and written to both `sce_sys/icon0.png` (PS5 system menu tile) and `assets/icon0.png` (homebrew/app asset). The verified release ZIP includes these two matching PNG files. The icon source is `homebrew/psjukebox/assets/neon-icon.webp`; package verification compares the installed icon pixels against this artwork to prevent accidentally shipping the old fallback. Title ID remains `PPSA99947` and all features, settings, music, albums and control mappings remain unchanged.
+
+## v0.1.17 — Multilingual titles and refreshed HUD design
+
+PSJukebox now loads a DejaVu Unicode SDF fallback with extended Latin, Greek, Cyrillic and other supported glyphs. It fixes German **ä ö ü Ä Ö Ü ß** and many accented French, Spanish, Portuguese, Nordic, Czech, Polish, Turkish and Vietnamese names appearing as question marks. UTF-8 titles and artist names are now truncated at full Unicode codepoints, not halfway through their bytes.
+
+The font is baked into the native PS5 package at build time from openly licensed DejaVu Sans. It is used only as a fallback to the existing Inter display font. Languages that require shaping and bidirectional layout, or complete Chinese/Japanese/Korean coverage, are not fully supported by the current static font renderer.
+
+The HUD is inspired by the open-source [ps5-homebrew-ui design guide](https://github.com/blackbearreloaded/ps5-homebrew-ui/blob/main/docs/DESIGNS.md#hud): the Field HUD layered status surfaces, Aurora Shelf focus states and frosted chrome, and Now Playing progress/spectrum. A new floating top header includes the neon app logo, tab pills and the clock. The artist bar, selected album stats, focus glows, playback panel and list/settings/favorites glass panels share a consistent look.
+
+All v0.1.16 native audio decoders, DualSense controls, cached music index, .album handling, SMB shares, favorites and dynamic artist theme colors are retained.

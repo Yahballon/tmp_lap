@@ -27,6 +27,12 @@ assert helper.read_bytes()[:4]==bytes([127,69,76,70])
 with zipfile.ZipFile(p) as z:
  assert z.testzip() is None
  files=set(z.namelist())
- for rel in ("eboot.bin","sce_sys/param.json","sce_sys/icon0.png","assets/fonts/inter-semibold.huifont","sce_module/libc.prx","jbxscan.elf"):
+ for rel in ("eboot.bin","sce_sys/param.json","sce_sys/icon0.png","assets/fonts/inter-semibold.huifont","assets/fonts/international.huifont","assets/fonts/DejaVu-LICENSE.txt","sce_module/libc.prx","jbxscan.elf"):
   assert name+"/"+rel in files,rel
+# Verify the actual shipped bytes, not just the workspace font.
+from tempfile import NamedTemporaryFile
+import subprocess
+with NamedTemporaryFile(suffix=".huifont") as temp:
+ temp.write((root/"assets/fonts/international.huifont").read_bytes());temp.flush()
+ subprocess.run([sys.executable,"homebrew/psjukebox/tools/verify-international-font.py",temp.name],check=True)
 print("Verified installable",p)
