@@ -85,6 +85,10 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
+          # zlib.net/fossils intermittently returns a nonmatching download on CI.
+          # Use the official GitHub release mirror; retain the pinned SHA256 check.
+          sed -i 's|zlib_url="https://zlib.net/fossils/zlib-$zlib_version.tar.gz"|zlib_url="https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"|' app/tools/setup-native-dependencies.sh
+          grep -F 'zlib_url="https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"' app/tools/setup-native-dependencies.sh
           cp homebrew/bible-reader/native/*.cpp homebrew/bible-reader/native/*.hpp app/src/
           mkdir -p app/assets/bible
           cp /tmp/bible-assets/en.tsv app/assets/bible/webpb.tsv
