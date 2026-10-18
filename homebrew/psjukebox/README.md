@@ -278,3 +278,7 @@ The Now Playing section has been rebuilt as a wide 1690 × 174 glass panel with 
 The footer now matches the reference's compact row of nine colored DualSense instructions. Real-time artist- and album-specific backgrounds are still read from the user's library; the Haftbefehl artwork in the screenshot is **not** bundled or hardcoded. Unicode international font fallback and UTF-8-safe song titles from v0.1.17 remain supported. All existing .album, SMB, favorites, caching, fast startup and playback functions are maintained.
 
 Coordinates are kept in a tested small native layout header, with a host regression verifying positioning, panel separation and focus geometry. Release pipeline checks actual PS5 native compilation and package verification. Console testing is still necessary to compare the visual composition and smoothness.
+
+## v0.1.21 — Cleaner coverflow dashboard
+
+Removed the wide Browsing Artist hero; live artist and track counts are integrated alongside status, time and developer credits at top right. Raised the remaining context cards and five-cover carousel. Reformatted NOW PLAYING to prioritize track title, artist/album and progress, and removed the three decorative media icons and spectrum. DualSense shortcuts and in-app SMB settings remain available.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.20
+// PSJukebox by YAHBALLON v0.1.21
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -38,7 +38,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.20";
+constexpr const char* version="v0.1.21";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(const std::string& s,size_t n){return jukebox::utf8_cut(s,n);}
@@ -295,7 +295,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.20");
+ log("BOOT v0.1.21");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
@@ -923,7 +923,6 @@ int main(){
   const auto hp=jukebox::dashboard::header;
   const auto nav=jukebox::dashboard::nav;
   const auto status=jukebox::dashboard::status;
-  const auto hero=jukebox::dashboard::artist;
   d.rounded_rect({0,0,1920,1080},0,color(0x020a13,.25f));
   d.shadow({hp.x,hp.y,hp.w,hp.h},25,26,color(0x000000,.70f));
   d.gradient_rect({hp.x,hp.y,hp.w,hp.h},25,color(0x0c1928,.92f),color(0x030814,.88f));
@@ -976,38 +975,28 @@ int main(){
    }
    label(d,font,atlas,tabNames[i],ix+18,nav.y+47,18,fg);
   }
+  // Library totals are live in the clock/header region; no full-width hero rail.
   d.bordered_rect({status.x,status.y,status.w,status.h},20,
                   color(0x04101e,.84f),1.5f,color(0xb2c2d3,.48f));
-  d.circle(status.x+28,status.y+27,6,color(scanBusy.load()?0xffbb30:0x00eaa1));
-  label(d,font,atlas,scanBusy.load()?"INDEXING":"LIBRARY READY",
-        status.x+46,status.y+32,14,white);
+  d.circle(1452,78,6,color(scanBusy.load()?0xffbb30:0x00eaa1));
+  label(d,font,atlas,scanBusy.load()?"SCANNING":"READY",1469,86,16,white);
+  label(d,font,atlas,"LIBRARY STATUS",1469,113,11,muted);
+  d.line(1567,59,1567,125,1,color(0xdde9f9,.23f));
+  label(d,font,atlas,std::to_string(library.artists.size()),1616,88,27,white,Align::center);
+  label(d,font,atlas,"ARTISTS",1616,113,12,muted,Align::center);
+  d.line(1666,59,1666,125,1,color(0xdde9f9,.23f));
+  label(d,font,atlas,std::to_string(library.trackCount),1711,88,26,white,Align::center);
+  label(d,font,atlas,"TRACKS",1711,113,12,muted,Align::center);
+  d.line(1753,59,1753,112,1,color(0xdde9f9,.23f));
   const std::time_t nowTime=std::time(nullptr);
   char clockText[32]="--:--";
   if(nowTime>0){
    const auto* tm=std::localtime(&nowTime);
    if(tm)std::strftime(clockText,sizeof(clockText),"%H:%M",tm);
   }
-  label(d,font,atlas,clockText,1850,88,30,white,Align::right);
+  label(d,font,atlas,clockText,1853,87,29,white,Align::right);
   label(d,font,atlas,std::string("by YAHBALLON  ·  ")+version,
-        1850,124,16,muted,Align::right);
-  // Compact artist context rail leaves more space for the coverflow.
-  d.shadow({hero.x,hero.y,hero.w,hero.h},18,17,color(0x000000,.50f));
-  d.gradient_rect({hero.x,hero.y,hero.w,hero.h},18,
-                  color(0x03101c,.82f),color(0x030c17,.67f));
-  d.bordered_rect({hero.x,hero.y,hero.w,hero.h},18,
-                  color(0x000000,.04f),1.4f,color(0xd4e3f3,.49f));
-  d.rounded_rect({68,188,7,48},3,color(accent));
-  label(d,font,atlas,"B R O W S I N G   A R T I S T",119,199,13,color(0xffd47b));
-  label(d,font,atlas,artist?cut(artist->name,30):"Music Library",118,234,34,white);
-  d.line(1545,187,1545,242,1,color(0xdde9f9,.30f));
-  d.line(1678,187,1678,242,1,color(0xdde9f9,.30f));
-  label(d,font,atlas,std::to_string(library.artists.size()),1495,211,24,white,Align::center);
-  label(d,font,atlas,"ARTISTS",1495,233,12,muted,Align::center);
-  label(d,font,atlas,std::to_string(library.trackCount),1612,211,24,white,Align::center);
-  label(d,font,atlas,"TRACKS",1612,233,12,muted,Align::center);
-  d.circle(1748,207,7,color(scanBusy.load()?0xffbd2d:0x00ec97));
-  label(d,font,atlas,scanBusy.load()?"SCANNING":"READY",1771,215,20,white);
-  label(d,font,atlas,"LIBRARY STATUS",1772,235,12,muted);
+        1853,130,13,muted,Align::right);
   const auto leftInfo=jukebox::dashboard::artistCard;
   const auto rightInfo=jukebox::dashboard::albumCard;
   // Cards intentionally sit behind the covers, not above the carousel.
@@ -1015,13 +1004,13 @@ int main(){
                   color(0x061728,.80f),1.4f,color(0xa4cbe7,.55f));
   d.bordered_rect({rightInfo.x,rightInfo.y,rightInfo.w,rightInfo.h},21,
                   color(0x061728,.80f),1.4f,color(0xa4cbe7,.55f));
-  d.rounded_rect({65,286,7,98},3,color(accent));
-  label(d,font,atlas,"NOW BROWSING",98,306,15,color(accent));
-  label(d,font,atlas,artist?cut(artist->name,16):"Library",98,343,27,white);
-  label(d,font,atlas,"ALBUM",1603,306,15,color(accent));
+  d.rounded_rect({65,216,7,93},3,color(accent));
+  label(d,font,atlas,"NOW BROWSING",98,241,15,color(accent));
+  label(d,font,atlas,artist?cut(artist->name,16):"Library",98,282,28,white);
+  label(d,font,atlas,"ALBUM",1603,241,15,color(accent));
   label(d,font,atlas,artist&&!artist->albums.empty()?
        std::to_string(albumIndex+1)+" / "+std::to_string(artist->albums.size()):"0 / 0",
-       1603,349,33,white);
+       1603,286,33,white);
   d.rounded_rect({0,982,1920,98},0,color(0x040a14,.94f));
   d.line(0,982,1920,982,1.1f,color(0x31506f,.47f));
   const bool showCoverflow=(screen==0||screen==2);
@@ -1070,14 +1059,15 @@ int main(){
    }
    // Carousel edge arrows echo the reference and reflect D-pad browsing.
    // Navigation remains bound to actual left/right gamepad input.
+   const float arrowY=jukebox::dashboard::sideCoverCenterY;
    for(const float x:{53.f,1868.f}){
-    d.circle(x,563.f,27.f,color(0x04101c,.72f));
-    d.ring(x,563.f,26.f,1.4f,color(0xdde9fb,.68f));
+    d.circle(x,arrowY,27.f,color(0x04101c,.72f));
+    d.ring(x,arrowY,26.f,1.4f,color(0xdde9fb,.68f));
    }
-   d.line(61,548,46,563,3.2f,white);
-   d.line(46,563,61,578,3.2f,white);
-   d.line(1860,548,1875,563,3.2f,white);
-   d.line(1875,563,1860,578,3.2f,white);
+   d.line(61,arrowY-15,46,arrowY,3.2f,white);
+   d.line(46,arrowY,61,arrowY+15,3.2f,white);
+   d.line(1860,arrowY-15,1875,arrowY,3.2f,white);
+   d.line(1875,arrowY,1860,arrowY+15,3.2f,white);
    // Reference-matched full-width NOW PLAYING rail. Its elements are native
    // and read the actual decoder state; artwork, timestamps and tracks update.
    const auto box=jukebox::dashboard::player;
@@ -1103,46 +1093,24 @@ int main(){
    else d.gradient_rect({thumb.x+4,thumb.y+4,thumb.w-8,thumb.h-8},10,
                         color(0x283745),color(0x050917));
    const auto audioState=player.snapshot();
-   label(d,font,atlas,audioState.paused?"PAUSED":"NOW PLAYING",373,827,15,color(accent));
+   // Song title first; no duplicate track count, hard-coded title offset,
+   // visualizer, or decorative right-side buttons.
+   label(d,font,atlas,audioState.paused?"PAUSED":"NOW PLAYING",373,829,17,color(accent));
    if(playing&&playingArtist&&playingAlbum){
-    const std::string heading=std::to_string(playingSong.track+1)+". "+
-                              cut(playingArtist->name,16)+" - ";
-    label(d,font,atlas,heading,373,868,27,white);
-    // Song title gets reference's yellow emphasis while artist stays white.
-    label(d,font,atlas,cut(playing->name,33),686,868,28,color(accent));
-    label(d,font,atlas,cut(playingArtist->name,26)+"  /  "+
-          cut(playingAlbum->name,47),373,898,19,muted);
+    label(d,font,atlas,cut(playing->name,64),373,870,31,white);
+    label(d,font,atlas,cut(playingArtist->name,28)+"   /   "+
+          cut(playingAlbum->name,58),373,905,20,muted);
    }else{
-    label(d,font,atlas,"SELECT AN ALBUM TO PLAY",373,867,28,white);
-    label(d,font,atlas,"Choose a cover and press X to start",373,898,19,muted);
+    label(d,font,atlas,"SELECT AN ALBUM TO PLAY",373,870,30,white);
+    label(d,font,atlas,"Choose a cover and press X to start",373,905,20,muted);
    }
    const float progress=audioState.duration>0?
       std::clamp((float)(audioState.seconds/audioState.duration),0.f,1.f):0.f;
-   label(d,font,atlas,stamp(audioState.seconds),373,944,19,white);
-   d.rounded_rect({449,930,940,11},5,color(0x39495f,.95f));
-   if(progress>.002f)d.rounded_rect({449,930,940*progress,11},5,color(accent));
-   d.circle(449+940*progress,935.5f,9.5f,color(accent));
-   label(d,font,atlas,stamp(audioState.duration),1429,944,19,white,Align::right);
-   // Procedural, live decorative spectrum: no FFT allocation / network work.
-   for(int bar=0;bar<22;bar++){
-    const float shape=std::fabs(std::sin(frame*.052f+bar*.52f)*
-                                std::cos(frame*.019f+bar*.18f));
-    const float centerWeight=1.f-std::fabs(bar-10.5f)/13.f;
-    const float height=audioState.paused?5.f:
-                        6.f+shape*(16.f+64.f*std::max(.08f,centerWeight));
-    d.rounded_rect({1197.f+bar*12.f,894.f-height,7.f,height},3,
-                   color(accent,.67f+shape*.33f));
-   }
-   // Reference's three right-hand media controls; gamepad actions remain
-   // the actual playback controls (Square / L2-R2 / OPTIONS).
-   const float actions[]={1543.f,1636.f,1729.f};
-   for(int i=0;i<3;i++)
-    d.bordered_rect({actions[i],843,67,67},16,
-                    color(0x142030,.90f),1.2f,color(i==0?accent:0x526a84,.68f));
-   for(int j=0;j<4;j++)
-    d.rounded_rect({1563.f+j*10.f,876.f-(j%3)*8.f,5,14.f+(j%3)*8.f},2,color(accent));
-   d.ring(1669,876,13,2.5f,color(0xe2e9f8));
-   for(int j=0;j<3;j++)d.circle(1749.f+j*12.f,877.f,3,color(0xe2e9f8));
+   label(d,font,atlas,stamp(audioState.seconds),373,946,20,white);
+   d.rounded_rect({465,930,1225,11},5,color(0x39495f,.95f));
+   if(progress>.002f)d.rounded_rect({465,930,1225*progress,11},5,color(accent));
+   d.circle(465+1225*progress,935.5f,9.5f,color(accent));
+   label(d,font,atlas,stamp(audioState.duration),1760,946,20,white,Align::right);
   }else if((screen==1||screen==5)&&album){
    d.shadow({142,259,1636,670},24,24,color(0x000000,.7f));
    d.gradient_rect({142,259,1636,670},24,color(0x111b2b,.96f),color(0x080c17,.92f));

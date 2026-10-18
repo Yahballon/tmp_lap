@@ -37,8 +37,12 @@ jobs:
           assert ver.group(1)=="v"+metadata["version"], "App header and release version differ"
           assert metadata["releaseTag"]=="psjukebox-"+ver.group(1), "Release tag mismatch"
           assert 'std::string("by YAHBALLON  ·  ")+version' in code
-          assert '1850,124,16,muted,Align::right' in code, "Credits must align right below clock"
-          assert 'label(d,font,atlas,clockText,1850,88,30,white,Align::right)' in code
+          assert '1853,130,13,muted,Align::right' in code, "Credits must align below clock"
+          assert 'label(d,font,atlas,clockText,1853,87,29,white,Align::right)' in code
+          assert 'B R O W S I N G   A R T I S T' not in code
+          assert 'const float actions[]' not in code
+          assert 'label(d,font,atlas,std::to_string(library.trackCount),1711,88,26' in code
+          assert 'label(d,font,atlas,std::to_string(library.artists.size()),1616,88,27' in code
           assert 'font.add_fallback(&internationalFont,internationalAtlas)' in code
           assert 'jukebox::utf8_cut(s,n)' in code
           assert 'NOW BROWSING' in code and 'LIBRARY READY' in code
@@ -47,8 +51,8 @@ jobs:
           assert 'const auto box=jukebox::dashboard::player;' in code
           assert 'const auto thumb=jukebox::dashboard::playingArtwork;' in code
           assert 'image_fill(d,art,thumb.x+4,thumb.y+4' in code
-          assert 'label(d,font,atlas,cut(playing->name,33),686,868,28,color(accent));' in code
-          assert 'd.rounded_rect({449,930,940*progress,11},5,color(accent));' in code
+          assert 'label(d,font,atlas,cut(playing->name,64),373,870,31,white);' in code
+          assert 'd.rounded_rect({465,930,1225*progress,11},5,color(accent));' in code
           assert 'd.bordered_rect({status.x,status.y,status.w,status.h}' in code
           assert 'const uint32_t accent=jukebox::dashboard::gold;' in code
           print("PASS: header credits, layout and build version are consistent")

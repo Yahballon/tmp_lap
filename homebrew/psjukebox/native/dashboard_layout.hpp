@@ -8,15 +8,15 @@ namespace jukebox::dashboard {
 struct Rect { float x,y,w,h; };
 constexpr Rect header{32,28,1856,134};
 constexpr Rect nav{503,58,912,79};
-constexpr Rect status{1535,43,337,102};
-constexpr Rect artist{34,176,1852,76};
-constexpr Rect artistCard{40,267,302,135};
-constexpr Rect albumCard{1575,267,303,135};
+// READY, artists, tracks, clock and credits share the compact right header.
+constexpr Rect status{1430,43,442,102};
+constexpr Rect artistCard{40,205,302,125};
+constexpr Rect albumCard{1575,205,303,125};
 constexpr Rect player{115,793,1690,174};
 constexpr Rect footer{0,982,1920,98};
 constexpr Rect playingArtwork{180,810,152,147};
-constexpr float coverCenterY=510.f;
-constexpr float sideCoverCenterY=537.f;
+constexpr float coverCenterY=478.f;
+constexpr float sideCoverCenterY=507.f;
 // Golden focus matches the reference UI independent of album theme hues.
 constexpr unsigned gold=0xffc52f;
 inline float center_y(float focus){

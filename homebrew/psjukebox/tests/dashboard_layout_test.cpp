@@ -8,8 +8,12 @@ int main(){
  using namespace jukebox::dashboard;
  assert(header.x>0&&header.y>0&&header.x+header.w<1920);
  assert(nav.x>header.x&&nav.x+nav.w<status.x);
- assert(artist.y>header.y+header.h);
- assert(player.y>artist.y+artist.h);
+ assert(status.x>nav.x+nav.w&&status.x+status.w<1920);
+ assert(artistCard.y>header.y+header.h);
+ assert(albumCard.y==artistCard.y);
+ assert(player.y>artistCard.y+artistCard.h);
+ assert(artistCard.y<267); // no full-width artist context strip
+ assert(coverCenterY<510.f);
  assert(footer.y>=player.y+player.h);
  assert(!intersect(artistCard,albumCard));
  assert(playingArtwork.x>player.x&&playingArtwork.y>player.y);
