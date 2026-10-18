@@ -38,7 +38,7 @@ jobs:
           code=Path('homebrew/psjukebox/native/main.cpp').read_text()
           assert 'jukebox::allows_live_album_browse(screen)' in code
           assert 'screen=0;headerIndex=0;' in code
-          assert 'player.skip(-10)' in code and 'player.skip(10)' in code
+          assert 'player.skip(10*analogSeekDirection)' in code
           assert 'if((screen==0||screen==2)&&(pressed&hui::pad_bits::kDown))' in code
           assert 'jukebox::cover_slot(position)' in code
           assert 'jukebox::album_browse_step(' in code
