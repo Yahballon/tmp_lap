@@ -54,6 +54,33 @@ jobs:
             libssl-dev libzstd-dev libx11-dev libgl1-mesa-dev \
             python3 python3-mako python3-numpy python3-pil
           echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+      - name: Restore pinned original PS5NESX embedded fonts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The partial native-source import deliberately excluded the legacy
+          # PCSX2 bin/ directory, but fe_ps5.cpp still embeds these two fonts.
+          # Fetch only the two required files, pinned to the imported source.
+          root="$GITHUB_WORKSPACE/homebrew/ps5nesx"
+          rev="$(tr -d '\r\n' < "$root/UPSTREAM_COMMIT")"
+          test "$rev" = "aa401fb83c830164421d30fe808a6714f0e6cd7c"
+          mkdir -p "$root/bin/resources/fonts"
+          for entry in \
+            'Roboto-Regular.ttf 500b1045b0c94d83d2e6798aaf1faa55a2dab6fc' \
+            'promptfont.otf 77f8d39a6d3700494bb133c5f0ec67c762794ffa'; do
+            read -r filename expected <<< "$entry"
+            curl -fL --retry 5 --retry-all-errors --connect-timeout 20 \
+              "https://raw.githubusercontent.com/Yahballon/PS5NESX/$rev/bin/resources/fonts/$filename" \
+              -o "$root/bin/resources/fonts/$filename"
+            actual="$(git hash-object "$root/bin/resources/fonts/$filename")"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "Upstream font integrity mismatch: $filename" >&2
+              exit 1
+            fi
+          done
+          test -s "$root/bin/resources/fonts/Roboto-Regular.ttf"
+          test -s "$root/bin/resources/fonts/promptfont.otf"
+          echo "Verified both original embedded font files from pinned source revision"
       - name: Restore native PS5 graphics cache shared with MesenX
         id: graphics
         uses: actions/cache/restore@v4
