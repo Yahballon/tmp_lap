@@ -273,6 +273,16 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
   footer_chip(d,font,atlas,1208,y,'T',"Favorite",0x05dda0,201);
   footer_chip(d,font,atlas,1424,y,'M',"Settings",0xb69bff,189);
   footer_chip(d,font,atlas,1628,y,'O',"Back",0xff6983,185);
+ }else if(screen==7){
+  footer_chip(d,font,atlas,710,y,'X',"Edit / Save",0x78adff,255);
+  footer_chip(d,font,atlas,1000,y,'O',"Back",0xfd8696,200);
+ }else if(screen==8){
+  footer_chip(d,font,atlas,364,y,'X',"Type",0x78adff,185);
+  footer_chip(d,font,atlas,565,y,'S',"Delete",0xfd8696,185);
+  footer_chip(d,font,atlas,764,y,'T',"Done",0x09d59c,185);
+  footer_chip(d,font,atlas,963,y,'3',"Space",0xffcc46,185);
+  footer_chip(d,font,atlas,1162,y,'L',"Keys",0xa78bfa,185);
+  footer_chip(d,font,atlas,1361,y,'O',"Cancel",0xfd8696,185);
  }else if(screen==4){
   footer_chip(d,font,atlas,720,y,'X',"Select",0x78adff,215);
   footer_chip(d,font,atlas,950,y,'O',"Back",0xfd8696,200);
@@ -327,6 +337,26 @@ int main(){
    "Scanning music (covers appear as they are found)...";
  int artistIndex=0,albumIndex=0,trackIndex=0,screen=0,settingsIndex=0;
  int headerIndex=0,artistListIndex=0,favoritesIndex=0,playlistIndex=0;
+ smb_music::Settings smbSettings;
+ std::string smbError;
+ bool smbConfigured=smb_music::read_settings(smbSettings,smbError);
+ int smbIndex=0,keyboardField=0,keyPage=0,keyRow=0,keyCol=0;
+ std::string keyboardValue;
+ static const std::string keyboardPages[3]={
+  "abcdefghijklmnopqrstuvwxyz0123456789.-_@",
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_@",
+  "!?#$%&*()+-_=:/\\.,;[]{}<>~^'\"|"
+ };
+ auto smb_field=[&](int i)->std::string& {
+  switch(i){
+   case 0:return smbSettings.server;
+   case 1:return smbSettings.share;
+   case 2:return smbSettings.path;
+   case 3:return smbSettings.username;
+   case 4:return smbSettings.password;
+   default:return smbSettings.domain;
+  }
+ };
  bool headerFocus=false;
  struct SongLocation {size_t artist=0,album=0,track=0;};
  SongLocation playingSong{},queuedSong{};
@@ -638,7 +668,9 @@ int main(){
   // tracks across neighboring albums. D-pad LEFT/RIGHT browses covers.
   // Square pauses; OPTIONS is the only settings shortcut.
   if(!exitDialog&&pressed&hui::pad_bits::kOptions){
-   if(screen==4){screen=settingsReturnScreen;}
+   if(screen==8)screen=7;
+   else if(screen==7)screen=4;
+   else if(screen==4)screen=settingsReturnScreen;
    else{settingsReturnScreen=screen;screen=4;}
    headerFocus=false;pressed=0;
   }
@@ -729,6 +761,8 @@ int main(){
   }else if(pressed&hui::pad_bits::kCircle){
    if(screen==0){exitDialog=true;exitChoice=false;}
    else if(screen==4)screen=settingsReturnScreen;
+   else if(screen==8)screen=7;
+   else if(screen==7)screen=4;
    else if(screen==1&&havePlayingSong){screen=2;headerIndex=0;}
    else activate_tab(0);
   }else if(screen==0){
@@ -788,9 +822,53 @@ int main(){
    }
   }else if(screen==4){
    if(pressed&hui::pad_bits::kUp)settingsIndex=std::max(0,settingsIndex-1);
-   if(pressed&hui::pad_bits::kDown)settingsIndex=std::min(1,settingsIndex+1);
+   if(pressed&hui::pad_bits::kDown)settingsIndex=std::min(2,settingsIndex+1);
    if(pressed&hui::pad_bits::kCross){
-    if(settingsIndex==0)rescan();else screen=settingsReturnScreen;
+    if(settingsIndex==0)rescan();
+    else if(settingsIndex==1){
+     smb_music::Settings loaded;std::string error;
+     smbConfigured=smb_music::read_settings(loaded,error);
+     if(smbConfigured)smbSettings=std::move(loaded);
+     smbIndex=0;screen=7;
+    }else screen=settingsReturnScreen;
+   }
+  }else if(screen==7){
+   if(pressed&hui::pad_bits::kUp)smbIndex=std::max(0,smbIndex-1);
+   if(pressed&hui::pad_bits::kDown)smbIndex=std::min(7,smbIndex+1);
+   if(pressed&hui::pad_bits::kCross){
+    if(smbIndex<6){
+     keyboardField=smbIndex;keyboardValue=smb_field(smbIndex);
+     keyPage=keyRow=keyCol=0;screen=8;
+    }else if(smbIndex==6){
+     if(scanBusy.load()||transferBusy.load())message="Wait until background scan or transfer finishes";
+     else{
+      std::string error;
+      if(smb_music::save_settings(smbSettings,error)){
+       smbConfigured=true;
+       for(auto& it:images)destroy(it.second);
+       images.clear();
+       log("SMB_SETTINGS_SAVED");
+       rescan();
+      }else message=error;
+     }
+    }else screen=4;
+   }
+  }else if(screen==8){
+   if(pressed&hui::pad_bits::kL1){keyPage=(keyPage+2)%3;keyRow=keyCol=0;}
+   if(pressed&hui::pad_bits::kR1){keyPage=(keyPage+1)%3;keyRow=keyCol=0;}
+   const int rows=((int)keyboardPages[keyPage].size()+9)/10;
+   if(pressed&hui::pad_bits::kUp)keyRow=std::max(0,keyRow-1);
+   if(pressed&hui::pad_bits::kDown)keyRow=std::min(rows-1,keyRow+1);
+   if(pressed&hui::pad_bits::kLeft)keyCol=std::max(0,keyCol-1);
+   if(pressed&hui::pad_bits::kRight)keyCol=std::min(9,keyCol+1);
+   if(pressed&hui::pad_bits::kSquare&&!keyboardValue.empty())keyboardValue.pop_back();
+   const size_t maxLen=keyboardField==4?255u:180u;
+   if(pressed&hui::pad_bits::kR2&&keyboardValue.size()<maxLen)keyboardValue+=' ';
+   const int index=keyRow*10+keyCol;
+   if(pressed&hui::pad_bits::kCross&&index<(int)keyboardPages[keyPage].size()&&keyboardValue.size()<maxLen)
+    keyboardValue+=keyboardPages[keyPage][(size_t)index];
+   if(pressed&hui::pad_bits::kTriangle){
+    smb_field(keyboardField)=keyboardValue;keyboardValue.clear();screen=7;
    }
   }
   artist=currentArtist();album=currentAlbum();
@@ -1124,13 +1202,54 @@ int main(){
    d.gradient_rect({330,251,1260,647},24,color(0x171f2e,.95f),color(0x080c17,.96f));
    d.bordered_rect({330,251,1260,647},24,color(0x080c16,.17f),1,color(0xffffff,.16f));
    label(d,font,atlas,"SETTINGS",960,318,39,color(accent),Align::center);
-   const char* options[]={"Rescan music library","Back to albums"};
-   for(int i=0;i<2;i++){
+   const char* options[]={"Rescan music library","SMB Network Share","Back to albums"};
+   for(int i=0;i<3;i++){
     if(i==settingsIndex)d.rounded_rect({497,385+i*85.f,926,65},9,color(accent,.22f));
     label(d,font,atlas,options[i],960,430+i*85.f,27,white,Align::center);
    }
-   label(d,font,atlas,"Favorites: /data/PSJukebox/favorites.json",960,721,21,muted,Align::center);
-   label(d,font,atlas,"L1/R1 Artist | L2/R2 Songs | D-PAD Covers | STICK Seek | DOWN Tracks",960,765,19,muted,Align::center);
+   label(d,font,atlas,std::string("SMB: ")+(smbConfigured?"Configured":"Not configured"),960,731,22,muted,Align::center);
+   label(d,font,atlas,"Press X to configure SMB2/3 shares without editing files",960,785,20,muted,Align::center);
+  }else if(screen==7){
+   d.shadow({295,261,1330,677},22,22,color(0x000000,.73f));
+   d.gradient_rect({295,261,1330,677},22,color(0x142033,.99f),color(0x07101d,.97f));
+   d.bordered_rect({295,261,1330,677},22,color(0x060b12,.22f),1.4f,color(accent,.45f));
+   label(d,font,atlas,"SMB NETWORK SHARE",960,321,35,color(accent),Align::center);
+   const char* fields[]={"Server / IP","Share","Subfolder (optional)","Username","Password","Domain (optional)"};
+   for(int i=0;i<6;i++){
+    float y=391+i*67.f;
+    if(i==smbIndex)d.rounded_rect({358,y-40,1205,53},10,color(accent,.20f));
+    label(d,font,atlas,fields[i],390,y,22,muted);
+    const auto& value=smb_field(i);
+    std::string shown=i==4?(value.empty()?"(empty)":std::string(10,'*')):
+      (value.empty()?"(empty)":cut(value,40));
+    label(d,font,atlas,shown,1521,y,23,white,Align::right);
+   }
+   for(int i=6;i<8;i++){
+    const float y=816+(i-6)*53.f;
+    if(i==smbIndex)d.rounded_rect({359,y-37,1205,51},10,color(accent,.20f));
+    label(d,font,atlas,i==6?"SAVE & RESCAN":"CANCEL",960,y,24,i==6?color(accent):white,Align::center);
+   }
+   label(d,font,atlas,"SMB2/3  /  Local configuration  /  No restart needed",960,926,18,muted,Align::center);
+  }else if(screen==8){
+   d.shadow({260,261,1400,672},22,22,color(0x000000,.77f));
+   d.gradient_rect({260,261,1400,672},22,color(0x152237,.99f),color(0x060d18,.98f));
+   d.bordered_rect({260,261,1400,672},22,color(0x060b12,.20f),1.3f,color(accent,.48f));
+   const char* names[]={"Server / IP","Share","Subfolder","Username","Password","Domain"};
+   label(d,font,atlas,std::string("EDIT ")+names[keyboardField],960,323,35,color(accent),Align::center);
+   d.rounded_rect({351,353,1218,75},12,color(0x040b15,.98f));
+   std::string val=keyboardField==4?std::string(std::min<size_t>(keyboardValue.size(),52),'*'):
+      cut(keyboardValue,54);
+   label(d,font,atlas,val.empty()?"(empty)":val,384,403,27,white);
+   const auto& keys=keyboardPages[keyPage];
+   for(size_t i=0;i<keys.size();i++){
+    int col=(int)i%10,row=(int)i/10;
+    float x=395+col*115.f,y=483+row*88.f;
+    const bool selected=row==keyRow&&col==keyCol;
+    d.bordered_rect({x,y-38,78,59},10,selected?color(accent,.34f):color(0x102034,.95f),
+                    1.4f,color(accent,selected?.85f:.24f));
+    label(d,font,atlas,std::string(1,keys[i]),x+39,y+4,29,white,Align::center);
+   }
+   label(d,font,atlas,std::string("L1 / R1: ")+(keyPage==0?"lowercase":keyPage==1?"UPPERCASE":"symbols"),960,909,20,muted,Align::center);
   }else{
    label(d,font,atlas,"NO ALBUMS FOUND",960,485,34,color(accent),Align::center);
    label(d,font,atlas,"Music/Artist/Album/cover.jpg + song.mp3",960,534,23,white,Align::center);
