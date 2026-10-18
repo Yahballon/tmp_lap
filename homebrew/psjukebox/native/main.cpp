@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PSJukebox by YAHBALLON v0.1.17
+// PSJukebox by YAHBALLON v0.1.18
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -10,6 +10,7 @@
 #include "stick_nav.hpp"
 #include "cover_motion.hpp"
 #include "cover_browse.hpp"
+#include "hud_layout.hpp"
 #include "song_navigation.hpp"
 #include "favorites.hpp"
 #include "album_archive.hpp"
@@ -37,7 +38,7 @@
 
 using namespace hui::gfx;
 namespace {
-constexpr const char* version="v0.1.17";
+constexpr const char* version="v0.1.18";
 const Color white=Color::rgb(0xffffff),muted=Color::rgb(0xc5c8cf),black=Color::rgb(0x000000);
 Color color(uint32_t hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 std::string cut(const std::string& s,size_t n){return jukebox::utf8_cut(s,n);}
@@ -228,6 +229,53 @@ bool begin_transfer(const std::string& path,uint64_t size){
  }
  pthread_detach(thread);return true;
 }
+
+void hud_glass(DrawList& d, float x,float y,float w,float h,float radius=21.f,
+               float opacity=.92f,bool goldBorder=false){
+ d.shadow({x,y,w,h},radius,21,color(0x000000,.58f));
+ d.gradient_rect({x,y,w,h},radius,color(0x0d1726,opacity),color(0x030813,opacity-.05f));
+ d.bordered_rect({x,y,w,h},radius,color(0x090f1b,.15f),1.4f,
+                 goldBorder?color(0xf8c841,.81f):color(0xa7c1d9,.32f));
+ d.line(x+radius,y+1,x+w-radius,y+1,1,color(0xc6ecff,.15f));
+}
+void hud_tab_icon(DrawList& d,int tab,float x,float y,Color c){
+ if(tab==0){
+  for(int r=0;r<2;r++)for(int col=0;col<2;col++)
+   d.rounded_rect({x+col*10.f,y+r*10.f,7,7},1,c);
+ }else if(tab==1){
+  d.circle(x+9,y+4,5,c);d.rounded_rect({x+1,y+12,16,9},7,c);
+ }else if(tab==2){
+  d.line(x+8,y+3,x+18,y,2.8f,c);
+  d.line(x+8,y+3,x+8,y+17,2.8f,c);
+  d.line(x+18,y,x+18,y+14,2.8f,c);
+  d.circle(x+5,y+18,4,c);d.circle(x+15,y+15,4,c);
+ }else if(tab==3){
+  d.bordered_rect({x,y+3,19,15},3,color(0x000000,0),2,c);
+  for(int r=0;r<2;r++)d.line(x+5,y+8+r*6,x+15,y+8+r*6,2,c);
+ }else{
+  d.ring(x+5,y+7,5,2.2f,c);d.ring(x+15,y+7,5,2.2f,c);
+  d.line(x+1,y+10,x+10,y+20,2.5f,c);
+  d.line(x+19,y+10,x+10,y+20,2.5f,c);
+ }
+}
+void hud_arrow(DrawList& d,float x,float y,bool right){
+ d.shadow({x-28,y-28,56,56},28,10,color(0x000000,.72f));
+ d.bordered_rect({x-28,y-28,56,56},28,color(0x07121e,.82f),
+                 1.3f,color(0xf6cb59,.70f));
+ const float dir=right?1.f:-1.f;
+ d.line(x-dir*5.f,y-11,x+dir*6.f,y,3.4f,white);
+ d.line(x+dir*6.f,y,x-dir*5.f,y+11,3.4f,white);
+}
+void hud_equalizer(DrawList& d,float x,float base,float seconds,bool paused,
+                   uint32_t gold){
+ for(unsigned i=0;i<jukebox::hud::equalizerBars;i++){
+  const float height=jukebox::hud::visualizerBar(i,seconds,paused);
+  const float bx=x+i*11.6f;
+  d.glow({bx-1,base-height-1,7,height+2},4,6,color(gold,.22f));
+  d.rounded_rect({bx,base-height,6,height},3,color(gold,.96f));
+ }
+}
+
 void footer_chip(DrawList& d,const Font& font,unsigned atlas,float x,float y,
                  char symbol,const char* action,uint32_t tint,float width=195.f){
  d.rounded_rect({x,y,width,48},11,color(0x191c25,.92f));
@@ -283,7 +331,7 @@ void footer(DrawList& d,const Font& font,unsigned atlas,int screen){
 }
 }
 int main(){
- log("BOOT v0.1.17");
+ log("BOOT v0.1.18");
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;auto f=read("/app0/assets/fonts/inter-semibold.huifont",4*1024*1024);
