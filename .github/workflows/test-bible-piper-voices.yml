@@ -44,7 +44,8 @@ jobs:
               "/tmp/bible-piper-config/$lang.json" "app/src/voice_${lang}_phonemes.generated.hpp" \
               --expected-language "$locale" --namespace "voice_$lang"
           done
-          g++ -std=c++17 -Wall -Wextra -Werror -O2 -Iapp/src \
+          g++ -std=c++17 -Wall -Wextra -Werror -O2 \
+            -Iapp/src -Ihomebrew/bible-reader/native_piper \
             homebrew/bible-reader/native_piper/phoneme_ids.cpp \
             homebrew/bible-reader/native_piper/test_multilang_phonemes.cpp \
             -o /tmp/multilang-phoneme-test
