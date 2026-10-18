@@ -5,6 +5,7 @@
 
 #include "fe_app.h"
 #include "fe_coverflow_layout.h"
+#include "fe_exact_porpoise.h"
 #include "fe_i18n.h"
 
 #include <algorithm>
@@ -152,6 +153,7 @@ void App::PollCovers()
             (std::abs(img.game-m_selected)>12 && std::abs(img.game-centre)>12))
 			continue;
 		Slot& s = m_slots[static_cast<size_t>(img.game)];
+		if (m_cfg.exact && img.kind == CoverImage::Cover) m_cfg.exact->Cover(img);
 		Texture* t = m_renderer->CreateTexture(static_cast<uint32_t>(img.width), static_cast<uint32_t>(img.height),
 			VK_FORMAT_R8G8B8A8_UNORM, img.rgba.data());
 		if (!t)
@@ -305,6 +307,7 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	const float W = static_cast<float>(m_renderer->width()), H = static_cast<float>(m_renderer->height());
 	const float k = H / 2160.0f;
 	const float t = static_cast<float>(m_time);
+	if (m_cfg.exact) m_cfg.exact->Select(m_selected,m_scroll,m_time,clock);
 	const Mat4 proj = Mat4::Perspective(Radians(kFovY), W / H, 0.1f, 60.0f);
 	// vk-285-114: with the options sheet open on the right, the shelf slides left (the camera moves right), so the
 	// picked case stays in view beside its settings.

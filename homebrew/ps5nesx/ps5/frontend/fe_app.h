@@ -20,6 +20,7 @@
 
 namespace fe
 {
+class ExactPorpoiseShelf;
 struct Input
 {
 	bool left = false, right = false, cross = false, options = false, l1 = false, r1 = false;
@@ -33,6 +34,7 @@ struct AppConfig
 	std::string build_tag;   // shown small in the corner
 	int preselect = 0;       // the game selected at start
 	SoundSink* sound = nullptr; // told about steps and the launch (may be null)
+	ExactPorpoiseShelf* exact = nullptr; // original Porpoise UI renderer
 	int test_build = 0;          // test build 1 (vk-285-55): > 0 draws TESTING and build_label mid-screen
 	std::string build_label;     // "Test build 1 · vk-285-55"
 	std::string test_note;       // vk-285-105: a smaller line under build_label (the testers' Discord)

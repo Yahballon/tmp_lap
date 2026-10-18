@@ -2,9 +2,9 @@
   "name": "PS5NESX",
   "slug": "ps5nesx",
   "titleId": "PPSA99204",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "upstreamVersion": "1.0.0.9",
-  "releaseTag": "ps5nesx-v1.0.15",
+  "releaseTag": "ps5nesx-v1.0.16",
   "sourceRepository": "Yahballon/PS5NESX",
   "sourceScope": [
     "nes",
@@ -15,7 +15,7 @@
   "dataFolder": "/data/PS5NES",
   "installFolder": "PPSA99204",
   "core": "FCEUmm",
-  "frontend": "Porpoise-inspired 3D CoverFlow with game-art background and authentic Porpoise scroll WAVs",
+  "frontend": "Original Porpoise Gfx and true sapphire glass coverflow (experimental branch build)",
   "supportedRomExtensions": [
     ".nes",
     ".unf",
