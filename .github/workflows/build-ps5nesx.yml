@@ -2,7 +2,7 @@ name: Build PS5NESX Native
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feature/ps5nesx-porpoise-original']
+    branches: [main, 'feature/ps5nesx-porpoise-original', 'fix/ps5nesx-porpoise-visible-v1017']
     paths:
       - 'homebrew/ps5nesx/nes/**'
       - 'homebrew/ps5nesx/ps5/**'
