@@ -96,9 +96,9 @@ bool timeout(Socket s){
         setsockopt(s,SOL_SOCKET,SO_SNDTIMEO,&t,sizeof(t))==0;
 #endif
 }
-bool ipv4(const std::string& ip,std::uint16_t port,sockaddr_in& addr,bool listener){
- addr={};addr.sin_family=AF_INET;addr.sin_port=htons(port);
- if(port==0||inet_pton(AF_INET,ip.c_str(),&addr.sin_addr)!=1)return false;
+bool ipv4(const std::string& ip,std::uint16_t tcp_port,sockaddr_in& addr,bool listener){
+ addr={};addr.sin_family=AF_INET;addr.sin_port=htons(tcp_port);
+ if(tcp_port==0||inet_pton(AF_INET,ip.c_str(),&addr.sin_addr)!=1)return false;
  if(listener && addr.sin_addr.s_addr==INADDR_ANY)return false;
  return true;
 }
