@@ -72,7 +72,10 @@ int main(int argc,char** argv){
    std::cerr<<"Require at least 3 distinct pinned auditors in keys file\n";return 1;
   }
   if(!meshcloud::provision::receive_once(argv[4],meshcloud::provision::port,key.get(),
-        pinned,argv[5],argv[6],meshcloud::minimum_bytes,error)){
+        pinned,argv[5],argv[6],meshcloud::minimum_bytes,error,
+       [](std::uint64_t count,std::uint64_t total) {
+        std::cerr<<"\rReceiving verified blocks: "<<count*100/total<<"%"<<std::flush;
+       })){
    std::cerr<<"Provision DENIED: "<<error<<"\n";return 1;
   }
   std::cout<<"PASS: 13 GiB streamed, SHA256 verified block-by-block, fsynced and committed.\n";
@@ -84,7 +87,10 @@ int main(int argc,char** argv){
    std::cerr<<"Invalid exact recipient Ed25519 fingerprint\n";return 1;
   }
   if(!meshcloud::provision::send_once(argv[4],meshcloud::provision::port,key.get(),
-        destination,argv[5],argv[6],meshcloud::minimum_bytes,error)){
+        destination,argv[5],argv[6],meshcloud::minimum_bytes,error,
+       [](std::uint64_t count,std::uint64_t total) {
+        std::cerr<<"\rSending verified blocks: "<<count*100/total<<"%"<<std::flush;
+       })){
    std::cerr<<"Provision DENIED: "<<error<<"\n";return 1;
   }
   std::cout<<"PASS: node acknowledged 13 GiB of checked audit data and independent ledger.\n";
