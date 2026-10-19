@@ -139,14 +139,14 @@ int main(){
   assert(std::any_of(learned.begin(),learned.end(),[&](const auto& p){
     return p.identity==pub(alice_key.get());
   }));
-  std::thread denied([&]{
+  std::thread denied_thread([&]{
     exchange_ok=listen_once("127.0.0.1",port,alice,ag,server_err,
                             nullptr,&a_book);
   });
   std::this_thread::sleep_for(std::chrono::milliseconds(120));
   assert(!discover_once("127.0.0.1",port,outsider,b_book,
                        "",client_err));
-  denied.join();
+  denied_thread.join();
   assert(!exchange_ok);
   roundtrip(alice,ag,outsider,get,false,response);
   // Peer with unapproved 9-GiB contribution cannot pass signed quorum gate.
