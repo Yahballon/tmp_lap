@@ -1481,7 +1481,16 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
     while(loading_ok) {
         auto progress=loading.Snapshot(scanning_done);
         loading_ok=show_loading(progress,scanning_done);
-        if(scanning_done)break;
+        if(scanning_done) {
+            // Show the reactor's completed / online animation briefly,
+            // even when a small library loads almost instantaneously.
+            const double ready_until=Now()+0.32;
+            while (loading_ok && Now()<ready_until) {
+                loading_ok=show_loading(progress,true);
+                usleep(16000);
+            }
+            break;
+        }
         // UI presentation remains on this thread; NFS only runs on the scanner.
         usleep(1000);
     }

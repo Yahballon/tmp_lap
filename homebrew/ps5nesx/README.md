@@ -2,7 +2,7 @@
 
 NESYX is a native NES emulator and 3D cover-flow front end for jailbroken PS5 consoles. Powered by FCEUmm and the Project Porpoise-inspired front end.
 
-**Version:** 1.0.26  
+**Version:** 1.0.27  
 **Title ID:** PPSA99204  
 **Release compatibility tag:** ps5nesx-v1.0.24 (kept for TESTBUILDS)
 
@@ -21,3 +21,7 @@ This repository contains no game ROMs. Use only games you have the rights to use
 ## Display sizing
 
 New installs default to **16:9 Fullscreen** to fill the display without borders. The original 4:3 ratio and whole-integer pixel mode are available from Settings → Display → Picture. An existing saved NES/Aspect=4:3 or Integer setting takes precedence; choose 16:9 Fullscreen once to change it. Fullscreen intentionally stretches the classic NES image horizontally rather than cropping it. Changes are applied on game launch.
+
+## Pixel Reactor loading animation
+
+NESYX v1.0.27 features a fully original **Pixel Reactor** animation rendered directly using the existing PS5 Vulkan UI. It has two counter-rotating neon telemetry orbits around a pulsing 8-bit NESYX monogram, a moving pixel starfield, scanlight and electric waveform. The loading screen displays real NFS scan progress and a brief completed-state animation. No streaming video, DreamcastX asset, new shader, or new dependency is needed.

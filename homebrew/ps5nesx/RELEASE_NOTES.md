@@ -1,3 +1,13 @@
+# NESYX v1.0.27 by YAHBALLON
+
+## Pixel Reactor: all-new animated loading sequence
+
+- Original 8-bit "N" reactor cartridge with a breathing cyber-neon aura, rotating cyan/magenta dual-orbit telemetry rings, orbiting circuit nodes and ascending pixel sparks.
+- Starfield shimmer, animated top scan beam, glowing synth-grid and waveform readout; all rendered as PS5-native UI quads, no textures, videos, external assets or DreamcastX code.
+- Real scanned game count, directory, file entries and folder progress. Unknown NFS totals display indeterminate activity instead of a fabricated percentage.
+- 320 ms "LIBRARY ONLINE" completion animation before entering CoverFlow; all scanning remains on a background thread.
+- 16:9 fullscreen, existing high-resolution NO COVER, Tiger mark, native audio and game navigation, and Circle exit confirmation remain unchanged.
+
 # NESYX v1.0.26 by YAHBALLON
 
 - Add **16:9 Fullscreen** as a display-picture choice, the default on new installations; fills the complete Vulkan output, with no gray sidebars. Existing per-game and global saved picture settings are respected: choose Fullscreen once in Settings to override old 4:3.
