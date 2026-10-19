@@ -89,7 +89,7 @@ bool Catalog::register_file(const CatalogEntry& e,const std::vector<std::string>
    sqlite3_bind_int64(file.get(),3,static_cast<sqlite3_int64>(e.created_at))==SQLITE_OK &&
    sqlite3_bind_int64(file.get(),4,static_cast<sqlite3_int64>(e.last_successful_download))==SQLITE_OK &&
    sqlite3_bind_int64(file.get(),5,static_cast<sqlite3_int64>(e.expires_at))==SQLITE_OK &&
-   e.display_name.size()<=255 &&
+   e.display_name.size()<=2048 &&
    bind_text(file.get(),6,e.display_name) &&
    sqlite3_step(file.get())==SQLITE_DONE;
  }
