@@ -276,11 +276,14 @@ struct Runner {
  static std::unique_ptr<Outcome> execute(App& a,const Work& work) {
   auto result=std::make_unique<Outcome>();
   try {
-   const meshcloud::ProgressCallback callback=[&a](std::uint64_t completed,std::uint64_t total) {
+   const meshcloud::ProgressCallback callback=[&a,last_percent=-1](std::uint64_t completed,std::uint64_t total) mutable {
     if(a.cancel_requested.load())return false;
     const unsigned percent=total?static_cast<unsigned>(
       std::min(100.0,100.0*static_cast<double>(completed)/static_cast<double>(total))):100;
-    PostMessageW(a.window,wm_progress,percent,0);
+    if(static_cast<int>(percent)!=last_percent) {
+     last_percent=static_cast<int>(percent);
+     PostMessageW(a.window,wm_progress,percent,0);
+    }
     return !a.cancel_requested.load();
    };
    if(work.action==Job::Hash) {
