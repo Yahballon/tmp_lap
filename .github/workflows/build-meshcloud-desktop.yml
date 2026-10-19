@@ -78,6 +78,7 @@ jobs:
           Copy-Item build/meshcloud/Release/MeshCloud-GUI.exe package/
           Copy-Item build/meshcloud/Release/meshcloud-peer.exe package/
           Copy-Item build/meshcloud/Release/meshcloud-audit.exe package/
+          Copy-Item build/meshcloud/Release/meshcloud-audit-net.exe package/
           Copy-Item homebrew/ps5-meshcloud/README.md package/
           Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" | Copy-Item -Destination package/ -ErrorAction SilentlyContinue
           Set-Content package/PRE_ALPHA_NETWORK_STATUS.txt 'Windows GUI: encrypted local vault. meshcloud-peer: direct TLS1.3 LAN P2P requires externally signed 10 GiB membership tickets. meshcloud-audit: local disk proof benchmark only. No public auditor network or relay/DHT.'
@@ -88,6 +89,7 @@ jobs:
           cp build/meshcloud/meshcloud package/
           cp build/meshcloud/meshcloud-peer package/
           cp build/meshcloud/meshcloud-audit package/
+          cp build/meshcloud/meshcloud-audit-net package/
           cp homebrew/ps5-meshcloud/README.md package/
           printf '%s\n' 'meshcloud-peer supports direct audited TLS1.3 LAN P2P; production auditor issuance and global relay/DHT are NOT available. Local meshcloud-audit never issues tickets.' > package/PRE_ALPHA_NETWORK_STATUS.txt
       - uses: actions/upload-artifact@v4
@@ -121,7 +123,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=meshcloud-desktop-v0.9.0-prealpha
+          tag=meshcloud-desktop-v0.10.0-prealpha
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Pre-alpha release already exists; no rewrite"
             exit 0
@@ -129,6 +131,6 @@ jobs:
           gh release create "$tag" release/*.zip \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "MeshCloud desktop v0.9.0 pre-alpha (storage audit module)" \
+            --title "MeshCloud desktop v0.10.0 pre-alpha (storage audit module)" \
             --prerelease \
-            --notes "OFFLINE pre-alpha: Windows native GUI, P2P and storage-audit CLIs plus Linux/macOS CLIs. Adds independent random-block storage-audit verifier (no local membership issuance); includes signed paginated Ed25519 ciphertext CID file manifests verified across two stores, plus member-only shard GET/PUT, quotas and 90-day staging expiry, encrypted local vault and Reed-Solomon engine. NO relay transport or independently operational 10 GiB auditor nodes; public networking remains disabled."
+            --notes "OFFLINE pre-alpha: Windows native GUI, P2P and storage-audit CLIs plus Linux/macOS CLIs. Adds independent random-block storage-audit verifier (no local membership issuance); includes signed paginated Ed25519 ciphertext CID file manifests verified across two stores, plus member-only shard GET/PUT, quotas and 90-day staging expiry, encrypted local vault and Reed-Solomon engine. TLS 1.3 audit-only remote challenge added. NO relay transport or independently operational 10 GiB auditor nodes; public networking remains disabled."
