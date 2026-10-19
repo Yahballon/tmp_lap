@@ -32,6 +32,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib> // ::exit after releasing Vulkan and the controller
 #include <cstring>
 #include <ctime>
 #include <dirent.h>
