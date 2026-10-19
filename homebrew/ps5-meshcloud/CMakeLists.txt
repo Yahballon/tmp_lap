@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
-project(meshcloud VERSION 0.7.0 LANGUAGES CXX)
+project(meshcloud VERSION 0.8.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -10,7 +10,7 @@ find_package(SQLite3 REQUIRED)
 add_library(meshcloud_core STATIC
   src/core.cpp src/cid.cpp src/stream.cpp src/catalog.cpp src/vault.cpp
   src/erasure.cpp src/admission.cpp src/wire.cpp src/exchange.cpp src/published.cpp
-  src/p2p_tls.cpp src/p2p_config.cpp)
+  src/p2p_tls.cpp src/p2p_config.cpp src/peer_discovery.cpp)
 target_include_directories(meshcloud_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(meshcloud_core PUBLIC OpenSSL::Crypto OpenSSL::SSL SQLite::SQLite3 Threads::Threads)
 if(WIN32)
@@ -70,3 +70,7 @@ add_executable(meshcloud_p2p_tests tests/test_p2p_tls.cpp)
 target_link_libraries(meshcloud_p2p_tests PRIVATE meshcloud_core)
 add_test(NAME real_bidirectional_tls_peer_exchange_and_strict_membership COMMAND meshcloud_p2p_tests)
 set_tests_properties(real_bidirectional_tls_peer_exchange_and_strict_membership PROPERTIES TIMEOUT 60)
+
+add_executable(meshcloud_discovery_tests tests/test_discovery.cpp)
+target_link_libraries(meshcloud_discovery_tests PRIVATE meshcloud_core)
+add_test(NAME signed_lan_getaddr_addrman_persistence_and_expiry COMMAND meshcloud_discovery_tests)
