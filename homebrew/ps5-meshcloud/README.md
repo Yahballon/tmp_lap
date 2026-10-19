@@ -1,8 +1,8 @@
 # MeshCloud by YAHBALLON
 
-**v0.6.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
+**v0.7.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
 
-This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
+This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention and a separate directly connectable TLS 1.3 P2P encrypted-fragment engine. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
 
 ## Non-negotiable network membership rule
 
@@ -46,7 +46,7 @@ The GUI includes: editable vault folder and folder picker, local encrypted file 
 
 Operations run in a background worker; the UI remains responsive while handling large files. The GUI refuses to overwrite an existing key or recovered file. Select a file in the table to populate its CID, click **Restore selected**, choose its matching saved `.key` file, then choose an output path.
 
-The GUI does **not** falsely pretend to be connected to other PS5 or desktop nodes. It cannot currently search the public MeshCloud network or perform a remote upload/download. The 10-GiB contribution rule remains mandatory for all future network features; local offline imports/restores do not grant network membership. The GUI is a pre-alpha file manager, not a released P2P cloud client.
+The GUI remains a local file manager, while the separate meshcloud-peer CLI can initiate and receive direct encrypted P2P fragment requests from audited nodes. It cannot currently search the public MeshCloud network or perform a remote upload/download. The 10-GiB contribution rule remains mandatory for all future network features; local offline imports/restores do not grant network membership. The GUI is a pre-alpha file manager, not a released P2P cloud client.
 
 **Keep your private `.key` files outside the vault**, backed up somewhere secure. They are not embedded into CID links. Moving or deleting the key can make the stored data unrecoverable.
 
@@ -82,7 +82,7 @@ The import prints a full manifest CID to use with local info/export. An existing
 
 ## Security boundaries and work required before a real release
 
-- **Unimplemented:** actual P2P encrypted transport/listener, DHT discovery, relay-only mode, public search indexing, interoperable network CID fetching, shard transfer, actual disk-backed audit issuing, codec-to-vault integration, fault-domain placement and repair, native PS5 UI/package. Reed-Solomon coding and quorum-signed ticket **verification** are implemented and tested as separate components.
+- **Unimplemented:** public DHT discovery, relay-only mode, public search indexing, interoperable network CID fetching, shard transfer, actual disk-backed audit issuing, codec-to-vault integration, fault-domain placement and repair, native PS5 UI/package. Reed-Solomon coding and quorum-signed ticket **verification** are implemented and tested as separate components.
 - **Unimplemented:** parallel writers within one vault (an OS-level exclusive lock instead rejects concurrent vault processes), operational DoS/rate-limit controls, anti-Sybil enforcement, an encrypted private catalog, crash-safe fsync guarantees on every platform, independent security review.
 - **Security limitations:** Key-file ACLs rely on host OS filesystem permissions; isolate the vault from untrusted local users. A local CLI cannot prove 10 GiB storage to remote nodes. Nonces are random and AES-GCM must never be reused with the same key/nonce pair.
 - **IP privacy:** Even relay-only networking would reveal a participant's connection IP to the relays, which can also observe Peer IDs. Direct P2P exposes IPs to other direct peers. There is no guarantee of anonymity. See [libp2p Circuit Relay](https://libp2p.io/docs/circuit-relay/).
@@ -134,3 +134,23 @@ The verifier requires the **expected publisher public key**, a valid Ed25519 sig
 `tests/test_published.cpp` includes a mock three-auditor membership quorum, two separate SQLite stores, publisher signatures, a signed multi-page CID index and re-verified ciphertext chunk GETs. The mock ciphertext envelopes do not demonstrate real AES-GCM decryption.
 
 **Still missing for a public P2P launch:** secure sockets/relays and channel binding, production anti-Sybil storage auditors for the 10 GiB rule, signed manifest distribution/search, erasure-coded placement/repair, cross-node verified complete-file download receipts and native PS5 packaging. Existing GUI operations remain offline.
+
+## Direct P2P LAN transport v0.7 / PS5 native v0.2
+
+MeshCloud now includes `src/p2p_tls.cpp`: a **symmetric TCP peer** implementation. Both nodes can listen for connections and initiate them. It uses pinned Ed25519 mutual TLS 1.3 and a fresh TLS-exporter-bound proof of a short-lived, three-auditor-signed ticket for **at least 10 GiB**. Nobody receives MeshCloud CIDs, shards, listings, or searches before both TLS certificate pinning and member verification succeed. The core's GET/PUT frames carry encrypted `.mcb` chunks, never plaintext or file keys.
+
+Windows/Linux/macOS gain `meshcloud-peer` in addition to the existing CLI and the Windows GUI. The native PS5 app has a Network page to listen, PUT a selected local MCB1 ciphertext block and GET a configured CID after cryptographic admission. The **same** signed ticket binary, trusted auditor keys and allowlist format are used on every system.
+
+For a deliberately provisioned two-device LAN:
+
+1. Arrange **genuine, externally audited, quorum-signed 10-GiB member tickets** for both peers. There is no built-in credential minting, shared test password, guest mode, or self-attestation.
+2. Put files `identity.pem` (private Ed25519 PEM key), `member.ticket` (canonical signed binary), `auditors.keys` (minimum three independent pinned auditor Ed25519 public keys, 64 hex characters per line) and `peers.keys` (the exact other node's public key in hex) in each node's private config directory. Never publish private keys or reuse test signatures as genuine audits.
+3. On the PS5 use `/data/PS5MeshCloud/p2p/` and a `network.conf` containing `bind=192.168.x.x`, `peer=192.168.x.y` and optionally `cid=bafk...`. Replace IPs with the actual PS5 and PC addresses.
+4. On PC: `meshcloud-peer listen ./pc-config ./pc-shards 192.168.x.y`. Use the PC's real LAN IP, not `0.0.0.0`. One listener handles one authenticated request.
+5. On the PS5 Network page press **Square** to PUT the selected encrypted `.mcb` fragment from the Local files page, or **Triangle** to request the configured CID from the PC.
+6. In the opposite direction press **X** on PS5 Network to listen, then use `meshcloud-peer put ./pc-config 192.168.x.x encrypted.mcb` or `meshcloud-peer get ./pc-config 192.168.x.x CID recovered.mcb`.
+
+The node must ALSO pass the local **10 GiB + 2 GiB headroom** preflight; this disk-space check is not a replacement for the remote proof. Shard capacity remains capped at 10 GiB per node in this prototype. A `.mcb` is an encrypted 4-MiB-or-smaller fragment, **not a whole-file automatic upload**. The original whole-file local vault still supports streaming large files.
+
+**Important status:** The repository still needs a production-grade proof-of-storage issuer/auditor network. Without valid independent audit credentials, the real P2P connection **correctly refuses access**. A passing CI test uses ephemeral mock auditors and does not create valid production tickets. Direct IP on LAN exposes peer LAN addresses; relay-only internet mode, NAT traversal, DHT and distributed 90-day file retention are not yet complete. Treat this as a controlled direct-LAN engineering test only.
+

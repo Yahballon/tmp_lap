@@ -7,6 +7,7 @@
 #include "platform/ps5/system.hpp"
 #include "core/input.hpp"
 #include "diagnostics.hpp"
+#include "peer_service.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -18,7 +19,7 @@ namespace {
 const Color white=Color::rgb(0xecf5ff),blue=Color::rgb(0x399fff);
 const Color muted=Color::rgb(0x96b0d2),green=Color::rgb(0x53f0b1);
 const Color warning=Color::rgb(0xffbc64);
-constexpr const char* version="v0.1.0";
+constexpr const char* version="v0.2.0";
 std::string load_font(const char* path) {
  FILE* f=std::fopen(path,"rb");if(!f)return {};
  if(std::fseek(f,0,SEEK_END)!=0){std::fclose(f);return {};}
@@ -106,12 +107,12 @@ void display_overview(DrawList& d,const Font& f,unsigned atlas,
  label(d,f,atlas,"ENCRYPTED STORAGE",1376,425,22,white);
  label(d,f,atlas,"Desktop local vault: AES-256-GCM",1377,461,19,muted);
  label(d,f,atlas,"CIDv1 integrity, 90-day expiry",1377,507,19,muted);
- label(d,f,atlas,"PS5 crypto port: NOT BUILT",1377,550,19,warning);
- label(d,f,atlas,"Audit + P2P: NOT ENABLED",1377,594,19,warning);
+ label(d,f,atlas,"PS5 TLS + encrypted peer link available",1377,550,19,warning);
+ label(d,f,atlas,"P2P requires signed 10 GiB membership",1377,594,19,warning);
  label(d,f,atlas,"No silent network connections",1377,690,19,green);
  panel(d,338,795,1556,212);bar(d,f,atlas,"RELEASE STATUS",338,795,1556);
- label(d,f,atlas,"PS5 native interface / read-only diagnostics",372,898,25);
- label(d,f,atlas,"File transfers remain disabled until verified 10-GiB audits and transport exist.",
+ label(d,f,atlas,"PS5 native interface / audited TLS P2P fragment test",372,898,25);
+ label(d,f,atlas,"Encrypted CID transfers require independent audit tickets and pinned peers.",
        372,951,18,warning);
 }
 void display_storage(DrawList& d,const Font& f,unsigned atlas,
@@ -158,7 +159,7 @@ void display_files(DrawList& d,const Font& f,unsigned atlas,
  label(d,f,atlas,std::to_string(s.files.size())+" files listed (up to 350 per scan)",
        375,980,18,muted);
 }
-void display_network(DrawList& d,const Font& f,unsigned atlas) {
+void display_network(DrawList& d,const Font& f,unsigned atlas,const meshps5::PeerService& peer) {
  panel(d,338,131,1556,872);bar(d,f,atlas,"NETWORK SECURITY / FAIL-CLOSED",338,131,1556);
  const char* headings[]={
   "Independent proof of >=10 GiB allocated storage",
@@ -169,11 +170,11 @@ void display_network(DrawList& d,const Font& f,unsigned atlas) {
   "Signed full-file manifests and 90-day leases"
  };
  const char* values[]={
-  "NOT IMPLEMENTED ON PS5",
-  "Verification exists in desktop core; no auditor network",
-  "NOT IMPLEMENTED ON PS5",
-  "NOT CONNECTED",
-  "DISABLED FOR ALL USERS",
+  "REQUIRED: externally audited 10 GiB",
+  "Ed25519 3-of-5 verifier available",
+  "TLS 1.3 exporter binding available",
+  "Direct IPv4 LAN (relay/DHT not yet available)",
+  "Only pinned audited peer CID fragments",
   "Publisher validation implemented in desktop core"
  };
  for(int i=0;i<6;i++) {
@@ -182,19 +183,19 @@ void display_network(DrawList& d,const Font& f,unsigned atlas) {
   label(d,f,atlas,values[i],378,y+40,20,warning);
   d.line(379,y+56,1830,y+56,1,Color::rgb(0x1d385b));
  }
- label(d,f,atlas,"Knowing a CID never bypasses network membership checks.",377,974,20,green);
+ label(d,f,atlas,cut(peer.status(),128),377,974,20,green);
 }
 void display_about(DrawList& d,const Font& f,unsigned atlas,
  const meshps5::Snapshot& snapshot) {
  panel(d,338,131,1556,872);bar(d,f,atlas,"ABOUT MESH CLOUD",338,131,1556);
  const char* lines[]={
-  "MESH CLOUD PS5 - Native prototype v0.1.0",
+  "MESH CLOUD PS5 - Native P2P prototype v0.2.0",
   "Developer: YAHBALLON",
   "GitHub: Yahballon/tmp_lap/homebrew/ps5-meshcloud",
   "Title ID: PPSA99718",
   "Minimum contribution rule: 10 GiB independently audited",
   "File inactivity policy: 90 days from verified full download",
-  "Current PS5 build: filesystem diagnostics, no transfer capability",
+  "PS5: audited TLS1.3 encrypted CID block transfer",
   "Desktop build: local encrypted vault and testable security components",
   "No Sony / PlayStation artwork or branding is used."
  };
@@ -215,6 +216,7 @@ int main() {
  const unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  append_log("BOOT native UI / all network access disabled");
+ meshps5::PeerService peer;
  int page=0,active_disk=0,selected_file=0;
  auto snapshot=meshps5::collect(active_disk);
  unsigned last_buttons=0;unsigned long long nav_next=0;
@@ -256,22 +258,40 @@ int main() {
    else page=(page+1)%5;
   }
   if(hit(hui::pad_bits::kTriangle)){
-   snapshot=meshps5::collect(active_disk);
-   selected_file=0;
-   notice="Storage refreshed; peer networking remains locked.";
-   append_log("Manual read-only refresh");
+   if(page==3) {
+    if(peer.fetch_cid())notice="TLS P2P: attempting authenticated CID GET";
+    else notice="Another P2P operation is already running";
+   } else {
+    snapshot=meshps5::collect(active_disk);
+    selected_file=0;
+    notice="Local filesystem refreshed.";
+    append_log("Manual read-only refresh");
+   }
   }
   if(hit(hui::pad_bits::kSquare)){
-   active_disk=(active_disk+1)%3;
-   snapshot=meshps5::collect(active_disk);
-   selected_file=0;
-   notice="Selected a different local storage mount.";
+   if(page==3) {
+    if(snapshot.files.empty())notice="Select a local encrypted MCB1 fragment on Files page.";
+    else {
+     const auto file=snapshot.file_folder+"/"+snapshot.files[static_cast<std::size_t>(selected_file)].name;
+     if(peer.send_local(file))notice="TLS P2P: attempting authenticated CID PUT";
+     else notice="Another P2P operation is already running";
+    }
+   } else {
+    active_disk=(active_disk+1)%3;
+    snapshot=meshps5::collect(active_disk);
+    selected_file=0;
+    notice="Selected a different local storage mount.";
+   }
   }
   if(hit(hui::pad_bits::kOptions))page=4;
   if(hit(hui::pad_bits::kCross)) {
    if(page==0)page=1;
-   else if(page==1||page==2)notice="Read-only: no file sharing or crypto port is enabled.";
-   else notice="All network actions are intentionally denied.";
+   else if(page==3) {
+    if(peer.listen())notice="TLS P2P listener: waiting for pinned audited peer";
+    else notice="Another P2P operation is already running";
+   }
+   else if(page==1||page==2)notice="Select a local encrypted block before opening Network.";
+   else notice="Network access requires audited 10-GiB membership.";
   }
   if(hit(hui::pad_bits::kCircle)) {
    if(page!=0)page=0;
@@ -291,11 +311,11 @@ int main() {
   if(page==0)display_overview(d,font,atlas,snapshot,active_disk);
   else if(page==1)display_storage(d,font,atlas,snapshot,active_disk);
   else if(page==2)display_files(d,font,atlas,snapshot,selected_file);
-  else if(page==3)display_network(d,font,atlas);
+  else if(page==3)display_network(d,font,atlas,peer);
   else display_about(d,font,atlas,snapshot);
   d.rounded_rect({0,1025,1920,55},0,Color::rgb(0x07172c));
   label(d,font,atlas,cut(notice,110),24,1058,17,warning);
-  label(d,font,atlas,"L1/R1 TAB   D-PAD NAVIGATE   TRIANGLE RESCAN   SQUARE MOUNT   X SELECT   O BACK",
+  label(d,font,atlas,"L1/R1 PAGE   X LISTEN   TRIANGLE GET/RESCAN   SQUARE PUT/MOUNT   O BACK",
         1888,1058,16,white,Align::right);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());
   display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);

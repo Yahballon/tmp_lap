@@ -76,6 +76,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path package
           Copy-Item build/meshcloud/Release/meshcloud.exe package/
           Copy-Item build/meshcloud/Release/MeshCloud-GUI.exe package/
+          Copy-Item build/meshcloud/Release/meshcloud-peer.exe package/
           Copy-Item homebrew/ps5-meshcloud/README.md package/
           Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" | Copy-Item -Destination package/ -ErrorAction SilentlyContinue
           Set-Content package/NOT_A_NETWORK_CLIENT_YET.txt 'Windows GUI and CLI: encrypted local vault only; networking disabled'
@@ -84,6 +85,7 @@ jobs:
         run: |
           mkdir -p package
           cp build/meshcloud/meshcloud package/
+          cp build/meshcloud/meshcloud-peer package/
           cp homebrew/ps5-meshcloud/README.md package/
           printf '%s\n' 'Pre-alpha local disk diagnostic: networking disabled' > package/NOT_A_NETWORK_CLIENT_YET.txt
       - uses: actions/upload-artifact@v4
@@ -117,7 +119,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=meshcloud-desktop-v0.6.0-prealpha
+          tag=meshcloud-desktop-v0.7.0-prealpha
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Pre-alpha release already exists; no rewrite"
             exit 0
@@ -125,6 +127,6 @@ jobs:
           gh release create "$tag" release/*.zip \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "MeshCloud desktop v0.6.0 pre-alpha (offline only)" \
+            --title "MeshCloud desktop v0.7.0 pre-alpha (offline only)" \
             --prerelease \
             --notes "OFFLINE pre-alpha: Windows native GUI and CLI plus Linux/macOS CLI. Adds signed paginated Ed25519 ciphertext CID file manifests verified across two stores, plus member-only shard GET/PUT, quotas and 90-day staging expiry, encrypted local vault and Reed-Solomon engine. NO relay transport or independently operational 10 GiB auditor nodes; public networking remains disabled."
