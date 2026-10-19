@@ -18,7 +18,7 @@ void help() {
  std::cout<<"MeshCloud by YAHBALLON v0.9.0 pre-alpha\n"
   <<"Network disabled until independently operated storage auditors and real authenticated P2P transport are implemented.\nReed-Solomon 10+20 / 10+100, 3-of-5 ticket verification and bounded wire codec are separately tested.\n\n"
   <<"Commands:\n"
-  <<"  meshcloud --storage PATH [--quota-gib 10]       Check local disk eligibility\n"
+  <<"  meshcloud --storage PATH [--quota-gib 13]       Check local disk eligibility\n"
   <<"  meshcloud --cid-file FILE                      Stream CIDv1 hash; no hard file size limit\n"
   <<"  meshcloud --storage VAULT --local-import FILE --key-out KEYFILE\n"
   <<"                                                Encrypt and store an offline file; prints manifest CID\n"
@@ -31,7 +31,7 @@ void help() {
 }
 }
 int main(int argc,char** argv) {
- std::string directory=".",quota_input="10",cid_file,local_import,local_export;
+ std::string directory=".",quota_input="13",cid_file,local_import,local_export;
  std::string key_out,key_file,out_file,info_id;
  bool prune=false;
  for(int i=1;i<argc;i++) {
@@ -56,7 +56,7 @@ int main(int argc,char** argv) {
  }
  std::uint64_t quota=0;
  try {quota=std::stoull(quota_input);}catch(...) {std::cerr<<"Invalid quota\n";return 2;}
- if(quota>1000000) {std::cerr<<"Quota out of range\n";return 2;}
+ if(quota>13) {std::cerr<<"Quota out of range\n";return 2;}
  if(!cid_file.empty()) {
   std::string cid;std::uint64_t n=0;
   if(!meshcloud::cid::from_file(cid_file,cid,n)) {
@@ -68,7 +68,7 @@ int main(int argc,char** argv) {
  if(commands>1){std::cerr<<"Choose one operation\n";return 2;}
  if(commands==0) {
   auto test=meshcloud::preflight(directory,quota*1024ULL*1024*1024);
-  std::cout<<"MeshCloud v0.9.0 | Minimum 10 GiB | Offered "<<quota<<" GiB\n"
+  std::cout<<"MeshCloud v0.9.0 | Minimum 13 GiB | Offered "<<quota<<" GiB\n"
    <<"Local disk check: "<<(test.eligible?"PASS":"DENIED")<<" - "<<test.message<<"\n"
    <<"Network membership: DENIED (independent storage audits not yet implemented)\n"
    <<"Search, CID lookup, Upload, Download: DISABLED\n";
