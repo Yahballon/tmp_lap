@@ -21,7 +21,11 @@ src=(root/'nes/src/shelf_runtime.cpp').read_text()
 assert 'get("NES/HDPacks","false")' in src
 assert 'core.SetOption("fceumm_hdpacks",' in src
 assert 'root+"/HdPacks/"+stem+"/hires.txt"' in src
-assert 'const float scale=fit>=1.0f?' in src
+# Integer scaling was extracted into a shared viewport helper when NESYX
+# added native 16:9 fullscreen; preserve the same HD-pack/integer behavior.
+viewport=(root/'nes/src/game_viewport.h').read_text()
+assert 'const float scale=fit>=1.0f?' in viewport
+assert 'CalcGameViewport(w,h,' in src
 settings=(root/'ps5/frontend/fe_options.cpp').read_text()
 assert 'Toggle("NES/HDPacks", "HD texture packs", "false"' in settings
 main=(root/'nes/src/main_shelf.cpp').read_text()
