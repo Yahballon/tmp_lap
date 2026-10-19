@@ -284,7 +284,11 @@ const std::vector<OptionGroup>& OptionGroups()
                        Toggle("NES/HDPacks", "HD texture packs", "false", "",
                            "Load a Mesen hires.txt pack from /data/PS5NES/HdPacks/<ROM name>/ on game launch (experimental).",
                            true)}, kTabSettings},
-        {"Display", {Seg("NES/Aspect", "Picture", "4:3", "", {{"4:3","4:3"},{"Integer","Integer pixels"}})}, kTabSettings},
+        {"Display", {Seg("NES/Aspect", "Picture", "16:9", "",
+            {{"16:9","16:9 Fullscreen"},{"4:3","4:3 Original"},{"Integer","Integer pixels"}},
+            "Fullscreen fills the entire screen without side borders, stretching NES pixels horizontally. "
+            "4:3 retains the classic picture and Integer preserves whole-pixel scaling. "
+            "Changes apply when launching the game.")}, kTabSettings},
         {"Audio", {Toggle("NES/Sound", "Game sound", "true", "")}, kTabSettings},
         {"NES buttons", NesButtonRows(), kTabControls},
         {"Save state", NesShortcutRows(0), kTabControls},

@@ -1,3 +1,10 @@
+# NESYX v1.0.26 by YAHBALLON
+
+- Add **16:9 Fullscreen** as a display-picture choice, the default on new installations; fills the complete Vulkan output, with no gray sidebars. Existing per-game and global saved picture settings are respected: choose Fullscreen once in Settings to override old 4:3.
+- Keep original **4:3** and **Integer pixels** for players who prefer correct aspect ratio or unscaled pixel edges.
+- Test viewport sizing with 1920x1080 and 3840x2160 displays, including integer scaling and HD pack native frames.
+- Retain the neon NESYX loading screen and Circle-to-close confirmation from v1.0.25, full-resolution cover fallback and YAHBALLON branding.
+
 # NESYX v1.0.25 by YAHBALLON
 
 - Brand new native cyan/purple glass loading screen replacing the original red "PS5NES v7" page.
