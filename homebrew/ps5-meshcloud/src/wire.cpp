@@ -49,7 +49,9 @@ bool serialize(const Frame& frame,std::vector<std::uint8_t>& out) {
  out.swap(result);return true;
 }
 bool authenticated_parse(const std::vector<std::uint8_t>& data,
- const VerifiedMembership& session,std::uint64_t now,Frame& decoded) {
+ const admission::AuthenticatedPeer& session,
+ const admission::Challenge& nonce,const admission::Challenge& exporter,
+ std::uint64_t now,Frame& decoded) {
  decoded={};
  // Fail closed before interpreting even metadata, CID, search and relay frames.
  if(data.size()<header_bytes||data.size()>header_bytes+max_payload_bytes)
@@ -58,7 +60,7 @@ bool authenticated_parse(const std::vector<std::uint8_t>& data,
     data[4]!=1||data[6]!=0||data[7]!=0)return false;
  Operation op{};
  if(!decode_operation(data[5],op))return false;
- if(!authorize(op,session,now).allowed)return false;
+ if(!session.permitted(op,now,nonce,exporter))return false;
  const auto len=(static_cast<std::uint32_t>(data[8])<<24) |
    (static_cast<std::uint32_t>(data[9])<<16) |
    (static_cast<std::uint32_t>(data[10])<<8) |
