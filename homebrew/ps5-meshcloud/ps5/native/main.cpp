@@ -18,7 +18,6 @@ namespace {
 const Color white=Color::rgb(0xecf5ff),blue=Color::rgb(0x399fff);
 const Color muted=Color::rgb(0x96b0d2),green=Color::rgb(0x53f0b1);
 const Color warning=Color::rgb(0xffbc64);
-constexpr const char* title_id="PPSA99718";
 constexpr const char* version="v0.1.0";
 std::string load_font(const char* path) {
  FILE* f=std::fopen(path,"rb");if(!f)return {};
