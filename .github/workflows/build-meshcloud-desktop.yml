@@ -81,3 +81,40 @@ jobs:
           name: ${{ matrix.artifact }}
           path: package/
           if-no-files-found: error
+
+  release:
+    name: Publish verified pre-alpha desktop archives
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: desktop
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: meshcloud-*
+          path: gathered
+      - name: Create platform archives
+        run: |
+          mkdir -p release
+          for directory in gathered/meshcloud-*; do
+            test -d "$directory"
+            name="$(basename "$directory")"
+            (cd "$directory" && zip -qr "../../release/$name.zip" .)
+          done
+          test "$(find release -name '*.zip' | wc -l)" -eq 3
+      - name: Create prerelease if new
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=meshcloud-desktop-v0.2.0-prealpha
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Pre-alpha release already exists; no rewrite"
+            exit 0
+          fi
+          gh release create "$tag" release/*.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "MeshCloud desktop v0.2.0 pre-alpha (offline only)" \
+            --prerelease \
+            --notes "Security-first OFFLINE encrypted local vault, CIDv1, 90-day retention and 10 GiB membership policy. This is not yet a P2P network or PS5 application. Network downloads remain disabled pending peer storage audits."
