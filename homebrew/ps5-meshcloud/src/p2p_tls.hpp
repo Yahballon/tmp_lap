@@ -37,7 +37,7 @@ bool dial_once(const std::string& remote_ipv4,std::uint16_t port,
                const std::vector<std::uint8_t>& authenticated_wire_request,
                std::vector<std::uint8_t>& authenticated_wire_response,
                std::string& error);
-// Send authenticated getaddr through the SAME TLS 1.3 + 10 GiB quorum gate.
+// Send authenticated getaddr through the SAME TLS 1.3 + 13 GiB quorum gate.
 // Explicit advertise_ipv4 opt-in; no automatic leakage of private addresses.
 // Caller must first manually connect to a known member at least once.
 bool discover_once(const std::string& remote_ipv4,std::uint16_t port,
