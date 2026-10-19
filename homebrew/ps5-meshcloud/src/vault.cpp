@@ -12,6 +12,13 @@
 #include <vector>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 namespace meshcloud {
 namespace {
@@ -140,17 +147,35 @@ bool read_cid_block(const fs::path& path,const std::string& cid,std::vector<unsi
 } // namespace
 bool make_key(FileKey& key){return random_bytes(key.data(),key.size());}
 bool save_key(const fs::path& path,const FileKey& key) {
- std::error_code ec;
- if(fs::exists(path,ec)||ec)return false;
- std::ofstream out(path,std::ios::binary|std::ios::out);
- if(!out)return false;
- out<<hex(key.data(),key.size())<<"\n";
- out.flush();
- if(!out.good())return false;
- out.close();
- fs::permissions(path,fs::perms::owner_read|fs::perms::owner_write,
-                 fs::perm_options::replace,ec);
- return !ec;
+ const std::string encoded=hex(key.data(),key.size())+"\n";
+#ifdef _WIN32
+ // CREATE_NEW prevents accidental overwrite of another key, including collisions.
+ // The parent directory must have owner-only ACLs: Windows inherits the directory DACL.
+ HANDLE file=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,
+                         FILE_ATTRIBUTE_NORMAL,nullptr);
+ if(file==INVALID_HANDLE_VALUE)return false;
+ DWORD written=0;
+ const bool ok=WriteFile(file,encoded.data(),static_cast<DWORD>(encoded.size()),
+                         &written,nullptr)!=0 &&
+               written==encoded.size() && FlushFileBuffers(file)!=0;
+ CloseHandle(file);
+ if(!ok)DeleteFileW(path.c_str());
+ return ok;
+#else
+ // No symlink following and creation-only mode 0600, BEFORE sensitive bytes are written.
+ const int fd=::open(path.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ if(fd<0)return false;
+ std::size_t offset=0;bool ok=true;
+ while(offset<encoded.size()) {
+  const ssize_t n=::write(fd,encoded.data()+offset,encoded.size()-offset);
+  if(n<=0){ok=false;break;}
+  offset+=static_cast<std::size_t>(n);
+ }
+ if(ok)ok=fsync(fd)==0;
+ if(close(fd)!=0)ok=false;
+ if(!ok)unlink(path.c_str());
+ return ok;
+#endif
 }
 bool load_key(const fs::path& path,FileKey& key) {
  std::ifstream in(path,std::ios::binary);if(!in)return false;
