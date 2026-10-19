@@ -24,6 +24,9 @@
 #include <sys/stat.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+// DevBridge CRT references an optional debug hook. The PS5 module converter
+// cannot encode an unresolved weak symbol, so satisfy it locally.
+extern "C" void jb_startup_mark(const char*) noexcept {}
 namespace {
 namespace fs=std::filesystem;
 const fs::path root="/data/PS5MeshCloud";
