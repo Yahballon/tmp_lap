@@ -45,3 +45,7 @@ add_test(NAME quorum_auditor_attestation_and_session_binding COMMAND meshcloud_a
 add_executable(meshcloud_wire_tests tests/test_wire.cpp)
 target_link_libraries(meshcloud_wire_tests PRIVATE meshcloud_core)
 add_test(NAME bounded_authenticated_network_frames COMMAND meshcloud_wire_tests)
+
+add_executable(meshcloud_gui_backend_tests tests/test_gui_backend.cpp)
+target_link_libraries(meshcloud_gui_backend_tests PRIVATE meshcloud_core)
+add_test(NAME gui_catalog_migration_and_cancellable_vault COMMAND meshcloud_gui_backend_tests)
