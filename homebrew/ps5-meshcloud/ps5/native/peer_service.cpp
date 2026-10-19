@@ -2,19 +2,21 @@
 #include "peer_service.hpp"
 #include "p2p_tls.hpp"
 #include "p2p_config.hpp"
+#include "peer_discovery.hpp"
 #include "cid.hpp"
 #include "core.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <cstdint>
+#include <chrono>
 #include <vector>
 namespace meshps5 {
 namespace {
 namespace fs=std::filesystem;
 const fs::path home="/data/PS5MeshCloud";
 struct Network {
- std::string bind,remote,cid;
+ std::string bind,remote,cid,advertise;
 };
 Network settings() {
  Network net;
@@ -27,6 +29,7 @@ Network settings() {
   if(sep==std::string::npos)continue;
   const auto key=line.substr(0,sep),value=line.substr(sep+1);
   if(key=="bind")net.bind=value;
+  else if(key=="advertise")net.advertise=value;
   else if(key=="peer")net.remote=value;
   else if(key=="cid")net.cid=value;
  }
@@ -77,6 +80,7 @@ bool PeerService::launch(Action action,std::string path) {
 bool PeerService::listen(){return launch(Action::Listen);}
 bool PeerService::send_local(const std::string& path){return launch(Action::Put,path);}
 bool PeerService::fetch_cid(){return launch(Action::Get);}
+bool PeerService::discover(){return launch(Action::Discover);}
 void PeerService::run(Action action,const std::string& path) {
  meshcloud::p2p::Config config;
  std::string error;
@@ -84,6 +88,8 @@ void PeerService::run(Action action,const std::string& path) {
   report("P2P LOCKED: "+error);return;
  }
  const auto options=settings();
+ meshcloud::discovery::AddressBook book(home/"p2p"/"addrman");
+ if(!book.open()){report("P2P: cannot access signed peer database");return;}
  const auto preflight=meshcloud::preflight("/data",meshcloud::minimum_bytes);
  if(!preflight.eligible) {
   report("P2P LOCKED: no verified local 10 GiB + safety reserve");
@@ -93,14 +99,43 @@ void PeerService::run(Action action,const std::string& path) {
   meshcloud::exchange::SharedShardStore store(home/"shared",meshcloud::minimum_bytes);
   if(!store.open()){report("P2P: cannot open encrypted shared store");return;}
   meshcloud::exchange::PeerGateway gateway(store);
+  if(!options.advertise.empty()){
+   meshcloud::discovery::SignedAddress me{};
+   if(!meshcloud::discovery::parse_lan_ipv4(options.advertise,me.ipv4)){
+    report("P2P: invalid opt-in advertise LAN address");return;
+   }
+   me.port=meshcloud::p2p::default_port;
+   const auto t=std::chrono::duration_cast<std::chrono::seconds>(
+         std::chrono::system_clock::now().time_since_epoch()).count();
+   if(t<=0){report("P2P: invalid time");return;}
+   me.published=static_cast<std::uint64_t>(t);
+   me.expires=me.published+meshcloud::discovery::record_lifetime;
+   if(!meshcloud::discovery::sign(me,config.node().private_key) ||
+      !book.add(me,me.published)){
+    report("P2P: could not advertise signed endpoint");return;
+   }
+  }
   if(!meshcloud::p2p::listen_once(options.bind,meshcloud::p2p::default_port,
-                                  config.node(),gateway,error)){
+                                  config.node(),gateway,error,nullptr,&book)){
    report("P2P denied: "+error);return;
   }
   report("P2P: authenticated encrypted peer request completed");
   return;
  }
  if(options.remote.empty()){report("P2P: configure peer=IPv4 in network.conf");return;}
+ if(action==Action::Discover) {
+  if(!meshcloud::p2p::discover_once(options.remote,meshcloud::p2p::default_port,
+          config.node(),book,options.advertise,error)) {
+   report("P2P getaddr denied: "+error);return;
+  }
+  std::vector<meshcloud::discovery::SignedAddress> known;
+  const auto t=std::chrono::duration_cast<std::chrono::seconds>(
+       std::chrono::system_clock::now().time_since_epoch()).count();
+  if(t>=0 && book.list(static_cast<std::uint64_t>(t),known))
+   report("P2P: "+std::to_string(known.size())+" signed LAN peers cached");
+  else report("P2P: authenticated getaddr complete");
+  return;
+ }
  std::string cid;
  std::vector<std::uint8_t> request,response;
  if(action==Action::Put) {
