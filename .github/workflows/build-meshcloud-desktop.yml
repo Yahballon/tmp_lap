@@ -1,0 +1,75 @@
+name: MeshCloud Desktop (Windows Linux macOS)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-meshcloud/**'
+      - '.github/workflows/build-meshcloud-desktop.yml'
+  pull_request:
+    paths:
+      - 'homebrew/ps5-meshcloud/**'
+      - '.github/workflows/build-meshcloud-desktop.yml'
+permissions:
+  contents: read
+jobs:
+  desktop:
+    name: Desktop ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            artifact: meshcloud-linux-x64
+          - os: windows-2022
+            artifact: meshcloud-windows-x64
+          - os: macos-15
+            artifact: meshcloud-macos-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux OpenSSL
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libssl-dev
+      - name: macOS OpenSSL
+        if: runner.os == 'macOS'
+        run: brew install openssl@3
+      - name: Windows OpenSSL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg" install openssl:x64-windows
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cmake -S homebrew/ps5-meshcloud -B build/meshcloud -A x64 "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+      - name: Configure Linux
+        if: runner.os == 'Linux'
+        run: cmake -S homebrew/ps5-meshcloud -B build/meshcloud -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Configure macOS
+        if: runner.os == 'macOS'
+        run: cmake -S homebrew/ps5-meshcloud -B build/meshcloud -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)"
+      - name: Build
+        run: cmake --build build/meshcloud --config Release --parallel 4
+      - name: Security and CID tests
+        run: ctest --test-dir build/meshcloud -C Release --output-on-failure
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package
+          Copy-Item build/meshcloud/Release/meshcloud.exe package/
+          Copy-Item homebrew/ps5-meshcloud/README.md package/
+          Set-Content package/NOT_A_NETWORK_CLIENT_YET.txt 'Pre-alpha local disk diagnostic: networking disabled'
+      - name: Package Unix
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p package
+          cp build/meshcloud/meshcloud package/
+          cp homebrew/ps5-meshcloud/README.md package/
+          printf '%s\n' 'Pre-alpha local disk diagnostic: networking disabled' > package/NOT_A_NETWORK_CLIENT_YET.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: package/
+          if-no-files-found: error
