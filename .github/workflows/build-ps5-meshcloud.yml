@@ -31,6 +31,9 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
+          # zlib.net/fossils intermittently supplies an unexpected response; use
+          # the official current zlib 1.3.2 URL with the SAME pinned SHA-256.
+          sed -i 's@https://zlib.net/fossils/zlib-@https://zlib.net/zlib-@' app/tools/setup-native-dependencies.sh
           cp homebrew/ps5-meshcloud/ps5/native/*.cpp homebrew/ps5-meshcloud/ps5/native/*.hpp app/src/
           for name in core cid stream catalog vault admission wire exchange p2p_tls p2p_config; do
             cp "homebrew/ps5-meshcloud/src/$name.cpp" "app/src/$name.cpp"
