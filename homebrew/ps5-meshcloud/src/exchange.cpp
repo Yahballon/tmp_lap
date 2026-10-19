@@ -44,7 +44,7 @@ bool bind_cid(sqlite3_stmt* s,int position,const std::string& id) {
 }
 std::string unique_hex() {
  unsigned char buf[16]{};
- if(RAND_bytes(buf,sizeof(buf))!=1)return {};
+ if(RAND_bytes(buf,static_cast<int>(sizeof(buf)))!=1)return {};
  constexpr char digits[]="0123456789abcdef";
  std::string result(32,'0');
  for(std::size_t i=0;i<16;i++) {
@@ -110,6 +110,10 @@ bool SharedShardStore::open() {
  std::error_code ec;
  if(!fs::exists(directory_,ec))fs::create_directories(directory_,ec);
  if(ec||!safe_folder(directory_)){error_="Invalid exchange directory";return false;}
+#ifndef _WIN32
+ fs::permissions(directory_,fs::perms::owner_all,fs::perm_options::replace,ec);
+ if(ec){error_="Cannot restrict exchange folder permissions";return false;}
+#endif
  // Prevent two cooperating processes mutating the same objects/TTL catalog.
  if(!writer_lock_.acquire(directory_/".exchange.lock")) {
   error_="Exchange directory already locked";return false;
@@ -117,6 +121,14 @@ bool SharedShardStore::open() {
  const auto blocks=directory_/"blocks";
  if(!fs::exists(blocks,ec))fs::create_directory(blocks,ec);
  if(ec||!safe_folder(blocks)){error_="Invalid encrypted block directory";return false;}
+#ifndef _WIN32
+ fs::permissions(blocks,fs::perms::owner_all,fs::perm_options::replace,ec);
+ if(ec){error_="Cannot restrict encrypted shard folder permissions";return false;}
+#endif
+ if(max_bytes_==0 || max_bytes_>
+     static_cast<std::uint64_t>(std::numeric_limits<sqlite3_int64>::max())) {
+  error_="Invalid shard storage quota";return false;
+ }
  const auto path=directory_/"shards.sqlite";
  const auto u8=path.u8string();
  const std::string path_utf8(u8.begin(),u8.end());
@@ -246,6 +258,7 @@ bool SharedShardStore::prune(std::uint64_t now,std::uint64_t& removed) {
    removed++;
   }
  }
+ if(ec){error_="Cannot iterate shard directory";return false;}
  return true;
 }
 bool make_put(const std::string& id,const std::vector<std::uint8_t>& ciphertext,
