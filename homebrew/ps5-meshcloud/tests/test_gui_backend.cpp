@@ -51,7 +51,7 @@ int main() {
  assert(!vault.import_file(source,begin,key,id,[&](std::uint64_t done,std::uint64_t total) {
   assert(done<=total);reported=done;cancelled=true;return false;
  }));
- assert(cancelled&&!id.empty()==false);
+ assert(cancelled&&id.empty());
  assert(vault.catalog().list_live(begin,items)&&items.empty());
  std::uint64_t expired=0,unreferenced=0;
  assert(vault.prune(begin,expired,unreferenced));
