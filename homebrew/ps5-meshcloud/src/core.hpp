@@ -4,7 +4,8 @@
 #include <filesystem>
 #include <string>
 namespace meshcloud {
-constexpr std::uint64_t minimum_bytes = 10ULL*1024*1024*1024;
+constexpr std::uint64_t minimum_bytes = 13ULL*1024*1024*1024;
+constexpr std::uint64_t maximum_bytes = 13ULL*1024*1024*1024;
 constexpr std::uint64_t safety_bytes = 2ULL*1024*1024*1024;
 enum class Operation { Discovery, Search, Listing, Metadata, Upload, Download, Publish, Replication, Relay };
 enum class Denial { None, Identity, Quota, StorageProof, Expired, Protocol };
