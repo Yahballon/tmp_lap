@@ -1,4 +1,4 @@
-# MeshCloud PS5 Native v0.1.0
+# MeshCloud PS5 Native v0.2.0
 
 **By YAHBALLON** — native controller-first OpenGL console prototype.
 
@@ -44,3 +44,23 @@ In particular:
 - The custom app icon has no Sony or PlayStation trademark graphics.
 
 Keep sensitive files out of the files folders until production encryption and policy handling exist.
+
+## Direct P2P LAN transport v0.7 / PS5 native v0.2
+
+MeshCloud now includes `src/p2p_tls.cpp`: a **symmetric TCP peer** implementation. Both nodes can listen for connections and initiate them. It uses pinned Ed25519 mutual TLS 1.3 and a fresh TLS-exporter-bound proof of a short-lived, three-auditor-signed ticket for **at least 10 GiB**. Nobody receives MeshCloud CIDs, shards, listings, or searches before both TLS certificate pinning and member verification succeed. The core's GET/PUT frames carry encrypted `.mcb` chunks, never plaintext or file keys.
+
+Windows/Linux/macOS gain `meshcloud-peer` in addition to the existing CLI and the Windows GUI. The native PS5 app has a Network page to listen, PUT a selected local MCB1 ciphertext block and GET a configured CID after cryptographic admission. The **same** signed ticket binary, trusted auditor keys and allowlist format are used on every system.
+
+For a deliberately provisioned two-device LAN:
+
+1. Arrange **genuine, externally audited, quorum-signed 10-GiB member tickets** for both peers. There is no built-in credential minting, shared test password, guest mode, or self-attestation.
+2. Put files `identity.pem` (private Ed25519 PEM key), `member.ticket` (canonical signed binary), `auditors.keys` (minimum three independent pinned auditor Ed25519 public keys, 64 hex characters per line) and `peers.keys` (the exact other node's public key in hex) in each node's private config directory. Never publish private keys or reuse test signatures as genuine audits.
+3. On the PS5 use `/data/PS5MeshCloud/p2p/` and a `network.conf` containing `bind=192.168.x.x`, `peer=192.168.x.y` and optionally `cid=bafk...`. Replace IPs with the actual PS5 and PC addresses.
+4. On PC: `meshcloud-peer listen ./pc-config ./pc-shards 192.168.x.y`. Use the PC's real LAN IP, not `0.0.0.0`. One listener handles one authenticated request.
+5. On the PS5 Network page press **Square** to PUT the selected encrypted `.mcb` fragment from the Local files page, or **Triangle** to request the configured CID from the PC.
+6. In the opposite direction press **X** on PS5 Network to listen, then use `meshcloud-peer put ./pc-config 192.168.x.x encrypted.mcb` or `meshcloud-peer get ./pc-config 192.168.x.x CID recovered.mcb`.
+
+The node must ALSO pass the local **10 GiB + 2 GiB headroom** preflight; this disk-space check is not a replacement for the remote proof. Shard capacity remains capped at 10 GiB per node in this prototype. A `.mcb` is an encrypted 4-MiB-or-smaller fragment, **not a whole-file automatic upload**. The original whole-file local vault still supports streaming large files.
+
+**Important status:** The repository still needs a production-grade proof-of-storage issuer/auditor network. Without valid independent audit credentials, the real P2P connection **correctly refuses access**. A passing CI test uses ephemeral mock auditors and does not create valid production tickets. Direct IP on LAN exposes peer LAN addresses; relay-only internet mode, NAT traversal, DHT and distributed 90-day file retention are not yet complete. Treat this as a controlled direct-LAN engineering test only.
+
