@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <vector>
 namespace meshcloud {
 using FileKey=std::array<unsigned char,32>;
 constexpr std::size_t chunk_bytes=4*1024*1024;
