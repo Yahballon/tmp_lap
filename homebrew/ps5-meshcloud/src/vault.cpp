@@ -343,7 +343,8 @@ bool LocalVault::prune(std::uint64_t now,std::uint64_t& expired_files,
  for(const auto& id:ids)fs::remove(root_/"manifests"/(id+".mcm"),ec);
  for(const auto& entry:fs::directory_iterator(root_/"blocks",ec)) {
   if(ec){error_="Block scan failed";return false;}
-  const auto path=entry.path(), name=path.filename().string();
+  const auto path=entry.path();
+  const auto name=path.filename().string();
   if(name.size()<5||name.substr(name.size()-4)!=".mcb")continue;
   const auto block_id=name.substr(0,name.size()-4);
   if(!cid::validate(block_id))continue;
