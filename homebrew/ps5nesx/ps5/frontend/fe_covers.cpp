@@ -6,6 +6,7 @@
 #include "fe_covers.h"
 #include "cover_urls.h"
 #include "fe_arcadeartwork.h"
+#include "fe_libretro_catalog.h"
 #ifdef ORBIS_VULKAN
 #include "fe_file_io.h"
 #endif
@@ -111,7 +112,7 @@ bool IsCoverFile(const std::string& path)
 bool RecentlyMissing(const std::string& cache_dir, const std::string& serial)
 {
 	struct stat st = {};
-	return stat((cache_dir + "/" + serial + ".nescovers-v9.missing").c_str(), &st) == 0 &&
+	return stat((cache_dir + "/" + serial + ".nescovers-v10.missing").c_str(), &st) == 0 &&
 		   std::time(nullptr) - st.st_mtime < 2 * 24 * 3600;
 }
 
@@ -656,6 +657,15 @@ static int FetchCover(const GameInfo& game,const CoverConfig& cfg,const Download
                       std::vector<uint8_t>& bytes,CoverImage& image,std::string& used,
                       const std::atomic<bool>* stop=nullptr){
  auto urls=cfg.resolve_urls?cfg.resolve_urls(game):std::vector<std::string>{cfg.url_template};
+ // Resolve filenames against the ACTUAL Libretro directory listing once
+ // per cover-worker session. Handles numbered ROM sets and nonstandard
+ // regional or revision names without issuing hundreds of blind 404s.
+ if(!(stop&&*stop))
+ {
+  const std::string official=libretro::Lookup(game,download,stop);
+  if(!official.empty() && std::find(urls.begin(),urls.end(),official)==urls.end())
+   urls.insert(urls.begin(),official);
+ }
  int status=404,other_error=0;
  for(auto url:urls){if(stop&&*stop)break;auto at=url.find("${serial}");if(at!=url.npos)url.replace(at,9,game.serial);
   at=url.find("${title}");if(at!=url.npos)url.replace(at,8,nes::CoverEncode(game.stem));
@@ -696,7 +706,7 @@ bool CoverService::DownloadCover(int index, CoverImage& out)
 	if (m_offline || m_stop)
 		return false;
 	const std::string cached = m_cfg.cache_dir + "/" + g.serial + ".jpg";
-	const std::string missing = m_cfg.cache_dir + "/" + g.serial + ".nescovers-v9.missing";
+	const std::string missing = m_cfg.cache_dir + "/" + g.serial + ".nescovers-v10.missing";
 	std::vector<uint8_t> bytes;
 	std::string url;
 	{
@@ -793,7 +803,7 @@ int CoverService::Prefetch(const std::vector<GameInfo>& games, const std::vector
 		if (status == 200 && !probe.rgba.empty())
 			ok = WriteFileAtomic(cfg.cache_dir + "/" + g.serial + ".jpg", bytes);
 		else if (status == 404)
-			WriteFileAtomic(cfg.cache_dir + "/" + g.serial + ".nescovers-v9.missing", std::vector<uint8_t>{'4', '0', '4', '\n'});
+			WriteFileAtomic(cfg.cache_dir + "/" + g.serial + ".nescovers-v10.missing", std::vector<uint8_t>{'4', '0', '4', '\n'});
 		std::printf("[frontend] prefetch %s: %d%s\n", g.serial.c_str(), status,
 			ok ? " (saved)" : (status == 200 ? " (not an image; not kept)" : ""));
 		std::fflush(stdout);
@@ -848,10 +858,14 @@ void CoverService::RunWindow()
     int previous_selection=-1;
     while(!m_stop) {
         int refresh=-1;
-        {std::lock_guard<std::mutex> lock(m_mutex);if(!m_refresh_requests.empty()){refresh=m_refresh_requests.front();m_refresh_requests.pop_front();m_offline=false;++m_download_total;++m_progress.planned;}}
+        {std::lock_guard<std::mutex> lock(m_mutex);if(!m_refresh_requests.empty()){
+            refresh=m_refresh_requests.front();m_refresh_requests.pop_front();
+            m_offline=false;m_progress.offline=false;m_progress.done=false;
+            ++m_download_total;++m_progress.planned;
+        }}
         if(refresh>=0){
             // (AI-assisted) Bypass cached artwork and old 404 markers, retaining the old image on failure.
-            const auto& game=m_games[refresh];unlink((m_cfg.cache_dir+"/"+game.serial+".nescovers-v9.missing").c_str());
+            const auto& game=m_games[refresh];unlink((m_cfg.cache_dir+"/"+game.serial+".nescovers-v10.missing").c_str());
             CoverImage updated;std::printf("[covers] refresh selected: %s\n",game.title.c_str());
             const bool okay=DownloadCover(refresh,updated);
             if(okay){updated.game=refresh;updated.kind=CoverImage::Cover;if(!deliver(updated))break;finder=CoverFinder(m_cfg.manual_dir,m_cfg.cache_dir);local[refresh]=true;want[refresh]=false;}

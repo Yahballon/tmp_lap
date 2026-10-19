@@ -179,3 +179,30 @@ should verify the settings sheet, fresh cover network access and wrap.
 Real PS5 testing is needed to confirm the overlay, progress UI and online
 gallery access. Host integration tests validate parsing, safe URL hosts,
 download-index caching, wrap navigation, and draw ordering.
+
+## v1.0.21 — Official Libretro NES Boxarts source and transient progress
+
+The user-selected [official NES thumbnails directory](https://thumbnails.libretro.com/Nintendo%20-%20Nintendo%20Entertainment%20System/Named_Boxarts/)
+is now a first-class cover source. The worker downloads the archive's
+**actual directory index once per session** (when any artwork is missing)
+and matches game titles after removing numbered collection prefixes. It
+prefers region-appropriate official filenames, then tries direct Libretro
+CDN links, the existing artwork repository and Github mirror, followed
+by ArcadeArtwork when needed. It never downloads ROMs.
+
+The on-screen compact Porpoise cover progress HUD is only visible during
+an active pending search/transfer. On completion or when network access
+stops the session, it disappears automatically. R2 manual refresh starts
+a fresh progress cycle.
+
+All successful artwork downloads are decoded and written atomically to
+`/data/PS5NES/cache/<NES-CRC>.jpg`; existing cached/manual covers still
+load before network access. Previous v9 negative-hit markers no longer
+block rechecking from the new source: v10 has independent 48-hour markers.
+One index fetch per worker means the entire 352-game batch need not try
+dozens of dead aliases before discovering the actual filename.
+
+The exact yield depends on the names/regions in the user's game library.
+A successful build does not guarantee all 352 games have published box
+images or that Libretro CDN/TLS access succeeds on PS5; the download log
+records each URL, HTTP status and cache writes.

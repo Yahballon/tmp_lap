@@ -786,8 +786,16 @@ inline std::vector<std::string> CoverUrls(const fe::GameInfo& game){
  // ROM stem may include a numbered list prefix, so also try a clean title.
  auto add=[&](const std::string& name){
   if(name.empty())return;
-  auto url=std::string("https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System/master/Named_Boxarts/")+CoverEncode(name)+".png";
-  if(std::find(urls.begin(),urls.end(),url)==urls.end())urls.push_back(std::move(url));
+  const auto filename=CoverEncode(name)+".png";
+  // User-confirmed official Libretro thumbnails directory, with raw GitHub
+  // mirror as fallback. Both are JPEG/PNG validated before entering cache.
+  for(const char* base : {
+    "https://thumbnails.libretro.com/Nintendo%20-%20Nintendo%20Entertainment%20System/Named_Boxarts/",
+    "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System/master/Named_Boxarts/"
+  }) {
+    const auto url=std::string(base)+filename;
+    if(std::find(urls.begin(),urls.end(),url)==urls.end())urls.push_back(url);
+  }
  };
  auto clean=title;
  if(clean.size()>4 && clean[0]>='0'&&clean[0]<='9' &&

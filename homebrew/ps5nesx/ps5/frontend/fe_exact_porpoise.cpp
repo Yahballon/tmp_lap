@@ -162,7 +162,11 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
     // Compact, non-blocking progress HUD. The data comes from the cover
     // worker's mutex-protected snapshot; rendering never touches networking.
     const CoverProgress& progress = m_cover_progress;
-    if(progress.games > 0 && progress.planned > 0)
+    // The status box is transient: it disappears automatically when the
+    // final missing ROM has been checked (or when the worker stops because
+    // the network is unavailable). A manual R2 refresh starts a new cycle.
+    if(progress.games > 0 && progress.planned > 0 &&
+       !progress.done && !progress.offline)
     {
         constexpr float px=1414,py=149,pw=452,ph=100;
         g.panel(px,py,pw,ph,rgba(0x061339,0.78f),0.84f,19,
@@ -173,8 +177,6 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
             state = "Fetching: " + progress.current;
             if(state.size()>42) state=state.substr(0,39)+"...";
         }
-        else if(progress.offline) state="Artwork paused - network unavailable";
-        else if(progress.done) state="Cover search finished";
         else state="Searching for missing game covers";
         g.text(Font::SemiBold,19,px+19,py+14,kWhite,Align::Left,state);
         char detail[100];
