@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// MeshCloud by YAHBALLON v0.9.0 - native, dependency-light Windows desktop UI.
+// MeshCloud by YAHBALLON v0.10.0 - native, dependency-light Windows desktop UI.
 // Shares the same C++ storage engine with the CLI; NO P2P listener or bypass.
 #include <windows.h>
 #include <commctrl.h>
@@ -187,7 +187,7 @@ void create_children(App& a) {
  a.edit_brush=CreateSolidBrush(textbox);
  a.vault=make_edit(a.window,id_vault,default_storage().wstring().c_str());
  a.browse=make_button(a.window,id_browse,L"Browse folder");
- a.summary=make_label(a.window,L"Network: LOCKED  |  Member verification pending  |  Minimum 10 GiB",id_summary);
+ a.summary=make_label(a.window,L"Network: LOCKED  |  Member verification pending  |  Minimum 13 GiB",id_summary);
  a.import_file=make_button(a.window,id_import,L"Encrypt + import");
  a.export_file=make_button(a.window,id_export,L"Restore selected");
  a.hash=make_button(a.window,id_hash,L"File CID");
@@ -269,7 +269,7 @@ void populate(App& a,const std::vector<meshcloud::CatalogEntry>& entries) {
   }
  }
  const std::wstring line=std::to_wstring(a.items.size())+
-  L" local encrypted file(s)  |  90-day inactivity expiry  |  NETWORK LOCKED - verified 10 GiB membership unavailable";
+  L" local encrypted file(s)  |  90-day inactivity expiry  |  NETWORK LOCKED - verified 13 GiB membership unavailable";
  SetWindowTextW(a.summary,line.c_str());
 }
 struct Runner {
@@ -331,7 +331,7 @@ struct Runner {
      result->success=true;
      const auto pf=meshcloud::preflight(work.root,meshcloud::minimum_bytes);
      result->message=pf.eligible
-      ?L"Disk preflight: 10 GiB + 2 GiB safety margin available. NETWORK REMAINS LOCKED."
+      ?L"Disk preflight: 13 GiB + 2 GiB safety margin available. NETWORK REMAINS LOCKED."
       :L"Disk preflight: "+wstr(pf.message)+L". NETWORK REMAINS LOCKED.";
      break;
     }
@@ -540,7 +540,7 @@ LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam) {
   SelectObject(dc,old);DeleteObject(large);
   SetTextColor(dc,muted);
   RECT sub{37,75,client.right-30,112};
-  DrawTextW(dc,L"BY YAHBALLON    /    v0.9.0 PRE-ALPHA    /    ENCRYPTED LOCAL VAULT", -1,
+  DrawTextW(dc,L"BY YAHBALLON    /    v0.10.0 PRE-ALPHA    /    ENCRYPTED LOCAL VAULT", -1,
       &sub,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
   RECT vault_title{36,150,146,192};
   DrawTextW(dc,L"Vault folder", -1,&vault_title,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
@@ -578,7 +578,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,LPWSTR,int show) {
  cls.style=CS_HREDRAW|CS_VREDRAW;
  if(!RegisterClassExW(&cls))return 1;
  app.window=CreateWindowExW(0,cls.lpszClassName,
-    L"MeshCloud by YAHBALLON - v0.9.0 pre-alpha",
+    L"MeshCloud by YAHBALLON - v0.10.0 pre-alpha",
     WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
     CW_USEDEFAULT,CW_USEDEFAULT,1280,830,nullptr,nullptr,instance,&app);
  if(!app.window)return 1;
