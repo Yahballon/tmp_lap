@@ -43,6 +43,7 @@ on:
       - Publish PS5MesenX TESTBUILD
       - Import PS5NESX Sources
       - Build PS5NESX Native
+      - Build NESYX Native
     types: [completed]
   schedule:
     - cron: '17 * * * *'
