@@ -48,6 +48,26 @@ jobs:
             homebrew/ps5-meshcloud/tests/test_audit_net.cpp \
             -lssl -lcrypto -pthread -o /tmp/meshcloud-auditnet-ps5-host
           /tmp/meshcloud-auditnet-ps5-host
+      - name: Host-test 3-auditor ticket assembly without C++ exceptions
+        run: |
+          g++ -std=c++20 -fno-exceptions -fno-rtti -O2 -Wall -Wextra -Wpedantic -Werror \
+            -Ihomebrew/ps5-meshcloud/src \
+            homebrew/ps5-meshcloud/src/core.cpp \
+            homebrew/ps5-meshcloud/src/admission.cpp \
+            homebrew/ps5-meshcloud/src/storage_audit.cpp \
+            homebrew/ps5-meshcloud/src/ticket_issue.cpp \
+            homebrew/ps5-meshcloud/src/p2p_tls.cpp \
+            homebrew/ps5-meshcloud/src/p2p_config.cpp \
+            homebrew/ps5-meshcloud/src/peer_discovery.cpp \
+            homebrew/ps5-meshcloud/src/exchange.cpp \
+            homebrew/ps5-meshcloud/src/vault.cpp \
+            homebrew/ps5-meshcloud/src/cid.cpp \
+            homebrew/ps5-meshcloud/src/stream.cpp \
+            homebrew/ps5-meshcloud/src/catalog.cpp \
+            homebrew/ps5-meshcloud/src/wire.cpp \
+            homebrew/ps5-meshcloud/tests/test_ticket_issue.cpp \
+            -lssl -lcrypto -lsqlite3 -pthread -o /tmp/meshcloud-tickets-ps5-host
+          /tmp/meshcloud-tickets-ps5-host
       - name: Prepare native PS5 application scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -56,7 +76,7 @@ jobs:
           # the official current zlib 1.3.2 URL with the SAME pinned SHA-256.
           sed -i 's@https://zlib.net/fossils/zlib-@https://zlib.net/zlib-@' app/tools/setup-native-dependencies.sh
           cp homebrew/ps5-meshcloud/ps5/native/*.cpp homebrew/ps5-meshcloud/ps5/native/*.hpp app/src/
-          for name in core cid stream catalog vault admission wire exchange p2p_tls p2p_config peer_discovery storage_audit audit_net; do
+          for name in core cid stream catalog vault admission wire exchange p2p_tls p2p_config peer_discovery storage_audit audit_net ticket_issue; do
             cp "homebrew/ps5-meshcloud/src/$name.cpp" "app/src/$name.cpp"
           done
           cp homebrew/ps5-meshcloud/src/*.hpp app/src/
@@ -64,7 +84,7 @@ jobs:
           import json,pathlib
           p=pathlib.Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99718',conceptId='99718',contentId='UP9000-PPSA99718_00-MESHCLOUDPS5APP1',contentVersion='01.000.004')
+          d.update(titleId='PPSA99718',conceptId='99718',contentId='UP9000-PPSA99718_00-MESHCLOUDPS5APP1',contentVersion='01.000.005')
           d['localizedParameters']['en-US']['titleName']='MeshCloud by YAHBALLON'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -108,11 +128,11 @@ jobs:
           app=pathlib.Path('app/dist/PPSA99718')
           elf=(app/'eboot.bin').read_bytes()
           assert len(elf)>1000 and struct.unpack('<I',elf[:4])[0]==0x1d3d154f
-          assert b'v0.4.0' in elf
+          assert b'v0.5.0' in elf
           p=json.loads((app/'sce_sys/param.json').read_text())
           assert p['titleId']=='PPSA99718'
           assert p['contentId']=='UP9000-PPSA99718_00-MESHCLOUDPS5APP1'
-          assert p['contentVersion']=='01.000.004'
+          assert p['contentVersion']=='01.000.005'
           for filename in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']:
               assert (app/filename).is_file(),filename
           with zipfile.ZipFile('app/dist/PPSA99718.zip') as z:
@@ -124,7 +144,7 @@ jobs:
       - name: Upload PS5 installable archive
         uses: actions/upload-artifact@v4
         with:
-          name: MeshCloud-PS5-v0.4.0-PPSA99718
+          name: MeshCloud-PS5-v0.5.0-PPSA99718
           path: app/dist/PPSA99718.zip
           if-no-files-found: error
       - name: Publish native prototype pre-release
@@ -132,8 +152,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view meshcloud-ps5-v0.4.0-prealpha >/dev/null 2>&1; then
+          if gh release view meshcloud-ps5-v0.5.0-prealpha >/dev/null 2>&1; then
             echo 'Already released'
             exit 0
           fi
-          gh release create meshcloud-ps5-v0.4.0-prealpha app/dist/PPSA99718.zip --target "$GITHUB_SHA" --prerelease --title "MeshCloud PS5 v0.4.0 (audited direct TLS P2P prototype)" --notes-file homebrew/ps5-meshcloud/ps5/RELEASE_NOTES.md
+          gh release create meshcloud-ps5-v0.5.0-prealpha app/dist/PPSA99718.zip --target "$GITHUB_SHA" --prerelease --title "MeshCloud PS5 v0.5.0 (audited direct TLS P2P prototype)" --notes-file homebrew/ps5-meshcloud/ps5/RELEASE_NOTES.md
