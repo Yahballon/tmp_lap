@@ -73,3 +73,7 @@ Use a common, explicitly provisioned \`auditors.keys\` containing the exact publ
 
 **Important operational limits:** This is a *controlled LAN pre-alpha*, not production public membership. The prototype neither provides remote 13 GiB provisioning nor continuously hosted auditors, durable issuance/replay ledgers, auto-ticket renewal, robust auditor governance, NAT traversal or end-to-end PS5 hardware confirmation. An individual successful 13-GiB proof and signature do not by themselves confer access: quorum signatures and all other live member checks are mandatory.
 
+
+### Native PS5 key security and provisioning
+
+On PS5 v0.5, **R3** first generates a NEW Ed25519 node identity directly on the console (exclusive file creation with private permissions) if none exists, then saves a signed `request.mctr`. The private identity NEVER needs to travel to the auditor or PC. Copy only the PUBLIC `request.mctr` file to a PC, then execute `meshcloud-ticket inspect <request.mctr>` to print the node's verified public key and use that key with `meshcloud-audit provision-for <public-key-hex> ... 13`. The audit request lasts 10 minutes; do not delete or replace identity.pem when creating a fresh request. If the previous request filename exists, archive it or remove it manually before asking R3 to issue a new one. Never distribute private auditor keys or private node identity files.
