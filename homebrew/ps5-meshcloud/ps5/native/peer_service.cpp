@@ -6,6 +6,9 @@
 #include "ticket_issue.hpp"
 #include "storage_audit.hpp"
 #include <openssl/pem.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "peer_discovery.hpp"
 #include "cid.hpp"
 #include "core.hpp"
@@ -90,8 +93,44 @@ bool PeerService::make_member_request(){return launch(Action::CreateTicketReques
 void PeerService::run(Action action,const std::string& path) {
  if(action==Action::CreateTicketRequest) {
   const auto keyfile=home/"p2p"/"identity.pem";
+  std::error_code fs_error;
+  fs::create_directories(home/"p2p",fs_error);
+  if(fs_error){report("Ticket LOCKED: inaccessible private config directory");return;}
+  if(!fs::exists(keyfile,fs_error)&&!fs_error) {
+   // Native keygen: never needs a PC copy of the node's private key.
+   // Fail closed on existing symlink or a competing file creator.
+   EVP_PKEY_CTX* ctx=EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519,nullptr);
+   EVP_PKEY* generated=nullptr;
+   const bool generated_ok=ctx&&EVP_PKEY_keygen_init(ctx)==1&&
+       EVP_PKEY_keygen(ctx,&generated)==1;
+   if(ctx)EVP_PKEY_CTX_free(ctx);
+   if(!generated_ok){
+    if(generated)EVP_PKEY_free(generated);
+    report("Ticket LOCKED: PS5 secure Ed25519 keygen failed");return;
+   }
+   const int fd=open(keyfile.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+   if(fd<0){
+    EVP_PKEY_free(generated);
+    report("Ticket LOCKED: identity exists or secure create failed");return;
+   }
+   FILE* stream=fdopen(fd,"w");
+   if(!stream){
+    close(fd);unlink(keyfile.c_str());EVP_PKEY_free(generated);
+    report("Ticket LOCKED: identity stream failed");return;
+   }
+   BIO* dest=BIO_new_fp(stream,BIO_NOCLOSE);
+   const bool saved=dest&&PEM_write_bio_PrivateKey(dest,generated,
+     nullptr,nullptr,0,nullptr,nullptr)==1&&
+     BIO_flush(dest)==1&&fflush(stream)==0&&fsync(fd)==0;
+   if(dest)BIO_free(dest);
+   fclose(stream);EVP_PKEY_free(generated);
+   if(!saved){
+    unlink(keyfile.c_str());
+    report("Ticket LOCKED: could not securely store node identity");return;
+   }
+  }
   BIO* bio=BIO_new_file(keyfile.string().c_str(),"r");
-  if(!bio){report("Ticket LOCKED: create private identity.pem first");return;}
+  if(!bio){report("Ticket LOCKED: private identity.pem unavailable");return;}
   EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
      [](char*,int,int,void*)->int {return 0;},nullptr);
   BIO_free(bio);
