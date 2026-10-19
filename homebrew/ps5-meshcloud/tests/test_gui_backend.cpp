@@ -5,6 +5,7 @@
 #include "vault.hpp"
 #include "catalog.hpp"
 #include "cid.hpp"
+#include "stream.hpp"
 #include <sqlite3.h>
 #include <cassert>
 #include <chrono>
