@@ -68,6 +68,7 @@ bool request_file(const fs::path& path,ticket_issue::Request& req){
 void help(){
  std::cout<<"MeshCloud Ticket v0.11 by YAHBALLON - independently verified 13 GiB\n"
  <<"  meshcloud-ticket request <node-identity.pem> <request.mctr>\n"
+ <<"  meshcloud-ticket inspect <request.mctr> (prints PUBLIC identity; never private key)\n"
  <<"  meshcloud-ticket attest <auditor.pem> <node-LAN-IP> <independent-ledger.mcal> <request.mctr> <signature.mctp>\n"
  <<"  meshcloud-ticket assemble <request.mctr> <trusted-auditors.keys> <member.ticket> <sig1.mctp> <sig2.mctp> <sig3.mctp> [sig4...]\n"
  <<"All storage proofs require real pinned remote TLS, 13 GiB data and 3 distinct trusted auditors.\n"
@@ -78,6 +79,20 @@ int main(int argc,char** argv) {
  if(argc<2){help();return 2;}
  const std::string operation=argv[1];
  const auto now=now_seconds();
+ if(operation=="inspect"&&argc==3){
+  ticket_issue::Request req{};
+  if(!request_file(argv[2],req)){
+   std::cerr<<"Invalid/expired signed ticket request\n";return 1;
+  }
+  constexpr char digits[]="0123456789abcdef";
+  std::cout<<"Node public Ed25519 key: ";
+  for(const auto byte:req.ticket.node_identity)
+   std::cout<<digits[byte>>4]<<digits[byte&15];
+  std::cout<<"\nRequired contribution: "<<req.ticket.offered_bytes
+   <<" bytes (13 GiB), request at "<<req.ticket.issued_at
+   <<", membership expires "<<req.ticket.expires_at<<"\n";
+  return 0;
+ }
  if(operation=="request"&&argc==4){
   auto node=private_key(argv[2]);
   ticket_issue::Request req{};
