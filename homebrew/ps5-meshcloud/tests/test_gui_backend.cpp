@@ -91,6 +91,14 @@ int main() {
  assert(vault.catalog().list_live(begin+meshcloud::retention_seconds+1,items)&&items.size()==1);
  assert(vault.catalog().list_live(entry.expires_at,items)&&items.empty());
  }
+ {
+  const auto unicode_root=root/fs::path(std::u8string(u8"vault-äö漢字"));
+  meshcloud::LocalVault unicode_vault(unicode_root);
+  assert(unicode_vault.open());
+  std::vector<meshcloud::CatalogEntry> unicode_items;
+  assert(unicode_vault.catalog().list_live(begin,unicode_items));
+  assert(unicode_items.empty());
+ }
  fs::remove_all(root);
  std::cout<<"GUI backend: migrated v0.3 catalog, UTF-8 names, cancellable streaming, recovery and lifecycle passed\n";
 }
