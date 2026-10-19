@@ -92,7 +92,7 @@ void PeerService::run(Action action,const std::string& path) {
  if(!book.open()){report("P2P: cannot access signed peer database");return;}
  const auto preflight=meshcloud::preflight("/data",meshcloud::minimum_bytes);
  if(!preflight.eligible) {
-  report("P2P LOCKED: no verified local 10 GiB + safety reserve");
+  report("P2P LOCKED: no verified local 13 GiB + safety reserve");
   return;
  }
  if(action==Action::Listen) {
