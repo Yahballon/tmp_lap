@@ -25,6 +25,16 @@ int main(){
  assert(fs::file_size(data)==4ULL*1024*1024);
  assert(fs::file_size(ledger_file)==4+1+32+16+8+4+4+64*32);
  assert(!provision(data,ledger_file,owner,4ULL*1024*1024,error));
+ // An attacker-controlled dangling symlink must not redirect a random audit
+ // write to an arbitrary future file path.
+ std::error_code link_error;
+ const auto redirect=dir/"dangling-alias";
+ const auto victim=dir/"victim-created-by-following-symlink.bin";
+ fs::create_symlink(victim,redirect,link_error);
+ if(!link_error){
+  assert(!provision(redirect,dir/"new-ledger.bin",owner,4ULL*1024*1024,error));
+  assert(!fs::exists(victim));
+ }
  Ledger ledger{};
  assert(load_ledger(ledger_file,ledger));
  assert(ledger.bytes==4ULL*1024*1024&&ledger.block_hashes.size()==64);
