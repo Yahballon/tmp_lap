@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -124,6 +125,18 @@ int main() {
   assert(make_put(cid2,c2,upload2));
   assert(B.handle(upload2,valid,nonce,exporter,time,reply));
   assert(status(reply,valid,nonce,exporter,time)==Result::QuotaExceeded);
+  const auto disk_file=root/"node-B"/"blocks"/(cid1+".mcb");
+  {
+   std::fstream file(disk_file,std::ios::in|std::ios::out|std::ios::binary);
+   assert(file);
+   file.seekp(-1,std::ios::end);
+   file.put(static_cast<char>(0x7f));
+   file.flush();assert(file.good());
+  }
+  assert(B.handle(download,valid,nonce,exporter,time,reply));
+  assert(status(reply,valid,nonce,exporter,time)==Result::StorageFailure);
+  std::vector<std::uint8_t> oversize(encrypted_block_limit+1,0);
+  assert(!make_put(cid1,oversize,upload2));
   assert(!B.handle(download,valid,nonce,exporter,time+360,reply));
   // Session expires after 360 seconds, even if blocks are still present.
   assert(!B.handle(download,valid,nonce,exporter,time+360,reply));
