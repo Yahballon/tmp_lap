@@ -44,3 +44,12 @@ Not a finished PS5 app, not yet a cross-platform P2P network, no real remote mem
 - https://docs.libp2p.io/
 - https://tahoe-lafs.readthedocs.io/
 - https://github.com/Yahballon/PS5-DevBridge
+
+## CID sharing (CIDv1)
+
+Every immutable raw block can be identified by an interoperable CIDv1 using raw multicodec (0x55), SHA2-256 multihash (0x12), and multibase lowercase base32 (b...). Example CID for an empty raw block:
+`bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku`.
+
+File-level sharing requires a **canonical, signed manifest CID** that references encrypted shard CIDs, erasure-code settings, and integrity metadata. This manifest format, key-sharing scheme and peer-to-peer CID resolution remain future work. Sharing a CID alone does NOT reveal the decryption key and does NOT bypass Rule 1: even CID lookups and downloads require a verified 10 GiB member.
+
+Content IDs must hash the exact published bytes; encrypted and unencrypted bytes produce different CIDs. Never treat a filename as a content identifier. The current desktop build includes CIDv1 encode/validate tests, **not a distributed CID lookup service**.
