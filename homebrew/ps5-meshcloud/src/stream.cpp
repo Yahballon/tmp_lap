@@ -23,7 +23,8 @@ std::string digest_cid(const unsigned char* digest) {
  return out;
 }
 }
-bool from_stream(std::istream& input,std::string& result,std::uint64_t& bytes) {
+bool from_stream(std::istream& input,std::string& result,std::uint64_t& bytes,
+                 const StreamProgress& callback,std::uint64_t known_total) {
  result.clear();bytes=0;
  EVP_MD_CTX* context=EVP_MD_CTX_new();
  if(!context)return false;
@@ -39,11 +40,13 @@ bool from_stream(std::istream& input,std::string& result,std::uint64_t& bytes) {
    }
    bytes+=static_cast<std::uint64_t>(count);
    ok=EVP_DigestUpdate(context,buffer.data(),static_cast<std::size_t>(count))==1;
+   if(ok && callback && !callback(bytes,known_total)) {ok=false;break;}
   }
   if(input.bad() || (input.fail() && !input.eof())) {ok=false;break;}
   if(input.eof())break;
   if(count==0) {ok=false;break;}
  }
+ if(ok && bytes==0 && callback && !callback(0,known_total))ok=false;
  unsigned char digest[32]{};unsigned n=0;
  if(ok)ok=EVP_DigestFinal_ex(context,digest,&n)==1&&n==32;
  EVP_MD_CTX_free(context);
@@ -51,12 +54,17 @@ bool from_stream(std::istream& input,std::string& result,std::uint64_t& bytes) {
  result=digest_cid(digest);
  return true;
 }
-bool from_file(const std::filesystem::path& path,std::string& result,std::uint64_t& bytes) {
+bool from_file(const std::filesystem::path& path,std::string& result,std::uint64_t& bytes,
+               const StreamProgress& callback) {
  // Explicitly reject non-regular sources such as devices, sockets and FIFOs.
  std::error_code error;
  if(!std::filesystem::is_regular_file(path,error)||error)return false;
+ const auto expected=std::filesystem::file_size(path,error);
+ if(error)return false;
  std::ifstream input(path,std::ios::binary);
  if(!input)return false;
- return from_stream(input,result,bytes);
+ if(!from_stream(input,result,bytes,callback,static_cast<std::uint64_t>(expected)))return false;
+ if(bytes!=expected){result.clear();bytes=0;return false;}
+ return true;
 }
 }
