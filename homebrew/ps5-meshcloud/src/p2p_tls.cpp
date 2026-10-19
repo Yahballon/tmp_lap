@@ -298,7 +298,7 @@ bool handshake(SSL* tls,const NodeIdentity& local,
  const auto now=epoch_now();
  if(!admission::authenticate_session(remote_ticket,local.auditors,
        challenge,exporter,their_sig,now,peer)) {
-  error="Remote member denied: missing valid independent 10-GiB audit quorum";
+  error="Remote member denied: missing valid independent 13-GiB audit quorum";
   return false;
  }
  // A local caller must not use a genuine remote ticket to enter with a fake
@@ -309,7 +309,7 @@ bool handshake(SSL* tls,const NodeIdentity& local,
  if(!sign_identity(local.private_key,ours,check) ||
     !admission::authenticate_session(local.ticket,local.auditors,
             their_challenge,exporter,check,now,self)) {
-  error="Local node lacks a valid signed 10-GiB storage ticket";return false;
+  error="Local node lacks a valid signed 13-GiB storage ticket";return false;
  }
  return true;
 }
