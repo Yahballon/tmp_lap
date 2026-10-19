@@ -30,7 +30,7 @@ jobs:
           cp -a /tmp/devbridge/templates/simple-calc ./app
           # The UI scaffold's .env hardcodes OpenGL includes and archives.
           # Replace it for this separate, graphics-free native network service.
-          printf 'APP_SOURCE_DIR=src/meshcloud-daemon\nAPP_INCLUDE_PATHS=src/meshcloud-daemon\nAPP_STATIC_ARCHIVES=\nAPP_IMPORT_STUBS=\nAPP_RUNTIME_MODULES=\nAPP_WRAP_SYMBOLS=\n' > app/.env
+          printf 'APP_SOURCE_DIR=src/meshcloud-daemon\nAPP_INCLUDE_PATHS=src/meshcloud-daemon\nAPP_STATIC_ARCHIVES=build/jb-json/libmeshcloud-cxx-runtime.a\nAPP_IMPORT_STUBS=\nAPP_RUNTIME_MODULES=\nAPP_WRAP_SYMBOLS=\n' > app/.env
           # Do NOT silently replace the graphical build. This is a separately
           # named no-OpenGL security/network-node alternative.
           sed -i 's@https://zlib.net/fossils/zlib-@https://zlib.net/zlib-@' app/tools/setup-native-dependencies.sh
@@ -64,6 +64,18 @@ jobs:
           mkdir -p app/build/jb-json
           cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
           llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+          # The bundled OpenGL linker group previously supplied libc++.
+          # A headless C++ binary still NEEDS SDK libc++, libc++abi, unwind
+          # and clang compiler-rt, all from pinned native toolchain binaries.
+          target="app/.deps/native/ps5-payload-sdk/target/lib"
+          builtins="$(clang-18 --print-resource-dir)/lib/linux/libclang_rt.builtins-x86_64.a"
+          for lib in "$target/libc++.a" "$target/libc++abi.a" "$target/libunwind.a" "$builtins"; do
+            test -s "$lib" || { echo "Missing C++ runtime: $lib" >&2; exit 1; }
+          done
+          printf 'GROUP ( "%s" "%s" "%s" "%s" )\n' \
+            "$PWD/$target/libc++.a" "$PWD/$target/libc++abi.a" \
+            "$PWD/$target/libunwind.a" "$builtins" \
+            > app/build/jb-json/libmeshcloud-cxx-runtime.a
       - name: Compile native PS5 daemon using shared TLS/P2P core
         working-directory: app
         env:
