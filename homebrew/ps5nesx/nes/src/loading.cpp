@@ -75,7 +75,7 @@ void BuildLoadingFrame(fe::FrameDesc& frame, const fe::Fonts& fonts, unsigned wi
     // NFS may not know total files; use an animated pulse until folder count is known.
     const bool measured=done||progress.sources_total>0;
     const float ratio=done?1.0f:measured?
-        std::clamp(float(progress.sources_done)/float(std::max(1,progress.sources_total)),0.0f,1.0f):0.0f;
+        std::clamp(float(progress.sources_done)/std::max(1.0f,float(progress.sources_total)),0.0f,1.0f):0.0f;
     if(measured && ratio>0.0f) {
         rect(barX,barY,std::max(16*k,barW*ratio),barH,12*k,cyan);
         if(ratio>0.45f)
