@@ -2,6 +2,7 @@
 #pragma once
 #include "admission.hpp"
 #include "exchange.hpp"
+#include "peer_discovery.hpp"
 #include <atomic>
 #include <cstdint>
 #include <string>
@@ -29,12 +30,19 @@ constexpr std::size_t max_frame_bytes=4*1024*1024+8192;
 // LAN use: restrict bind address to the LAN interface, not 0.0.0.0.
 bool listen_once(const std::string& bind_ipv4,std::uint16_t port,
                  const NodeIdentity& local,exchange::PeerGateway& gateway,
-                 std::string& error,std::atomic<bool>* stop=nullptr);
+                 std::string& error,std::atomic<bool>* stop=nullptr,
+                 discovery::AddressBook* address_book=nullptr);
 bool dial_once(const std::string& remote_ipv4,std::uint16_t port,
                const NodeIdentity& local,
                const std::vector<std::uint8_t>& authenticated_wire_request,
                std::vector<std::uint8_t>& authenticated_wire_response,
                std::string& error);
+// Send authenticated getaddr through the SAME TLS 1.3 + 10 GiB quorum gate.
+// Explicit advertise_ipv4 opt-in; no automatic leakage of private addresses.
+// Caller must first manually connect to a known member at least once.
+bool discover_once(const std::string& remote_ipv4,std::uint16_t port,
+                   const NodeIdentity& local,discovery::AddressBook& book,
+                   const std::string& advertise_ipv4,std::string& error);
 // Read-only session diagnostic. Does not expose CID search or file data.
 // Returns true only after BOTH peer identities and independently signed
 // auditor tickets have been validated; never has a guest fallback.

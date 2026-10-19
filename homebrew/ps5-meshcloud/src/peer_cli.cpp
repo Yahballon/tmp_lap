@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Direct, symmetric mesh peer CLI. No public discovery or unaudited access.
 #include "p2p_config.hpp"
+#include "peer_discovery.hpp"
 #include "p2p_tls.hpp"
 #include "core.hpp"
 #include "cid.hpp"
@@ -10,6 +11,8 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <chrono>
+#include <thread>
 namespace fs=std::filesystem;
 namespace {
 bool port_of(const std::string& text,std::uint16_t& port) {
@@ -46,7 +49,11 @@ void usage(){
  std::cout<<"MeshCloud P2P v0.7 by YAHBALLON (audited members only)\n"
  <<"listen <config-directory> <shared-store> <bind-IPv4> [port]\n"
  <<"put <config-directory> <remote-IPv4> <encrypted.mcb> [port]\n"
- <<"get <config-directory> <remote-IPv4> <CIDv1> <output.mcb> [port]\n\n"
+ <<"get <config-directory> <remote-IPv4> <CIDv1> <output.mcb> [port]\n"
+ <<"listen-loop <config-directory> <shared-store> <bind-IPv4> [port]\n"
+ <<"discover <config-directory> <remote-IPv4> [port]\n"
+ <<"discover-auto <config-directory> [port] (cached signed endpoints)\n"
+ <<"peers <config-directory> (persisted signed peer entries)\n\n"
  <<"config: identity.pem, member.ticket, auditors.keys, peers.keys.\n"
  <<"Requires 3 independently validated 10-GiB auditor signatures. NO guest mode.\n"
  <<"Default TCP port 39718; only encrypted MCB1 chunks. NO filenames/keys sent.\n";
@@ -55,11 +62,75 @@ void usage(){
 int main(int argc,char** argv){
  if(argc<2){usage();return 2;}
  const std::string op=argv[1];
- const bool server=op=="listen";
+ if(op=="peers"||op=="discover"||op=="discover-auto") {
+  const bool peers=op=="peers",auto_discovery=op=="discover-auto";
+  if((peers&&argc!=3) || (auto_discovery&&(argc<3||argc>4)) ||
+     (!peers&&!auto_discovery&&(argc<4||argc>5))) {
+   usage();return 2;
+  }
+  std::uint16_t requested_port=meshcloud::p2p::default_port;
+  const int port_arg=auto_discovery?3:4;
+  if(!peers&&argc>port_arg&&!port_of(argv[port_arg],requested_port)){
+   std::cerr<<"Invalid P2P discovery TCP port\n";return 2;
+  }
+  meshcloud::p2p::Config configuration;
+  std::string error;
+  if(!configuration.load(argv[2],error)){
+   std::cerr<<"P2P membership LOCKED: "<<error<<"\n";return 1;
+  }
+  meshcloud::discovery::AddressBook book(fs::path(argv[2])/"addrman");
+  if(!book.open()){std::cerr<<"Addrman database error: "<<book.error()<<"\n";return 1;}
+  std::vector<meshcloud::discovery::SignedAddress> known;
+  const auto seconds=std::chrono::duration_cast<std::chrono::seconds>(
+       std::chrono::system_clock::now().time_since_epoch()).count();
+  if(seconds<0||!book.list(static_cast<std::uint64_t>(seconds),known,
+                           meshcloud::discovery::max_known_peers)){
+   std::cerr<<"Stored peer list is invalid\n";return 1;
+  }
+  if(peers){
+   std::cout<<"Known signed LAN endpoints: "<<known.size()<<"\n";
+   for(const auto& p:known)
+    std::cout<<"  "<<meshcloud::discovery::ipv4_text(p)<<":"<<p.port
+             <<" signed, expires "<<p.expires<<"\n";
+   return 0;
+  }
+  // Explicit opt-in. Absence of advertise.ipv4 NEVER exposes the LAN IP.
+  std::string advertise;
+  std::ifstream settings(fs::path(argv[2])/"advertise.ipv4");
+  if(settings) {
+   std::getline(settings,advertise);
+   if(!advertise.empty()&&advertise.back()=='\r')advertise.pop_back();
+  }
+  if(!auto_discovery){
+   if(!meshcloud::p2p::discover_once(argv[3],requested_port,
+        configuration.node(),book,advertise,error)){
+    std::cerr<<"Authenticated getaddr failed: "<<error<<"\n";return 1;
+   }
+  } else {
+   bool found=false;
+   for(const auto& known_peer:known){
+    if(meshcloud::p2p::discover_once(meshcloud::discovery::ipv4_text(known_peer),
+         known_peer.port,configuration.node(),book,advertise,error)){
+     found=true;break;
+    }
+   }
+   if(!found) {
+    std::cerr<<"Could not contact any saved audited LAN peer: "<<error<<"\n";return 1;
+   }
+  }
+  known.clear();
+  book.list(static_cast<std::uint64_t>(seconds),known,
+            meshcloud::discovery::max_known_peers);
+  std::cout<<"Member-only getaddr completed; persisted "<<known.size()
+           <<" signed peer endpoint(s) for next startup\n";
+  return 0;
+ }
+ const bool loop=op=="listen-loop";
+ const bool server=op=="listen"||loop;
  if((server&&(argc<5||argc>6))||
     ((op=="put")&&(argc<5||argc>6))||
     ((op=="get")&&(argc<6||argc>7)) ||
-    (op!="listen"&&op!="put"&&op!="get")) {usage();return 2;}
+    (op!="listen"&&op!="listen-loop"&&op!="put"&&op!="get")) {usage();return 2;}
  std::uint16_t port=meshcloud::p2p::default_port;
  const int port_at=server||op=="put"?5:6;
  if(argc>port_at&&!port_of(argv[port_at],port)){
@@ -83,12 +154,39 @@ int main(int argc,char** argv){
   meshcloud::exchange::SharedShardStore store(root,meshcloud::minimum_bytes);
   if(!store.open()){std::cerr<<"Store error: "<<store.error()<<"\n";return 1;}
   meshcloud::exchange::PeerGateway gateway(store);
-  std::cout<<"P2P peer listening on "<<argv[4]<<":"<<port
-           <<" (one mutually authenticated operation)\n";
-  if(!meshcloud::p2p::listen_once(argv[4],port,config.node(),gateway,err)) {
-   std::cerr<<"Peer operation not admitted: "<<err<<"\n";return 1;
+  meshcloud::discovery::AddressBook book(fs::path(argv[2])/"addrman");
+  if(!book.open()) {
+   std::cerr<<"Cannot open signed local peer database\n";return 1;
   }
-  std::cout<<"Authenticated peer request completed\n";return 0;
+  std::ifstream announce(fs::path(argv[2])/"advertise.ipv4");
+  if(announce) {
+   std::string ip;
+   std::getline(announce,ip);
+   if(!ip.empty()&&ip.back()=='\r')ip.pop_back();
+   meshcloud::discovery::SignedAddress record{};
+   const auto clock=std::chrono::duration_cast<std::chrono::seconds>(
+       std::chrono::system_clock::now().time_since_epoch()).count();
+   if(clock<=0 || !meshcloud::discovery::parse_lan_ipv4(ip,record.ipv4) ||
+      (record.port=port,record.published=static_cast<std::uint64_t>(clock),
+       record.expires=record.published+meshcloud::discovery::record_lifetime,
+       !meshcloud::discovery::sign(record,config.node().private_key)) ||
+      !book.add(record,record.published)){
+    std::cerr<<"Refusing invalid opt-in advertise.ipv4\n";return 1;
+   }
+  }
+  std::cout<<"Audited P2P peer on "<<argv[4]<<":"<<port
+           <<" (TLS1.3, signed getaddr + encrypted fragments)\n";
+  do {
+   if(meshcloud::p2p::listen_once(argv[4],port,config.node(),gateway,
+                                 err,nullptr,&book)){
+    std::cout<<"Authenticated peer request completed\n";
+   } else if(err!="Timed out waiting for peer") {
+    std::cerr<<"Peer request denied: "<<err<<"\n";
+    if(err.find("bind/listen")!=std::string::npos)return 1;
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+   }
+  } while(loop);
+  return 0;
  }
  const std::string peer_ip=argv[3];
  std::vector<std::uint8_t> wire,response;

@@ -1,4 +1,4 @@
-# MeshCloud PS5 v0.2.0 pre-alpha – direct audited TLS1.3 P2P
+# MeshCloud PS5 v0.3.0 pre-alpha – direct audited TLS1.3 P2P
 
 Native PS5 OpenGL UI, mounted storage diagnostics, Ed25519 pinned TLS 1.3 peer link and encrypted CID chunk GET/PUT.
 
@@ -9,3 +9,7 @@ PS5 configuration: /data/PS5MeshCloud/p2p/identity.pem, member.ticket, auditors.
 Source and CI: https://github.com/Yahballon/tmp_lap/tree/main/homebrew/ps5-meshcloud
 
 Native PS5 hardware validation remains required after a successful GitHub build. Build result is not proof of secure peer storage auditing.
+
+## Bitcoin-inspired v0.8 peer discovery
+
+Nodes now maintain a persistent signed SQLite address book and exchange bounded signed LAN endpoints **only** inside fully authenticated TLS 1.3 / 10 GiB membership channels. Peers can reconnect after restart using cached endpoints rather than a master server. Explicit local-IP advertising is optional. The PS5 Network page has R2 for signed GETADDR. See [P2P_DISCOVERY.md](../P2P_DISCOVERY.md) (or the repository root P2P_DISCOVERY.md) for bootstrap details and current security limits.

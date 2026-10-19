@@ -1,6 +1,6 @@
 # MeshCloud by YAHBALLON
 
-**v0.7.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
+**v0.8.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
 
 This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention and a separate directly connectable TLS 1.3 P2P encrypted-fragment engine. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
 
@@ -154,3 +154,7 @@ The node must ALSO pass the local **10 GiB + 2 GiB headroom** preflight; this di
 
 **Important status:** The repository still needs a production-grade proof-of-storage issuer/auditor network. Without valid independent audit credentials, the real P2P connection **correctly refuses access**. A passing CI test uses ephemeral mock auditors and does not create valid production tickets. Direct IP on LAN exposes peer LAN addresses; relay-only internet mode, NAT traversal, DHT and distributed 90-day file retention are not yet complete. Treat this as a controlled direct-LAN engineering test only.
 
+
+## Bitcoin-inspired v0.8 peer discovery
+
+Nodes now maintain a persistent signed SQLite address book and exchange bounded signed LAN endpoints **only** inside fully authenticated TLS 1.3 / 10 GiB membership channels. Peers can reconnect after restart using cached endpoints rather than a master server. Explicit local-IP advertising is optional. The PS5 Network page has R2 for signed GETADDR. See [P2P_DISCOVERY.md](../P2P_DISCOVERY.md) (or the repository root P2P_DISCOVERY.md) for bootstrap details and current security limits.

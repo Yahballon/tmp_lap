@@ -17,10 +17,12 @@ public:
  bool send_local(const std::string& source_file);
  // Button Triangle: retrieve the CID listed in p2p/network.conf.
  bool fetch_cid();
+ // Explicit signed getaddr from configured verified LAN peer.
+ bool discover();
  bool busy() const noexcept {return busy_.load();}
  std::string status() const;
 private:
- enum class Action { Listen, Put, Get };
+ enum class Action { Listen, Put, Get, Discover };
  bool launch(Action action,std::string path={});
  void run(Action action,const std::string& path);
  void report(std::string status);

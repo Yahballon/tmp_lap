@@ -1,4 +1,4 @@
-# MeshCloud PS5 Native v0.2.0
+# MeshCloud PS5 Native v0.3.0
 
 **By YAHBALLON** — native controller-first OpenGL app with a directly connected, member-authenticated TLS1.3 LAN peer engine.
 
@@ -64,3 +64,7 @@ The node must ALSO pass the local **10 GiB + 2 GiB headroom** preflight; this di
 
 **Important status:** The repository still needs a production-grade proof-of-storage issuer/auditor network. Without valid independent audit credentials, the real P2P connection **correctly refuses access**. A passing CI test uses ephemeral mock auditors and does not create valid production tickets. Direct IP on LAN exposes peer LAN addresses; relay-only internet mode, NAT traversal, DHT and distributed 90-day file retention are not yet complete. Treat this as a controlled direct-LAN engineering test only.
 
+
+## Bitcoin-inspired v0.8 peer discovery
+
+Nodes now maintain a persistent signed SQLite address book and exchange bounded signed LAN endpoints **only** inside fully authenticated TLS 1.3 / 10 GiB membership channels. Peers can reconnect after restart using cached endpoints rather than a master server. Explicit local-IP advertising is optional. The PS5 Network page has R2 for signed GETADDR. See [P2P_DISCOVERY.md](../P2P_DISCOVERY.md) (or the repository root P2P_DISCOVERY.md) for bootstrap details and current security limits.

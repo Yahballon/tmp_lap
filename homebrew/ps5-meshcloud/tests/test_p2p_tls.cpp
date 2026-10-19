@@ -113,6 +113,41 @@ int main(){
   roundtrip(bob,bg,alice,get,true,response);
   // Even with three stolen mock auditor signatures, a TLS private key not on
   // the allowlist is rejected before publishing or receiving metadata.
+  discovery::AddressBook a_book(root/"addr-A"),b_book(root/"addr-B");
+  assert(a_book.open()&&b_book.open());
+  discovery::SignedAddress advertised{};
+  assert(discovery::parse_lan_ipv4("127.0.0.1",advertised.ipv4));
+  advertised.port=port;
+  advertised.published=now;
+  advertised.expires=now+discovery::record_lifetime;
+  assert(discovery::sign(advertised,alice_key.get()));
+  assert(a_book.add(advertised,now));
+  bool exchange_ok=false;
+  std::string server_err;
+  std::thread introduction([&]{
+    exchange_ok=listen_once("127.0.0.1",port,alice,ag,server_err,
+                            nullptr,&a_book);
+  });
+  std::this_thread::sleep_for(std::chrono::milliseconds(120));
+  std::string client_err;
+  assert(discover_once("127.0.0.1",port,bob,b_book,
+                       "127.0.0.1",client_err));
+  introduction.join();
+  assert(exchange_ok);
+  std::vector<discovery::SignedAddress> learned;
+  assert(b_book.list(now,learned,10)&&learned.size()==2);
+  assert(std::any_of(learned.begin(),learned.end(),[&](const auto& p){
+    return p.identity==pub(alice_key.get());
+  }));
+  std::thread denied_thread([&]{
+    exchange_ok=listen_once("127.0.0.1",port,alice,ag,server_err,
+                            nullptr,&a_book);
+  });
+  std::this_thread::sleep_for(std::chrono::milliseconds(120));
+  assert(!discover_once("127.0.0.1",port,outsider,b_book,
+                       "",client_err));
+  denied_thread.join();
+  assert(!exchange_ok);
   roundtrip(alice,ag,outsider,get,false,response);
   // Peer with unapproved 9-GiB contribution cannot pass signed quorum gate.
   auto denied=bob;
