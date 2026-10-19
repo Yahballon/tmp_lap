@@ -195,7 +195,7 @@ void create_children(App& a) {
  a.prune=make_button(a.window,id_prune,L"Cleanup 90 days");
  a.list=CreateWindowExW(WS_EX_CLIENTEDGE,WC_LISTVIEWW,L"",
    WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS,
-   0,0,10,10,a.window,reinterpret_cast<HMENU>(id_list),GetModuleHandleW(nullptr),nullptr);
+   0,0,10,10,a.window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id_list)),GetModuleHandleW(nullptr),nullptr);
  ListView_SetExtendedListViewStyle(a.list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
  ListView_SetBkColor(a.list,textbox);
  ListView_SetTextBkColor(a.list,textbox);
@@ -213,7 +213,7 @@ void create_children(App& a) {
  a.cancel=make_button(a.window,id_cancel,L"Cancel operation");
  a.status=make_label(a.window,L"Local vault only. No public P2P access is enabled.",id_status);
  a.progress=CreateWindowExW(0,PROGRESS_CLASSW,L"",WS_CHILD|WS_VISIBLE|PBS_SMOOTH,
-   0,0,10,10,a.window,reinterpret_cast<HMENU>(id_progress),
+   0,0,10,10,a.window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id_progress)),
    GetModuleHandleW(nullptr),nullptr);
  SendMessageW(a.progress,PBM_SETRANGE32,0,100);
  SendMessageW(a.progress,PBM_SETBARCOLOR,0,static_cast<LPARAM>(accent));
@@ -261,7 +261,7 @@ void populate(App& a,const std::vector<meshcloud::CatalogEntry>& entries) {
   LVITEMW item{};
   item.mask=LVIF_TEXT;item.iItem=static_cast<int>(i);
   item.pszText=const_cast<wchar_t*>(name.c_str());
-  const int pos=ListView_InsertItemW(a.list,&item);
+  const int pos=ListView_InsertItem(a.list,&item);
   if(pos>=0){
    ListView_SetItemText(a.list,pos,1,const_cast<wchar_t*>(size.c_str()));
    ListView_SetItemText(a.list,pos,2,const_cast<wchar_t*>(expire.c_str()));
