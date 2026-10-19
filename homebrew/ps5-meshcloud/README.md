@@ -1,6 +1,6 @@
 # MeshCloud by YAHBALLON
 
-**v0.8.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
+**v0.9.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
 
 This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention and a separate directly connectable TLS 1.3 P2P encrypted-fragment engine. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
 
@@ -158,3 +158,7 @@ The node must ALSO pass the local **10 GiB + 2 GiB headroom** preflight; this di
 ## Bitcoin-inspired v0.8 peer discovery
 
 Nodes now maintain a persistent signed SQLite address book and exchange bounded signed LAN endpoints **only** inside fully authenticated TLS 1.3 / 10 GiB membership channels. Peers can reconnect after restart using cached endpoints rather than a master server. Explicit local-IP advertising is optional. The PS5 Network page has R2 for signed GETADDR. See [P2P_DISCOVERY.md](../P2P_DISCOVERY.md) (or the repository root P2P_DISCOVERY.md) for bootstrap details and current security limits.
+
+## v0.9 – Verifiable randomized storage challenges
+
+A serious storage audit subsystem now generates real CSPRNG random data, a SHA-256 ledger, unpredictable 48-block challenges, and an opaque verified proof. A 10 GiB contribution must physically store its random bytes and pass audits from **three truly independent** verifiers before any auditor can issue membership. Unlike simple free-disk checks, this challenge detects missing or altered sampled data. **This module is not a deployed auditor network; network ticket issuing remains disabled until remote independent verification exists.** On PC test the disk implementation with `meshcloud-audit local-check <node-file> <auditor-ledger-file> 10` (explicitly writes 10 GiB). Details and limitations: [STORAGE_AUDIT.md](./STORAGE_AUDIT.md).
