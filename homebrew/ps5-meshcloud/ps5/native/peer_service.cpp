@@ -122,9 +122,24 @@ void PeerService::run(Action action,const std::string& path) {
   report("P2P: authenticated encrypted peer request completed");
   return;
  }
- if(options.remote.empty()){report("P2P: configure peer=IPv4 in network.conf");return;}
+ std::string next_peer=options.remote;
+ if(next_peer.empty()) {
+  const auto t=std::chrono::duration_cast<std::chrono::seconds>(
+       std::chrono::system_clock::now().time_since_epoch()).count();
+  std::vector<meshcloud::discovery::SignedAddress> known;
+  if(t>0 && book.list(static_cast<std::uint64_t>(t),known,16)){
+   for(const auto& p:known){
+    if(p.identity!=config.node().ticket.node_identity) {
+     next_peer=meshcloud::discovery::ipv4_text(p);break;
+    }
+   }
+  }
+ }
+ if(next_peer.empty()){
+  report("P2P: configure initial peer=IPv4 or reconnect via cached signed addrman");return;
+ }
  if(action==Action::Discover) {
-  if(!meshcloud::p2p::discover_once(options.remote,meshcloud::p2p::default_port,
+  if(!meshcloud::p2p::discover_once(next_peer,meshcloud::p2p::default_port,
           config.node(),book,options.advertise,error)) {
    report("P2P getaddr denied: "+error);return;
   }
@@ -154,7 +169,7 @@ void PeerService::run(Action action,const std::string& path) {
    report("P2P: configure valid cid=b... in network.conf");return;
   }
  }
- if(!meshcloud::p2p::dial_once(options.remote,meshcloud::p2p::default_port,
+ if(!meshcloud::p2p::dial_once(next_peer,meshcloud::p2p::default_port,
                                config.node(),request,response,error)){
   report("P2P denied: "+error);return;
  }
