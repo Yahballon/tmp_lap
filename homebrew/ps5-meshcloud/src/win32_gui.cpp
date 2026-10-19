@@ -44,7 +44,7 @@ struct Work {
  std::string cid;
 };
 struct Outcome {
- bool success=false;
+ bool success=false,has_listing=false;
  std::wstring message;
  std::string cid;
  std::vector<meshcloud::CatalogEntry> items;
@@ -346,7 +346,7 @@ struct Runner {
    if(!vault.catalog().list_live(now(),result->items)) {
     result->success=false;
     result->message=L"Vault listing failed (no data was erased).";
-   }
+   }else result->has_listing=true;
   } catch(const std::exception& e) {
    result->success=false;result->message=L"Operation error: "+wstr(e.what());
   } catch(...) {
@@ -509,7 +509,7 @@ LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam) {
   if(!a->close_when_finished) {
    buttons_enabled(*a,true);
    if(outcome) {
-    if(!outcome->items.empty() || outcome->success)populate(*a,outcome->items);
+    if(outcome->has_listing)populate(*a,outcome->items);
     if(!outcome->cid.empty())SetWindowTextW(a->cid,wstr(outcome->cid).c_str());
     message(*a,outcome->message);
    }
