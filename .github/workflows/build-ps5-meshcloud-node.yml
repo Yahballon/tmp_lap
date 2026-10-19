@@ -1,0 +1,105 @@
+name: Build PS5 MeshCloud Network Node (no OpenGL)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/ps5-meshcloud/ps5/headless/**'
+      - 'homebrew/ps5-meshcloud/src/**'
+      - '.github/workflows/build-ps5-meshcloud-node.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-meshcloud/ps5/headless/**'
+      - 'homebrew/ps5-meshcloud/src/**'
+      - '.github/workflows/build-ps5-meshcloud-node.yml'
+permissions:
+  contents: write
+jobs:
+  ps5-node:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native PS5 toolchain dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
+      - name: Native PS5 application scaffold
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          # Do NOT silently replace the graphical build. This is a separately
+          # named no-OpenGL security/network-node alternative.
+          sed -i 's@https://zlib.net/fossils/zlib-@https://zlib.net/zlib-@' app/tools/setup-native-dependencies.sh
+          mkdir -p app/src/meshcloud-daemon
+          cp homebrew/ps5-meshcloud/ps5/headless/main.cpp app/src/meshcloud-daemon/main.cpp
+          for module in core cid stream catalog vault erasure admission wire exchange published p2p_tls p2p_config peer_discovery storage_audit audit_net ticket_issue provision; do
+            cp "homebrew/ps5-meshcloud/src/$module.cpp" "app/src/meshcloud-daemon/$module.cpp"
+          done
+          cp homebrew/ps5-meshcloud/src/*.hpp app/src/meshcloud-daemon/
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('app/sce_sys/param.json')
+          d=json.loads(p.read_text())
+          d.update(titleId='PPSA99718',conceptId='99718',contentId='UP9000-PPSA99718_00-MESHCLOUDPS5APP1',contentVersion='01.000.006')
+          d['localizedParameters']['en-US']['titleName']='MeshCloud Node by YAHBALLON'
+          p.write_text(json.dumps(d,indent=2)+'\n')
+          PY
+          python3 homebrew/ps5-meshcloud/ps5/assets/generate_icon.py app/sce_sys/icon0.png
+          mkdir -p app/assets
+          cp app/sce_sys/icon0.png app/assets/icon0.png
+      - name: Prepare signed pinned native SDK (no graphics download)
+        working-directory: app
+        run: |
+          bash tools/setup-native-dependencies.sh
+          root="$(bash tools/setup-pacbrew-dependencies.sh --all)"
+          for archive in lib/libssl.a lib/libcrypto.a lib/libsqlite3.a; do
+            test -s "$root/user/homebrew/$archive" || { echo "Missing $archive" >&2; exit 1; }
+          done
+      - name: Prepare POSIX compatibility symbols
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Compile native PS5 daemon using shared TLS/P2P core
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+          APP_SOURCE_DIR: src/meshcloud-daemon
+          PACBREW_INCLUDE_PATHS: include
+          PACBREW_STATIC_ARCHIVES: 'lib/libssl.a lib/libcrypto.a lib/libsqlite3.a'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify signed native PS5 installer and icon
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,struct,zipfile
+          folder=pathlib.Path('app/dist/PPSA99718')
+          code=(folder/'eboot.bin').read_bytes()
+          assert len(code)>10000 and struct.unpack('<I',code[:4])[0]==0x1d3d154f
+          assert b'MeshCloud v0.12' in code and b'39718' in code or b'39720' in code
+          metadata=json.loads((folder/'sce_sys/param.json').read_text())
+          assert metadata['titleId']=='PPSA99718' and metadata['contentVersion']=='01.000.006'
+          for required in ['sce_sys/icon0.png','sce_module/libc.prx']:
+            assert (folder/required).is_file(),required
+          zipped=pathlib.Path('app/dist/PPSA99718.zip')
+          with zipfile.ZipFile(zipped) as archive:
+            assert archive.testzip() is None
+            for required in ['eboot.bin','sce_sys/icon0.png','sce_module/libc.prx']:
+              assert 'PPSA99718/'+required in archive.namelist()
+          print('PS5 MeshCloud native secure headless-node installer verified')
+          PY
+      - name: Upload PS5 runnable network-node ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeshCloud-PS5-Network-Node-v0.12-PPSA99718
+          path: app/dist/PPSA99718.zip
+          if-no-files-found: error
+      - name: Publish explicitly labeled PS5 network-node prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: {{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view meshcloud-ps5-node-v0.12.0-prealpha >/dev/null 2>&1; then exit 0; fi
+          gh release create meshcloud-ps5-node-v0.12.0-prealpha app/dist/PPSA99718.zip --target "$GITHUB_SHA" --prerelease --title "MeshCloud PS5 Network Node v0.12 (HEADLESS, no graphical UI)" --notes "Runs encrypted 13-GiB provisioning, independently signed audits and membership-gated P2P after explicit /data/PS5MeshCloud/node.conf setup. No OpenGL graphical UI. Independent auditor trust is mandatory. This is a PS5 native engineering preview."
