@@ -24,7 +24,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git python3 python3-pil pkg-config ca-certificates
       - name: Test native read-only storage diagnostics on host
         run: |
-          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/ps5-meshcloud/ps5/native/diagnostics.cpp homebrew/ps5-meshcloud/ps5/tests/test_diagnostics.cpp -o /tmp/meshcloud-ps5-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -Ihomebrew/ps5-meshcloud/ps5/native homebrew/ps5-meshcloud/ps5/native/diagnostics.cpp homebrew/ps5-meshcloud/ps5/tests/test_diagnostics.cpp -o /tmp/meshcloud-ps5-test
           /tmp/meshcloud-ps5-test
       - name: Prepare native PS5 application scaffold
         run: |
