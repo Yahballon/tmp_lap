@@ -3,6 +3,7 @@
 // Copyright (C) 2026 Ruben (Project Porpoise), GPL-3.0-or-later.
 // Adaptation for NES game selection: YAHBALLON, GPL-3.0-or-later.
 #include "fe_exact_porpoise.h"
+#include "ps5nes_build_version.h"
 #include "../porpoise_original/src/ui_app_common.hpp"
 #include <algorithm>
 #include <cmath>
@@ -199,11 +200,14 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
     g.set_look(look);
     g.background();
 
-    // Compact header requested for PS5NESX: no Library / Save States /
-    // Settings tabs and no L1/R1 glyphs. Square below opens the real panel.
+    // NESYX branding with the build number visible immediately below it.
+    // No Library / Save States / Settings tabs or L1/R1 glyphs.
     if (g.brand_mask()) g.image(g.brand_mask(), 48, kBarCy-32, 64, 64, kCyan);
-    g.text_mid(Font::SemiBold, 30, 132, kBarCy, rgba(0xBFE9FF), Align::Left,
-               "PS5NES", 7.0f);
+    g.text_mid(Font::SemiBold, 30, 132, kBarCy-13, rgba(0xBFE9FF), Align::Left,
+               "NESYX", 7.0f);
+    char build_credit[96];
+    std::snprintf(build_credit, sizeof(build_credit), "by YAHBALLON  |  v%s", nes_build::kVersion);
+    g.text_mid(Font::SemiBold, 17, 132, kBarCy+22, kLavender, Align::Left, build_credit);
     if(!m_clock.empty())
         g.text_mid(Font::SemiBold,27,1866,kBarCy,kWhite,Align::Right,m_clock);
 

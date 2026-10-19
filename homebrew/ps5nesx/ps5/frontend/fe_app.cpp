@@ -456,7 +456,7 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	{
 		Fonts::AddRoundedRect(ui, W*0.21f, H*0.015f, W*0.58f, 112.0f*k,
 			14.0f*k, Rgba(0.56f,0.02f,0.05f,0.88f));
-		m_fonts->AddText(ui, "PORPOISE UI INIT FAILED - see PS5NES logs", W*0.5f,
+		m_fonts->AddText(ui, "PORPOISE UI INIT FAILED - see NESYX logs", W*0.5f,
 			80.0f*k, 38.0f*k, Rgba(1,1,1), 0.2f, Fonts::Center);
 	}
 
@@ -636,7 +636,7 @@ void App::Build(FrameDesc& f, const std::string& clock)
         f.reflections.clear();
         f.halo = HaloDraw();
         f.backdrop_set = VK_NULL_HANDLE;
-        // Keep Porpoise as the *only* background. Old PS5NESX black plastic
+        // Keep Porpoise as the *only* background. Old NESYX black plastic
         // cases, legacy text and button hints must never reappear in Settings.
         // The native options/keyboard are the only UI drawn over Porpoise.
         ui.clear();

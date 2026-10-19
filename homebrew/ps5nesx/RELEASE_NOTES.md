@@ -1,3 +1,11 @@
+# NESYX v1.0.24 by YAHBALLON
+
+- Rebrand PS5NES/PS5NESX to NESYX in the PS5 menu, native CoverFlow, web settings and release display names.
+- Show "by YAHBALLON | v1.0.24" under NESYX in the main window header (version generated from app.json).
+- Keep game titles free of the redundant console-system subtitle and retain the exact 1024x1536 NO COVER PNG with a full-size shared texture.
+- Preserve title ID PPSA99204, install/data locations, PS5NESX source slug and legacy release-tag prefix for existing TESTBUILDS installations.
+- Real downloaded boxart still replaces the fallback, tiger header icon retained.
+
 # PS5NESX v1.0.23 by YAHBALLON
 
 - Embed the exact high-resolution 1024 x 1536 PNG supplied for NO COVER in the PS5 binary (full-size, no JPEG compression or black letterboxing).

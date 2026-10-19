@@ -602,7 +602,7 @@ bool OptionsSheet::Save(const std::vector<Change>& changes, const std::string& n
 {
     const bool theme_only = changes.size()==1 && changes.front().key=="PS5NESX/Theme";
     const std::string& destination=theme_only ? m_paths.gs_ini : m_path;
-    const std::string header=theme_only ? "# All games - PS5NESX interface theme" :
+    const std::string header=theme_only ? "# All games - NESYX interface theme" :
         (m_global ? m_header : m_header + ": written from the PS5SX2 shelf");
 	std::string what, error;
 	if (!EditSettingsFile(destination, header, changes, what, error))
@@ -731,7 +731,7 @@ bool OptionsSheet::Activate(const Row& r, double now)
 {
     if(r.kind==Kind::RescanLibrary){
         std::string error;bool okay=m_paths.rescan_library&&m_paths.rescan_library(error);
-        m_status=okay?"Rescan requested. Restart PS5NES.":error;
+        m_status=okay?"Rescan requested. Restart NESYX.":error;
         return okay;
     }
 	const int index = static_cast<int>(&r - m_rows.data());

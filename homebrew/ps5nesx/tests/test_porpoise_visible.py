@@ -14,6 +14,8 @@ checks={
     'visible failure': 'PORPOISE UI INIT FAILED' in app,
     'original shader remains': 'sizeof(porpoise_ui_frag)' in gfx,
     'original grid room': 'g.background();' in bridge and 'Look look;' in bridge and 'm_theme=="oled"' in bridge,
+    'NESYX header': '"NESYX"' in bridge and 'nes_build::kVersion' in bridge and 'by YAHBALLON' in bridge,
+    'no system subtitle': '"Nintendo Entertainment System"' not in bridge,
     'compact header': '"Save States"' not in bridge and '"Library"' not in bridge and 'Glyph::L1' not in bridge and 'Glyph::R1' not in bridge,
     'original glass cases': 'glass_block(g,' in bridge,
     'recent dock removed': 'g.text(Font::SemiBold,22,dx+32' not in bridge and 'm_recent' not in bridge,

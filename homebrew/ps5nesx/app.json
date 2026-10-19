@@ -1,10 +1,10 @@
 {
-  "name": "PS5NESX",
+  "name": "NESYX",
   "slug": "ps5nesx",
   "titleId": "PPSA99204",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "upstreamVersion": "1.0.0.9",
-  "releaseTag": "ps5nesx-v1.0.23",
+  "releaseTag": "ps5nesx-v1.0.24",
   "sourceRepository": "Yahballon/PS5NESX",
   "sourceScope": [
     "nes",
@@ -15,7 +15,7 @@
   "dataFolder": "/data/PS5NES",
   "installFolder": "PPSA99204",
   "core": "FCEUmm",
-  "frontend": "Original Porpoise coverflow, expanded official Libretro NES Boxarts and auto-hiding download progress",
+  "frontend": "NESYX original Porpoise CoverFlow, built-in 1024x1536 no-cover PNG, NES/FCEUmm and auto-downloaded Libretro boxarts",
   "supportedRomExtensions": [
     ".nes",
     ".unf",

@@ -1,4 +1,4 @@
-name: Build PS5NESX Native
+name: Build NESYX Native
 on:
   workflow_dispatch:
   push:
@@ -38,7 +38,7 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'],'a') as o:
               o.write(f"version={x['version']}\n")
               o.write(f"tag={x['releaseTag']}\n")
-          print('Build native PS5NESX',x['releaseTag'])
+          print('Build native NESYX',x['releaseTag'])
           PY
       - name: Test Wii-style CoverFlow geometry on host
         run: |
@@ -277,11 +277,11 @@ jobs:
           python3 - <<'PY'
           import zipfile,json,struct
           from pathlib import Path
-          src=list(Path('nes/build-shelf').glob('PS5NES-v*-by-YAHBALLON.zip'))
+          src=list(Path('nes/build-shelf').glob('NESYX-v*-by-YAHBALLON.zip'))
           assert len(src)==1,src
           meta=json.loads(Path('app.json').read_text())
           version=meta['version']
-          assert src[0].name==f'PS5NES-v{version}-by-YAHBALLON.zip'
+          assert src[0].name==f'NESYX-v{version}-by-YAHBALLON.zip'
           dst=Path('dist/PPSA99204.zip')
           dst.write_bytes(src[0].read_bytes())
           assert dst.stat().st_size>1_000_000
@@ -298,12 +298,12 @@ jobs:
               manifest=json.loads(archive.read('PPSA99204/build-manifest.json'))
               assert manifest['version']==version and manifest['build_tag']==f'v{version} by YAHBALLON'
               assert archive.read('PPSA99204/eboot.bin')[:4]==struct.pack('<I',0x1D3D154F)
-          print('Validated signed PS5NESX release',dst.stat().st_size)
+          print('Validated signed NESYX release',dst.stat().st_size)
           PY
       - name: Upload installable PS5 TESTBUILD ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: PS5NESX-${{ steps.info.outputs.version }}-PPSA99204
+          name: NESYX-${{ steps.info.outputs.version }}-PPSA99204
           path: homebrew/ps5nesx/dist/PPSA99204.zip
           if-no-files-found: error
       - name: Publish immutable versioned GitHub Release for TESTBUILDS
@@ -321,5 +321,5 @@ jobs:
           fi
           gh release create "$TAG" homebrew/ps5nesx/dist/PPSA99204.zip \
             --repo "$GITHUB_REPOSITORY" --target main \
-            --title "PS5NESX v$VERSION by YAHBALLON" \
-            --notes "Native PS5NESX source built from tmp_lap/homebrew/ps5nesx. Install PPSA99204.zip. Core: FCEUmm."
+            --title "NESYX v$VERSION by YAHBALLON" \
+            --notes "Native NESYX source built from tmp_lap/homebrew/ps5nesx. Install PPSA99204.zip. Core: FCEUmm."

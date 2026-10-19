@@ -1,4 +1,4 @@
-"""(AI-assisted) PS5NES out-of-tree core build, native link and signed test package."""
+"""(AI-assisted) NESYX out-of-tree core build, native link and signed test package."""
 from pathlib import Path
 import concurrent.futures,hashlib,json,os,shutil,subprocess,zipfile
 project=Path(__file__).resolve().parents[2]
@@ -13,7 +13,7 @@ parts=version.split('.')
 assert len(parts)==3 and all(x.isdecimal() for x in parts)
 assert all(0<=int(x)<1000 for x in parts) and int(parts[0])<100
 build_tag=f'v{version} by YAHBALLON'
-report_header=f'PS5NESX {build_tag}'
+report_header=f'NESYX {build_tag}'
 nes=project/'nes';out=nes/'build-shelf';out.mkdir(exist_ok=True)
 header=nes/'src/ps5nes_build_version.h'
 header.write_text('\n'.join([
@@ -31,7 +31,7 @@ param=nes/'sce_sys/param.json'
 p=json.loads(param.read_text())
 p['contentVersion']=f"{int(parts[0]):02d}.{int(parts[1]):03d}.{int(parts[2]):03d}"
 param.write_text(json.dumps(p,indent=2)+'\n')
-print('PS5NESX version:',version,'build tag:',build_tag,'title contentVersion:',p['contentVersion'],flush=True)
+print('NESYX version:',version,'build tag:',build_tag,'title contentVersion:',p['contentVersion'],flush=True)
 core=nes/'third_party/fceumm';sdk=Path(os.environ['PS5_PAYLOAD_SDK'])
 deps=Path(os.environ['PS5NES_DEPS']);nfs=Path(os.environ['LIBNFS_PREFIX']);z=Path(os.environ['LIBZ_PREFIX'])
 native=project/'ps5/proto/native';wrapper=native/'tooling/prospero-clang18'
@@ -168,8 +168,8 @@ manifest={'ai_assisted':True,'name':report_header,'version':version,'build_tag':
                    if p.is_file() and p.name != 'build-manifest.json'}}
 (app/'build-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 shutil.copy2(nes/'INSTALL.md',out/'package/INSTALL.md')
-bundle=out/f'PS5NES-v{version}-by-YAHBALLON.zip'
+bundle=out/f'NESYX-v{version}-by-YAHBALLON.zip'
 with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED) as archive:
     for path in (out/'package').rglob('*'):
         if path.is_file():archive.write(path,path.relative_to(out/'package'))
-print('PS5NES test package (AI-assisted):',bundle,flush=True)
+print('NESYX test package (AI-assisted):',bundle,flush=True)

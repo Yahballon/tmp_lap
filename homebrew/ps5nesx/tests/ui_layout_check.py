@@ -14,4 +14,9 @@ assert not any(marker in source for marker in ('m_qr', 'qrcodegen', 'HintQrCode'
 assert 'm_qr' not in header
 assert f'kBuildTag[] = "v{version} by YAHBALLON"' in build_header
 assert 'ps5nes_build_version.h' in entry
-print("PASS: QR-free PS5NESX v"+version+" shelf; game title below cover")
+exact = (root/'ps5/frontend/fe_exact_porpoise.cpp').read_text()
+assert '"NESYX"' in exact
+assert 'nes_build::kVersion' in exact
+assert '"Nintendo Entertainment System"' not in exact
+assert 'kReportHeader[] = "NESYX v'+version+' by YAHBALLON"' in build_header
+print("PASS: QR-free NESYX v"+version+" shelf; branded header and title without subtitle")
