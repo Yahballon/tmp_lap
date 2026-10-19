@@ -186,8 +186,9 @@ bool sign_ticket_after_proof(EVP_PKEY* key,const Ledger& ledger,
  result={};
  if(!proven.accepted_||proven.node_!=ledger.node||
     proven.dataset_id_!=ledger.dataset_id||proven.bytes_!=ledger.bytes||
-    ticket.issued_at<proven.verified_at_||
-    ticket.issued_at-proven.verified_at_>60||
+    proven.verified_at_<ticket.issued_at||
+    proven.verified_at_-ticket.issued_at>600||
+    proven.verified_at_>=ticket.expires_at||
     !key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519||
     ledger.bytes!=minimum_bytes||ledger.node!=ticket.node_identity||
     ticket.audited_bytes!=minimum_bytes||ticket.audited_bytes>ledger.bytes||
