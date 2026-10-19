@@ -131,7 +131,7 @@ int main() {
   assert(A.handle(frame,member,challenge,exporter,now,reply));
   assert(exchange::make_put(refs[1].cid,block_b,frame));
   assert(B.handle(frame,member,challenge,exporter,now,reply));
-  const exchange::PeerGateway* gateways[]={&A,&B};
+  exchange::PeerGateway* gateways[]={&A,&B};
   for(std::size_t i=0;i<refs.size();i++) {
    assert(exchange::make_get(refs[i].cid,frame));
    assert(gateways[i]->handle(frame,member,challenge,exporter,now,reply));
