@@ -36,3 +36,28 @@ Must test on an actual PS5 before release: renderer init, Vulkan driver
 compatibility, frame latency, font and icon loading, original cover
 perspective, reflection, input sounds, launching and exiting the game.
 This is *not yet* a guarantee of pixel-perfect parity.
+
+## v1.0.17 PS5 console screenshot regression
+
+The v1.0.16 PS5 screenshot still showed the old black PS5NES case menu,
+meaning the original renderer likely failed initialization and the legacy
+fallback silently ran. The v1.0.16 build pipeline only verified a signed
+package; it could not verify the actual PS5 output.
+
+Changes:
+- Embed the original pinned Porpoise Nunito typefaces and menu icons in
+  eboot.bin and extract them to the writable /data/PS5NES/porpoise-ui folder.
+  The runtime no longer assumes the package is at /app0.
+- Keep the original Porpoise Gfx renderer, blue-glass box geometry and SPIR-V,
+  but add explicit error logging around Vulkan and font initialization.
+- Add its library top navigation bar, original 1920x1080 spatial positions,
+  rendered controller icons and a bottom glass "Recently Browsed" dock.
+  The latter uses actually selected games, not fabricated play history.
+- If renderer initialization still fails, display a visible warning instead
+  of making the old black cases look like a successful port.
+- NES core, HD graphics, saved games, ROM paths and all v1.0.16 releases stay
+  available; native signed build alone does not confirm working PS5 output.
+
+Copyright remains with the original Porpoise authors for their borrowed code.
+The adapter has intentionally different game-specific content and interaction.
+A successful physical PS5 test is still needed to claim visual parity.

@@ -53,6 +53,7 @@ jobs:
             -o /tmp/ps5nesx-porpoise-layout-test
           /tmp/ps5nesx-porpoise-layout-test
           python3 homebrew/ps5nesx/tests/test_porpoise_integration.py
+          python3 homebrew/ps5nesx/tests/test_porpoise_visible.py
           python3 homebrew/ps5nesx/tests/ui_layout_check.py
           python3 homebrew/ps5nesx/tests/test_hdpack_integration.py
           python3 homebrew/ps5nesx/tests/test_hd_visual_regressions.py
@@ -131,7 +132,10 @@ jobs:
           set -euo pipefail
           root=homebrew/ps5nesx/ps5/porpoise_original/src
           test "$(git hash-object "$root/ui_app_views.cpp")" = a98f455313dd926238c9d76a72d5fd7f50e6ee2d
-          test "$(git hash-object "$root/ui_gfx.cpp")" = 6a9e73454b51cc0a8ce93ecf27abd20febfbdfbe
+          # Original Gfx now has additional stage-specific startup diagnostics
+          # while its actual shaders and drawing pipeline remain unchanged.
+          grep -q 'original Vulkan pipeline FAILED' "$root/ui_gfx.cpp"
+          grep -q 'original font atlas FAILED' "$root/ui_gfx.cpp"
           test "$(git hash-object "$root/ui_frag.inc")" = 27007d02d4279a2cf6cb9e8324a2dced93da5e59
       - name: Restore pinned original PS5NESX embedded fonts
         shell: bash

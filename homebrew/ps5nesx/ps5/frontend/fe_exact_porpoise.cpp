@@ -47,6 +47,12 @@ void ExactPorpoiseShelf::Cover(const CoverImage& image)
 }
 void ExactPorpoiseShelf::Select(int index, float scroll, double elapsed, const std::string& clock)
 {
+    if (index != m_selected || m_recent.empty())
+    {
+        m_recent.erase(std::remove(m_recent.begin(), m_recent.end(), index), m_recent.end());
+        m_recent.insert(m_recent.begin(), index);
+        if (m_recent.size() > 3) m_recent.resize(3);
+    }
     m_selected = index;
     m_scroll = scroll;
     m_elapsed = elapsed;
@@ -134,36 +140,72 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
 {
     if (!m_ready) return;
     Gfx& g = m_gfx;
+    // Source: Porpoise make_porpoise(), ui_app_common.hpp and
+    // ui_app.cpp (the top bar, library and dock visual values).
+    kR = 24.0f;
     Look look;
-    look.background = 0;   // original sapphire grid room
-    look.panel_style = 1;  // original liquid-glass theme
+    look.background = 0;
+    look.panel_style = 1;
     g.begin(slot, w, h, static_cast<float>(m_elapsed), 0, false);
     g.set_look(look);
     g.background();
 
-    g.text(Font::Bold, 54, 90, 132, kWhite, Align::Left, "Your Games");
-    char counter[64];
-    std::snprintf(counter, sizeof counter, "%zu games", m_names.size());
-    g.text(Font::SemiBold, 32, 92, 200, kLavender, Align::Left, counter);
-    g.text_mid(Font::SemiBold, 26, 1866, kBarCy, kWhite, Align::Right, m_clock);
-    const int shown = static_cast<int>(m_names.size());
+    // Brand and sapphire glass top tabs, identical design-space geometry.
+    if (g.brand_mask()) g.image(g.brand_mask(), 48, kBarCy-32, 64, 64, kCyan);
+    g.text_mid(Font::SemiBold, 30, 132, kBarCy, rgba(0xBFE9FF), Align::Left,
+               "PS5NES", 7.0f);
+    const std::string tabs[3] = {"Library", "Save States", "Settings"};
+    float widths[3], bar_w=12;
+    for(int i=0;i<3;++i)
+    {
+        widths[i] = std::max(170.0f, g.measure(Font::Bold, 27, tabs[i]) + 74);
+        bar_w += widths[i];
+    }
+    const float bar_x = 960 - bar_w * 0.5f;
+    g.panel(bar_x, kBarY, bar_w, kBarH, rgba(0x0A1236,0.70f),0.9f,kBarH*0.5f,
+            rgba(0x3D4F9E,0.9f),1.6f);
+    const float nav_x=bar_x+6;
+    g.panel(nav_x,kBarY+6,widths[0],kBarH-12,rgba(0x1F63F0),0.62f,
+            (kBarH-12)*0.5f,rgba(0x7FD9FF),1.6f,6,0.35f);
+    float cursor=nav_x;
+    for(int i=0;i<3;++i)
+    {
+        g.text_mid(i ? Font::SemiBold : Font::Bold,27,cursor+widths[i]*0.5f,kBarCy,
+                   i ? kSoft : kWhite,Align::Center,tabs[i]);
+        cursor += widths[i];
+    }
+    g.glyph(Glyph::L1,bar_x-66,kBarCy,46,rgba(0xE8F0FF));
+    g.glyph(Glyph::R1,bar_x+bar_w+66,kBarCy,46,rgba(0xE8F0FF));
+    if(!m_clock.empty())
+        g.text_mid(Font::SemiBold,27,1866,kBarCy,kWhite,Align::Right,m_clock);
+
+    const int shown=static_cast<int>(m_names.size());
+    g.text(Font::Bold,54,90,132,kWhite,Align::Left,"Your Games");
+    char counter[48];
+    std::snprintf(counter,sizeof counter,"%d games",shown);
+    g.text(Font::SemiBold,32,92,200,kLavender,Align::Left,counter);
+
+    // Original drawing order, offsets, widths, scales and yaw.
     std::vector<int> order;
-    for(int i=0; i<shown; ++i)
-        if(std::fabs(float(i)-m_scroll) < 4.2f) order.push_back(i);
-    std::sort(order.begin(), order.end(),
-              [&](int a,int b) { return std::fabs(float(a)-m_scroll) > std::fabs(float(b)-m_scroll); });
-    for(int pass=0; pass<2; ++pass)
-        for(int i: order)
+    for(int i=0;i<shown;++i)
+        if(std::fabs(float(i)-m_scroll)<4.2f) order.push_back(i);
+    std::sort(order.begin(),order.end(),[&](int a,int b){
+        return std::fabs(float(a)-m_scroll)>std::fabs(float(b)-m_scroll);
+    });
+    for(int pass=0;pass<2;++pass)
+        for(int i:order)
         {
             const float k=float(i)-m_scroll;
-            const float a=std::fabs(k), s=k<0?-1.0f:1.0f;
-            float x, scale, yaw;
-            // ORIGINAL Porpoise ui_app_views.cpp layout() constants.
-            if (a <= 1.0f) {
+            const float a=std::fabs(k),s=k<0?-1.0f:1.0f;
+            float x,scale,yaw;
+            if(a<=1.0f)
+            {
                 x=kCx+s*a*372.0f;
                 scale=1.0f-0.14f*a;
                 yaw=s*a*0.22f;
-            } else {
+            }
+            else
+            {
                 x=kCx+s*(372.0f+(a-1.0f)*284.0f);
                 scale=std::max(0.5f,0.86f-0.10f*(a-1.0f));
                 yaw=s*0.22f;
@@ -171,19 +213,71 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
             const float alpha=std::clamp(1.0f-(a-3.0f),0.0f,1.0f);
             const bool focused=i==m_selected && a<0.5f;
             const float sway=std::sin(float(m_elapsed)*0.9f)*0.06f*
-                             (1.0f-std::min(a*2.0f,1.0f));
+                (1.0f-std::min(a*2.0f,1.0f));
             DrawTile(i,x,kCy,kTileW*scale,kTileH*scale,yaw+sway,alpha,focused,pass==0);
         }
+    if(m_selected>0) g.glyph(Glyph::Arrow,34,kCy,46,rgba(0x58B8FF),-kPi*0.5f);
+    if(m_selected+1<shown) g.glyph(Glyph::Arrow,1886,kCy,46,rgba(0x58B8FF),kPi*0.5f);
     if(m_selected>=0 && m_selected<shown)
     {
-        g.text(Font::Bold, 46, kCx, 748.0f, kWhite,
-               Align::Center, m_names[static_cast<size_t>(m_selected)]);
-        g.text(Font::SemiBold, 28, kCx, 812.0f, kLavender,
-               Align::Center, "Nintendo Entertainment System");
-        char pos[32]; std::snprintf(pos,sizeof pos,"%02d / %02d",m_selected+1,shown);
-        g.text(Font::SemiBold, 26, 960, 1010, kWhite, Align::Center, pos);
+        g.text(Font::Bold,46,kCx,748,kWhite,Align::Center,m_names[m_selected]);
+        g.text(Font::SemiBold,28,kCx,812,kLavender,Align::Center,
+               "Nintendo Entertainment System");
     }
-    g.text(Font::SemiBold, 24, 90, 1010, kSoft, Align::Left,
-           "D-Pad  Browse    X  Play    Square  Settings");
+
+    // Porpoise bottom glass dock: show ACTUALLY visited selections.
+    // This is 'Recently Browsed', not a fabricated play-history list.
+    const int count=static_cast<int>(m_recent.size());
+    if(count>0)
+    {
+        constexpr float ch=74,cw=ch*5.0f/7.0f,gap=18,label_w=290,dh=96,dy=902;
+        const float dw=32+label_w+count*(cw+gap)-gap+32,dx=kCx-dw*0.5f;
+        g.panel(dx,dy,dw,dh,rgba(0x0F1F63,0.55f),0.75f,kR,
+                rgba(0x4C6FD8,0.55f),1.6f,0,0.12f);
+        g.text(Font::SemiBold,22,dx+32,dy+22,kLavender,Align::Left,"Recently Browsed");
+        const int last=std::clamp(m_recent[0],0,std::max(0,shown-1));
+        if(shown>0)
+            g.text(Font::Bold,24,dx+32,dy+54,kSoft,Align::Left,m_names[last]);
+        for(int j=0;j<count;++j)
+        {
+            const int idx=m_recent[j];
+            if(idx<0||idx>=shown) continue;
+            const float cx=dx+32+label_w+j*(cw+gap)+cw*0.5f;
+            const float cy=dy+dh*0.5f;
+            PorpoiseTexture* cover=m_art[static_cast<size_t>(idx)];
+            if(cover)
+            {
+                float uv[4];
+                cover_uv(cover,cw,ch,uv);
+                g.image_part(cover,cx-cw*0.5f,cy-ch*0.5f,cw,ch,uv,kWhite,5);
+            }
+            else
+                g.panel(cx-cw*0.5f,cy-ch*0.5f,cw,ch,rgba(0x1E46C8,0.55f),
+                        0.7f,5,rgba(0x4C8DFF,0.8f),1.2f);
+        }
+    }
+
+    // Same prompt alignment and icon glyph renderer as Porpoise.
+    constexpr float hintY=1010;
+    struct Prompt {Glyph glyph; const char* text;};
+    const Prompt left[]={{Glyph::DPad,"Browse"},{Glyph::Cross,"Play"}};
+    const Prompt right[]={{Glyph::Square,"Settings"},{Glyph::Triangle,"Sort / Filter"}};
+    float lx=58;
+    for(const auto& p:left)
+    {
+        g.glyph(p.glyph,lx+22,hintY,44,kWhite);
+        lx+=52+g.text_mid(Font::SemiBold,24,lx+52,hintY,kWhite,Align::Left,p.text)+40;
+    }
+    float rx=1862;
+    for(int i=1;i>=0;--i)
+    {
+        const float tw=g.measure(Font::SemiBold,24,right[i].text);
+        g.text_mid(Font::SemiBold,24,rx,hintY,kWhite,Align::Right,right[i].text);
+        g.glyph(right[i].glyph,rx-tw-26,hintY,44,kWhite);
+        rx-=tw+98;
+    }
+    char index_text[32];
+    std::snprintf(index_text,sizeof index_text,"%02d / %02d",m_selected+1,shown);
+    g.text_mid(Font::SemiBold,24,960,hintY,kLavender,Align::Center,index_text,2);
 }
 } // namespace fe

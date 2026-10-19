@@ -924,7 +924,10 @@ void forget_others(const std::string &dir, const std::string &prefix, const std:
 bool Gfx::load_font(const std::string &file, FontData &fd) const
 {
     if (!read_file(init_.asset_dir + "/fonts/" + file, fd.ttf))
+    {
+        std::printf("[Porpoise Exact] cannot load font %s/fonts/%s\n", init_.asset_dir.c_str(), file.c_str());
         return false;
+    }
     auto *info = new stbtt_fontinfo();
     if (!stbtt_InitFont(info, fd.ttf.data(), stbtt_GetFontOffsetForIndex(fd.ttf.data(), 0)))
     {
@@ -1550,20 +1553,36 @@ bool Gfx::init(const GfxInit &init)
 {
     init_ = init;
     device_ = init.device;
-    if (!load_functions() || !create_pipeline())
+    if (!load_functions())
     {
+        std::printf("[Porpoise Exact] original Vulkan loader FAILED\n");
+        shutdown();
+        return false;
+    }
+    if (!create_pipeline())
+    {
+        std::printf("[Porpoise Exact] original Vulkan pipeline FAILED\n");
         shutdown();
         return false;
     }
     const std::uint8_t white[4] = {255, 255, 255, 255};
     white_ = upload(white, 1, 1);
-    if (!white_ || !build_fonts())
+    if (!white_)
     {
+        std::printf("[Porpoise Exact] original white texture upload FAILED\n");
+        shutdown();
+        return false;
+    }
+    if (!build_fonts())
+    {
+        std::printf("[Porpoise Exact] original font atlas FAILED at %s\n", init_.asset_dir.c_str());
         shutdown();
         return false;
     }
     brand_mask_ = texture_file(init_.asset_dir + "/brand/dolphin-mask.png");
     icons_ = texture_file(init_.asset_dir + "/ui/buttons.png");
+    std::printf("[Porpoise Exact] renderer READY; brand %s; controller glyphs %s\n",
+                brand_mask_ ? "OK" : "MISSING", icons_ ? "OK" : "MISSING");
     vertices_.reserve(vcapacity_);
     return true;
 }

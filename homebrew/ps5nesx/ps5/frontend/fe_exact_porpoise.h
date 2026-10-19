@@ -30,6 +30,7 @@ private:
     float m_scroll = 0;
     double m_elapsed = 0;
     std::string m_clock;
+    std::vector<int> m_recent; // recently browsed actual selections, newest first
     bool m_ready = false;
 };
 } // namespace fe
