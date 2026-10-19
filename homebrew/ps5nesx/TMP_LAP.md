@@ -150,3 +150,32 @@ the last. The same applies to L1/R1 five-game jumps. At a wrap, the carousel
 snaps to the new index so it doesn't animate through the whole catalogue.
 Settings, saves, HD NES emulation and sound are preserved. Console testing
 should verify the settings sheet, fresh cover network access and wrap.
+
+
+## v1.0.20 — Porpoise Settings overlay + auto cover progress and full library cache
+
+- The original Porpoise blue-glass menu now remains visible *behind* the
+  Settings sheet. The old black NES 3D cases and legacy menu headers are
+  removed from the native scene while Porpoise is active.
+- Vulkan draw order is corrected: draw Porpoise first, then the native
+  Settings/keyboard UI with explicit pipeline + vertex-buffer rebinding.
+- Compact Porpoise-themed cover progress widget at the upper-right reports
+  selected-game download in flight, completed requests, saved covers and
+  failures. The moving blue glint means the worker is still transferring.
+- The cover worker checks the complete ROM library and continues downloading
+  off-screen missing covers to disk, prioritizing the currently visible ones.
+  The GPU still only uploads nearby covers. Downloads remain in
+  \`/data/PS5NES/cache/<ROM-CRC>.jpg\` and reuse the disk on next boot.
+- A third, optional NES image source (ArcadeArtwork Piwigo album #547,
+  https://www.arcadeartwork.org/index.php?/category/547) is queried once
+  per worker session only if the earlier GitHub repositories have no matching
+  cover. The site Piwigo API returns category image metadata and validated
+  image URLs. No guessed URLs or HTML are ever persisted as artwork.
+  This feature is best effort: access may be blocked by Cloudflare or the
+  site owner, in which case existing providers keep working.
+- Negative 404 markers are v9 and expire within 48 hours, allowing retries.
+  Manual artwork always wins; no ROM downloading is involved.
+
+Real PS5 testing is needed to confirm the overlay, progress UI and online
+gallery access. Host integration tests validate parsing, safe URL hosts,
+download-index caching, wrap navigation, and draw ordering.
