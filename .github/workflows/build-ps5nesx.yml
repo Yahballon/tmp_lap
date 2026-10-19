@@ -124,6 +124,10 @@ jobs:
               -o "$root/$name"
             test "$(git hash-object "$root/$name")" = "$expected" || exit 1
           done
+          # Compile the pinned original font and icon assets into eboot.bin;
+          # /app0 paths are not available to every homebrew launch mode.
+          mkdir -p homebrew/ps5nesx/ps5/frontend/assets/porpoise
+          cp -R "$root/." homebrew/ps5nesx/ps5/frontend/assets/porpoise/
           curl -fL --retry 5 \
             "https://raw.githubusercontent.com/elripalda/Porpoise-Dolphin-Emulator-for-PS5/$rev/assets/fonts/OFL.txt" \
             -o "$root/fonts/OFL.txt"
