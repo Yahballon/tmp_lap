@@ -149,6 +149,7 @@ bool answer(const fs::path& path,const Challenge& challenge,Answer& out){
 }
 bool verify(const Ledger& ledger,const Challenge& challenge,const Answer& answer,
  std::uint64_t now,bool& consumed,VerifiedSample& verified){
+ verified.accepted_=false; // fail closed: stale success never survives a failed check
  if(consumed||now>challenge.deadline||
     challenge.deadline<now||challenge.deadline-now>challenge_lifetime||
     challenge.indices.size()!=challenge_samples||
