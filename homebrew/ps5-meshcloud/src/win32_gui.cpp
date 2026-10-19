@@ -186,7 +186,6 @@ void create_children(App& a) {
                      DEFAULT_PITCH,L"Segoe UI");
  a.bg_brush=CreateSolidBrush(background);
  a.edit_brush=CreateSolidBrush(textbox);
- make_label(a.window,L"LOCAL VAULT",0);
  a.vault=make_edit(a.window,id_vault,default_storage().wstring().c_str());
  a.browse=make_button(a.window,id_browse,L"Browse folder");
  a.summary=make_label(a.window,L"Network: LOCKED  |  Member verification pending  |  Minimum 10 GiB",id_summary);
