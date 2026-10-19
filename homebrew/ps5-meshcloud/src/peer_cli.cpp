@@ -55,7 +55,7 @@ void usage(){
  <<"discover-auto <config-directory> [port] (cached signed endpoints)\n"
  <<"peers <config-directory> (persisted signed peer entries)\n\n"
  <<"config: identity.pem, member.ticket, auditors.keys, peers.keys.\n"
- <<"Requires 3 independently validated 10-GiB auditor signatures. NO guest mode.\n"
+ <<"Requires 3 independently validated 13-GiB auditor signatures. NO guest mode.\n"
  <<"Default TCP port 39718; only encrypted MCB1 chunks. NO filenames/keys sent.\n";
 }
 }
@@ -148,7 +148,7 @@ int main(int argc,char** argv){
   if(ec){std::cerr<<"Cannot create shared store\n";return 1;}
   const auto eligibility=meshcloud::preflight(root,meshcloud::minimum_bytes);
   if(!eligibility.eligible) {
-   std::cerr<<"P2P DENIED: at least 10 GiB + safety margin required: "
+   std::cerr<<"P2P DENIED: at least 13 GiB + safety margin required: "
             <<eligibility.message<<"\n";return 1;
   }
   meshcloud::exchange::SharedShardStore store(root,meshcloud::minimum_bytes);
