@@ -10,7 +10,7 @@ find_package(SQLite3 REQUIRED)
 add_library(meshcloud_core STATIC
   src/core.cpp src/cid.cpp src/stream.cpp src/catalog.cpp src/vault.cpp
   src/erasure.cpp src/admission.cpp src/wire.cpp src/exchange.cpp src/published.cpp
-  src/p2p_tls.cpp)
+  src/p2p_tls.cpp src/p2p_config.cpp)
 target_include_directories(meshcloud_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(meshcloud_core PUBLIC OpenSSL::Crypto OpenSSL::SSL SQLite::SQLite3 Threads::Threads)
 if(WIN32)
@@ -23,6 +23,9 @@ else()
 endif()
 add_executable(meshcloud src/main.cpp)
 target_link_libraries(meshcloud PRIVATE meshcloud_core)
+add_executable(meshcloud_peer src/peer_cli.cpp)
+set_target_properties(meshcloud_peer PROPERTIES OUTPUT_NAME "meshcloud-peer")
+target_link_libraries(meshcloud_peer PRIVATE meshcloud_core)
 if(WIN32)
   add_executable(meshcloud_gui WIN32 src/win32_gui.cpp)
   set_target_properties(meshcloud_gui PROPERTIES OUTPUT_NAME "MeshCloud-GUI")
