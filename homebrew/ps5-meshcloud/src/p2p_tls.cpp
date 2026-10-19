@@ -277,8 +277,10 @@ bool handshake(SSL* tls,const NodeIdentity& local,
  }
  admission::MemberTicket remote_ticket{};
  admission::Challenge their_challenge{};
+ Certificate peer_cert(SSL_get1_peer_certificate(tls),X509_free);
+ PKey tls_pub(peer_cert?X509_get_pubkey(peer_cert.get()):nullptr,EVP_PKEY_free);
  if(!decode_ticket(incoming,remote_ticket,their_challenge) ||
-    !verify_tls_peer_credentials(nullptr,remote_ticket,local.allowed_peer_keys) ||
+    !verify_tls_peer_credentials(tls_pub.get(),remote_ticket,local.allowed_peer_keys) ||
     remote_ticket.node_identity!=pinned) {
   error="Remote peer certificate identity and ticket do not match";return false;
  }
@@ -328,7 +330,7 @@ bool verify_tls_peer_credentials(EVP_PKEY* tls_pub,
  const std::vector<admission::PublicKey>& pinned) {
  if(ticket.node_identity==admission::PublicKey{} ||
     !has_pinned_peer(ticket.node_identity,pinned))return false;
- if(!tls_pub)return true; // peer cert identity cross-checked separately
+ if(!tls_pub)return false;
  admission::PublicKey tls_id{};
  return public_id(tls_pub,tls_id) && tls_id==ticket.node_identity;
 }
