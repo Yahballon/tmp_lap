@@ -13,7 +13,7 @@ checks={
     'prepare assets': 'PreparePorpoiseAssets(original_ui.asset_dir)' in ps5,
     'visible failure': 'PORPOISE UI INIT FAILED' in app,
     'original shader remains': 'sizeof(porpoise_ui_frag)' in gfx,
-    'original grid room': 'g.background();' in bridge and 'look.background = 0;' in bridge,
+    'original grid room': 'g.background();' in bridge and 'Look look;' in bridge and 'm_theme=="oled"' in bridge,
     'compact header': '"Save States"' not in bridge and '"Library"' not in bridge and 'Glyph::L1' not in bridge and 'Glyph::R1' not in bridge,
     'original glass cases': 'glass_block(g,' in bridge,
     'real recent dock': 'Recently Browsed' in bridge,
