@@ -1,7 +1,7 @@
 // NESYX "PIXEL REACTOR": an original animated, texture-free boot scene.
 // Built from signed-distance-field text and native UI quads; runs while the
 // library is scanned asynchronously on the PS5, including remote NFS shares.
-// No DreamcastX animation assets, videos, external files or shader changes.
+// No borrowed animation assets, videos, external files or shader changes.
 #include "loading.h"
 #include "ps5nes_build_version.h"
 #include <algorithm>
