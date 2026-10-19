@@ -174,7 +174,7 @@ bool verify(const Ledger& ledger,const Challenge& challenge,const Answer& answer
  return true;
 }
 bool sign_ticket_after_proof(EVP_PKEY* key,const Ledger& ledger,
- const admission::MemberTicket& ticket,const VerifiedSample& proven,
+ const admission::MemberTicket& ticket,VerifiedSample& proven,
  admission::AuditorSignature& result){
  result={};
  if(!proven.accepted_||proven.node_!=ledger.node||
@@ -199,6 +199,7 @@ bool sign_ticket_after_proof(EVP_PKEY* key,const Ledger& ledger,
     len==result.signature.size();
  EVP_MD_CTX_free(context);
  if(!okay)result={};
+ else proven.accepted_=false; // ONE signed ticket per verified challenge
  return okay;
 }
 } // namespace meshcloud::storage_audit
