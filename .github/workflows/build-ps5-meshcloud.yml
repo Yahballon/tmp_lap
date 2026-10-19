@@ -43,7 +43,7 @@ jobs:
           import json,pathlib
           p=pathlib.Path('app/sce_sys/param.json')
           d=json.loads(p.read_text())
-          d.update(titleId='PPSA99718',conceptId='99718',contentId='UP9000-PPSA99718_00-MESHCLOUDPS5APP1',contentVersion='01.000.002')
+          d.update(titleId='PPSA99718',conceptId='99718',contentId='UP9000-PPSA99718_00-MESHCLOUDPS5APP1',contentVersion='01.000.003')
           d['localizedParameters']['en-US']['titleName']='MeshCloud by YAHBALLON'
           p.write_text(json.dumps(d,indent=2)+'\n')
           PY
@@ -87,11 +87,11 @@ jobs:
           app=pathlib.Path('app/dist/PPSA99718')
           elf=(app/'eboot.bin').read_bytes()
           assert len(elf)>1000 and struct.unpack('<I',elf[:4])[0]==0x1d3d154f
-          assert b'v0.2.0' in elf
+          assert b'v0.3.0' in elf
           p=json.loads((app/'sce_sys/param.json').read_text())
           assert p['titleId']=='PPSA99718'
           assert p['contentId']=='UP9000-PPSA99718_00-MESHCLOUDPS5APP1'
-          assert p['contentVersion']=='01.000.002'
+          assert p['contentVersion']=='01.000.003'
           for filename in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']:
               assert (app/filename).is_file(),filename
           with zipfile.ZipFile('app/dist/PPSA99718.zip') as z:
@@ -103,7 +103,7 @@ jobs:
       - name: Upload PS5 installable archive
         uses: actions/upload-artifact@v4
         with:
-          name: MeshCloud-PS5-v0.2.0-PPSA99718
+          name: MeshCloud-PS5-v0.3.0-PPSA99718
           path: app/dist/PPSA99718.zip
           if-no-files-found: error
       - name: Publish native prototype pre-release
@@ -111,8 +111,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view meshcloud-ps5-v0.2.0-prealpha >/dev/null 2>&1; then
+          if gh release view meshcloud-ps5-v0.3.0-prealpha >/dev/null 2>&1; then
             echo 'Already released'
             exit 0
           fi
-          gh release create meshcloud-ps5-v0.2.0-prealpha app/dist/PPSA99718.zip --target "$GITHUB_SHA" --prerelease --title "MeshCloud PS5 v0.2.0 (audited direct TLS P2P prototype)" --notes-file homebrew/ps5-meshcloud/ps5/RELEASE_NOTES.md
+          gh release create meshcloud-ps5-v0.3.0-prealpha app/dist/PPSA99718.zip --target "$GITHUB_SHA" --prerelease --title "MeshCloud PS5 v0.3.0 (audited direct TLS P2P prototype)" --notes-file homebrew/ps5-meshcloud/ps5/RELEASE_NOTES.md
