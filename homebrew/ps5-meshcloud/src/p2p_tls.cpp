@@ -197,8 +197,8 @@ bool sign_identity(EVP_PKEY* key,const std::vector<std::uint8_t>& transcript,
 }
 Context make_context(const NodeIdentity& node,bool server) {
  Context ctx(SSL_CTX_new(TLS_method()),SSL_CTX_free);
- if(!ctx || SSL_CTX_set_min_proto_version(ctx,TLS1_3_VERSION)!=1 ||
-    SSL_CTX_set_max_proto_version(ctx,TLS1_3_VERSION)!=1)return {nullptr,SSL_CTX_free};
+ if(!ctx || SSL_CTX_set_min_proto_version(ctx.get(),TLS1_3_VERSION)!=1 ||
+    SSL_CTX_set_max_proto_version(ctx.get(),TLS1_3_VERSION)!=1)return {nullptr,SSL_CTX_free};
  // Cert chain validation is REPLACED by explicit Ed25519 allowlist pinning.
  // Require a client certificate on the server. Unknown cert -> close before
  // transmitting any MeshCloud ticket, CID, metadata or member operation.
