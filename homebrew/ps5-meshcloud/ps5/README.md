@@ -1,6 +1,6 @@
 # MeshCloud PS5 Native v0.2.0
 
-**By YAHBALLON** — native controller-first OpenGL console prototype.
+**By YAHBALLON** — native controller-first OpenGL app with a directly connected, member-authenticated TLS1.3 LAN peer engine.
 
 Title ID: PPSA99718
 Content ID: UP9000-PPSA99718_00-MESHCLOUDPS5APP1
@@ -12,17 +12,17 @@ The native PS5 app has its own 1920×1080 OpenGL interface using the PS5-DevBrid
 
 Storage checks use POSIX statvfs on /data, /mnt/usb0 and /mnt/usb1 when available. They display **filesystem-reported** free bytes and whether at least **10 GiB + 2 GiB safety margin** appears free. This is not actual storage reservation, proof of storage, validation of a contribution, or permission to use the P2P network.
 
-The Local files page lists regular files from <selected mount>/PS5MeshCloud/files without following symbolic links. It does not scan or open private keys, privileged console files or copyrighted content outside those paths. It does **not** upload, download, encrypt or register those files.
+The Local files page lists regular files from <selected mount>/PS5MeshCloud/files without following symbolic links. It does not scan or open private keys, privileged console files or copyrighted content outside those paths. The read-only listing itself does not publish data; the Network page can explicitly PUT a **selected encrypted MCB1 fragment** or GET a CID from an independently audited, pinned peer.
 
-A best-effort log is written to /data/PS5MeshCloud/meshcloud-ps5.log when writable. No network listener is created; it is a local-only UI for now.
+A best-effort log is written to /data/PS5MeshCloud/meshcloud-ps5.log when writable. A direct TLS1.3 peer listener is started **only after the user presses X** on the Network page. Without a valid independently signed membership ticket, the connection fails closed.
 
 ## Controller
 
 - D-pad left/right or L1/R1: move among pages.
 - D-pad up/down: move among pages; scroll local files when on Local files.
-- Triangle: refresh local mount/file observations.
-- Square: switch selected storage mount (/data, /mnt/usb0, /mnt/usb1).
-- Cross: select or inspect; never begins a network operation.
+- Triangle: on Network, GET the configured CID; elsewhere, refresh local mount/file observations.
+- Square: on Network, PUT a selected MCB1 encrypted fragment; elsewhere, switch selected storage mount (/data, /mnt/usb0, /mnt/usb1).
+- Cross: on Network, listen for one authenticated P2P request; elsewhere, select or inspect.
 - Options: About.
 - Circle: go to Overview, then close the app.
 
@@ -34,11 +34,11 @@ When GitHub Actions has **actually passed**, extract PPSA99718/ into /data/homeb
 
 ## Strict limitations
 
-**No remote MeshCloud access is functional on this PS5 prototype.** The desktop C++ engine (AES-256-GCM local vault, SQLite, signed publisher manifests, 90-day expiry, simulated CID exchange, Reed-Solomon) is NOT linked into this native executable. The PS5 target lacks a verified port of those dependencies; there are no real auditor servers or authenticated relay transport yet.
+**Only direct audited TLS 1.3 encrypted-fragment exchange is supported at this stage**. The native executable now links the shared C++ CID, AES-GCM vault, SQLite, Ed25519 membership and exchange components, but the PS5 UI presently exposes limited fragment PUT/GET rather than a complete whole-file cloud. Real 10-GiB auditor servers, encrypted file publication/indexing, relay transport and global file retention are not available yet.
 
 In particular:
 - No access to searches, CIDs, metadata, uploads or downloads for unverified members.
-- The 10-GiB rule applies to ALL eventual members and platforms; free-space results alone do not pass the proof.
+- The 10-GiB rule applies to ALL members and platforms; free-space results alone do not pass the proof. A valid 3-of-5 externally issued proof ticket must be supplied.
 - A signed 90-day file expiry is planned at network level. The PS5 prototype cannot yet enforce it against remote peers.
 - Network IP privacy is not implemented. A real relay would still see its client IP.
 - The custom app icon has no Sony or PlayStation trademark graphics.
