@@ -1711,7 +1711,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 		// Settings sheet is rendered by PS5NESX after the background pass.
 		// Disable the full-screen Porpoise overlay while the sheet is shown,
 		// otherwise it hides the panel and Square seems to do nothing.
-		renderer.ExactEnabled(exact_ready && !nes_game.Active() && !app.SheetVisible());
+		renderer.ExactEnabled(exact_ready && !nes_game.Active());
 		if (!renderer.WaitForSlot())
 		{
 			ok = false;

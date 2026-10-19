@@ -159,6 +159,45 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
     if(!m_clock.empty())
         g.text_mid(Font::SemiBold,27,1866,kBarCy,kWhite,Align::Right,m_clock);
 
+    // Compact, non-blocking progress HUD. The data comes from the cover
+    // worker's mutex-protected snapshot; rendering never touches networking.
+    const CoverProgress& progress = m_cover_progress;
+    if(progress.games > 0 && progress.planned > 0)
+    {
+        constexpr float px=1414,py=149,pw=452,ph=100;
+        g.panel(px,py,pw,ph,rgba(0x061339,0.78f),0.84f,19,
+                rgba(0x42AFFF,0.78f),1.3f,0,0.15f);
+        std::string state;
+        if(progress.transferring)
+        {
+            state = "Fetching: " + progress.current;
+            if(state.size()>42) state=state.substr(0,39)+"...";
+        }
+        else if(progress.offline) state="Artwork paused - network unavailable";
+        else if(progress.done) state="Cover search finished";
+        else state="Searching for missing game covers";
+        g.text(Font::SemiBold,19,px+19,py+14,kWhite,Align::Left,state);
+        char detail[100];
+        std::snprintf(detail,sizeof(detail),"%d / %d checked   |   %d saved   |   %d unavailable",
+            progress.attempted,progress.planned,progress.downloaded,progress.failed);
+        g.text(Font::SemiBold,16,px+19,py+45,kLavender,Align::Left,detail);
+        const float barX=px+19,barY=py+80,barW=pw-38;
+        g.panel(barX,barY,barW,6,rgba(0x25426B,0.78f),0.85f,3);
+        const float fraction=std::clamp(progress.planned > 0 ?
+            float(progress.attempted)/float(progress.planned) : 0.0f,0.0f,1.0f);
+        if(fraction>0)
+            g.panel(barX,barY,std::max(3.0f,barW*fraction),6,rgba(0x60D7FF),0.95f,3);
+        if(progress.transferring && fraction<1)
+        {
+            // Moving pulse means the current request is still active even if
+            // its download progress has no reported byte count.
+            const float remaining=barW*(1.0f-fraction);
+            const float pulse=std::fmod(float(m_elapsed)*0.45f,1.0f);
+            g.panel(barX+barW*fraction+pulse*std::max(1.0f,remaining-18),
+                    barY,18,6,rgba(0xBCEEFF),0.9f,3);
+        }
+    }
+
     const int shown=static_cast<int>(m_names.size());
     g.text(Font::Bold,54,90,132,kWhite,Align::Left,"Your Games");
     char counter[48];
