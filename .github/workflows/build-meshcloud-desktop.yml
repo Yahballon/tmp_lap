@@ -107,7 +107,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag=meshcloud-desktop-v0.2.0-prealpha
+          tag=meshcloud-desktop-v0.3.0-prealpha
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Pre-alpha release already exists; no rewrite"
             exit 0
@@ -115,6 +115,6 @@ jobs:
           gh release create "$tag" release/*.zip \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "MeshCloud desktop v0.2.0 pre-alpha (offline only)" \
+            --title "MeshCloud desktop v0.3.0 pre-alpha (offline only)" \
             --prerelease \
-            --notes "Security-first OFFLINE encrypted local vault, CIDv1, 90-day retention and 10 GiB membership policy. This is not yet a P2P network or PS5 application. Network downloads remain disabled pending peer storage audits."
+            --notes "OFFLINE pre-alpha: encrypted streaming vault, CIDv1, 90-day cleanup, GF256 Reed-Solomon 10+20/10+100 redundancy module, quorum-signed Ed25519 membership verification and strict member-only wire framing. There is NO P2P transport, real storage audit network or PS5 package. All public network functions remain disabled."

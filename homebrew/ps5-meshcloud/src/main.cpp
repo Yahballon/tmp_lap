@@ -15,8 +15,8 @@ std::uint64_t utc_now() {
    std::chrono::system_clock::now().time_since_epoch()).count());
 }
 void help() {
- std::cout<<"MeshCloud by YAHBALLON v0.2.0 pre-alpha\n"
-  <<"Network disabled until peer authentication and independently audited 10 GiB contribution are implemented.\n\n"
+ std::cout<<"MeshCloud by YAHBALLON v0.3.0 pre-alpha\n"
+  <<"Network disabled until independently operated storage auditors and real authenticated P2P transport are implemented.\nReed-Solomon 10+20 / 10+100, 3-of-5 ticket verification and bounded wire codec are separately tested.\n\n"
   <<"Commands:\n"
   <<"  meshcloud --storage PATH [--quota-gib 10]       Check local disk eligibility\n"
   <<"  meshcloud --cid-file FILE                      Stream CIDv1 hash; no hard file size limit\n"
@@ -68,7 +68,7 @@ int main(int argc,char** argv) {
  if(commands>1){std::cerr<<"Choose one operation\n";return 2;}
  if(commands==0) {
   auto test=meshcloud::preflight(directory,quota*1024ULL*1024*1024);
-  std::cout<<"MeshCloud v0.2.0 | Minimum 10 GiB | Offered "<<quota<<" GiB\n"
+  std::cout<<"MeshCloud v0.3.0 | Minimum 10 GiB | Offered "<<quota<<" GiB\n"
    <<"Local disk check: "<<(test.eligible?"PASS":"DENIED")<<" - "<<test.message<<"\n"
    <<"Network membership: DENIED (independent storage audits not yet implemented)\n"
    <<"Search, CID lookup, Upload, Download: DISABLED\n";

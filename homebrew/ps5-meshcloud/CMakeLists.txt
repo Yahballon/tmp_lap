@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
-project(meshcloud VERSION 0.2.0 LANGUAGES CXX)
+project(meshcloud VERSION 0.3.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(SQLite3 REQUIRED)
 add_library(meshcloud_core STATIC
-  src/core.cpp src/cid.cpp src/stream.cpp src/catalog.cpp src/vault.cpp)
+  src/core.cpp src/cid.cpp src/stream.cpp src/catalog.cpp src/vault.cpp
+  src/erasure.cpp src/admission.cpp src/wire.cpp)
 target_include_directories(meshcloud_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(meshcloud_core PUBLIC OpenSSL::Crypto SQLite::SQLite3)
 if(MSVC)
@@ -24,3 +25,14 @@ add_test(NAME security_policy_and_cid COMMAND meshcloud_tests)
 add_executable(meshcloud_vault_tests tests/test_vault.cpp)
 target_link_libraries(meshcloud_vault_tests PRIVATE meshcloud_core)
 add_test(NAME streaming_encrypted_vault_and_retention COMMAND meshcloud_vault_tests)
+
+add_executable(meshcloud_erasure_tests tests/test_erasure.cpp)
+target_link_libraries(meshcloud_erasure_tests PRIVATE meshcloud_core)
+add_test(NAME reed_solomon_redundancy_and_verified_recovery COMMAND meshcloud_erasure_tests)
+add_executable(meshcloud_admission_tests tests/test_admission.cpp)
+target_link_libraries(meshcloud_admission_tests PRIVATE meshcloud_core)
+add_test(NAME quorum_auditor_attestation_and_session_binding COMMAND meshcloud_admission_tests)
+
+add_executable(meshcloud_wire_tests tests/test_wire.cpp)
+target_link_libraries(meshcloud_wire_tests PRIVATE meshcloud_core)
+add_test(NAME bounded_authenticated_network_frames COMMAND meshcloud_wire_tests)
