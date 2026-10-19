@@ -19,7 +19,7 @@ namespace {
 const Color white=Color::rgb(0xecf5ff),blue=Color::rgb(0x399fff);
 const Color muted=Color::rgb(0x96b0d2),green=Color::rgb(0x53f0b1);
 const Color warning=Color::rgb(0xffbc64);
-constexpr const char* version="v0.5.0";
+constexpr const char* version="v0.6.0";
 std::string load_font(const char* path) {
  FILE* f=std::fopen(path,"rb");if(!f)return {};
  if(std::fseek(f,0,SEEK_END)!=0){std::fclose(f);return {};}
@@ -189,7 +189,7 @@ void display_about(DrawList& d,const Font& f,unsigned atlas,
  const meshps5::Snapshot& snapshot) {
  panel(d,338,131,1556,872);bar(d,f,atlas,"ABOUT MESH CLOUD",338,131,1556);
  const char* lines[]={
-  "MESH CLOUD PS5 - P2P/13GiB ticket prototype v0.5.0",
+  "MESH CLOUD PS5 - P2P/13GiB provisioning v0.6.0",
   "Developer: YAHBALLON",
   "GitHub: Yahballon/tmp_lap/homebrew/ps5-meshcloud",
   "Title ID: PPSA99718",
@@ -283,6 +283,10 @@ int main() {
     notice="Selected a different local storage mount.";
    }
   }
+  if(hit(hui::pad_bits::kL3) && page==3){
+   if(peer.receive_audit_dataset())notice="Accepting 13 GiB from pinned TLS auditor";
+   else notice="Another P2P operation is already running";
+  }
   if(hit(hui::pad_bits::kR3) && page==3){
    if(peer.make_member_request())notice="Creating node-signed 13 GiB ticket request";
    else notice="An audited P2P operation is already running";
@@ -327,7 +331,7 @@ int main() {
   else display_about(d,font,atlas,snapshot);
   d.rounded_rect({0,1025,1920,55},0,Color::rgb(0x07172c));
   label(d,font,atlas,cut(notice,110),24,1058,17,warning);
-  label(d,font,atlas,"L1/R1 PAGE   L2 AUDIT   R3 TICKET   R2 GETADDR   X LISTEN   TRIANGLE GET   SQUARE PUT   O BACK",
+  label(d,font,atlas,"L1/R1 PAGE   L3 RECEIVE 13GiB   L2 AUDIT   R3 TICKET   R2 GETADDR   X LISTEN   TRIANGLE GET   SQUARE PUT   O BACK",
         1888,1058,16,white,Align::right);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());
   display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);

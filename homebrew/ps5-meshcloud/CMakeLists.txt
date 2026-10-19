@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
-project(meshcloud VERSION 0.11.0 LANGUAGES CXX)
+project(meshcloud VERSION 0.12.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -11,7 +11,7 @@ add_library(meshcloud_core STATIC
   src/core.cpp src/cid.cpp src/stream.cpp src/catalog.cpp src/vault.cpp
   src/erasure.cpp src/admission.cpp src/wire.cpp src/exchange.cpp src/published.cpp
   src/p2p_tls.cpp src/p2p_config.cpp src/peer_discovery.cpp src/storage_audit.cpp
-  src/audit_net.cpp src/ticket_issue.cpp)
+  src/audit_net.cpp src/ticket_issue.cpp src/provision.cpp)
 target_include_directories(meshcloud_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(meshcloud_core PUBLIC OpenSSL::Crypto OpenSSL::SSL SQLite::SQLite3 Threads::Threads)
 if(WIN32)
@@ -36,6 +36,9 @@ target_link_libraries(meshcloud_audit_net PRIVATE meshcloud_core)
 add_executable(meshcloud_ticket src/ticket_cli.cpp)
 set_target_properties(meshcloud_ticket PROPERTIES OUTPUT_NAME "meshcloud-ticket")
 target_link_libraries(meshcloud_ticket PRIVATE meshcloud_core)
+add_executable(meshcloud_provision src/provision_cli.cpp)
+set_target_properties(meshcloud_provision PROPERTIES OUTPUT_NAME "meshcloud-provision")
+target_link_libraries(meshcloud_provision PRIVATE meshcloud_core)
 if(WIN32)
   add_executable(meshcloud_gui WIN32 src/win32_gui.cpp)
   set_target_properties(meshcloud_gui PROPERTIES OUTPUT_NAME "MeshCloud-GUI")
@@ -97,3 +100,8 @@ set_tests_properties(real_pinned_tls_auditor_node_storage_challenge_and_no_guest
 add_executable(meshcloud_ticket_tests tests/test_ticket_issue.cpp)
 target_link_libraries(meshcloud_ticket_tests PRIVATE meshcloud_core)
 add_test(NAME node_signed_ticket_request_three_auditors_and_member_credential_assembly COMMAND meshcloud_ticket_tests)
+
+add_executable(meshcloud_provision_tests tests/test_provision.cpp)
+target_link_libraries(meshcloud_provision_tests PRIVATE meshcloud_core)
+add_test(NAME pinned_tls_blockwise_13gib_provisioning_and_guest_refusal COMMAND meshcloud_provision_tests)
+set_tests_properties(pinned_tls_blockwise_13gib_provisioning_and_guest_refusal PROPERTIES TIMEOUT 70)

@@ -72,3 +72,7 @@ Nodes now maintain a persistent signed SQLite address book and exchange bounded 
 ## v0.10 - 13 GiB + real independent audit-only TLS port
 
 Per-node contributed storage is **exactly 13 GiB (hard cap)** with a separate 2 GiB preflight reserve. New peers claiming less OR more are denied; three independent signed proofs remain mandatory. The new `meshcloud-audit-net` runs mutual Ed25519 pinned TLS 1.3 on TCP 39719 and verifies live 48-block random storage challenges before issuance. It is NOT a CID or guest file endpoint. PS5 Network L2 starts one separate pinned audit listener. See [STORAGE_AUDIT.md](./STORAGE_AUDIT.md) for honest limits: 13-GiB audit dataset must currently be provisioned out of band; live 3-auditor ticket aggregation and unattended onboarding are still unavailable.
+
+## v0.12 — audited 13 GiB LAN provisioning
+
+Windows, Linux and macOS gain `meshcloud-provision`; PS5 Network **L3** accepts 13 GiB of auditor-generated incompressible sentinel data and its SHA-256 ledger over pinned mutual TLS 1.3 on dedicated TCP 39720. Data is streamed in 64-KiB blocks and only staged/committed after full hash verification and fsync. This is pre-membership auditor-only transport, **never guest CID or file access**. Read [NETWORK_PROVISION.md](../NETWORK_PROVISION.md) for full PS5-PC setup, exact 13 GiB limit and missing public-network facilities. CI's 4 MiB transport test does not authorize membership.

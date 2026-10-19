@@ -23,10 +23,12 @@ public:
  bool audit_listen();
  // R3: create node-signed 13GiB membership request without a ticket.
  bool make_member_request();
+ // L3 on Network: receive 13GiB from a PRE-PINNED auditor only.
+ bool receive_audit_dataset();
  bool busy() const noexcept {return busy_.load();}
  std::string status() const;
 private:
- enum class Action { Listen, Put, Get, Discover, AuditListen, CreateTicketRequest };
+ enum class Action { Listen, Put, Get, Discover, AuditListen, CreateTicketRequest, ReceiveAuditDataset };
  bool launch(Action action,std::string path={});
  void run(Action action,const std::string& path);
  void report(std::string status);
