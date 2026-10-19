@@ -2,6 +2,9 @@
 #include "peer_service.hpp"
 #include "p2p_tls.hpp"
 #include "p2p_config.hpp"
+#include "audit_net.hpp"
+#include "storage_audit.hpp"
+#include <openssl/pem.h>
 #include "peer_discovery.hpp"
 #include "cid.hpp"
 #include "core.hpp"
@@ -81,7 +84,60 @@ bool PeerService::listen(){return launch(Action::Listen);}
 bool PeerService::send_local(const std::string& path){return launch(Action::Put,path);}
 bool PeerService::fetch_cid(){return launch(Action::Get);}
 bool PeerService::discover(){return launch(Action::Discover);}
+bool PeerService::audit_listen(){return launch(Action::AuditListen);}
 void PeerService::run(Action action,const std::string& path) {
+ if(action==Action::AuditListen) {
+  // Auditor bootstrap must NEVER require a member.ticket: it is the secure
+  // pre-membership proving channel, not an escape hatch to CID operations.
+  const auto keyfile=home/"p2p"/"identity.pem";
+  BIO* bio=BIO_new_file(keyfile.string().c_str(),"r");
+  if(!bio){report("Audit LOCKED: missing identity.pem");return;}
+  EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
+     [](char*,int,int,void*)->int {return 0;},nullptr);
+  BIO_free(bio);
+  if(!key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519){
+   if(key)EVP_PKEY_free(key);
+   report("Audit LOCKED: valid Ed25519 key required");return;
+  }
+  std::vector<meshcloud::admission::PublicKey> pinned;
+  std::ifstream keys(home/"p2p"/"auditors.keys");
+  std::string hex;
+  while(std::getline(keys,hex) && pinned.size()<32) {
+   if(!hex.empty()&&hex.back()=='\r')hex.pop_back();
+   if(hex.size()!=64)continue;
+   meshcloud::admission::PublicKey pub{};
+   bool valid=true;
+   for(int i=0;i<32;i++){
+    auto digit=[](char c)->int {
+     if(c>='0'&&c<='9')return c-'0';
+     if(c>='a'&&c<='f')return c-'a'+10;
+     if(c>='A'&&c<='F')return c-'A'+10;
+     return -1;
+    };
+    const auto hi=digit(hex[2*i]),lo=digit(hex[2*i+1]);
+    if(hi<0||lo<0){valid=false;break;}
+    pub[static_cast<std::size_t>(i)]=static_cast<unsigned char>((hi<<4)|lo);
+   }
+   if(valid && pub!=meshcloud::admission::PublicKey{} &&
+      std::find(pinned.begin(),pinned.end(),pub)==pinned.end())
+    pinned.push_back(pub);
+  }
+  meshcloud::storage_audit::Ledger ledger{};
+  const auto base=home/"audit";
+  if(pinned.size()<3||!meshcloud::storage_audit::load_ledger(base/"ledger.mcal",ledger)
+     ||ledger.bytes!=meshcloud::minimum_bytes){
+   EVP_PKEY_free(key);
+   report("Audit LOCKED: need 3 pinned auditors and 13 GiB ledger");return;
+  }
+  const auto settings_file=settings();
+  std::string error;
+  const bool ok=meshcloud::audit_net::serve_one(settings_file.bind,
+    meshcloud::audit_net::port,key,pinned,base/"node-random.bin",ledger,error);
+  EVP_PKEY_free(key);
+  if(ok)report("Audit: 48 encrypted randomized storage blocks answered");
+  else report("Audit rejected: "+error);
+  return;
+ }
  meshcloud::p2p::Config config;
  std::string error;
  if(!config.load(home/"p2p",error)){
