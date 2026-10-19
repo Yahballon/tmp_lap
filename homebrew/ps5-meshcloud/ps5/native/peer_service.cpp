@@ -143,7 +143,10 @@ void PeerService::run(Action action,const std::string& path) {
   const bool passed=meshcloud::provision::receive_once(network.bind,
     meshcloud::provision::port,key,trusted,
     audit_dir/"node-random.bin",audit_dir/"ledger.mcal",
-    meshcloud::minimum_bytes,error);
+    meshcloud::minimum_bytes,error,
+    [this](std::uint64_t bytes,std::uint64_t total){
+      if(total)report("Receiving 13 GiB: "+std::to_string(bytes*100/total)+"% verified");
+    });
   EVP_PKEY_free(key);
   if(passed)report("13 GiB securely received, SHA256 verified and committed");
   else report("Provision DENIED: "+error);
