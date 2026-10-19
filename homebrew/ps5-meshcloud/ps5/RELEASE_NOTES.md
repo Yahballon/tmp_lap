@@ -1,12 +1,11 @@
-# MeshCloud PS5 v0.1.0 pre-alpha
+# MeshCloud PS5 v0.2.0 pre-alpha – direct audited TLS1.3 P2P
 
-Native OpenGL homebrew launcher for PS5 by YAHBALLON.
+Native PS5 OpenGL UI, mounted storage diagnostics, Ed25519 pinned TLS 1.3 peer link and encrypted CID chunk GET/PUT.
 
-- Controller-ready five-page UI, original icon, local filesystem and file-list diagnostics.
-- Initial 10 GiB + 2 GiB disk free-space check; clearly differentiated from actual remote proof of storage.
-- No network access, download, upload, CID search or claim of remote connectivity.
-- Reuses PS5-DevBridge native application scaffolding and display/controller framework.
+**A real PS5↔PC peer connection requires externally issued 3-of-5 signed storage audit tickets proving at least 10 GiB each.** No ticket or non-pinned peer: no CID lookup, metadata, upload or download. The app includes NO issuer, no self-signed membership bypass and no production auditor network. This is an audited-LAN transport prototype, not the finished public cloud.
 
-**Important:** This is a read-only prototype; it does not yet include the desktop encryption, SQLite vault, Reed-Solomon or authenticated P2P network. GitHub Actions compilation must be followed by testing on an actual PS5.
+PS5 configuration: /data/PS5MeshCloud/p2p/identity.pem, member.ticket, auditors.keys, peers.keys and network.conf. Encrypted MCB1 blocks can be placed into /data/PS5MeshCloud/files. The native Network tab starts a one-request listener with X, PUTs a selected encrypted block with Square, or GETs the configured CID with Triangle. Direct port 39718, one operation per listener. No automatic discovery or relay, so direct peers see each other's LAN IP.
 
-Install by extracting PPSA99718.zip into /data/homebrew and registering with your compatible homebrew loader.
+Source and CI: https://github.com/Yahballon/tmp_lap/tree/main/homebrew/ps5-meshcloud
+
+Native PS5 hardware validation remains required after a successful GitHub build. Build result is not proof of secure peer storage auditing.
