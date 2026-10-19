@@ -201,7 +201,8 @@ bool hashes(const unsigned char* bytes,std::size_t length,
         n==hash.size()&&hash==expected;
 }
 bool ingest(SSL* tls,const fs::path& data_path,const fs::path& ledger_path,
-  const admission::PublicKey& identity,std::uint64_t exact_bytes,std::string& error){
+  const admission::PublicKey& identity,std::uint64_t exact_bytes,std::string& error,
+  const Progress& progress){
  if(!is_absent(data_path)||!is_absent(ledger_path)){
   error="Audit sentinel or ledger already exists; refusing overwrite";return false;
  }
@@ -255,6 +256,8 @@ bool ingest(SSL* tls,const fs::path& data_path,const fs::path& ledger_path,
      !fd_write(data_fd,buf.data(),length)){
    okay=false;error="Provisioning interrupted or SHA256 block mismatch";break;
   }
+  if(progress && ((i+1)%256==0 || i+1==ledger.block_hashes.size()))
+   progress(offset+length,exact_bytes);
  }
  if(!fd_close(data_fd)) {okay=false;error="Could not fsync received sentinel"; }
  std::fill(buf.begin(),buf.end(),0);
@@ -287,7 +290,8 @@ bool ingest(SSL* tls,const fs::path& data_path,const fs::path& ledger_path,
 bool receive_once(const std::string& bind_ipv4,std::uint16_t tcp_port,
  EVP_PKEY* node_key,const std::vector<admission::PublicKey>& auditors,
  const fs::path& data,const fs::path& ledger,
- std::uint64_t exact_bytes,std::string& error){
+ std::uint64_t exact_bytes,std::string& error,
+ const Progress& progress){
  error.clear();
  admission::PublicKey identity{};
  if(!sockets_ready()||auditors.empty()||!get_public(node_key,identity)||
@@ -322,14 +326,15 @@ bool receive_once(const std::string& bind_ipv4,std::uint16_t tcp_port,
     !known(tls.get(),auditors)){
   error="Rejected TLS client: auditor identity not pre-pinned";return false;
  }
- const bool success=ingest(tls.get(),data,ledger,identity,exact_bytes,error);
- if(success)SSL_shutdown(tls.get());
- return success;
+ const bool complete=ingest(tls.get(),data,ledger,identity,exact_bytes,error,progress);
+ if(complete)SSL_shutdown(tls.get());
+ return complete;
 }
 bool send_once(const std::string& ip,std::uint16_t tcp_port,
  EVP_PKEY* auditor_key,const admission::PublicKey& pinned_node,
  const fs::path& source,const fs::path& ledger_path,
- std::uint64_t exact_bytes,std::string& error){
+ std::uint64_t exact_bytes,std::string& error,
+ const Progress& progress){
  error.clear();
  admission::PublicKey auditor{};
  if(!sockets_ready()||!get_public(auditor_key,auditor)||
@@ -388,6 +393,8 @@ bool send_once(const std::string& ip,std::uint16_t tcp_port,
      !write_exact(tls.get(),buf.data(),amount)){
    error="Sending 13 GiB block failed or source hash changed";return false;
   }
+  if(progress && ((i+1)%256==0 || i+1==ledger.block_hashes.size()))
+   progress(offset+amount,exact_bytes);
  }
  std::fill(buf.begin(),buf.end(),0);
  if(!read_exact(tls.get(),acknowledgement,4)||
