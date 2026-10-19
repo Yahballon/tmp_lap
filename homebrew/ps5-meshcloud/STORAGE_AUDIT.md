@@ -24,13 +24,14 @@ meshcloud-audit.exe local-check C:\MeshCloud\node\random-storage.bin C:\MeshClou
 
 It retains both files intentionally: the node's 10-GiB sample data, and the small auditor hash ledger. The tool generates a fresh random test identity and performs one randomized 48-block test. It will not overwrite existing files and requires 2 GiB additional disk headroom.
 
-**A local test is NOT an independent proof of storage**. For authentic independent membership, each separate auditor must securely provision unpredictable bytes, retain its own ledger/private signing key outside the claimant machine, challenge a remote node over authenticated transport with strict deadlines, confirm persistent storage over time, and issue a ticket. The present audit module is transport-neutral; **remote challenge transport, multi-auditor orchestration, challenge replay state across restarts and unattended ticket renewals are still unfinished**. Do not treat this local CLI as a bypass or valid cloud onboarding.
+**A local test is NOT an independent proof of storage**. For authentic independent membership, one independently operated provisioning participant must supply a **single identity-specific 10 GiB random dataset** (NOT 10 GiB per auditor). Its committed hashes must be authenticated and distributed to at least three independently controlled auditors, each retaining the ledger and its own private signing key outside the claimant machine. Each auditor independently challenges the SAME dataset with fresh random positions and strict deadlines, verifies the response and separately signs the ticket. The present audit module is transport-neutral; **remote challenge transport, multi-auditor orchestration, challenge replay state across restarts and unattended ticket renewals are still unfinished**. Do not treat this local CLI as a bypass or valid cloud onboarding.
 
 ## Security limits and tradeoffs
 
 - Sampling proves *probabilistic retrievability* of auditor-created incompressible data, not exclusive use of a local HDD. A remote storage farm with sufficiently fast links might still answer challenges.
 - Audit data should not be derived from a seed known to the node: then it could regenerate the bytes instead of storing them.
-- Dataset uniqueness per node and auditor, geographically independent auditors, anti-Sybil resource cost, persistence checks and network latency limits remain critical for a production design.
+- Initial random sentinel bytes consume real capacity. When the network holds encrypted user fragments, unused sentinels should be replaced by authenticated ciphertext with independently verifiable block commitments, so the same 10 GiB contribution actually stores useful content. **This substitution is not implemented yet.**
+- Dataset uniqueness per node identity, independently governed auditor keys, anti-Sybil resource cost, persistence checks and network latency limits remain critical for a production design.
 - This is not proof that an entire user file remains available. File 90-day expiry, content replication, and shard repair remain separate mechanisms.
 - No public access is granted until 3 separately verified signatures are aggregated into a current member.ticket recognized by the TLS core.
 
