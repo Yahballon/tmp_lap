@@ -74,7 +74,7 @@ Snapshot collect(int active) {
  else if(!s.disks[static_cast<std::size_t>(index)].space_reported)
   s.error="Free capacity could not be verified on this filesystem";
  else if(!s.disks[static_cast<std::size_t>(index)].possible_local_preflight)
-  s.error="Not enough reported free space for 10 GiB plus 2 GiB margin";
+  s.error="Not enough reported free space for 13 GiB plus 2 GiB margin";
  else
   s.error="Disk passes local preflight; network membership is still LOCKED";
  return s;
