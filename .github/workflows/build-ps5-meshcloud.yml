@@ -37,6 +37,17 @@ jobs:
             homebrew/ps5-meshcloud/tests/test_storage_audit.cpp \
             -lcrypto -o /tmp/meshcloud-storage-audit-ps5-host
           /tmp/meshcloud-storage-audit-ps5-host
+      - name: Host-test pinned remote TLS storage audits without C++ exceptions
+        run: |
+          g++ -std=c++20 -fno-exceptions -fno-rtti -O2 -Wall -Wextra -Wpedantic -Werror \
+            -Ihomebrew/ps5-meshcloud/src \
+            homebrew/ps5-meshcloud/src/core.cpp \
+            homebrew/ps5-meshcloud/src/admission.cpp \
+            homebrew/ps5-meshcloud/src/storage_audit.cpp \
+            homebrew/ps5-meshcloud/src/audit_net.cpp \
+            homebrew/ps5-meshcloud/tests/test_audit_net.cpp \
+            -lssl -lcrypto -pthread -o /tmp/meshcloud-auditnet-ps5-host
+          /tmp/meshcloud-auditnet-ps5-host
       - name: Prepare native PS5 application scaffold
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
