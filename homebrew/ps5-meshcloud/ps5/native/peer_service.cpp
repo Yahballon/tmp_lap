@@ -2,6 +2,13 @@
 #include "peer_service.hpp"
 #include "p2p_tls.hpp"
 #include "p2p_config.hpp"
+#include "audit_net.hpp"
+#include "ticket_issue.hpp"
+#include "storage_audit.hpp"
+#include <openssl/pem.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "peer_discovery.hpp"
 #include "cid.hpp"
 #include "core.hpp"
@@ -81,7 +88,122 @@ bool PeerService::listen(){return launch(Action::Listen);}
 bool PeerService::send_local(const std::string& path){return launch(Action::Put,path);}
 bool PeerService::fetch_cid(){return launch(Action::Get);}
 bool PeerService::discover(){return launch(Action::Discover);}
+bool PeerService::audit_listen(){return launch(Action::AuditListen);}
+bool PeerService::make_member_request(){return launch(Action::CreateTicketRequest);}
 void PeerService::run(Action action,const std::string& path) {
+ if(action==Action::CreateTicketRequest) {
+  const auto keyfile=home/"p2p"/"identity.pem";
+  std::error_code fs_error;
+  fs::create_directories(home/"p2p",fs_error);
+  if(fs_error){report("Ticket LOCKED: inaccessible private config directory");return;}
+  if(!fs::exists(keyfile,fs_error)&&!fs_error) {
+   // Native keygen: never needs a PC copy of the node's private key.
+   // Fail closed on existing symlink or a competing file creator.
+   EVP_PKEY_CTX* ctx=EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519,nullptr);
+   EVP_PKEY* generated=nullptr;
+   const bool generated_ok=ctx&&EVP_PKEY_keygen_init(ctx)==1&&
+       EVP_PKEY_keygen(ctx,&generated)==1;
+   if(ctx)EVP_PKEY_CTX_free(ctx);
+   if(!generated_ok){
+    if(generated)EVP_PKEY_free(generated);
+    report("Ticket LOCKED: PS5 secure Ed25519 keygen failed");return;
+   }
+   const int fd=open(keyfile.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+   if(fd<0){
+    EVP_PKEY_free(generated);
+    report("Ticket LOCKED: identity exists or secure create failed");return;
+   }
+   FILE* stream=fdopen(fd,"w");
+   if(!stream){
+    close(fd);unlink(keyfile.c_str());EVP_PKEY_free(generated);
+    report("Ticket LOCKED: identity stream failed");return;
+   }
+   BIO* dest=BIO_new_fp(stream,BIO_NOCLOSE);
+   const bool saved=dest&&PEM_write_bio_PrivateKey(dest,generated,
+     nullptr,nullptr,0,nullptr,nullptr)==1&&
+     BIO_flush(dest)==1&&fflush(stream)==0&&fsync(fd)==0;
+   if(dest)BIO_free(dest);
+   fclose(stream);EVP_PKEY_free(generated);
+   if(!saved){
+    unlink(keyfile.c_str());
+    report("Ticket LOCKED: could not securely store node identity");return;
+   }
+  }
+  BIO* bio=BIO_new_file(keyfile.string().c_str(),"r");
+  if(!bio){report("Ticket LOCKED: private identity.pem unavailable");return;}
+  EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
+     [](char*,int,int,void*)->int {return 0;},nullptr);
+  BIO_free(bio);
+  if(!key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519){
+   if(key)EVP_PKEY_free(key);
+   report("Ticket LOCKED: Ed25519 identity required");return;
+  }
+  const auto t=std::chrono::duration_cast<std::chrono::seconds>(
+       std::chrono::system_clock::now().time_since_epoch()).count();
+  meshcloud::ticket_issue::Request req{};
+  std::vector<unsigned char> bytes;std::string error;
+  const auto dest=home/"p2p"/"request.mctr";
+  const bool ok=t>0&&meshcloud::ticket_issue::request(key,
+       static_cast<std::uint64_t>(t),req)&&
+       meshcloud::ticket_issue::encode_request(req,bytes)&&
+       meshcloud::ticket_issue::write_new(dest,bytes,error);
+  EVP_PKEY_free(key);
+  if(ok)report("Signed 13 GiB ticket request.mctr saved; share PUBLIC request with 3 auditors");
+  else report("Ticket request failed: remove expired request.mctr or check storage");
+  return;
+ }
+ if(action==Action::AuditListen) {
+  // Auditor bootstrap must NEVER require a member.ticket: it is the secure
+  // pre-membership proving channel, not an escape hatch to CID operations.
+  const auto keyfile=home/"p2p"/"identity.pem";
+  BIO* bio=BIO_new_file(keyfile.string().c_str(),"r");
+  if(!bio){report("Audit LOCKED: missing identity.pem");return;}
+  EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
+     [](char*,int,int,void*)->int {return 0;},nullptr);
+  BIO_free(bio);
+  if(!key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519){
+   if(key)EVP_PKEY_free(key);
+   report("Audit LOCKED: valid Ed25519 key required");return;
+  }
+  std::vector<meshcloud::admission::PublicKey> pinned;
+  std::ifstream keys(home/"p2p"/"auditors.keys");
+  std::string hex;
+  while(std::getline(keys,hex) && pinned.size()<32) {
+   if(!hex.empty()&&hex.back()=='\r')hex.pop_back();
+   if(hex.size()!=64)continue;
+   meshcloud::admission::PublicKey pub{};
+   bool valid=true;
+   for(int i=0;i<32;i++){
+    auto digit=[](char c)->int {
+     if(c>='0'&&c<='9')return c-'0';
+     if(c>='a'&&c<='f')return c-'a'+10;
+     if(c>='A'&&c<='F')return c-'A'+10;
+     return -1;
+    };
+    const auto hi=digit(hex[2*i]),lo=digit(hex[2*i+1]);
+    if(hi<0||lo<0){valid=false;break;}
+    pub[static_cast<std::size_t>(i)]=static_cast<unsigned char>((hi<<4)|lo);
+   }
+   if(valid && pub!=meshcloud::admission::PublicKey{} &&
+      std::find(pinned.begin(),pinned.end(),pub)==pinned.end())
+    pinned.push_back(pub);
+  }
+  meshcloud::storage_audit::Ledger ledger{};
+  const auto base=home/"audit";
+  if(pinned.size()<3||!meshcloud::storage_audit::load_ledger(base/"ledger.mcal",ledger)
+     ||ledger.bytes!=meshcloud::minimum_bytes){
+   EVP_PKEY_free(key);
+   report("Audit LOCKED: need 3 pinned auditors and 13 GiB ledger");return;
+  }
+  const auto settings_file=settings();
+  std::string error;
+  const bool ok=meshcloud::audit_net::serve_one(settings_file.bind,
+    meshcloud::audit_net::port,key,pinned,base/"node-random.bin",ledger,error);
+  EVP_PKEY_free(key);
+  if(ok)report("Audit: 48 encrypted randomized storage blocks answered");
+  else report("Audit rejected: "+error);
+  return;
+ }
  meshcloud::p2p::Config config;
  std::string error;
  if(!config.load(home/"p2p",error)){
@@ -92,7 +214,7 @@ void PeerService::run(Action action,const std::string& path) {
  if(!book.open()){report("P2P: cannot access signed peer database");return;}
  const auto preflight=meshcloud::preflight("/data",meshcloud::minimum_bytes);
  if(!preflight.eligible) {
-  report("P2P LOCKED: no verified local 10 GiB + safety reserve");
+  report("P2P LOCKED: no verified local 13 GiB + safety reserve");
   return;
  }
  if(action==Action::Listen) {

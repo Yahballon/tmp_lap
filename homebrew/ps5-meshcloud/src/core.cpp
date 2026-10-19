@@ -12,8 +12,8 @@ Admission authorize(Operation operation,const VerifiedMembership& m,std::uint64_
  }
  if(!m.authenticated_identity) return {false,Denial::Identity};
  if(m.protocol!=1) return {false,Denial::Protocol};
- if(m.claimed_bytes<minimum_bytes) return {false,Denial::Quota};
- if(!m.authenticated_proof || m.audited_bytes<minimum_bytes) return {false,Denial::StorageProof};
+ if(m.claimed_bytes<minimum_bytes || m.claimed_bytes>maximum_bytes) return {false,Denial::Quota};
+ if(!m.authenticated_proof || (m.audited_bytes<minimum_bytes || m.audited_bytes>maximum_bytes)) return {false,Denial::StorageProof};
  if(m.expires_at<=now || m.expires_at-now>3600) return {false,Denial::Expired};
  return {true,Denial::None};
 }
@@ -21,8 +21,8 @@ const char* denial_message(Denial why) noexcept {
  switch(why) {
  case Denial::None:return "Membership confirmed";
  case Denial::Identity:return "Authenticated identity required";
- case Denial::Quota:return "At least 10 GiB must be contributed";
- case Denial::StorageProof:return "Authenticated 10 GiB storage audit required";
+ case Denial::Quota:return "At least 13 GiB must be contributed";
+ case Denial::StorageProof:return "Authenticated 13 GiB storage audit required";
  case Denial::Expired:return "Membership attestation expired";
  case Denial::Protocol:return "Protocol unsupported";
  }
@@ -30,7 +30,7 @@ const char* denial_message(Denial why) noexcept {
 }
 StoragePreflight preflight(const std::filesystem::path& path,std::uint64_t offered) noexcept {
  StoragePreflight r;
- if(offered<minimum_bytes) {r.message="At least 10 GiB must be contributed";return r;}
+ if(offered<minimum_bytes || offered>maximum_bytes) {r.message="At least 13 GiB must be contributed";return r;}
  if(offered>std::numeric_limits<std::uint64_t>::max()-safety_bytes) {
   r.message="Invalid quota";return r;
  }

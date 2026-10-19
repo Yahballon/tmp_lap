@@ -68,7 +68,8 @@ bool verify_member(const MemberTicket& ticket,const TrustPolicy& trusted,
  // duplicate auditors, untrusted keys or stale/replayed auditor tickets.
  if(ticket.protocol_version!=1 || !nonzero(ticket.node_identity) ||
     !nonzero(ticket.ticket_nonce) || !nonzero(nonce) || !nonzero(exporter) ||
-    ticket.offered_bytes<minimum_bytes || ticket.audited_bytes<minimum_bytes ||
+    (ticket.offered_bytes<minimum_bytes || ticket.offered_bytes>maximum_bytes) ||
+    (ticket.audited_bytes<minimum_bytes || ticket.audited_bytes>maximum_bytes) ||
     ticket.issued_at>now || now>=ticket.expires_at ||
     ticket.expires_at-ticket.issued_at>3600 ||
     trusted.quorum<3 || trusted.quorum>trusted.pinned_auditors.size() ||

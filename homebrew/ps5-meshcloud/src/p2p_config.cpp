@@ -75,7 +75,7 @@ Config::~Config(){
 }
 bool Config::load(const std::filesystem::path& root,std::string& error) {
  error.clear();
- // Unlike guest onboarding, every node must come with a pre-issued 10 GiB
+ // Unlike guest onboarding, every node must come with a pre-issued 13 GiB
  // audit ticket signed by an out-of-band quorum. Never mint one here.
  if(key_){EVP_PKEY_free(key_);key_=nullptr;}
  node_={};

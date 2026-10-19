@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 namespace meshps5 {
-constexpr std::uint64_t minimum_contribution=10ULL*1024*1024*1024;
+constexpr std::uint64_t minimum_contribution=13ULL*1024*1024*1024;
 constexpr std::uint64_t safety_headroom=2ULL*1024*1024*1024;
 struct Disk {
  std::string name,path;

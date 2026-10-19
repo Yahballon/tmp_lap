@@ -66,7 +66,11 @@ int main() {
   Operation::Metadata,Operation::Upload,Operation::Download,Operation::Publish,
   Operation::Replication,Operation::Relay};
  for(const auto op:ops)assert(authorize(op,member,now).allowed);
- auto broken=ticket;broken.offered_bytes=minimum_bytes-1;
+ auto broken=ticket;broken.offered_bytes=maximum_bytes+1;
+ assert(!verify_member(broken,trust,nonce,exporter,proof,now,member));
+ broken=ticket;broken.audited_bytes=maximum_bytes+1;
+ assert(!verify_member(broken,trust,nonce,exporter,proof,now,member));
+ broken=ticket;broken.offered_bytes=minimum_bytes-1;
  assert(!verify_member(broken,trust,nonce,exporter,proof,now,member));
  broken=ticket;broken.audited_bytes=minimum_bytes-1;
  assert(!verify_member(broken,trust,nonce,exporter,proof,now,member));

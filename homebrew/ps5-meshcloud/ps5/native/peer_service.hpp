@@ -19,10 +19,14 @@ public:
  bool fetch_cid();
  // Explicit signed getaddr from configured verified LAN peer.
  bool discover();
+ // L2: accept one independently pinned auditor before network admission.
+ bool audit_listen();
+ // R3: create node-signed 13GiB membership request without a ticket.
+ bool make_member_request();
  bool busy() const noexcept {return busy_.load();}
  std::string status() const;
 private:
- enum class Action { Listen, Put, Get, Discover };
+ enum class Action { Listen, Put, Get, Discover, AuditListen, CreateTicketRequest };
  bool launch(Action action,std::string path={});
  void run(Action action,const std::string& path);
  void report(std::string status);
