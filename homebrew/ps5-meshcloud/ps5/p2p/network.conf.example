@@ -1,0 +1,8 @@
+# MeshCloud native PS5 P2P IPv4 peer addresses.
+# Replace both addresses with the actual LAN IPv4 addresses of your PS5 and PC.
+# Copy to /data/PS5MeshCloud/p2p/network.conf
+# Never expose this test port directly to the Internet.
+bind=192.168.1.50
+peer=192.168.1.20
+# Set the exact encrypted MCB1 chunk CID before pressing TRIANGLE.
+cid=bafkrei...
