@@ -10,7 +10,7 @@
 namespace meshcloud::storage_audit {
 namespace {
 namespace fs=std::filesystem;
-constexpr std::uint64_t max_blocks=16ULL*1024*1024;
+constexpr std::uint64_t max_blocks=(meshcloud::maximum_bytes+block_bytes-1)/block_bytes;
 constexpr std::size_t header_size=4+1+32+16+8+4+4;
 bool ordinary(const fs::path& p){
  std::error_code ec;
@@ -189,9 +189,9 @@ bool sign_ticket_after_proof(EVP_PKEY* key,const Ledger& ledger,
     ticket.issued_at<proven.verified_at_||
     ticket.issued_at-proven.verified_at_>60||
     !key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519||
-    ledger.bytes<minimum_bytes||ledger.node!=ticket.node_identity||
-    ticket.audited_bytes<minimum_bytes||ticket.audited_bytes>ledger.bytes||
-    ticket.offered_bytes<minimum_bytes||ticket.expires_at<=ticket.issued_at||
+    ledger.bytes!=minimum_bytes||ledger.node!=ticket.node_identity||
+    ticket.audited_bytes!=minimum_bytes||ticket.audited_bytes>ledger.bytes||
+    ticket.offered_bytes!=minimum_bytes||ticket.expires_at<=ticket.issued_at||
     ticket.expires_at-ticket.issued_at>3600||ticket.protocol_version!=1||
     ticket.ticket_nonce==Nonce{})return false;
  std::size_t len=result.signer.size();
