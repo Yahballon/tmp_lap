@@ -440,7 +440,10 @@ LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam) {
  App* a=reinterpret_cast<App*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));
  if(msg==WM_NCCREATE){
   const auto* creation=reinterpret_cast<CREATESTRUCTW*>(lparam);
-  SetWindowLongPtrW(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(creation->lpCreateParams));
+  auto* app=reinterpret_cast<App*>(creation->lpCreateParams);
+  if(!app)return FALSE;
+  app->window=hwnd; // WM_CREATE runs before CreateWindowExW returns.
+  SetWindowLongPtrW(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(app));
   return TRUE;
  }
  if(!a)return DefWindowProcW(hwnd,msg,wparam,lparam);
