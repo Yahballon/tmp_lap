@@ -1907,6 +1907,9 @@ void Gfx::image(Texture *t, float x, float y, float w, float h, Color tint, floa
         std::memcpy(v[i].pos, pos[i], sizeof pos[i]);
         fill(v[i].uv, {local[i][0], local[i][1]});
         fill(v[i].local, {local[i][0], local[i][1]});
+        // Original UV varying remains for other renderers; use flat rect +
+        // v_local for PS5's affected image sampler interpolation.
+        fill(v[i].p2, {0.0f, 0.0f, 1.0f, 1.0f});
         fill(v[i].color, {tint.r, tint.g, tint.b, tint.a});
         fill(v[i].p0, {float(radius > 0 ? K_COVER : K_IMAGE), radius * px, 0, 0});
         fill(v[i].p1, {w * px, h * px, w * px, h * px});
@@ -1946,6 +1949,7 @@ void Gfx::image_part(Texture *t, float x, float y, float w, float h, const float
         std::memcpy(v[i].pos, pos[i], sizeof pos[i]);
         fill(v[i].uv, {uv[0] + (uv[2] - uv[0]) * local[i][0], uv[1] + (uv[3] - uv[1]) * local[i][1]});
         fill(v[i].local, {local[i][0], local[i][1]});
+        fill(v[i].p2, {uv[0], uv[1], uv[2], uv[3]});
         fill(v[i].color, {tint.r, tint.g, tint.b, tint.a});
         fill(v[i].p0, {float(radius > 0 ? K_COVER : K_IMAGE), radius * px, 0, 0});
         fill(v[i].p1, {w * px, h * px, w * px, h * px});
@@ -2050,6 +2054,7 @@ void Gfx::quad3d(Texture *t, const Corner c[4], float shape_w, float shape_h, Co
         const float ly = flip_v ? 1.0f - local[i][1] : local[i][1];
         fill(v[i].uv, {u0 + (u1 - u0) * local[i][0], v0 + (v1 - v0) * ly});
         fill(v[i].local, {local[i][0], local[i][1]});
+        fill(v[i].p2, {u0, flip_v ? v1 : v0, u1, flip_v ? v0 : v1});
         fill(v[i].color, {tint.r, tint.g, tint.b, tint.a});
         fill(v[i].p0, {float(reflection ? K_REFLECTION : K_COVER), radius * px, 0, 0});
         fill(v[i].p1, {shape_w * px, shape_h * px, shape_w * px, shape_h * px});
@@ -2224,6 +2229,7 @@ float Gfx::text(Font font, float size, float x, float y, Color c, Align a, const
                 std::memcpy(v[n].pos, pos[n], sizeof pos[n]);
                 fill(v[n].uv, {uv[n][0], uv[n][1]});
                 fill(v[n].local, {local[n][0], local[n][1]});
+                fill(v[n].p2, {g->u0, g->v0, g->u1, g->v1});
                 fill(v[n].color, {c.r, c.g, c.b, c.a});
                 /* Japanese has one weight: bolder fonts thicken it. */
                 const float w8 = g->cjk ? weight + 0.03f * float(int(font)) : weight;
@@ -2274,6 +2280,7 @@ void Gfx::text_mapped(Font font, float size, const std::string &s, Color c, Alig
                 to_clip(q[n], v[n].pos);
                 fill(v[n].uv, {uv[n][0], uv[n][1]});
                 fill(v[n].local, {local[n][0], local[n][1]});
+                fill(v[n].p2, {g->u0, g->v0, g->u1, g->v1});
                 fill(v[n].color, {c.r, c.g, c.b, c.a});
                 const float w8 = g->cjk ? weight + 0.03f * float(int(font)) : weight;
                 fill(v[n].p0, {float(K_TEXT), w8, 0, 0});

@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 root=Path(__file__).resolve().parents[1]
 app=json.loads((root/'app.json').read_text())
-assert app['version']=='1.0.17'
+assert app['version']=='1.0.18'
 assert app['hdPacks']['enabledByDefault'] is False
 mk=(root/'nes/tools/core-sources.mk').read_text()
 assert 'HAVE_HDPACK := 1' in mk

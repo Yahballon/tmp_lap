@@ -154,12 +154,14 @@ FE_INCBIN_ASSET(fe_pp_nunito_regular, "porpoise/fonts/Nunito-Regular.ttf");
 FE_INCBIN_ASSET(fe_pp_nunito_semibold, "porpoise/fonts/Nunito-SemiBold.ttf");
 FE_INCBIN_ASSET(fe_pp_nunito_bold, "porpoise/fonts/Nunito-Bold.ttf");
 FE_INCBIN_ASSET(fe_pp_nunito_extrabold, "porpoise/fonts/Nunito-ExtraBold.ttf");
+FE_INCBIN_ASSET(fe_pp_noto_jp, "porpoise/fonts/NotoSansJP-Porpoise.ttf");
 FE_INCBIN_ASSET(fe_pp_dolphin_mask, "porpoise/brand/dolphin-mask.png");
 FE_INCBIN_ASSET(fe_pp_buttons, "porpoise/ui/buttons.png");
 extern "C" const uint8_t fe_pp_nunito_regular[], fe_pp_nunito_regular_end[],
     fe_pp_nunito_semibold[], fe_pp_nunito_semibold_end[],
     fe_pp_nunito_bold[], fe_pp_nunito_bold_end[],
     fe_pp_nunito_extrabold[], fe_pp_nunito_extrabold_end[],
+    fe_pp_noto_jp[], fe_pp_noto_jp_end[],
     fe_pp_dolphin_mask[], fe_pp_dolphin_mask_end[],
     fe_pp_buttons[], fe_pp_buttons_end[];
 
@@ -182,6 +184,7 @@ bool PreparePorpoiseAssets(const std::string& root)
         {"fonts/Nunito-SemiBold.ttf", fe_pp_nunito_semibold, fe_pp_nunito_semibold_end},
         {"fonts/Nunito-Bold.ttf", fe_pp_nunito_bold, fe_pp_nunito_bold_end},
         {"fonts/Nunito-ExtraBold.ttf", fe_pp_nunito_extrabold, fe_pp_nunito_extrabold_end},
+        {"fonts/NotoSansJP-Porpoise.ttf", fe_pp_noto_jp, fe_pp_noto_jp_end},
         {"brand/dolphin-mask.png", fe_pp_dolphin_mask, fe_pp_dolphin_mask_end},
         {"ui/buttons.png", fe_pp_buttons, fe_pp_buttons_end},
     };

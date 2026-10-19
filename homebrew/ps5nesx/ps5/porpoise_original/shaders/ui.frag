@@ -16,6 +16,12 @@ layout(location = 5) flat in vec4 v_p2;
 layout(location = 6) flat in vec4 v_bcolor;
 
 layout(set = 0, binding = 0) uniform sampler2D tex;
+/* PS5NESX PS5-Vulkan workaround: textured quads reuse the v_local varying
+ * (already valid for glass gradients) and the flat UV rectangle in v_p2.
+ * On the affected GPU, the dedicated v_uv.y interpolant stays on one image
+ * row, turning all cover art and SDF fonts into coloured vertical stripes.
+ * This changes only image/text/cover sampling; original Porpoise glass,
+ * lighting, perspective, card layout and grid shader are unchanged. */
 layout(push_constant) uniform Push {
     vec4 screen; /* width px, height px, time s, background dim 0..1 */
     vec4 extra;  /* still background (0/1), background kind, colour filter, panel style */
@@ -1061,10 +1067,10 @@ vec4 shade()
     if (kind == K_FX)
         return fx(v_local);
     if (kind == K_IMAGE)
-        return texture(tex, v_uv) * v_color;
+        return texture(tex, mix(v_p2.xy, v_p2.zw, v_local)) * v_color;
     if (kind == K_TEXT)
     {
-        float dist = texture(tex, v_uv).a;
+        float dist = texture(tex, mix(v_p2.xy, v_p2.zw, v_local)).a;
         float edge = 0.5 - v_p0.y; /* p0.y > 0 makes the text heavier */
         float w = max(fwidth(dist) * 0.7, 1e-4);
         float a = smoothstep(edge - w, edge + w, dist);
@@ -1086,7 +1092,7 @@ vec4 shade()
     if (kind == K_COVER || kind == K_REFLECTION)
     {
         float d = sdRoundBox(p, shape * 0.5, v_p0.y);
-        vec4 c = texture(tex, v_uv) * v_color;
+        vec4 c = texture(tex, mix(v_p2.xy, v_p2.zw, v_local)) * v_color;
         float a = coverage(d);
         if (kind == K_REFLECTION)
             a *= pow(clamp(1.0 - v_local.y, 0.0, 1.0), 2.2);
