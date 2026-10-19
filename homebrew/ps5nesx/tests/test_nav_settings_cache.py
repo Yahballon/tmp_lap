@@ -10,7 +10,8 @@ covers=(root/'ps5/frontend/fe_covers.cpp').read_text()
 urls=(root/'nes/src/cover_urls.h').read_text()
 checks={
     "settings sheet reported": 'bool SheetVisible() const' in header,
-    "sheet on top of porpoise": '!app.SheetVisible()' in ps5,
+    "Porpoise stays active with settings": 'renderer.ExactEnabled(exact_ready && !nes_game.Active());' in ps5,
+    "sheet as only legacy overlay": 'ui.clear();' in app and 'BuildSheet(ui, W, H, k' in app,
     "Square still opens settings": 'OpenSheet(m_games.empty())' in app,
     "Porpoise header tabs removed": 'const std::string tabs[3]' not in shelf and 'Glyph::L1' not in shelf,
     "navigation wrap": 'WrappedGameIndex(m_selected, dir, n)' in app,

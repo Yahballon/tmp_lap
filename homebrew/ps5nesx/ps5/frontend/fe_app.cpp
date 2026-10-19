@@ -319,7 +319,10 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	const float W = static_cast<float>(m_renderer->width()), H = static_cast<float>(m_renderer->height());
 	const float k = H / 2160.0f;
 	const float t = static_cast<float>(m_time);
-	if (m_cfg.exact) m_cfg.exact->Select(m_selected,m_scroll,m_time,clock);
+	if (m_cfg.exact) {
+        m_cfg.exact->Select(m_selected,m_scroll,m_time,clock);
+        m_cfg.exact->SetCoverProgress(m_covers ? m_covers->Progress() : CoverProgress{});
+    }
 	const Mat4 proj = Mat4::Perspective(Radians(kFovY), W / H, 0.1f, 60.0f);
 	// vk-285-114: with the options sheet open on the right, the shelf slides left (the camera moves right), so the
 	// picked case stays in view beside its settings.
@@ -623,8 +626,27 @@ void App::Build(FrameDesc& f, const std::string& clock)
 		}
 	}
 
-	if (m_nfs_keyboard_open)
-		BuildNfsKeyboard(ui, W, H, k);
+	if (m_cfg.exact)
+    {
+        f.boxes.clear();
+        f.reflections.clear();
+        f.halo = HaloDraw();
+        f.backdrop_set = VK_NULL_HANDLE;
+        // Keep Porpoise as the *only* background. Old PS5NESX black plastic
+        // cases, legacy text and button hints must never reappear in Settings.
+        // The native options/keyboard are the only UI drawn over Porpoise.
+        ui.clear();
+        if (m_sheet_anim > 0.001f)
+        {
+            Fonts::AddRoundedRect(ui, 0, 0, W, H, 0,
+                Rgba(0.005f, 0.015f, 0.045f, 0.64f * sheet_e));
+            BuildSheet(ui, W, H, k, Rgba(0.30f, 0.62f, 1.0f));
+        }
+        if (m_nfs_keyboard_open)
+            BuildNfsKeyboard(ui, W, H, k);
+    }
+    else if (m_nfs_keyboard_open)
+        BuildNfsKeyboard(ui, W, H, k);
 }
 
 // ---- vk-285-114: the options sheet ---------------------------------------------------------------------------------

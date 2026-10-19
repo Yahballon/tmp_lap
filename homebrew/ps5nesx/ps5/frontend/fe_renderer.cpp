@@ -1004,6 +1004,11 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 			sizeof(post), post);
 		m_vk->vkCmdBindVertexBuffers(cmd, 0, 1, &m_quad_vb.buffer, &zero);
 		m_vk->vkCmdDraw(cmd, 3, 1, 0, 0);
+		// Original Porpoise blue-glass library is the complete background.
+		// Draw the native Settings sheet *after* it (not the old black shelf).
+		// Rebind PS5NESX's own pipeline, descriptors and vertex buffer after
+		// Porpoise changed the Vulkan graphics state.
+		if (m_exact_enabled && m_exact_draw) m_exact_draw(cmd);
 		if (!f.ui.empty() && m_atlas_set)
 		{
 			m_vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ui);
@@ -1011,7 +1016,6 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 			m_vk->vkCmdBindVertexBuffers(cmd, 0, 1, &s.ui.buffer, &zero);
 			m_vk->vkCmdDraw(cmd, static_cast<uint32_t>(f.ui.size()), 1, 0, 0);
 		}
-		if (m_exact_enabled && m_exact_draw) m_exact_draw(cmd);
 		m_vk->vkCmdEndRenderPass(cmd);
 	}
 
