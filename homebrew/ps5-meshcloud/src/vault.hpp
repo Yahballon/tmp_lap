@@ -4,10 +4,12 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 namespace meshcloud {
 using FileKey=std::array<unsigned char,32>;
+using ProgressCallback=std::function<bool(std::uint64_t completed,std::uint64_t total)>;
 constexpr std::size_t chunk_bytes=4*1024*1024;
 bool make_key(FileKey& key);
 bool save_key(const std::filesystem::path& path,const FileKey& key);
@@ -28,9 +30,11 @@ public:
  bool open();
  // Local-only offline functionality. Not P2P upload/download or proof of membership.
  bool import_file(const std::filesystem::path& input,std::uint64_t now,
-                  const FileKey& key,std::string& file_cid);
+                  const FileKey& key,std::string& file_cid,
+                  const ProgressCallback& progress={});
  bool export_file(const std::string& cid,const std::filesystem::path& output,
-                  const FileKey& key,std::uint64_t now);
+                  const FileKey& key,std::uint64_t now,
+                  const ProgressCallback& progress={});
  bool prune(std::uint64_t now,std::uint64_t& expired_files,std::uint64_t& deleted_blocks);
  const std::string& error() const noexcept {return error_;}
  Catalog& catalog() noexcept {return catalog_;}
