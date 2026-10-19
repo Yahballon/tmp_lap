@@ -1,6 +1,6 @@
 # PS5NESX v1.0.22 by YAHBALLON
 
-- Use the supplied neon NO COVER artwork for games without a valid local, cached or downloadable cover (also in the original Porpoise CoverFlow).
+- Use the supplied neon NO COVER artwork (embedded, JPEG) for games without a valid local, cached or downloadable cover (also in the original Porpoise CoverFlow).
 - Replace the Dolphin mark in the header with a custom blue tiger emblem.
 - Remove the Recently Browsed dock and its selection-history bookkeeping.
 - Preserve real cover download, refresh, caching and the regular fallback view.
