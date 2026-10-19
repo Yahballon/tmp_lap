@@ -1538,7 +1538,9 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	cc.url_template = kCoverUrl;
     cc.resolve_urls=nes::CoverUrls;
 	cc.allow_download = paths.allow_download;
-	cc.download_usb_only = false; // (AI-assisted) Fetch missing local, USB and NFS covers after filesystem access is ready.
+	cc.download_usb_only = false; // Auto-fetch missing covers for local, USB and NFS games.
+	std::printf("[covers] automatic downloads=%s; on-disk cache=%s; near-game priority radius=%d\n",
+		cc.allow_download ? "ON" : "OFF", cc.cache_dir.c_str(), cc.window_radius);
 	cc.download_error = [] { return g_http.last_error.empty() ? std::string("Covers: transport error") : g_http.last_error; };
 	std::printf("[frontend] starting bounded cover worker\n");
 	covers->Start(games, fonts, cc, [](const std::string& url, std::vector<uint8_t>& out) { return g_http.Get(url, out); });
@@ -1706,7 +1708,10 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
             }
         }
 		// The unmodified NES game renderer runs without any menu overlay.
-		renderer.ExactEnabled(exact_ready && !nes_game.Active());
+		// Settings sheet is rendered by PS5NESX after the background pass.
+		// Disable the full-screen Porpoise overlay while the sheet is shown,
+		// otherwise it hides the panel and Square seems to do nothing.
+		renderer.ExactEnabled(exact_ready && !nes_game.Active() && !app.SheetVisible());
 		if (!renderer.WaitForSlot())
 		{
 			ok = false;

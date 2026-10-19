@@ -125,3 +125,28 @@ Licence: GPL-3.0-or-later. No original Dolphin or console brand graphics are
 copied. This is a PS5NESX adaptation, not the entire Porpoise frontend.
 Requires on-console verification of blurred background, cover transitions,
 sound panning, memory use and game launch.
+
+## v1.0.19 — Minimal header, working settings, auto NES covers and wrap
+
+The original Porpoise library overlay hid the native PS5NESX settings sheet.
+The frontend now suspends the full-screen Porpoise renderer whenever the sheet
+is open or animating (Square), returning to the glass coverflow when closed.
+No false/inert 'Settings' header tab is shown anymore. **Removed entirely:
+Library / Save States / Settings top tabs and L1/R1 header icons.**
+The PS5NES wordmark, clock, blue glass cases and floor remain.
+
+Missing NES cover images download asynchronously using the game's title and
+the two already supported public artwork sources. A common three-digit ROM
+collection prefix (e.g. '022 Rockman 1') is stripped from lookup keys, while
+the original ROM path/title is unchanged. Local/manual covers remain first
+priority; successful network images are checked, cached atomically at
+`/data/PS5NES/cache/<NES-ROM-CRC>.jpg` and loaded offline on next boot.
+Despite the .jpg cache suffix, both JPEG and PNG bytes are accepted by the
+existing stb_image decoder. Never fetch ROMs. Download availability depends
+on user internet connection and the external artwork archives.
+
+D-pad right on the last game wraps to game 1; D-pad left on game 1 wraps to
+the last. The same applies to L1/R1 five-game jumps. At a wrap, the carousel
+snaps to the new index so it doesn't animate through the whole catalogue.
+Settings, saves, HD NES emulation and sound are preserved. Console testing
+should verify the settings sheet, fresh cover network access and wrap.

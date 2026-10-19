@@ -2,7 +2,7 @@ name: Build PS5NESX Native
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feature/ps5nesx-porpoise-original', 'fix/ps5nesx-porpoise-visible-v1017', 'fix/ps5nesx-porpoise-uv-v1018']
+    branches: [main, 'feature/ps5nesx-porpoise-original', 'fix/ps5nesx-porpoise-visible-v1017', 'fix/ps5nesx-porpoise-uv-v1018', 'fix/ps5nesx-v1019-navigation-autocovers']
     paths:
       - 'homebrew/ps5nesx/nes/**'
       - 'homebrew/ps5nesx/ps5/**'
@@ -55,6 +55,13 @@ jobs:
           python3 homebrew/ps5nesx/tests/test_porpoise_integration.py
           python3 homebrew/ps5nesx/tests/test_porpoise_visible.py
           python3 homebrew/ps5nesx/tests/test_porpoise_texture_uv.py
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            -Ihomebrew/ps5nesx/ps5/frontend \
+            -Ihomebrew/ps5nesx/nes/src \
+            homebrew/ps5nesx/tests/coverflow_navigation_test.cpp \
+            -o /tmp/ps5nesx-nav-covers-test
+          /tmp/ps5nesx-nav-covers-test
+          python3 homebrew/ps5nesx/tests/test_nav_settings_cache.py
           python3 homebrew/ps5nesx/tests/ui_layout_check.py
           python3 homebrew/ps5nesx/tests/test_hdpack_integration.py
           python3 homebrew/ps5nesx/tests/test_hd_visual_regressions.py

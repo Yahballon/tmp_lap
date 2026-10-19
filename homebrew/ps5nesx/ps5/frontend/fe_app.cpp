@@ -6,6 +6,7 @@
 #include "fe_app.h"
 #include "fe_coverflow_layout.h"
 #include "fe_exact_porpoise.h"
+#include "fe_navigation.h"
 #include "fe_i18n.h"
 
 #include <algorithm>
@@ -114,10 +115,21 @@ bool App::Step(int dir)
 	if (m_games.empty())
 		return false;
 	const int n = static_cast<int>(m_games.size());
-	const int next = std::max(0, std::min(n - 1, m_selected + dir));
+	// Wrap at either end, including L1/R1 jumps. Avoid scrolling across
+	// every intermediate game when the last cover jumps to the first.
+	if (n == 1 || dir == 0)
+		return false;
+	const int raw_next = m_selected + dir;
+	const int next = WrappedGameIndex(m_selected, dir, n);
 	if (next == m_selected)
 		return false;
+	const bool wrapped = raw_next < 0 || raw_next >= n;
 	m_selected = next;
+	if (wrapped)
+	{
+		m_scroll = static_cast<float>(next);
+		m_scroll_vel = 0.0f;
+	}
 	m_select_time = m_time;
 	if (m_covers)
 		m_covers->SetSelected(m_selected);
