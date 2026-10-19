@@ -1,4 +1,4 @@
-# MeshCloud v0.3 – Security and Network Architecture
+# MeshCloud v0.5 – Security and Network Architecture
 
 This is an implementation plan and testable shared-core specification, **not a public P2P service**.
 
@@ -46,3 +46,22 @@ The local vault already expires an unused file after 90 consecutive days. Any *c
 6. Operations/security review, abuse response, crash consistency and privacy documentation.
 
 Never enable public Internet admission purely by setting booleans in a client. The present release remains a **pre-alpha**.
+
+## v0.5: member-only encrypted shard exchange (in-memory two-node test)
+
+The new `src/exchange.{hpp,cpp}` adds a **bounded, transport-neutral CID GET/PUT service** and separate SQLite-backed, encrypted-only `SharedShardStore`.
+
+- Incoming `Upload` and `Download` frames first pass the signed-quorum `AuthenticatedPeer` validation in `wire::authenticated_parse`, including the exact session nonce and authenticated channel-exporter binding. **No authorization, no reply and no disk read/write.**
+- PUT accepts only a canonical 59-character CIDv1/raw/SHA-256, a structurally valid MCB1 encrypted chunk (at most 4 MiB+36 bytes), and a matching SHA-256 hash of the full ciphertext. Failed-CID or malformed requests are rejected *before* writing disk.
+- GET is accepted only for authenticated members, retrieves by exact CID, rehashes the stored ciphertext before sending it, and the receiver verifies CID and SHA-256 AGAIN. It never reveals file keys or plaintext.
+- A separate locked, UTF-8-path-capable SQLite catalog enforces per-store capacity, atomically recorded fragment metadata and a 90-day **staging lease**. Retried PUTs and fragment GETs do **not** extend expiration. Automatic staging-prune reconciles orphaned files after partial/crashed writes.
+- The archive is deliberately separate from the private local vault; accidentally making all private-vault files public is not possible through this endpoint.
+- `tests/test_exchange.cpp` creates ephemeral Ed25519 keys, three independent mock auditors, two local stores, and transfers a CID-addressed fake ciphertext envelope through the real gateway/framing. It tests denied guests, altered ciphertext, changed channel bindings, quota denial, replay/expiry and garbage collection.
+
+**Important:** The test harness has mock auditor signatures. It is a controlled transport-free simulation, **not evidence that remote storage proofs work.** Real issuing auditors, TLS/Noise relay transport, DHT discovery and placement/publisher-signed manifest format are unimplemented, so the desktop apps do NOT start a socket listener or permit public networking. `MCB1` header and CID matching do not by themselves prove a payload is genuine AES-GCM encryption; authenticated decryption requires the correct file key and manifest.
+
+The 90-day shard-staging lease is **not the same as the final file-level 90-day inactivity policy**. Production distributed storage must manage full-file, verified download receipts and extend all live file fragments coherently, repairing expired or lost shards before declaring the file available. An attacker should not be able to refresh a file by continuously requesting single shards.
+
+### Cautions before connecting to the Internet
+
+Choose relay-only transport and a governed, auditor-pinned trust list; bind membership to actual secure-channel exporters; enforce per-peer request limits, replay caches, identities, quotas, and revocation; integrate signed manifests and erasure-coded placement. Never expose these methods directly as HTTP endpoints or trust client-provided membership flags.
