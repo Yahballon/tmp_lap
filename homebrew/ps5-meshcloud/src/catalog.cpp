@@ -32,7 +32,9 @@ bool Catalog::exec(const char* sql) {
 }
 bool Catalog::open() {
  if(db_)return true;
- if(sqlite3_open_v2(path_.string().c_str(),&db_,
+ const auto filename=path_.u8string();
+ const std::string utf8(filename.begin(),filename.end());
+ if(sqlite3_open_v2(utf8.c_str(),&db_,
     SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE|SQLITE_OPEN_FULLMUTEX,nullptr)!=SQLITE_OK) {
   error_=db_?sqlite3_errmsg(db_):"Database open failed";
   if(db_){sqlite3_close(db_);db_=nullptr;}return false;
@@ -52,6 +54,17 @@ bool Catalog::open() {
     !exec("CREATE INDEX IF NOT EXISTS idx_expires ON files(expires_at);")) {
   sqlite3_close(db_);db_=nullptr;return false;
  }
+ // Compatible migration for vault databases created by v0.2/v0.3.
+ // Keep historical CIDs, timestamps and reference counts unchanged.
+ auto columns=prepare(db_,"SELECT 1 FROM pragma_table_info('files') WHERE name='display_name'");
+ if(!columns) {error_="Cannot inspect catalog schema";return false;}
+ const int rc=sqlite3_step(columns.get());
+ if(rc==SQLITE_DONE) {
+  columns.reset();
+  if(!exec("ALTER TABLE files ADD COLUMN display_name TEXT NOT NULL DEFAULT '';"))return false;
+ }else if(rc!=SQLITE_ROW) {
+  error_=sqlite3_errmsg(db_);return false;
+ }
  return true;
 }
 bool Catalog::begin(){return exec("BEGIN IMMEDIATE;");}
@@ -66,8 +79,8 @@ bool Catalog::register_file(const CatalogEntry& e,const std::vector<std::string>
   return false;
  for(const auto& c:chunks)if(!cid::validate(c))return false;
  if(!begin())return false;
- auto file=prepare(db_,"INSERT INTO files(cid,bytes,created_at,last_success,expires_at,complete_count) "
-                       "VALUES(?1,?2,?3,?4,?5,0)");
+ auto file=prepare(db_,"INSERT INTO files(cid,bytes,created_at,last_success,expires_at,complete_count,display_name) "
+                       "VALUES(?1,?2,?3,?4,?5,0,?6)");
  auto block=prepare(db_,"INSERT INTO file_blocks(file_cid,sequence,block_cid) VALUES(?1,?2,?3)");
  bool ok=file&&block;
  if(ok) {
@@ -76,6 +89,8 @@ bool Catalog::register_file(const CatalogEntry& e,const std::vector<std::string>
    sqlite3_bind_int64(file.get(),3,static_cast<sqlite3_int64>(e.created_at))==SQLITE_OK &&
    sqlite3_bind_int64(file.get(),4,static_cast<sqlite3_int64>(e.last_successful_download))==SQLITE_OK &&
    sqlite3_bind_int64(file.get(),5,static_cast<sqlite3_int64>(e.expires_at))==SQLITE_OK &&
+   e.display_name.size()<=2048 &&
+   bind_text(file.get(),6,e.display_name) &&
    sqlite3_step(file.get())==SQLITE_DONE;
  }
  for(std::size_t i=0;ok&&i<chunks.size();i++) {
@@ -91,7 +106,7 @@ bool Catalog::register_file(const CatalogEntry& e,const std::vector<std::string>
 }
 bool Catalog::find(const std::string& id,CatalogEntry& entry) {
  if(!db_||!cid::validate(id))return false;
- auto s=prepare(db_,"SELECT cid,bytes,created_at,last_success,expires_at,complete_count "
+ auto s=prepare(db_,"SELECT cid,bytes,created_at,last_success,expires_at,complete_count,display_name "
                     "FROM files WHERE cid=?1");
  if(!s||!bind_text(s.get(),1,id)||sqlite3_step(s.get())!=SQLITE_ROW)return false;
  entry.cid=reinterpret_cast<const char*>(sqlite3_column_text(s.get(),0));
@@ -100,6 +115,36 @@ bool Catalog::find(const std::string& id,CatalogEntry& entry) {
  entry.last_successful_download=static_cast<std::uint64_t>(sqlite3_column_int64(s.get(),3));
  entry.expires_at=static_cast<std::uint64_t>(sqlite3_column_int64(s.get(),4));
  entry.completed_downloads=static_cast<std::uint64_t>(sqlite3_column_int64(s.get(),5));
+ const auto* name=reinterpret_cast<const char*>(sqlite3_column_text(s.get(),6));
+ entry.display_name=name?name:"";
+ return true;
+}
+bool Catalog::list_live(std::uint64_t now,std::vector<CatalogEntry>& result,std::size_t limit) {
+ result.clear();
+ if(!db_||!legal_time(now)||limit==0||limit>10000)return false;
+ auto statement=prepare(db_,"SELECT cid,bytes,created_at,last_success,expires_at,"
+                           "complete_count,display_name FROM files WHERE expires_at>?1 "
+                           "ORDER BY created_at DESC,cid LIMIT ?2");
+ if(!statement ||
+    sqlite3_bind_int64(statement.get(),1,static_cast<sqlite3_int64>(now))!=SQLITE_OK ||
+    sqlite3_bind_int64(statement.get(),2,static_cast<sqlite3_int64>(limit))!=SQLITE_OK)
+  return false;
+ int rc=SQLITE_OK;
+ while((rc=sqlite3_step(statement.get()))==SQLITE_ROW) {
+  CatalogEntry entry;
+  const auto* id=reinterpret_cast<const char*>(sqlite3_column_text(statement.get(),0));
+  const auto* name=reinterpret_cast<const char*>(sqlite3_column_text(statement.get(),6));
+  if(!id||!cid::validate(id)){result.clear();return false;}
+  entry.cid=id;
+  entry.bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),1));
+  entry.created_at=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),2));
+  entry.last_successful_download=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),3));
+  entry.expires_at=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),4));
+  entry.completed_downloads=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),5));
+  entry.display_name=name?name:"";
+  result.push_back(std::move(entry));
+ }
+ if(rc!=SQLITE_DONE){result.clear();return false;}
  return true;
 }
 bool Catalog::blocks(const std::string& id,std::vector<std::string>& chunks) {

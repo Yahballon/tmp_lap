@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <cstdint>
+#include <filesystem>
 #include <string>
 namespace meshcloud {
 constexpr std::uint64_t minimum_bytes = 10ULL*1024*1024*1024;
@@ -20,5 +21,5 @@ struct StoragePreflight {
   std::uint64_t free_bytes=0;
   std::string message;
 };
-StoragePreflight preflight(const std::string& path,std::uint64_t offered_bytes) noexcept;
+StoragePreflight preflight(const std::filesystem::path& path,std::uint64_t offered_bytes) noexcept;
 }

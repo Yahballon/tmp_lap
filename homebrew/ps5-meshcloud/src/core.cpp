@@ -28,7 +28,7 @@ const char* denial_message(Denial why) noexcept {
  }
  return "Access denied";
 }
-StoragePreflight preflight(const std::string& path,std::uint64_t offered) noexcept {
+StoragePreflight preflight(const std::filesystem::path& path,std::uint64_t offered) noexcept {
  StoragePreflight r;
  if(offered<minimum_bytes) {r.message="At least 10 GiB must be contributed";return r;}
  if(offered>std::numeric_limits<std::uint64_t>::max()-safety_bytes) {

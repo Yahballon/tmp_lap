@@ -261,7 +261,8 @@ bool LocalVault::read_block(const std::string& cid,std::vector<unsigned char>& d
  return read_cid_block(root_/"blocks"/(cid+".mcb"),cid,data);
 }
 bool LocalVault::import_file(const fs::path& source,std::uint64_t now,
-                             const FileKey& key,std::string& id) {
+                             const FileKey& key,std::string& id,
+                             const ProgressCallback& progress) {
  id.clear();std::error_code ec;
  if(!fs::is_regular_file(source,ec)||ec){error_="Source is not a regular file";return false;}
  std::ifstream in(source,std::ios::binary);
@@ -298,9 +299,10 @@ bool LocalVault::import_file(const fs::path& source,std::uint64_t now,
   manifest<<block_id<<"\n";
   block_ids.push_back(block_id);
   total+=static_cast<std::uint64_t>(got);
-  if(!manifest.good()){good=false;break;}
+  if(!manifest.good() || (progress && !progress(total,size))){good=false;break;}
   if(in.eof())break;
  }
+ if(good && progress && total==0 && !progress(0,0))good=false;
  manifest.flush();good=good&&manifest.good()&&total==size;
  manifest.close();
  if(!good){error_="Streaming import failed or input changed";fs::remove(temp,ec);return false;}
@@ -312,7 +314,9 @@ bool LocalVault::import_file(const fs::path& source,std::uint64_t now,
  if(fs::exists(dst)){error_="Duplicate manifest";fs::remove(temp,ec);return false;}
  fs::rename(temp,dst,ec);
  if(ec){error_="Could not finalize manifest";fs::remove(temp,ec);return false;}
- CatalogEntry e{manifest_id,total,now,now,now+retention_seconds,0};
+ CatalogEntry e{manifest_id,total,now,now,now+retention_seconds,0,{}};
+ const auto filename=source.filename().u8string();
+ e.display_name=std::string(filename.begin(),filename.end());
  if(now>static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())-retention_seconds ||
     !catalog_.register_file(e,block_ids)) {
   error_="Could not register completed local import";fs::remove(dst,ec);return false;
@@ -320,7 +324,8 @@ bool LocalVault::import_file(const fs::path& source,std::uint64_t now,
  id=manifest_id;return true;
 }
 bool LocalVault::export_file(const std::string& id,const fs::path& target,
-                             const FileKey& key,std::uint64_t now) {
+                             const FileKey& key,std::uint64_t now,
+                             const ProgressCallback& progress) {
  CatalogEntry e{};
  if(!cid::validate(id)||!catalog_.find(id,e)){error_="Unknown CID";return false;}
  if(now>=e.expires_at){error_="File expired";return false;}
@@ -358,7 +363,9 @@ bool LocalVault::export_file(const std::string& id,const fs::path& target,
   out.write(reinterpret_cast<const char*>(plain.data()),static_cast<std::streamsize>(plain.size()));
   if(!out.good()){good=false;break;}
   total+=static_cast<std::uint64_t>(plain.size());
+  if(progress && !progress(total,e.bytes)){good=false;break;}
  }
+ if(good && progress && total==0 && !progress(0,0))good=false;
  std::string extra;
  if(std::getline(manifest,extra))good=false;
  good=good&&total==e.bytes;

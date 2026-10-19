@@ -1,6 +1,6 @@
 # MeshCloud by YAHBALLON
 
-**v0.3.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
+**v0.4.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
 
 This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention; separately tested Reed-Solomon recovery and cryptographically validated short-lived membership tickets have now been added, but are not yet connected to a P2P service. **It is not yet a working P2P network or native PS5 application.**
 
@@ -32,6 +32,25 @@ The remaining limits are the underlying filesystem, free disk space, available b
 Each local file gets a **CIDv1** manifest. The canonical on-disk manifest contains the protocol version, a random 128-bit per-file salt, the exact file length, and ordered SHA2-256 CIDs of ciphertext chunks. Chunk and manifest integrity is checked on restore. Block encryption uses **AES-256-GCM** with random 96-bit nonces, with chunk index and file salt bound as authenticated data. A fresh random 256-bit file key is written to a separate user-designated key file. **Do not lose the key!** Keys are not published in CIDs.
 
 For comparison, `--cid-file FILE` computes a CIDv1 of the **raw file bytes**; that differs from the manifest CID of the encrypted imported object. A shareable CID is an identifier, not a decryption key or a membership bypass.
+
+## Windows native GUI (v0.4.0)
+
+The **Windows x64** archive now contains **two separate executables**:
+
+- `MeshCloud-GUI.exe` — real native Win32 interface (no browser/server/Electron).
+- `meshcloud.exe` — original command-line program for scripting and diagnostics.
+
+Both share **the exact same encrypted C++ storage engine and SQLite vault**.
+
+The GUI includes: editable vault folder and folder picker, local encrypted file list (name, size, expiry, CID), native file dialogs for imports and restores, generated private-key export, CID copy, local raw-file CID hashing, 90-day expiration cleanup, progress indication, cancellation of chunk-based imports/restores, and an always-visible **NETWORK LOCKED** state.
+
+Operations run in a background worker; the UI remains responsive while handling large files. The GUI refuses to overwrite an existing key or recovered file. Select a file in the table to populate its CID, click **Restore selected**, choose its matching saved `.key` file, then choose an output path.
+
+The GUI does **not** falsely pretend to be connected to other PS5 or desktop nodes. It cannot currently search the public MeshCloud network or perform a remote upload/download. The 10-GiB contribution rule remains mandatory for all future network features; local offline imports/restores do not grant network membership. The GUI is a pre-alpha file manager, not a released P2P cloud client.
+
+**Keep your private `.key` files outside the vault**, backed up somewhere secure. They are not embedded into CID links. Moving or deleting the key can make the stored data unrecoverable.
+
+Existing v0.3 SQLite databases are upgraded in place to show original filenames. The migration does not reset CID, retention timestamps, or encrypted data; nevertheless back up important data before running a pre-alpha application.
 
 ## Desktop build and tests
 
@@ -84,4 +103,10 @@ These limitations are intentional: do not run an unaudited storage service on th
 - `src/wire.cpp`: strict bounded (4 MiB + 4 KiB) framed network message codec. Parsed search, CID metadata, upload and download messages fail closed without verified membership. **This is not a secure socket server**.
 - See [ARCHITECTURE.md](./ARCHITECTURE.md) for precise limitations, placement guarantees, planned relays and privacy threat model.
 
-No guest access or network bypass was introduced. The v0.3.0 desktop pre-alpha remains a local vault/diagnostic client rather than a deployed cloud network.
+No guest access or network bypass was introduced. The v0.4.0 desktop pre-alpha remains a local vault/diagnostic client rather than a deployed cloud network.
+
+## v0.4 desktop build changes
+
+GitHub Actions builds both Windows apps in the same MSVC x64 job. The artifact `meshcloud-windows-x64.zip` contains `MeshCloud-GUI.exe` **and** `meshcloud.exe`, plus the OpenSSL/SQLite DLLs required by the dynamic vcpkg toolchain. Linux and macOS retain the CLI. The GUI backend adds migration, file listing, cancellation and stream roundtrip tests to CI.
+
+The Windows GUI is an offline app in this pre-alpha. It does not collect or transmit IP addresses because it opens no P2P connections. Once real network connections exist, relays will still observe the client's IP; anonymization is not guaranteed.

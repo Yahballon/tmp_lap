@@ -11,6 +11,7 @@ struct CatalogEntry {
  std::string cid;
  std::uint64_t bytes=0,created_at=0,last_successful_download=0,expires_at=0;
  std::uint64_t completed_downloads=0;
+ std::string display_name;
 };
 class Catalog {
 public:
@@ -22,6 +23,7 @@ public:
  const std::string& error() const noexcept {return error_;}
  bool register_file(const CatalogEntry& entry,const std::vector<std::string>& block_cids);
  bool find(const std::string& cid,CatalogEntry& entry);
+ bool list_live(std::uint64_t now,std::vector<CatalogEntry>& results,std::size_t max_count=1000);
  bool blocks(const std::string& cid,std::vector<std::string>& ordered);
  // Called only AFTER an authenticated, complete, hash-verified transfer.
  // Not triggered by search, partial download, or heartbeat.
