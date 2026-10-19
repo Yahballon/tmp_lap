@@ -324,6 +324,17 @@ bool tls_link(SSL* ssl,Socket fd,bool server,const NodeIdentity& local,
  return handshake(ssl,local,peer,nonce,exporter,error);
 }
 }
+bool serialize_member_ticket(const admission::MemberTicket& ticket,
+                             std::vector<std::uint8_t>& bytes) {
+ admission::Challenge empty{};
+ return encode_ticket(ticket,empty,bytes);
+}
+bool parse_member_ticket(const std::vector<std::uint8_t>& bytes,
+                         admission::MemberTicket& ticket) {
+ admission::Challenge empty{};
+ if(!decode_ticket(bytes,ticket,empty))return false;
+ return empty==admission::Challenge{};
+}
 bool verify_tls_peer_credentials(EVP_PKEY* tls_pub,
  const admission::MemberTicket& ticket,
  const std::vector<admission::PublicKey>& pinned) {
