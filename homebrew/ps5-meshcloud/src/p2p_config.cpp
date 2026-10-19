@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iterator>
 #include <openssl/pem.h>
+#include <openssl/crypto.h>
 #include <system_error>
 namespace meshcloud::p2p {
 namespace {
@@ -84,9 +85,10 @@ bool Config::load(const std::filesystem::path& root,std::string& error) {
  }
  BIO* bio=BIO_new_mem_buf(secret.data(),static_cast<int>(secret.size()));
  if(!bio){error="Could not parse private key";return false;}
- EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,nullptr,nullptr);
+ EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
+     [](char*,int,int,void*)->int {return 0;},nullptr);
  BIO_free(bio);
- std::fill(secret.begin(),secret.end(),0);
+ OPENSSL_cleanse(secret.data(),secret.size());
  if(!key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519){
   if(key)EVP_PKEY_free(key);
   error="Private key must be an Ed25519 PEM key";return false;
