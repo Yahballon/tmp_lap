@@ -1,18 +1,41 @@
 # MeshCloud by YAHBALLON
 
-Security-first, cross-platform cooperative storage prototype for **PS5, Windows, Linux and macOS**.
+**v0.2.0 pre-alpha – encrypted streaming local vault + 90-day lifecycle + CIDv1**
 
-## Rule 1: mandatory 10 GiB contribution
+This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code currently implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault and a durable 90-day retention catalog. **It is not yet a working P2P network or native PS5 application.**
 
-Every node must contribute at least **10 GiB (10 * 1024^3 bytes)** of **audited usable** storage before it can participate in **any network operation**. No exceptions: search, listings, uploads, downloads, metadata, replication and relays are all members-only. No guest or read-only mode.
+## Non-negotiable network membership rule
 
-The client checks locally for both a configured 10 GiB minimum and **12 GiB available on disk** (10 GiB contribution + 2 GiB emergency margin) as a preliminary safety check. This **does not prove remote storage**. Future membership requires peer-authenticated, expiring proof-of-storage audits. A self-reported number, sparse file or UI checkbox cannot qualify.
+**Every participant contributes at least 10 GiB of verified, usable storage. No guest mode.** Without a cryptographically authenticated identity and a current, independently audited 10-GiB storage proof, the future network must deny ALL operations: discovery, search, listings, CID resolution, metadata, uploads, downloads, publication, replication, and relaying.
 
-Until the peer identity / proof protocol is implemented and audited, all network endpoints remain disabled (fail closed). Desktop binaries from this first phase are local diagnostics, **not yet functioning MeshCloud peers**.
+`src/core.cpp` implements the shared fail-closed admission policy. `preflight()` requires 10 GiB configured and the offered quota **plus 2 GiB emergency headroom** initially free locally. Free-space checks are **not** remote proof-of-storage; neither UI settings nor sparse files count. Until authenticated peer proofs are available, the entire network remains disabled.
 
-## Desktop builds
+**Local import/export commands are offline file-management operations on the user's own vault**, not uploads/downloads from the P2P network. They never make the owner a member.
 
-CMake C++20 project, built on Windows (MSVC), Linux (GCC), and macOS (AppleClang).
+## 90-day file expiration
+
+- A file expires **90 x 24 hours after initial successful import** unless completely restored/downloaded.
+- A **fully authenticated, integrity-verified, successfully finalized** local restore renews the expiry to **90 x 24 hours after that restore**.
+- Failed/wrong-key/partial restores, CID lookups, file searches, heartbeats, and metadata reads **do not renew** the timer.
+- On any local vault command, the app automatically runs expiry collection. `--prune` runs it manually.
+- Expired records are removed in a SQLite transaction; physical encrypted blocks are deleted **only if no live file references them**. Downloaded copies outside the vault are never touched.
+- TTL is stored as integer UTC epoch seconds, not local timezone dates. The system clock must be trustworthy; future network use requires authenticated completion receipts and clock-skew policy.
+
+**Replication across peers, distributed expiration, anti-replay download receipts and a network GC consensus are not implemented yet.**
+
+## Large files, no artificial per-file limit
+
+Files are streamed in **4 MiB encrypted chunks** with constant-size data buffers; the CID file utility streams with a 1 MiB buffer. Files are not read entirely into RAM. The previous 32 MiB CID command limit is removed.
+
+The remaining limits are the underlying filesystem, free disk space, available block index memory, and the metadata/database's signed 64-bit file-size representation (up to approximately 8 EiB). This is not an unlimited quota: nodes still have an allocation and must preserve disk headroom.
+
+Each local file gets a **CIDv1** manifest. The canonical on-disk manifest contains the protocol version, a random 128-bit per-file salt, the exact file length, and ordered SHA2-256 CIDs of ciphertext chunks. Chunk and manifest integrity is checked on restore. Block encryption uses **AES-256-GCM** with random 96-bit nonces, with chunk index and file salt bound as authenticated data. A fresh random 256-bit file key is written to a separate user-designated key file. **Do not lose the key!** Keys are not published in CIDs.
+
+For comparison, `--cid-file FILE` computes a CIDv1 of the **raw file bytes**; that differs from the manifest CID of the encrypted imported object. A shareable CID is an identifier, not a decryption key or a membership bypass.
+
+## Desktop build and tests
+
+C++20, CMake, OpenSSL 3-compatible Crypto API, SQLite3.
 
 ```sh
 cmake -S homebrew/ps5-meshcloud -B build/meshcloud -DCMAKE_BUILD_TYPE=Release
@@ -20,36 +43,36 @@ cmake --build build/meshcloud --config Release
 ctest --test-dir build/meshcloud -C Release --output-on-failure
 ```
 
-Run `meshcloud --storage <directory> --quota-gib 10` to check local disk eligibility, or `meshcloud --help`. No network traffic is initiated.
+GitHub Actions: [Build MeshCloud Desktop](../../.github/workflows/build-meshcloud-desktop.yml) targets Ubuntu x64, Windows x64, and macOS arm64. CI tests membership denial, standard CID vector, streaming 35 MiB roundtrip, wrong-key recovery rejection, and time-driven expiry + physical block deletion. A workflow definition in GitHub does **not** establish successful CI execution; check the Actions run result.
 
-GitHub Actions: `.github/workflows/build-meshcloud-desktop.yml` compiles/tests all desktop targets and publishes downloadable CI artifacts on push to main.
+### Desktop CLI examples
 
-## Architecture
+```sh
+meshcloud --help
+meshcloud --storage ./mesh-vault --quota-gib 10
+meshcloud --cid-file /path/to/large-file.iso
 
-- Native C++ shared core, with PS5-DevBridge-based UI as a later platform adapter.
-- Encrypted content-addressed blocks and signed manifests planned; AES-GCM keys must never be shared with storage providers.
-- Peer authentication, short-lived membership credentials backed by randomly sampled storage challenges, anti-Sybil controls and rate limiting planned.
-- Relay-only mode preferred to avoid exposing IPs to direct peers, although relays necessarily see connecting source IPs. **No absolute IP-anonymity claim**.
-- DHT discovery and member-authenticated public metadata search planned. Private files excluded from public index.
-- Reed-Solomon coding, independently placed fragments, recovery and automated repair planned.
-- Secure updates, filesystem sandboxing, telemetry opt-in, abuse controls and security audits required before public launch.
+# Local-only encrypted file import / export (NOT an upload/download to other nodes):
+meshcloud --storage ./mesh-vault --local-import /path/to/large-file.iso --key-out ./my-private.key
+meshcloud --storage ./mesh-vault --info bafkrei...
+meshcloud --storage ./mesh-vault --local-export bafkrei... --key-file ./my-private.key --out ./recovered.iso
+meshcloud --storage ./mesh-vault --prune
+```
 
-### Honest project status
+The import prints a full manifest CID to use with local info/export. An existing output file or key file will not be overwritten. Keep the private key file on a trusted disk, ideally outside the shared storage folder. Disk storage used by incomplete or interrupted imports can leave orphan blocks that are collected by a subsequent prune.
 
-**v0.1.0 pre-alpha: desktop storage preflight + admission policy + tests/CI.**
-Not a finished PS5 app, not yet a cross-platform P2P network, no real remote membership auditing or downloads.
+## Security boundaries and work required before a real release
 
-## Research
+- **Unimplemented:** authenticated P2P encrypted transports, DHT discovery, relay-only mode, public search indexing, interoperable network CID fetching, distributed shard transfer, audit-backed membership credentials, erasure coding, placement and repair, native PS5 UI/package.
+- **Unimplemented:** cross-process transaction/file-locking for parallel vault commands, operational DoS/rate-limit controls, anti-Sybil enforcement, an encrypted private catalog, crash-safe fsync guarantees on every platform, independent security review.
+- **Security limitations:** Key-file ACLs rely on host OS filesystem permissions; isolate the vault from untrusted local users. A local CLI cannot prove 10 GiB storage to remote nodes. Nonces are random and AES-GCM must never be reused with the same key/nonce pair.
+- **IP privacy:** Even relay-only networking would reveal a participant's connection IP to the relays, which can also observe Peer IDs. Direct P2P exposes IPs to other direct peers. There is no guarantee of anonymity. See [libp2p Circuit Relay](https://libp2p.io/docs/circuit-relay/).
+- **Legal operations:** Future distributed content sharing needs abuse reporting, opt-in sharing, user data protection and legitimate takedown procedures.
 
-- https://docs.libp2p.io/
-- https://tahoe-lafs.readthedocs.io/
-- https://github.com/Yahballon/PS5-DevBridge
+These limitations are intentional: do not run an unaudited storage service on the open Internet merely because an offline prototype compiles.
 
-## CID sharing (CIDv1)
+## References
 
-Every immutable raw block can be identified by an interoperable CIDv1 using raw multicodec (0x55), SHA2-256 multihash (0x12), and multibase lowercase base32 (b...). Example CID for an empty raw block:
-`bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku`.
-
-File-level sharing requires a **canonical, signed manifest CID** that references encrypted shard CIDs, erasure-code settings, and integrity metadata. This manifest format, key-sharing scheme and peer-to-peer CID resolution remain future work. Sharing a CID alone does NOT reveal the decryption key and does NOT bypass Rule 1: even CID lookups and downloads require a verified 10 GiB member.
-
-Content IDs must hash the exact published bytes; encrypted and unencrypted bytes produce different CIDs. Never treat a filename as a content identifier. The current desktop build includes CIDv1 encode/validate tests, **not a distributed CID lookup service**.
+- [libp2p documentation](https://docs.libp2p.io/)
+- [Tahoe-LAFS concepts](https://tahoe-lafs.readthedocs.io/)
+- [PS5-DevBridge](https://github.com/Yahballon/PS5-DevBridge)
