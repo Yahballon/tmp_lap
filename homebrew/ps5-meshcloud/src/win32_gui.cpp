@@ -397,7 +397,12 @@ void execute_command(App& a,int action) {
   work.cid=std::string();
   const auto current=read_text(a.cid);
   if(current.size()!=59){message(a,L"Paste or select a valid CIDv1 first.");return;}
-  work.cid.assign(current.begin(),current.end());
+  for(const wchar_t c:current) {
+   if(c<0x20 || c>0x7e) {
+    message(a,L"CID contains invalid non-ASCII characters.");return;
+   }
+   work.cid.push_back(static_cast<char>(c));
+  }
   if(!meshcloud::cid::validate(work.cid)){
    message(a,L"CIDv1 is malformed.");return;
   }
