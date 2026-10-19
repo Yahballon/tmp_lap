@@ -102,6 +102,24 @@ jobs:
           python3 homebrew/ps5-meshcloud/ps5/assets/generate_icon.py app/sce_sys/icon0.png
           mkdir -p app/assets
           cp app/sce_sys/icon0.png app/assets/icon0.png
+      - name: Inspect upstream official OpenGL SDK release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          for version in ("v1.0.0","v1.0.1","v1.0.2"):
+              endpoint=f"https://api.github.com/repos/blackbearreloaded/ps5-opengl/releases/tags/{version}"
+              headers={"Accept":"application/vnd.github+json",
+                       "User-Agent":"MeshCloud-SDK-Audit",
+                       "Authorization":"Bearer "+os.environ["GH_TOKEN"]}
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(endpoint,headers=headers),timeout=30) as r:
+                      release=json.load(r)
+                  print(version,[(asset["name"],asset["size"],asset.get("digest")) for asset in release["assets"]])
+              except (urllib.error.HTTPError,urllib.error.URLError) as e:
+                  print(version, "GitHub release asset query failed:",str(e))
+          PY
       - name: Prepare PS5 OpenGL SDK
         working-directory: app
         env:
