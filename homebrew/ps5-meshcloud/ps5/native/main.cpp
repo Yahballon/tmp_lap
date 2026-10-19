@@ -76,7 +76,7 @@ void nav(DrawList& d,const Font& f,unsigned atlas,int page) {
   d.circle(61,y+38,10,page==i?green:Color::rgb(0x5c81b1));
   label(d,f,atlas,items[i],84,y+46,23,page==i?white:muted);
  }
- label(d,f,atlas,"10 GiB MINIMUM",48,925,19,white);
+ label(d,f,atlas,"13 GiB MINIMUM",48,925,19,white);
  label(d,f,atlas,"NO GUEST ACCESS",48,961,16,warning);
 }
 void value_row(DrawList& d,const Font& f,unsigned atlas,const std::string& name,
@@ -89,7 +89,7 @@ void display_overview(DrawList& d,const Font& f,unsigned atlas,
  const meshps5::Snapshot& snapshot,int active) {
  const auto& chosen=snapshot.disks[static_cast<std::size_t>(active)];
  metric(d,f,atlas,"NETWORK MEMBERSHIP","LOCKED",338,131,480);
- metric(d,f,atlas,"LOCAL SPACE REQUIREMENT","10 GiB + 2 GiB margin",836,131,489);
+ metric(d,f,atlas,"LOCAL SPACE REQUIREMENT","13 GiB + 2 GiB margin",836,131,489);
  metric(d,f,atlas,"LOCAL FILES",std::to_string(snapshot.files.size()),1344,131,550);
  panel(d,338,311,993,466);bar(d,f,atlas,"LOCAL STORAGE STATUS",338,311,993);
  value_row(d,f,atlas,"Selected mount",chosen.name,371,424,1297);
@@ -99,7 +99,7 @@ void display_overview(DrawList& d,const Font& f,unsigned atlas,
  value_row(d,f,atlas,"Reported available bytes",
            chosen.space_reported?meshps5::human_bytes(chosen.available_bytes):"Unavailable",
            371,583,1297);
- value_row(d,f,atlas,"10 GiB local preflight",
+ value_row(d,f,atlas,"13 GiB local preflight",
            chosen.possible_local_preflight?"PASS (disk only)":"NOT PASSED",371,636,1297,
            chosen.possible_local_preflight?green:warning);
  label(d,f,atlas,"A free-space reading is NOT remote proof of contribution.",372,722,18,warning);
@@ -108,7 +108,7 @@ void display_overview(DrawList& d,const Font& f,unsigned atlas,
  label(d,f,atlas,"Desktop local vault: AES-256-GCM",1377,461,19,muted);
  label(d,f,atlas,"CIDv1 integrity, 90-day expiry",1377,507,19,muted);
  label(d,f,atlas,"PS5 TLS + encrypted peer link available",1377,550,19,warning);
- label(d,f,atlas,"P2P requires signed 10 GiB membership",1377,594,19,warning);
+ label(d,f,atlas,"P2P requires signed 13 GiB membership",1377,594,19,warning);
  label(d,f,atlas,"No silent network connections",1377,690,19,green);
  panel(d,338,795,1556,212);bar(d,f,atlas,"RELEASE STATUS",338,795,1556);
  label(d,f,atlas,"PS5 native interface / audited TLS P2P fragment test",372,898,25);
@@ -131,7 +131,7 @@ void display_storage(DrawList& d,const Font& f,unsigned atlas,
   label(d,f,atlas,
         disk.space_reported?meshps5::human_bytes(disk.available_bytes)+" reported free":"Capacity unavailable",
         1760,y+95,22,white,Align::right);
-  label(d,f,atlas,disk.possible_local_preflight?"Local 10+2 GiB check: PASS":"Local 10+2 GiB check: NO",
+  label(d,f,atlas,disk.possible_local_preflight?"Local 13+2 GiB check: PASS":"Local 13+2 GiB check: NO",
         1760,y+137,17,disk.possible_local_preflight?green:warning,Align::right);
  }
  label(d,f,atlas,"These are filesystem reports, never proof of usable storage allocated to MeshCloud.",
@@ -162,7 +162,7 @@ void display_files(DrawList& d,const Font& f,unsigned atlas,
 void display_network(DrawList& d,const Font& f,unsigned atlas,const meshps5::PeerService& peer) {
  panel(d,338,131,1556,872);bar(d,f,atlas,"NETWORK SECURITY / FAIL-CLOSED",338,131,1556);
  const char* headings[]={
-  "Independent proof of >=10 GiB allocated storage",
+  "Independent proof of >=13 GiB allocated storage",
   "Three trusted auditor signatures",
   "Fresh authenticated peer channel / TLS exporter",
   "Relay-only transport and CID lookup",
@@ -170,7 +170,7 @@ void display_network(DrawList& d,const Font& f,unsigned atlas,const meshps5::Pee
   "Signed full-file manifests and 90-day leases"
  };
  const char* values[]={
-  "REQUIRED: externally audited 10 GiB",
+  "REQUIRED: externally audited 13 GiB",
   "Ed25519 3-of-5 verifier available",
   "TLS 1.3 exporter binding available",
   "Signed getaddr peer discovery over private LAN",
@@ -193,7 +193,7 @@ void display_about(DrawList& d,const Font& f,unsigned atlas,
   "Developer: YAHBALLON",
   "GitHub: Yahballon/tmp_lap/homebrew/ps5-meshcloud",
   "Title ID: PPSA99718",
-  "Minimum contribution rule: 10 GiB independently audited",
+  "Minimum contribution rule: 13 GiB independently audited",
   "File inactivity policy: 90 days from verified full download",
   "PS5: audited TLS, signed getaddr, CID block transfer",
   "Desktop build: local encrypted vault and testable security components",
