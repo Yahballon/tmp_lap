@@ -34,10 +34,14 @@ StoragePreflight preflight(const std::filesystem::path& path,std::uint64_t offer
  if(offered>std::numeric_limits<std::uint64_t>::max()-safety_bytes) {
   r.message="Invalid quota";return r;
  }
- try {
-  const auto root=std::filesystem::canonical(path);
-  if(!std::filesystem::is_directory(root)) {r.message="Storage directory is not a directory";return r;}
-  const auto info=std::filesystem::space(root);
+ std::error_code ec;
+ const auto root=std::filesystem::canonical(path,ec);
+ if(ec){r.message="Could not verify local storage path";return r;}
+ if(!std::filesystem::is_directory(root,ec)||ec) {
+  r.message="Storage directory is not a directory";return r;
+ }
+ const auto info=std::filesystem::space(root,ec);
+ if(ec){r.message="Could not verify local free capacity";return r;}
   if(info.available==static_cast<std::uintmax_t>(-1) ||
      info.available>std::numeric_limits<std::uint64_t>::max()) {
    r.message="Disk capacity is unknown";return r;
@@ -49,8 +53,5 @@ StoragePreflight preflight(const std::filesystem::path& path,std::uint64_t offer
   r.eligible=true;
   r.message="Local disk preflight passed; no network admission granted";
   return r;
- } catch(...) {
-  r.message="Could not verify local storage";return r;
- }
 }
 }
