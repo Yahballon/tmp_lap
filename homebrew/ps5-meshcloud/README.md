@@ -1,6 +1,6 @@
 # MeshCloud by YAHBALLON
 
-**v0.5.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
+**v0.6.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
 
 This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
 
@@ -124,3 +124,13 @@ The cross-platform core includes a member-only request handler for **encrypted**
 This is **not yet a functioning WAN/LAN cloud**: peer transport over relays, real 10 GiB storage audits, full-file receipt proofs, signed manifests, DHT filename search, multi-node placement, automatic shard repair and native PS5 installation remain unfinished. Importantly, the current Windows GUI **still operates locally**; it does not expose any P2P ports.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the threat model, the difference between per-shard staging TTL and the user-requested 90-day full-file lifetime, and planned independent relays.
+
+## v0.6 – Publisher-signed, paged ciphertext CID manifests
+
+`src/published.{hpp,cpp}` signs immutable **ciphertext-block CID pages** with Ed25519. Each page contains up to **128 encrypted block CIDv1 references**, their exact ciphertext byte lengths, the canonical parent file-manifest CID, a publisher public key, ordered page position and count, original publication time, signed lease issue time, and 90-day expiry. Pages use deterministic versioned binary transcripts with domain separation. No plaintext, filename, AES key or private identity key is exposed.
+
+The verifier requires the **expected publisher public key**, a valid Ed25519 signature on every page, all page indices in order (no gaps/repeats), identical parent CID and publication metadata, and an overflow-safe exact byte sum. Altered/missing pages, a wrong publisher, expired signatures and malformed CIDs are rejected. A 90-day lease renewal requires **fresh publisher signatures**; a search or partial block GET alone cannot extend it. Arbitrarily large everyday files can be represented with additional pages rather than a fixed 32-MiB file limit, subject to host 64-bit storage limits.
+
+`tests/test_published.cpp` includes a mock three-auditor membership quorum, two separate SQLite stores, publisher signatures, a signed multi-page CID index and re-verified ciphertext chunk GETs. The mock ciphertext envelopes do not demonstrate real AES-GCM decryption.
+
+**Still missing for a public P2P launch:** secure sockets/relays and channel binding, production anti-Sybil storage auditors for the 10 GiB rule, signed manifest distribution/search, erasure-coded placement/repair, cross-node verified complete-file download receipts and native PS5 packaging. Existing GUI operations remain offline.
