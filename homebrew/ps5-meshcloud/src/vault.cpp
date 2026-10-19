@@ -381,6 +381,21 @@ bool LocalVault::prune(std::uint64_t now,std::uint64_t& expired_files,
  expired_files=ids.size();
  std::error_code ec;
  for(const auto& id:ids)fs::remove(root_/"manifests"/(id+".mcm"),ec);
+ // The exclusive process lock guarantees that a .partial-* object cannot be
+ // written concurrently by another MeshCloud process at collection time.
+ // Remove interrupted-upload temporary files, not arbitrary unknown filenames.
+ for(const auto& dirname:{"blocks","manifests"}) {
+  for(const auto& entry:fs::directory_iterator(root_/dirname,ec)) {
+   if(ec){error_="Cannot scan incomplete uploads";return false;}
+   const auto name=entry.path().filename().string();
+   if(name.size()!=41||name.rfind(".partial-",0)!=0)continue;
+   const auto suffix=name.substr(9);
+   if(suffix.find_first_not_of("0123456789abcdef")!=std::string::npos)continue;
+   if(!fs::is_regular_file(entry.symlink_status()))continue;
+   fs::remove(entry.path(),ec);
+   if(ec){error_="Cannot delete interrupted upload";return false;}
+  }
+ }
  for(const auto& entry:fs::directory_iterator(root_/"blocks",ec)) {
   if(ec){error_="Block scan failed";return false;}
   const auto path=entry.path();
