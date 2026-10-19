@@ -57,13 +57,15 @@ jobs:
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
         run: bash tools/prepare-opengl.sh
-      - name: Resolve PS5 OpenSSL and SQLite from signed PacBrew SDK
+      - name: Resolve PS5 OpenSSL and SQLite from SHA-pinned PacBrew SDK
         working-directory: app
-        env:
-          PACBREW_PACKAGES: 'openssl sqlite3'
         run: |
-          bash tools/setup-pacbrew-dependencies.sh --environment
-          bash tools/setup-pacbrew-dependencies.sh --resolve openssl sqlite3
+          root="$(bash tools/setup-pacbrew-dependencies.sh --all)"
+          echo "PacBrew static crypto/SQLite archives:"
+          find "$root/user/homebrew/lib" -maxdepth 2 -type f \( -name '*ssl*.a' -o -name '*crypto*.a' -o -name '*sqlite*.a' \) -print
+          for archive in lib/libssl.a lib/libcrypto.a lib/libsqlite3.a; do
+            test -s "$root/user/homebrew/$archive" || { echo "Missing $archive" >&2; exit 1; }
+          done
       - name: Prepare POSIX compatibility symbols
         run: |
           mkdir -p app/build/jb-json
@@ -75,7 +77,8 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-          PACBREW_PACKAGES: 'openssl sqlite3'
+          PACBREW_INCLUDE_PATHS: 'include'
+          PACBREW_STATIC_ARCHIVES: 'lib/libssl.a lib/libcrypto.a lib/libsqlite3.a'
         run: make USE_CCACHE=0 BUILD_JOBS=4 app
       - name: Verify installer metadata, ELF and assets
         run: |
