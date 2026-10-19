@@ -21,7 +21,6 @@ struct Partial {
  admission::Signature signature{};
  std::array<unsigned char,32> request_sha256{};
 };
-bool new_node_identity(const std::filesystem::path& path,std::string& error);
 bool request(EVP_PKEY* node_key,std::uint64_t now,Request& output);
 bool verify_request(const Request& request,std::uint64_t now);
 bool encode_request(const Request&,std::vector<unsigned char>& out);
