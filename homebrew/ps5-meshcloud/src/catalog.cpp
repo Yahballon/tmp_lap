@@ -32,7 +32,9 @@ bool Catalog::exec(const char* sql) {
 }
 bool Catalog::open() {
  if(db_)return true;
- if(sqlite3_open_v2(path_.string().c_str(),&db_,
+ const auto filename=path_.u8string();
+ const std::string utf8(filename.begin(),filename.end());
+ if(sqlite3_open_v2(utf8.c_str(),&db_,
     SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE|SQLITE_OPEN_FULLMUTEX,nullptr)!=SQLITE_OK) {
   error_=db_?sqlite3_errmsg(db_):"Database open failed";
   if(db_){sqlite3_close(db_);db_=nullptr;}return false;
