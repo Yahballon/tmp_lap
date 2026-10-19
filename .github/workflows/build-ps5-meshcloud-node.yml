@@ -28,6 +28,9 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
+          # The UI scaffold's .env hardcodes OpenGL includes and archives.
+          # Replace it for this separate, graphics-free native network service.
+          printf 'APP_SOURCE_DIR=src/meshcloud-daemon\nAPP_INCLUDE_PATHS=src/meshcloud-daemon\nAPP_STATIC_ARCHIVES=\nAPP_IMPORT_STUBS=\nAPP_RUNTIME_MODULES=\nAPP_WRAP_SYMBOLS=\n' > app/.env
           # Do NOT silently replace the graphical build. This is a separately
           # named no-OpenGL security/network-node alternative.
           sed -i 's@https://zlib.net/fossils/zlib-@https://zlib.net/zlib-@' app/tools/setup-native-dependencies.sh
