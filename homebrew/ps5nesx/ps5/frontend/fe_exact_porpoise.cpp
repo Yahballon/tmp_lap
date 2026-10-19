@@ -137,16 +137,55 @@ void ExactPorpoiseShelf::DrawTile(int i, float cx, float cy, float w, float h,
     gloss.phase = cx / 1920.0f;
     g.glass(c, w, h, 0, gloss);
 }
+void ExactPorpoiseShelf::SetTheme(const std::string& requested)
+{
+    std::string next=requested;
+    if(next!="porpoise" && next!="oled" && next!="cube" &&
+       next!="aurora" && next!="synthwave") next="porpoise";
+    if(next==m_theme)return;
+    m_theme=next;
+    std::printf("[Porpoise Exact] theme=%s\n",m_theme.c_str());
+}
+
 void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
 {
     if (!m_ready) return;
     Gfx& g = m_gfx;
     // Source: Porpoise make_porpoise(), ui_app_common.hpp and
     // ui_app.cpp (the top bar, library and dock visual values).
-    kR = 24.0f;
+    // Original Project Porpoise look parameters:
+    // source porpoise_original/src/ui_theme.cpp (make_* methods).
+    // We deliberately preserve its existing Vulkan shader/backgrounds.
     Look look;
-    look.background = 0;
     look.panel_style = 1;
+    float radius=24.0f;
+    if(m_theme=="oled")
+    {
+        look.background=1;look.dark=0.12f;look.fill_alpha=1.5f;
+        look.saturation=0.9f;look.flat=true;radius=22.0f;
+    }
+    else if(m_theme=="cube")
+    {
+        look.background=3;
+        look.light0={0.42f,0.22f,0.95f,1.0f};
+        look.light1={0.66f,0.48f,1.0f,1.0f};
+        look.hue=0.735f;look.hue_spread=0.35f;radius=20.0f;
+    }
+    else if(m_theme=="aurora")
+    {
+        look.background=7;
+        look.light0={0.15f,0.95f,0.62f,1.0f};
+        look.light1={0.55f,0.35f,1.0f,1.0f};
+        look.hue=0.50f;look.hue_spread=0.7f;
+    }
+    else if(m_theme=="synthwave")
+    {
+        look.background=10;
+        look.light0={1.0f,0.22f,0.78f,1.0f};
+        look.light1={0.20f,0.85f,1.0f,1.0f};
+        look.hue=0.86f;look.hue_spread=0.7f;radius=18.0f;
+    }
+    kR=radius;
     g.begin(slot, w, h, static_cast<float>(m_elapsed), 0, false);
     g.set_look(look);
     g.background();

@@ -67,6 +67,9 @@ bool App::Init(Renderer* renderer, const Fonts* fonts, std::vector<GameInfo> gam
 	m_fonts = fonts;
 	m_covers = covers;
 	m_cfg = cfg;
+    // Load global theme before the first Porpoise frame, not only when
+    // the user opens Settings. Subsequent edits reload this same sheet.
+    m_sheet.Open(m_cfg.options, nullptr);
 	m_games = std::move(games);
 	m_slots.assign(m_games.size(), Slot());
 	m_selected = m_games.empty() ? 0 : std::max(0, std::min(cfg.preselect, static_cast<int>(m_games.size()) - 1));
@@ -322,6 +325,7 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	if (m_cfg.exact) {
         m_cfg.exact->Select(m_selected,m_scroll,m_time,clock);
         m_cfg.exact->SetCoverProgress(m_covers ? m_covers->Progress() : CoverProgress{});
+        m_cfg.exact->SetTheme(m_sheet.ThemeValue());
     }
 	const Mat4 proj = Mat4::Perspective(Radians(kFovY), W / H, 0.1f, 60.0f);
 	// vk-285-114: with the options sheet open on the right, the shelf slides left (the camera moves right), so the

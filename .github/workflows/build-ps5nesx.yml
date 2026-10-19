@@ -74,6 +74,7 @@ jobs:
             -o /tmp/ps5nesx-libretro-catalog-test
           /tmp/ps5nesx-libretro-catalog-test
           python3 homebrew/ps5nesx/tests/test_libretro_progress.py
+          python3 homebrew/ps5nesx/tests/test_porpoise_themes.py
           python3 homebrew/ps5nesx/tests/ui_layout_check.py
           python3 homebrew/ps5nesx/tests/test_hdpack_integration.py
           python3 homebrew/ps5nesx/tests/test_hd_visual_regressions.py

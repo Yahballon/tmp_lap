@@ -206,3 +206,19 @@ The exact yield depends on the names/regions in the user's game library.
 A successful build does not guarantee all 352 games have published box
 images or that Libretro CDN/TLS access succeeds on PS5; the download log
 records each URL, HTTP status and cache writes.
+
+## v1.0.21 — Five selectable Porpoise UI themes
+
+Under Settings > Appearance > Theme, use D-pad left/right or Cross to
+choose **Porpoise (blue sapphire grid)**, **OLED (black)**,
+**Cube (indigo/violet)**, **Aurora (green/purple lights)** or
+**Synthwave (neon pink/cyan)**. The values come from the original
+Porpoise UI theme palette and background shader. Covers and NES gameplay
+are unaffected. The theme changes immediately, and is stored globally
+in the existing `gs.ini` (rather than a ROM-specific options file).
+On boot the menu reloads the saved choice before the first Porpoise frame.
+Even when Settings is opened from a game, the Theme row updates the
+global value. Unknown keys fall back to default Porpoise.
+
+The official Libretro CDN source and auto-hiding cover progress HUD
+from the same release remain enabled.
