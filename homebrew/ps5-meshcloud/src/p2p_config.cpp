@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "p2p_config.hpp"
+#include "peer_discovery.hpp"
+#include <chrono>
 #include <algorithm>
 #include <array>
 #include <fstream>
@@ -111,6 +113,29 @@ bool Config::load(const std::filesystem::path& root,std::string& error) {
     !=node_.allowed_peer_keys.end()) {
   error="A node cannot whitelist its own identity as a remote peer";
   EVP_PKEY_free(key_);key_=nullptr;node_={};return false;
+ }
+ // Bitcoin-style address book survives restarts. Only signed endpoints
+ // learned during previously authenticated sessions can populate this DB.
+ // Learning a peer's public key does not grant membership: the live 3-auditor
+ // signed ticket and fresh TLS exporter are still mandatory before ANY frame.
+ discovery::AddressBook saved(root/"addrman");
+ if(!saved.open()) {
+  error="Could not validate persisted peer address book";
+  EVP_PKEY_free(key_);key_=nullptr;node_={};return false;
+ }
+ const auto clock=std::chrono::system_clock::now().time_since_epoch();
+ const auto seconds=std::chrono::duration_cast<std::chrono::seconds>(clock).count();
+ std::vector<discovery::SignedAddress> known;
+ if(seconds<0 || !saved.list(static_cast<std::uint64_t>(seconds),known,
+                             discovery::max_known_peers)) {
+  error="Stored peer list is invalid or corrupted";
+  EVP_PKEY_free(key_);key_=nullptr;node_={};return false;
+ }
+ for(const auto& p:known) {
+  if(p.identity!=own &&
+     std::find(node_.allowed_peer_keys.begin(),node_.allowed_peer_keys.end(),
+               p.identity)==node_.allowed_peer_keys.end())
+    node_.allowed_peer_keys.push_back(p.identity);
  }
  node_.private_key=key_;
  return true;
