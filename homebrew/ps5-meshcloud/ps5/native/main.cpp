@@ -19,7 +19,7 @@ namespace {
 const Color white=Color::rgb(0xecf5ff),blue=Color::rgb(0x399fff);
 const Color muted=Color::rgb(0x96b0d2),green=Color::rgb(0x53f0b1);
 const Color warning=Color::rgb(0xffbc64);
-constexpr const char* version="v0.2.0";
+constexpr const char* version="v0.3.0";
 std::string load_font(const char* path) {
  FILE* f=std::fopen(path,"rb");if(!f)return {};
  if(std::fseek(f,0,SEEK_END)!=0){std::fclose(f);return {};}
@@ -173,7 +173,7 @@ void display_network(DrawList& d,const Font& f,unsigned atlas,const meshps5::Pee
   "REQUIRED: externally audited 10 GiB",
   "Ed25519 3-of-5 verifier available",
   "TLS 1.3 exporter binding available",
-  "Direct IPv4 LAN (relay/DHT not yet available)",
+  "Signed getaddr peer discovery over private LAN",
   "Only pinned audited peer CID fragments",
   "Publisher validation implemented in desktop core"
  };
@@ -189,13 +189,13 @@ void display_about(DrawList& d,const Font& f,unsigned atlas,
  const meshps5::Snapshot& snapshot) {
  panel(d,338,131,1556,872);bar(d,f,atlas,"ABOUT MESH CLOUD",338,131,1556);
  const char* lines[]={
-  "MESH CLOUD PS5 - Native P2P prototype v0.2.0",
+  "MESH CLOUD PS5 - P2P/addrman prototype v0.3.0",
   "Developer: YAHBALLON",
   "GitHub: Yahballon/tmp_lap/homebrew/ps5-meshcloud",
   "Title ID: PPSA99718",
   "Minimum contribution rule: 10 GiB independently audited",
   "File inactivity policy: 90 days from verified full download",
-  "PS5: audited TLS1.3 encrypted CID block transfer",
+  "PS5: audited TLS, signed getaddr, CID block transfer",
   "Desktop build: local encrypted vault and testable security components",
   "No Sony / PlayStation artwork or branding is used."
  };
@@ -283,6 +283,10 @@ int main() {
     notice="Selected a different local storage mount.";
    }
   }
+  if(hit(hui::pad_bits::kR2) && page==3){
+   if(peer.discover())notice="Member-only getaddr: discovering signed LAN nodes";
+   else notice="Another authenticated P2P operation is running";
+  }
   if(hit(hui::pad_bits::kOptions))page=4;
   if(hit(hui::pad_bits::kCross)) {
    if(page==0)page=1;
@@ -315,7 +319,7 @@ int main() {
   else display_about(d,font,atlas,snapshot);
   d.rounded_rect({0,1025,1920,55},0,Color::rgb(0x07172c));
   label(d,font,atlas,cut(notice,110),24,1058,17,warning);
-  label(d,font,atlas,"L1/R1 PAGE   X LISTEN   TRIANGLE GET/RESCAN   SQUARE PUT/MOUNT   O BACK",
+  label(d,font,atlas,"L1/R1 PAGE   R2 GETADDR   X LISTEN   TRIANGLE GET   SQUARE PUT   O BACK",
         1888,1058,16,white,Align::right);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());
   display.swap();hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
