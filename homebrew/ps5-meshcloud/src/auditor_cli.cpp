@@ -9,12 +9,34 @@
 #include <limits>
 #include <string>
 #include <openssl/rand.h>
+#include <openssl/pem.h>
 namespace fs=std::filesystem;
 int main(int argc,char** argv){
- if(argc!=5||std::string(argv[1])!="local-check"){
-  std::cout<<"MeshCloud Storage Audit v0.9 by YAHBALLON\n"
+ if(argc==3&&std::string(argv[1])=="pubkey"){
+  BIO* bio=BIO_new_file(argv[2],"r");
+  if(!bio)return 1;
+  EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
+     [](char*,int,int,void*)->int{return 0;},nullptr);
+  BIO_free(bio);
+  if(!key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519){
+   if(key)EVP_PKEY_free(key);
+   return 1;
+  }
+  meshcloud::admission::PublicKey id{};std::size_t length=id.size();
+  const bool okay=EVP_PKEY_get_raw_public_key(key,id.data(),&length)==1&&length==id.size();
+  EVP_PKEY_free(key);
+  if(!okay)return 1;
+  constexpr char digits[]="0123456789abcdef";
+  for(auto b:id)std::cout<<digits[b>>4]<<digits[b&15];
+  std::cout<<"\n";return 0;
+ }
+ const bool provision_for=argc>1&&std::string(argv[1])=="provision-for";
+ if(!((argc==5&&std::string(argv[1])=="local-check")||(provision_for&&argc==6))){
+  std::cout<<"MeshCloud Storage Audit v0.10 by YAHBALLON\n"
     <<"Usage: meshcloud-audit local-check <node-random-data.bin> "
     <<"<auditor-hashes.mcal> <gigabytes>\n"
+    <<"   meshcloud-audit provision-for <node-public-hex> <node-data> <auditor-ledger> 13\n"
+    <<"   meshcloud-audit pubkey <identity.pem>\n"
     <<"WARNING: writes real incompressible data to disk and retains it!\n"
     <<"Requires free space >= requested GiB. NO membership ticket is issued.\n"
     <<"An independent auditor is still needed for actual network admission.\n";
@@ -22,7 +44,7 @@ int main(int argc,char** argv){
  }
  std::uint64_t gib=0;
  try{
-  const std::string input=argv[4];
+  const std::string input=argv[provision_for?5:4];
   if(input.empty()||input.find_first_not_of("0123456789")!=std::string::npos)
    return 2;
   gib=std::stoull(input);
@@ -32,7 +54,7 @@ int main(int argc,char** argv){
   return 2;
  }
  const auto size=gib*1024ULL*1024*1024;
- const fs::path file=argv[2],commitment=argv[3];
+ const fs::path file=argv[provision_for?3:2],commitment=argv[provision_for?4:3];
  std::error_code ec;
  const auto data_status=fs::symlink_status(file,ec);
  const bool missing_data=data_status.type()==fs::file_type::not_found &&
@@ -54,7 +76,23 @@ int main(int argc,char** argv){
   std::cerr<<"Not enough free physical disk space for random audit data and margin\n";return 1;
  }
  meshcloud::admission::PublicKey identity{};
- if(RAND_bytes(identity.data(),static_cast<int>(identity.size()))!=1){
+ if(provision_for){
+  const std::string hex=argv[2];
+  if(hex.size()!=64){std::cerr<<"Node public identity must be 64 hex chars\n";return 2;}
+  auto nibble=[](char c)->int {
+   if(c>='0'&&c<='9')return c-'0';
+   if(c>='a'&&c<='f')return c-'a'+10;
+   if(c>='A'&&c<='F')return c-'A'+10;
+   return -1;
+  };
+  for(int i=0;i<32;i++) {
+   const auto hi=nibble(hex[2*i]),lo=nibble(hex[2*i+1]);
+   if(hi<0||lo<0){std::cerr<<"Invalid node identity hex\n";return 2;}
+   identity[static_cast<std::size_t>(i)]=static_cast<unsigned char>((hi<<4)|lo);
+  }
+  if(identity==meshcloud::admission::PublicKey{})return 2;
+  if(gib!=13){std::cerr<<"Remote-node provisioning requires exactly 13 GiB\n";return 2;}
+ }else if(RAND_bytes(identity.data(),static_cast<int>(identity.size()))!=1){
   std::cerr<<"Secure random identity failed\n";return 1;
  }
  std::cout<<"Generating "<<gib<<" GiB of new random, incompressible audit data...\n";
