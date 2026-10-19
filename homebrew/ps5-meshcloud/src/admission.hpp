@@ -42,4 +42,23 @@ bool verify_member(const MemberTicket& ticket,const TrustPolicy& trusted,
     const Challenge& verifier_nonce,const Challenge& transport_exporter,
     const Signature& node_session_signature,std::uint64_t now,
     VerifiedMembership& verified);
+// Non-forgeable in-process session handle for network dispatch. Callers
+// cannot synthesize one by setting public membership booleans.
+class AuthenticatedPeer {
+public:
+ AuthenticatedPeer()=default;
+ bool permitted(Operation op,std::uint64_t now,const Challenge& nonce,
+                const Challenge& exporter) const noexcept;
+private:
+ friend bool authenticate_session(const MemberTicket&,const TrustPolicy&,
+     const Challenge&,const Challenge&,const Signature&,std::uint64_t,
+     AuthenticatedPeer&);
+ VerifiedMembership membership_{};
+ Challenge challenge_{};
+ Challenge exporter_{};
+ bool authenticated_=false;
+};
+bool authenticate_session(const MemberTicket&,const TrustPolicy&,
+    const Challenge& nonce,const Challenge& exporter,const Signature& session_signature,
+    std::uint64_t now,AuthenticatedPeer& out);
 } // namespace meshcloud::admission
