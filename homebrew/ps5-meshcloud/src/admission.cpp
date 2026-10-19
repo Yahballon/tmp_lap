@@ -100,4 +100,21 @@ bool verify_member(const MemberTicket& ticket,const TrustPolicy& trusted,
  verified.protocol=ticket.protocol_version;
  return authorize(Operation::Download,verified,now).allowed;
 }
+bool authenticate_session(const MemberTicket& ticket,const TrustPolicy& trusted,
+    const Challenge& nonce,const Challenge& exporter,const Signature& signature,
+    std::uint64_t now,AuthenticatedPeer& peer) {
+ peer=AuthenticatedPeer{};
+ VerifiedMembership accepted{};
+ if(!verify_member(ticket,trusted,nonce,exporter,signature,now,accepted))return false;
+ peer.membership_=accepted;
+ peer.challenge_=nonce;
+ peer.exporter_=exporter;
+ peer.authenticated_=true;
+ return true;
+}
+bool AuthenticatedPeer::permitted(Operation op,std::uint64_t now,
+    const Challenge& nonce,const Challenge& exporter) const noexcept {
+ return authenticated_ && nonce==challenge_ && exporter==exporter_ &&
+        authorize(op,membership_,now).allowed;
+}
 } // namespace meshcloud::admission
