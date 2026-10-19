@@ -34,7 +34,14 @@ int main(int argc,char** argv){
  const auto size=gib*1024ULL*1024*1024;
  const fs::path file=argv[2],commitment=argv[3];
  std::error_code ec;
- if(fs::exists(file,ec)||ec||fs::exists(commitment,ec)||ec) {
+ const auto data_status=fs::symlink_status(file,ec);
+ const bool missing_data=data_status.type()==fs::file_type::not_found &&
+    (!ec||ec==std::errc::no_such_file_or_directory);
+ ec.clear();
+ const auto audit_status=fs::symlink_status(commitment,ec);
+ const bool missing_audit=audit_status.type()==fs::file_type::not_found &&
+    (!ec||ec==std::errc::no_such_file_or_directory);
+ if(!missing_data||!missing_audit) {
   std::cerr<<"Refusing to overwrite existing files\n";return 1;
  }
  const auto node_dir=file.parent_path().empty()?fs::path("."):file.parent_path();
