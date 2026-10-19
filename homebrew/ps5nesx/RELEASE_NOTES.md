@@ -1,3 +1,10 @@
+# PS5NESX v1.0.23 by YAHBALLON
+
+- Embed the exact high-resolution 1024 x 1536 PNG supplied for NO COVER in the PS5 binary (full-size, no JPEG compression or black letterboxing).
+- Remove the redundant "Nintendo Entertainment System" subtitle below the selected game.
+- Keep a single shared 1536px GPU fallback for Porpoise coverflow; preserve bounded legacy fallback memory use and automatic real-artwork overrides.
+- Preserve tiger logo, cached cover downloading and hidden Recently Browsed dock.
+
 # PS5NESX v1.0.22 by YAHBALLON
 
 - Use the supplied neon NO COVER artwork (embedded, JPEG) for games without a valid local, cached or downloadable cover (also in the original Porpoise CoverFlow).

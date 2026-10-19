@@ -481,7 +481,9 @@ void CoverService::PaintPlaceholder(const Fonts& fonts, const GameInfo& g, Cover
     static const CoverImage embedded = [] {
         CoverImage result;
         const std::vector<uint8_t> png(fe_nocover_png, fe_nocover_png_end);
-        if (CoverService::Decode(png, 512, result))
+        // Keep the older Vulkan shelf's bounded texture cache affordable; the
+        // active Porpoise coverflow uses the full 1536px source instead.
+        if (CoverService::Decode(png, 768, result))
             result.kind = CoverImage::Placeholder;
         return result;
     }();

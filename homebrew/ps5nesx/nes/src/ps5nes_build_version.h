@@ -3,7 +3,7 @@
 #pragma once
 namespace nes_build
 {
-inline constexpr char kVersion[] = "1.0.22";
-inline constexpr char kBuildTag[] = "v1.0.22 by YAHBALLON";
-inline constexpr char kReportHeader[] = "PS5NESX v1.0.22 by YAHBALLON";
+inline constexpr char kVersion[] = "1.0.23";
+inline constexpr char kBuildTag[] = "v1.0.23 by YAHBALLON";
+inline constexpr char kReportHeader[] = "PS5NESX v1.0.23 by YAHBALLON";
 }

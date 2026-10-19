@@ -158,8 +158,8 @@ FE_INCBIN_ASSET(fe_pp_noto_jp, "porpoise/fonts/NotoSansJP-Porpoise.ttf");
 // The built-in tiger replaces the original Dolphin brand mask.
 FE_INCBIN_ASSET(fe_pp_dolphin_mask, "tiger-logo.png");
 FE_INCBIN_ASSET(fe_pp_buttons, "porpoise/ui/buttons.png");
-// A compressed edition of the supplied NO COVER artwork is baked into eboot.bin (works offline).
-FE_INCBIN_ASSET(fe_nocover_png, "no-cover.jpg");
+// A original 1024x1536 user-supplied NO COVER PNG is baked into eboot.bin (works offline).
+FE_INCBIN_ASSET(fe_nocover_png, "no-cover.png");
 extern "C" const uint8_t fe_pp_nunito_regular[], fe_pp_nunito_regular_end[],
     fe_pp_nunito_semibold[], fe_pp_nunito_semibold_end[],
     fe_pp_nunito_bold[], fe_pp_nunito_bold_end[],

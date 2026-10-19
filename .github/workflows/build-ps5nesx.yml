@@ -54,6 +54,7 @@ jobs:
           /tmp/ps5nesx-porpoise-layout-test
           python3 homebrew/ps5nesx/tests/test_porpoise_integration.py
           python3 homebrew/ps5nesx/tests/test_porpoise_visible.py
+          python3 homebrew/ps5nesx/tests/test_fullres_no_cover.py
           python3 homebrew/ps5nesx/tests/test_porpoise_texture_uv.py
           g++ -std=c++20 -O2 -Wall -Wextra -Werror \
             -Ihomebrew/ps5nesx/ps5/frontend \

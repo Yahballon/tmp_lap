@@ -26,7 +26,9 @@ bool ExactPorpoiseShelf::Init(const GfxInit& config, const std::vector<GameInfo>
     if (m_ready) {
         CoverImage placeholder;
         const std::vector<uint8_t> bytes(fe_nocover_png, fe_nocover_png_end);
-        if (CoverService::Decode(bytes, 512, placeholder))
+        // The uploaded box art is already portrait (1024 x 1536): preserve
+        // every source pixel and reuse one full-resolution GPU texture.
+        if (CoverService::Decode(bytes, 1536, placeholder))
             m_fallback = m_gfx.texture_rgba(placeholder.rgba.data(), placeholder.width, placeholder.height);
         std::printf("[Porpoise Exact] built-in NO COVER: %s\n", m_fallback ? "ready" : "unavailable");
     }
@@ -288,8 +290,7 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
     if(m_selected>=0 && m_selected<shown)
     {
         g.text(Font::Bold,46,kCx,748,kWhite,Align::Center,m_names[m_selected]);
-        g.text(Font::SemiBold,28,kCx,812,kLavender,Align::Center,
-               "Nintendo Entertainment System");
+        // Game title only; no redundant system subtitle.
     }
 
     // No Recently Browsed dock: keep the coverflow and footer uncluttered.
