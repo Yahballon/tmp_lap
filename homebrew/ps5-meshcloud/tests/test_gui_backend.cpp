@@ -43,6 +43,12 @@ int main() {
  std::vector<meshcloud::CatalogEntry> items;
  assert(vault.catalog().list_live(begin,items));
  assert(items.empty());
+ std::string aborted_cid;std::uint64_t aborted_bytes=0;
+ assert(!meshcloud::cid::from_file(source,aborted_cid,aborted_bytes,
+   [](std::uint64_t completed,std::uint64_t total) {
+    assert(completed<=total);return false;
+   }));
+ assert(aborted_cid.empty()&&aborted_bytes==0);
  meshcloud::FileKey key{};
  assert(meshcloud::make_key(key));
  std::string id;
