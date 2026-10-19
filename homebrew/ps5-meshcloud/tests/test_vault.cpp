@@ -66,9 +66,14 @@ int main() {
   assert(v.catalog().find(id,entry)&&entry.completed_downloads==1);
   assert(entry.last_successful_download==renewal&&entry.expires_at==renewed_expiry);
   assert(!v.catalog().mark_completed_download(id,renewal-1));
+  const auto abandoned_block=root/"vault"/"blocks"/(".partial-"+std::string(32,'a'));
+  const auto abandoned_manifest=root/"vault"/"manifests"/(".partial-"+std::string(32,'b'));
+  {std::ofstream f(abandoned_block);f<<"orphan"; }
+  {std::ofstream f(abandoned_manifest);f<<"orphan"; }
   std::uint64_t files=99,removed=99;
   assert(v.prune(start+meshcloud::retention_seconds+1,files,removed));
   assert(files==0&&removed==0);
+  assert(!fs::exists(abandoned_block)&&!fs::exists(abandoned_manifest));
   assert(v.catalog().find(id,entry));
   assert(!v.export_file(id,root/"too-late.bin",loaded,renewed_expiry));
   assert(!fs::exists(root/"too-late.bin"));
