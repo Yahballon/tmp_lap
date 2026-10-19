@@ -5,6 +5,16 @@
 #include <array>
 #include <fstream>
 #include <system_error>
+#include <climits>
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#include <share.h>
+#include <sys/stat.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 namespace meshcloud::ticket_issue {
@@ -208,12 +218,41 @@ bool write_new(const std::filesystem::path& path,const std::vector<unsigned char
     (ec&&ec!=std::errc::no_such_file_or_directory)) {
   error="Refusing existing output or symlink";return false;
  }
- // This CLI is a staging utility; the destination directory must be private
- // and not writable by untrusted users. Never accept an untrusted shared path.
- std::ofstream out(path,std::ios::binary|std::ios::trunc);
- if(!out){error="Could not create output";return false;}
- out.write(reinterpret_cast<const char*>(bytes.data()),static_cast<std::streamsize>(bytes.size()));
- out.flush();if(out.good())return true;
- error="Could not write output";return false;
+ // Atomically refuse overwrites even if the path changes after preflight.
+ // Credentials and request files are deliberately small and bounded.
+ if(bytes.empty()||bytes.size()>4096){error="Invalid credential size";return false;}
+ int fd=-1;
+#ifdef _WIN32
+ if(_sopen_s(&fd,path.string().c_str(),
+     _O_CREAT|_O_EXCL|_O_WRONLY|_O_BINARY,_SH_DENYRW,
+     _S_IREAD|_S_IWRITE)!=0||fd<0) {
+  error="Credential already exists or cannot be created";return false;
+ }
+#else
+ fd=open(path.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+ if(fd<0){error="Credential already exists or cannot be created";return false;}
+#endif
+ std::size_t at=0;
+ bool ok=true;
+ while(at<bytes.size()){
+#ifdef _WIN32
+  const int n=_write(fd,bytes.data()+at,
+    static_cast<unsigned int>(bytes.size()-at));
+#else
+  const auto n=write(fd,bytes.data()+at,bytes.size()-at);
+#endif
+  if(n<=0){ok=false;break;}
+  at+=static_cast<std::size_t>(n);
+ }
+#ifdef _WIN32
+ if(_commit(fd)!=0)ok=false;
+ if(_close(fd)!=0)ok=false;
+#else
+ if(fsync(fd)!=0)ok=false;
+ if(close(fd)!=0)ok=false;
+#endif
+ if(ok)return true;
+ std::filesystem::remove(path,ec);
+ error="Could not securely write credential";return false;
 }
 } // namespace meshcloud::ticket_issue
