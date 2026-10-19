@@ -12,6 +12,9 @@ on:
       - '.github/workflows/build-meshcloud-desktop.yml'
 permissions:
   contents: read
+concurrency:
+  group: meshcloud-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   desktop:
     name: Desktop ${{ matrix.os }}
