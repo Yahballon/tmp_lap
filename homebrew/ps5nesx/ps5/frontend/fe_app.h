@@ -64,6 +64,9 @@ public:
 	// True once a game was picked and its launch animation has played.
 	bool Done() const { return m_done; }
 	int Chosen() const { return m_selected; }
+	// Native settings are drawn by the legacy panel renderer. The original
+	// Porpoise coverflow must stand down while it opens/closes.
+	bool SheetVisible() const { return m_sheet_open || m_sheet_anim > 0.001f; }
 
 	const std::vector<GameInfo>& games() const { return m_games; }
 

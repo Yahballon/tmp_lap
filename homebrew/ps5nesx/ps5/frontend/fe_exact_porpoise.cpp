@@ -151,32 +151,11 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
     g.set_look(look);
     g.background();
 
-    // Brand and sapphire glass top tabs, identical design-space geometry.
+    // Compact header requested for PS5NESX: no Library / Save States /
+    // Settings tabs and no L1/R1 glyphs. Square below opens the real panel.
     if (g.brand_mask()) g.image(g.brand_mask(), 48, kBarCy-32, 64, 64, kCyan);
     g.text_mid(Font::SemiBold, 30, 132, kBarCy, rgba(0xBFE9FF), Align::Left,
                "PS5NES", 7.0f);
-    const std::string tabs[3] = {"Library", "Save States", "Settings"};
-    float widths[3], bar_w=12;
-    for(int i=0;i<3;++i)
-    {
-        widths[i] = std::max(170.0f, g.measure(Font::Bold, 27, tabs[i]) + 74);
-        bar_w += widths[i];
-    }
-    const float bar_x = 960 - bar_w * 0.5f;
-    g.panel(bar_x, kBarY, bar_w, kBarH, rgba(0x0A1236,0.70f),0.9f,kBarH*0.5f,
-            rgba(0x3D4F9E,0.9f),1.6f);
-    const float nav_x=bar_x+6;
-    g.panel(nav_x,kBarY+6,widths[0],kBarH-12,rgba(0x1F63F0),0.62f,
-            (kBarH-12)*0.5f,rgba(0x7FD9FF),1.6f,6,0.35f);
-    float cursor=nav_x;
-    for(int i=0;i<3;++i)
-    {
-        g.text_mid(i ? Font::SemiBold : Font::Bold,27,cursor+widths[i]*0.5f,kBarCy,
-                   i ? kSoft : kWhite,Align::Center,tabs[i]);
-        cursor += widths[i];
-    }
-    g.glyph(Glyph::L1,bar_x-66,kBarCy,46,rgba(0xE8F0FF));
-    g.glyph(Glyph::R1,bar_x+bar_w+66,kBarCy,46,rgba(0xE8F0FF));
     if(!m_clock.empty())
         g.text_mid(Font::SemiBold,27,1866,kBarCy,kWhite,Align::Right,m_clock);
 
@@ -262,7 +241,7 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
     constexpr float hintY=1010;
     struct Prompt {Glyph glyph; const char* text;};
     const Prompt left[]={{Glyph::DPad,"Browse"},{Glyph::Cross,"Play"}};
-    const Prompt right[]={{Glyph::Square,"Settings"},{Glyph::Triangle,"Sort / Filter"}};
+    const Prompt right[]={{Glyph::Square,"Settings"}};
     float lx=58;
     for(const auto& p:left)
     {
@@ -270,7 +249,7 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
         lx+=52+g.text_mid(Font::SemiBold,24,lx+52,hintY,kWhite,Align::Left,p.text)+40;
     }
     float rx=1862;
-    for(int i=1;i>=0;--i)
+    for(int i=0;i>=0;--i)
     {
         const float tw=g.measure(Font::SemiBold,24,right[i].text);
         g.text_mid(Font::SemiBold,24,rx,hintY,kWhite,Align::Right,right[i].text);
