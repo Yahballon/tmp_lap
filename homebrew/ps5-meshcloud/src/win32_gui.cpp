@@ -276,12 +276,19 @@ struct Runner {
  static std::unique_ptr<Outcome> execute(App& a,const Work& work) {
   auto result=std::make_unique<Outcome>();
   try {
+   const meshcloud::ProgressCallback callback=[&a](std::uint64_t completed,std::uint64_t total) {
+    if(a.cancel_requested.load())return false;
+    const unsigned percent=total?static_cast<unsigned>(
+      std::min(100.0,100.0*static_cast<double>(completed)/static_cast<double>(total))):100;
+    PostMessageW(a.window,wm_progress,percent,0);
+    return !a.cancel_requested.load();
+   };
    if(work.action==Job::Hash) {
     std::string cid;std::uint64_t bytes=0;
-    result->success=meshcloud::cid::from_file(work.source,cid,bytes);
+    result->success=meshcloud::cid::from_file(work.source,cid,bytes,callback);
     if(result->success){
      result->cid=cid;result->message=L"File SHA-256 CID calculated: "+size_label(bytes);
-    }else result->message=L"Unable to calculate CID from selected file";
+    }else result->message=a.cancel_requested.load()?L"CID hashing cancelled":L"Unable to calculate CID from selected file";
     return result;
    }
    meshcloud::LocalVault vault(work.root);
@@ -291,13 +298,7 @@ struct Runner {
     result->message=L"Cleanup: "+wstr(vault.error());return result;
    }
    result->removed_files=removed;result->removed_blocks=blocks;
-   const meshcloud::ProgressCallback callback=[&a](std::uint64_t completed,std::uint64_t total) {
-    if(a.cancel_requested.load())return false;
-    const unsigned percent=total?static_cast<unsigned>(
-      std::min(100.0,100.0*static_cast<double>(completed)/static_cast<double>(total))):100;
-    PostMessageW(a.window,wm_progress,percent,0);
-    return !a.cancel_requested.load();
-   };
+
    switch(work.action) {
     case Job::Import: {
      meshcloud::FileKey key{};
