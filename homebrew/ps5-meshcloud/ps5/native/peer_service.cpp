@@ -4,6 +4,7 @@
 #include "p2p_config.hpp"
 #include "audit_net.hpp"
 #include "ticket_issue.hpp"
+#include "provision.hpp"
 #include "storage_audit.hpp"
 #include <openssl/pem.h>
 #include <fcntl.h>
@@ -90,7 +91,64 @@ bool PeerService::fetch_cid(){return launch(Action::Get);}
 bool PeerService::discover(){return launch(Action::Discover);}
 bool PeerService::audit_listen(){return launch(Action::AuditListen);}
 bool PeerService::make_member_request(){return launch(Action::CreateTicketRequest);}
+bool PeerService::receive_audit_dataset(){return launch(Action::ReceiveAuditDataset);}
 void PeerService::run(Action action,const std::string& path) {
+ if(action==Action::ReceiveAuditDataset) {
+  // Separate from CID transport and normal member authorization.
+  // Only previously pinned auditors can provision audit sentinel bytes.
+  const auto config_dir=home/"p2p";
+  const auto audit_dir=home/"audit";
+  BIO* bio=BIO_new_file((config_dir/"identity.pem").string().c_str(),"r");
+  if(!bio){report("Provision LOCKED: generate PS5 identity via R3 first");return;}
+  EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
+     [](char*,int,int,void*)->int{return 0;},nullptr);
+  BIO_free(bio);
+  if(!key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519){
+   if(key)EVP_PKEY_free(key);
+   report("Provision LOCKED: invalid private Ed25519 identity");return;
+  }
+  std::vector<meshcloud::admission::PublicKey> trusted;
+  std::ifstream list(config_dir/"auditors.keys");
+  std::string hex;
+  while(std::getline(list,hex)) {
+   if(!hex.empty()&&hex.back()=='\r')hex.pop_back();
+   if(hex.size()!=64||trusted.size()>=32){trusted.clear();break;}
+   auto digit=[](char c)->int {
+    if(c>='0'&&c<='9')return c-'0';
+    if(c>='a'&&c<='f')return c-'a'+10;
+    if(c>='A'&&c<='F')return c-'A'+10;
+    return -1;
+   };
+   meshcloud::admission::PublicKey pk{};bool good=true;
+   for(int i=0;i<32;i++) {
+    int a=digit(hex[2*i]),b=digit(hex[2*i+1]);
+    if(a<0||b<0){good=false;break;}
+    pk[static_cast<std::size_t>(i)]=static_cast<unsigned char>((a<<4)|b);
+   }
+   if(!good||pk==meshcloud::admission::PublicKey{} ||
+      std::find(trusted.begin(),trusted.end(),pk)!=trusted.end()){
+    trusted.clear();break;
+   }
+   trusted.push_back(pk);
+  }
+  if(trusted.size()<3) {
+   EVP_PKEY_free(key);
+   report("Provision LOCKED: pin 3 independent auditors first");return;
+  }
+  std::error_code ec;
+  fs::create_directories(audit_dir,ec);
+  if(ec){EVP_PKEY_free(key);report("Provision: cannot open /data audit directory");return;}
+  const auto network=settings();
+  std::string error;
+  const bool passed=meshcloud::provision::receive_once(network.bind,
+    meshcloud::provision::port,key,trusted,
+    audit_dir/"node-random.bin",audit_dir/"ledger.mcal",
+    meshcloud::minimum_bytes,error);
+  EVP_PKEY_free(key);
+  if(passed)report("13 GiB securely received, SHA256 verified and committed");
+  else report("Provision DENIED: "+error);
+  return;
+ }
  if(action==Action::CreateTicketRequest) {
   const auto keyfile=home/"p2p"/"identity.pem";
   std::error_code fs_error;
