@@ -431,6 +431,16 @@ void App::Build(FrameDesc& f, const std::string& clock)
 	const float margin = 110.0f * k;
 	std::vector<UiVertex>& ui = f.ui;
 
+	// Make a failed Porpoise initialization unmistakable. The old shelf
+	// can still launch ROMs, but is no longer advertised as the new UI.
+	if (m_cfg.exact_failed)
+	{
+		Fonts::AddRoundedRect(ui, W*0.21f, H*0.015f, W*0.58f, 112.0f*k,
+			14.0f*k, Rgba(0.56f,0.02f,0.05f,0.88f));
+		m_fonts->AddText(ui, "PORPOISE UI INIT FAILED - see PS5NES logs", W*0.5f,
+			80.0f*k, 38.0f*k, Rgba(1,1,1), 0.2f, Fonts::Center);
+	}
+
 	// (AI-assisted) Wordmark and the running build version beneath it.
 	float x = margin;
 	x += m_fonts->AddText(ui, "PS5", x, 150.0f * k, 60.0f * k, white, 0.8f);

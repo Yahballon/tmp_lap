@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Never silently regress to black cases when original Porpoise fails."""
+from pathlib import Path
+root=Path(__file__).resolve().parents[1]
+ps5=(root/'ps5/frontend/fe_ps5.cpp').read_text()
+app=(root/'ps5/frontend/fe_app.cpp').read_text()
+bridge=(root/'ps5/frontend/fe_exact_porpoise.cpp').read_text()
+gfx=(root/'ps5/porpoise_original/src/ui_gfx.cpp').read_text()
+workflow=(root.parent.parent/'.github/workflows/build-ps5nesx.yml').read_text()
+checks={
+    'embedded fonts': 'FE_INCBIN_ASSET(fe_pp_nunito_regular' in ps5,
+    'writable font mount': 'original_ui.asset_dir=paths.top_dir+"/porpoise-ui"' in ps5,
+    'prepare assets': 'PreparePorpoiseAssets(original_ui.asset_dir)' in ps5,
+    'visible failure': 'PORPOISE UI INIT FAILED' in app,
+    'original shader remains': 'sizeof(porpoise_ui_frag)' in gfx,
+    'original grid room': 'g.background();' in bridge and 'look.background = 0;' in bridge,
+    'header': 'Save States' in bridge and 'Library' in bridge,
+    'original glass cases': 'glass_block(g,' in bridge,
+    'real recent dock': 'Recently Browsed' in bridge,
+    'embed assets stage': 'cp -R "$root/."' in workflow,
+}
+for name,ok in checks.items():
+    assert ok,name
+    print('PASS',name)

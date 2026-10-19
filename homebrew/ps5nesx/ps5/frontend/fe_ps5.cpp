@@ -148,6 +148,21 @@ FE_INCBIN_ASSET(fe_presets, "presets.ini");
 // GPL-3.0-or-later; fetched from a pinned upstream commit during CI.
 FE_INCBIN_ASSET(fe_porpoise_game_row, "sounds/game-row.wav");
 FE_INCBIN_ASSET(fe_porpoise_menu_scroll, "sounds/menu-scroll.wav");
+// Original Porpoise font and icon files shipped inside our eboot, so the
+// default /app0 mount path is NOT a runtime dependency on PS5 homebrew.
+FE_INCBIN_ASSET(fe_pp_nunito_regular, "porpoise/fonts/Nunito-Regular.ttf");
+FE_INCBIN_ASSET(fe_pp_nunito_semibold, "porpoise/fonts/Nunito-SemiBold.ttf");
+FE_INCBIN_ASSET(fe_pp_nunito_bold, "porpoise/fonts/Nunito-Bold.ttf");
+FE_INCBIN_ASSET(fe_pp_nunito_extrabold, "porpoise/fonts/Nunito-ExtraBold.ttf");
+FE_INCBIN_ASSET(fe_pp_dolphin_mask, "porpoise/brand/dolphin-mask.png");
+FE_INCBIN_ASSET(fe_pp_buttons, "porpoise/ui/buttons.png");
+extern "C" const uint8_t fe_pp_nunito_regular[], fe_pp_nunito_regular_end[],
+    fe_pp_nunito_semibold[], fe_pp_nunito_semibold_end[],
+    fe_pp_nunito_bold[], fe_pp_nunito_bold_end[],
+    fe_pp_nunito_extrabold[], fe_pp_nunito_extrabold_end[],
+    fe_pp_dolphin_mask[], fe_pp_dolphin_mask_end[],
+    fe_pp_buttons[], fe_pp_buttons_end[];
+
 extern "C" const uint8_t fe_font_brands[], fe_font_brands_end[], fe_web_page[], fe_web_page_end[], fe_web_discord[],
 	fe_web_discord_end[], fe_web_x[], fe_web_x_end[], fe_presets[], fe_presets_end[];
 
@@ -157,6 +172,59 @@ using namespace fe;
 
 // xlenore/ps2-covers, the default set: <serial>.jpg, 512x736 (the same source as the user's Twiso).
 constexpr const char* kCoverUrl = "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_Entertainment_System/master/Named_Boxarts/${title}.png";
+
+
+struct EmbeddedPorpoiseAsset { const char* name; const uint8_t* begin; const uint8_t* end; };
+bool PreparePorpoiseAssets(const std::string& root)
+{
+    const EmbeddedPorpoiseAsset assets[] = {
+        {"fonts/Nunito-Regular.ttf", fe_pp_nunito_regular, fe_pp_nunito_regular_end},
+        {"fonts/Nunito-SemiBold.ttf", fe_pp_nunito_semibold, fe_pp_nunito_semibold_end},
+        {"fonts/Nunito-Bold.ttf", fe_pp_nunito_bold, fe_pp_nunito_bold_end},
+        {"fonts/Nunito-ExtraBold.ttf", fe_pp_nunito_extrabold, fe_pp_nunito_extrabold_end},
+        {"brand/dolphin-mask.png", fe_pp_dolphin_mask, fe_pp_dolphin_mask_end},
+        {"ui/buttons.png", fe_pp_buttons, fe_pp_buttons_end},
+    };
+    for (const std::string& dir : {root, root + "/fonts", root + "/brand", root + "/ui"})
+    {
+        if (mkdir(dir.c_str(), 0777) && errno != EEXIST)
+        {
+            std::printf("[Porpoise Exact] mkdir(%s): errno %d\n", dir.c_str(), errno);
+            return false;
+        }
+    }
+    for (const auto& a : assets)
+    {
+        const std::string name = root + "/" + a.name;
+        const size_t bytes = static_cast<size_t>(a.end - a.begin);
+        struct stat st{};
+        if (stat(name.c_str(), &st) == 0 && static_cast<size_t>(st.st_size) == bytes)
+            continue;
+        const std::string tmp = name + ".new";
+        int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        if (fd < 0)
+        {
+            std::printf("[Porpoise Exact] open(%s): errno %d\n", tmp.c_str(), errno);
+            return false;
+        }
+        size_t done = 0;
+        bool complete = true;
+        while (done < bytes)
+        {
+            const ssize_t n = write(fd, a.begin + done, bytes - done);
+            if (n <= 0) { complete = false; break; }
+            done += static_cast<size_t>(n);
+        }
+        if (close(fd) || !complete || rename(tmp.c_str(), name.c_str()))
+        {
+            unlink(tmp.c_str());
+            std::printf("[Porpoise Exact] asset write failed: %s\n", name.c_str());
+            return false;
+        }
+    }
+    std::printf("[Porpoise Exact] original embedded UI assets are ready at %s\n", root.c_str());
+    return true;
+}
 
 // The key sounds' output: a port on the main output, float stereo at 48 kHz in 256-frame grains,
 // opened the way PCSX2's own output opens it once the game runs (system user, main port, format 4),
@@ -1486,9 +1554,10 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	original_ui.slots=2;
 	original_ui.get_instance_proc=vk_icdGetInstanceProcAddr;
 	original_ui.get_device_proc=display->vk.vkGetDeviceProcAddr;
-	original_ui.asset_dir="/app0/porpoise-ui";
+	original_ui.asset_dir=paths.top_dir+"/porpoise-ui";
+	const bool assets_ready=PreparePorpoiseAssets(original_ui.asset_dir);
 	original_ui.cache_dir=paths.cache_dir+"/porpoise";
-	const bool exact_ready=exact.Init(original_ui,games);
+	const bool exact_ready=assets_ready && exact.Init(original_ui,games);
 	if(exact_ready)
 		renderer.SetExactCallbacks(
 			[&exact](unsigned s,float w,float h){exact.Prepare(s,w,h);},
@@ -1529,6 +1598,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	acfg.preselect = preselect;
 	acfg.sound = mixer;
 	acfg.exact = exact_ready ? &exact : nullptr;
+	acfg.exact_failed = !exact_ready;
 	// vk-285-114: the options sheet (Square) edits the files the settings page does, and logs as it does.
 	acfg.options.settings_dir = paths.settings_dir;
 	acfg.options.gs_ini = paths.gs_ini;
