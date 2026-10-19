@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
-#include "core.hpp"
+#include "admission.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -17,6 +17,8 @@ struct Frame {
 };
 bool serialize(const Frame&,std::vector<std::uint8_t>& wire);
 bool authenticated_parse(const std::vector<std::uint8_t>& bytes,
-                         const VerifiedMembership& verified_session,
+                         const admission::AuthenticatedPeer& verified_session,
+                         const admission::Challenge& session_nonce,
+                         const admission::Challenge& channel_exporter,
                          std::uint64_t now,Frame& decoded);
 } // namespace meshcloud::wire
