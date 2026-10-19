@@ -16,6 +16,12 @@ bool ordinary(const fs::path& p){
  std::error_code ec;
  return fs::symlink_status(p,ec).type()==fs::file_type::regular&&!ec;
 }
+bool absent(const fs::path& p){
+ std::error_code ec;
+ const auto status=fs::symlink_status(p,ec);
+ return status.type()==fs::file_type::not_found &&
+        (!ec||ec==std::errc::no_such_file_or_directory);
+}
 bool valid_node(const admission::PublicKey& p){return p!=admission::PublicKey{};}
 void w32(std::ostream& f,std::uint32_t n){for(int i=0;i<4;i++)f.put(static_cast<char>((n>>(8*i))&255));}
 void w64(std::ostream& f,std::uint64_t n){for(int i=0;i<8;i++)f.put(static_cast<char>((n>>(8*i))&255));}
@@ -51,7 +57,7 @@ bool provision(const fs::path& data,const fs::path& commitment,
  const admission::PublicKey& node,std::uint64_t bytes,std::string& error){
  error.clear();std::uint64_t count=0;std::error_code ec;
  if(!valid_node(node)||!block_count(bytes,count)){error="Invalid audit node or dataset length";return false;}
- if(fs::exists(data,ec)||ec||fs::exists(commitment,ec)||ec ||
+ if(!absent(data)||!absent(commitment) ||
     data.lexically_normal()==commitment.lexically_normal()){
   error="Will not overwrite existing audit files";return false;
  }
