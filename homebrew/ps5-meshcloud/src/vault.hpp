@@ -12,6 +12,16 @@ constexpr std::size_t chunk_bytes=4*1024*1024;
 bool make_key(FileKey& key);
 bool save_key(const std::filesystem::path& path,const FileKey& key);
 bool load_key(const std::filesystem::path& path,FileKey& key);
+class ProcessLock {
+public:
+ ProcessLock()=default;
+ ~ProcessLock();
+ ProcessLock(const ProcessLock&)=delete;
+ ProcessLock& operator=(const ProcessLock&)=delete;
+ bool acquire(const std::filesystem::path& path);
+private:
+ std::intptr_t native_=-1;
+};
 class LocalVault {
 public:
  explicit LocalVault(std::filesystem::path directory);
@@ -26,6 +36,7 @@ public:
  Catalog& catalog() noexcept {return catalog_;}
 private:
  std::filesystem::path root_;
+ ProcessLock process_lock_;
  Catalog catalog_;
  std::string error_;
  bool write_block(const std::string& cid,const std::vector<unsigned char>& ciphertext);

@@ -41,6 +41,8 @@ int main() {
  {
   meshcloud::LocalVault v(root/"vault");
   assert(v.open());
+  meshcloud::LocalVault concurrent(root/"vault");
+  assert(!concurrent.open()); // only one writer/GC process owns a vault
   std::string id;assert(v.import_file(input,start,loaded,id));
   assert(meshcloud::cid::validate(id));
   meshcloud::CatalogEntry entry{};

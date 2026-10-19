@@ -134,7 +134,8 @@ bool Catalog::expired(std::uint64_t now,std::vector<std::string>& ids) {
  int rc=SQLITE_OK;
  while((rc=sqlite3_step(s.get()))==SQLITE_ROW) {
   const auto* p=reinterpret_cast<const char*>(sqlite3_column_text(s.get(),0));
-  if(!p)return false;ids.emplace_back(p);
+  if(!p)return false;
+  ids.emplace_back(p);
  }
  if(rc!=SQLITE_DONE){ids.clear();return false;}
  return true;

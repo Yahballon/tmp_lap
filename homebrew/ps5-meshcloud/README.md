@@ -43,7 +43,7 @@ cmake --build build/meshcloud --config Release
 ctest --test-dir build/meshcloud -C Release --output-on-failure
 ```
 
-GitHub Actions: [Build MeshCloud Desktop](../../.github/workflows/build-meshcloud-desktop.yml) targets Ubuntu x64, Windows x64, and macOS arm64. CI tests membership denial, standard CID vector, streaming 35 MiB roundtrip, wrong-key recovery rejection, and time-driven expiry + physical block deletion. A workflow definition in GitHub does **not** establish successful CI execution; check the Actions run result.
+GitHub Actions: [Build MeshCloud Desktop](../../.github/workflows/build-meshcloud-desktop.yml) targets Ubuntu x64, Windows x64, and macOS arm64. CI tests membership denial, standard CID vector, streaming 35 MiB roundtrip, wrong-key recovery rejection, exclusive vault process locking, and time-driven expiry + physical block deletion. A workflow definition in GitHub does **not** establish successful CI execution; check the Actions run result.
 
 ### Desktop CLI examples
 
@@ -64,7 +64,7 @@ The import prints a full manifest CID to use with local info/export. An existing
 ## Security boundaries and work required before a real release
 
 - **Unimplemented:** authenticated P2P encrypted transports, DHT discovery, relay-only mode, public search indexing, interoperable network CID fetching, distributed shard transfer, audit-backed membership credentials, erasure coding, placement and repair, native PS5 UI/package.
-- **Unimplemented:** cross-process transaction/file-locking for parallel vault commands, operational DoS/rate-limit controls, anti-Sybil enforcement, an encrypted private catalog, crash-safe fsync guarantees on every platform, independent security review.
+- **Unimplemented:** parallel writers within one vault (an OS-level exclusive lock instead rejects concurrent vault processes), operational DoS/rate-limit controls, anti-Sybil enforcement, an encrypted private catalog, crash-safe fsync guarantees on every platform, independent security review.
 - **Security limitations:** Key-file ACLs rely on host OS filesystem permissions; isolate the vault from untrusted local users. A local CLI cannot prove 10 GiB storage to remote nodes. Nonces are random and AES-GCM must never be reused with the same key/nonce pair.
 - **IP privacy:** Even relay-only networking would reveal a participant's connection IP to the relays, which can also observe Peer IDs. Direct P2P exposes IPs to other direct peers. There is no guarantee of anonymity. See [libp2p Circuit Relay](https://libp2p.io/docs/circuit-relay/).
 - **Legal operations:** Future distributed content sharing needs abuse reporting, opt-in sharing, user data protection and legitimate takedown procedures.
