@@ -3,6 +3,7 @@
 #include "cid.hpp"
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -134,6 +135,14 @@ bool SharedShardStore::open() {
     !sql("CREATE INDEX IF NOT EXISTS shard_expiry ON shards(expires);")) {
   sqlite3_close(db_);db_=nullptr;return false;
  }
+ // Reconcile expired and interrupted shard writes on service startup.
+ const auto seconds=std::chrono::duration_cast<std::chrono::seconds>(
+     std::chrono::system_clock::now().time_since_epoch()).count();
+ std::uint64_t removed=0;
+ if(seconds<0 || !prune(static_cast<std::uint64_t>(seconds),removed)) {
+  error_="Failed to reconcile exchange store on startup";
+  sqlite3_close(db_);db_=nullptr;return false;
+ }
  return true;
 }
 Result SharedShardStore::put(const std::string& id,
@@ -146,13 +155,18 @@ Result SharedShardStore::put(const std::string& id,
  const int row=sqlite3_step(existing.get());
  if(row==SQLITE_ROW) {
   // Re-sending a fragment does not refresh its 90-day staging lease.
-  if(sqlite3_column_int64(existing.get(),1)<=static_cast<sqlite3_int64>(now))
-   return Result::NotFound; // cleanup needed before a fresh put
-  std::vector<std::uint8_t> previous;
-  return read_verified(block_path(directory_,id),id,previous)&&previous==bytes
+  if(sqlite3_column_int64(existing.get(),1)>static_cast<sqlite3_int64>(now)) {
+   std::vector<std::uint8_t> previous;
+   return read_verified(block_path(directory_,id),id,previous)&&previous==bytes
     ?Result::Ok:Result::StorageFailure;
+  }
+  existing.reset();
+  std::uint64_t deleted=0;
+  if(!prune(now,deleted))return Result::StorageFailure;
+  // The expired record and its ciphertext are now removed; accept a fresh PUT.
+ } else if(row!=SQLITE_DONE) {
+  return Result::StorageFailure;
  }
- if(row!=SQLITE_DONE)return Result::StorageFailure;
  existing.reset();
  auto used_query=prepare(db_,"SELECT COALESCE(SUM(bytes),0) FROM shards");
  if(!used_query||sqlite3_step(used_query.get())!=SQLITE_ROW)
