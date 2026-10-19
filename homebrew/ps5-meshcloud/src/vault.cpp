@@ -314,7 +314,7 @@ bool LocalVault::import_file(const fs::path& source,std::uint64_t now,
  if(fs::exists(dst)){error_="Duplicate manifest";fs::remove(temp,ec);return false;}
  fs::rename(temp,dst,ec);
  if(ec){error_="Could not finalize manifest";fs::remove(temp,ec);return false;}
- CatalogEntry e{manifest_id,total,now,now,now+retention_seconds,0};
+ CatalogEntry e{manifest_id,total,now,now,now+retention_seconds,0,{}};
  const auto filename=source.filename().u8string();
  e.display_name=std::string(filename.begin(),filename.end());
  if(now>static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())-retention_seconds ||
