@@ -8,7 +8,7 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(SQLite3 REQUIRED)
 add_library(meshcloud_core STATIC
   src/core.cpp src/cid.cpp src/stream.cpp src/catalog.cpp src/vault.cpp
-  src/erasure.cpp src/admission.cpp)
+  src/erasure.cpp src/admission.cpp src/wire.cpp)
 target_include_directories(meshcloud_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(meshcloud_core PUBLIC OpenSSL::Crypto SQLite::SQLite3)
 if(MSVC)
@@ -32,3 +32,7 @@ add_test(NAME reed_solomon_redundancy_and_verified_recovery COMMAND meshcloud_er
 add_executable(meshcloud_admission_tests tests/test_admission.cpp)
 target_link_libraries(meshcloud_admission_tests PRIVATE meshcloud_core)
 add_test(NAME quorum_auditor_attestation_and_session_binding COMMAND meshcloud_admission_tests)
+
+add_executable(meshcloud_wire_tests tests/test_wire.cpp)
+target_link_libraries(meshcloud_wire_tests PRIVATE meshcloud_core)
+add_test(NAME bounded_authenticated_network_frames COMMAND meshcloud_wire_tests)
