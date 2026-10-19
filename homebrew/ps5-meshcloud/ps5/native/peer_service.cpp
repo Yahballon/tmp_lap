@@ -3,6 +3,7 @@
 #include "p2p_tls.hpp"
 #include "p2p_config.hpp"
 #include "audit_net.hpp"
+#include "ticket_issue.hpp"
 #include "storage_audit.hpp"
 #include <openssl/pem.h>
 #include "peer_discovery.hpp"
@@ -85,7 +86,33 @@ bool PeerService::send_local(const std::string& path){return launch(Action::Put,
 bool PeerService::fetch_cid(){return launch(Action::Get);}
 bool PeerService::discover(){return launch(Action::Discover);}
 bool PeerService::audit_listen(){return launch(Action::AuditListen);}
+bool PeerService::make_member_request(){return launch(Action::CreateTicketRequest);}
 void PeerService::run(Action action,const std::string& path) {
+ if(action==Action::CreateTicketRequest) {
+  const auto keyfile=home/"p2p"/"identity.pem";
+  BIO* bio=BIO_new_file(keyfile.string().c_str(),"r");
+  if(!bio){report("Ticket LOCKED: create private identity.pem first");return;}
+  EVP_PKEY* key=PEM_read_bio_PrivateKey(bio,nullptr,
+     [](char*,int,int,void*)->int {return 0;},nullptr);
+  BIO_free(bio);
+  if(!key||EVP_PKEY_base_id(key)!=EVP_PKEY_ED25519){
+   if(key)EVP_PKEY_free(key);
+   report("Ticket LOCKED: Ed25519 identity required");return;
+  }
+  const auto t=std::chrono::duration_cast<std::chrono::seconds>(
+       std::chrono::system_clock::now().time_since_epoch()).count();
+  meshcloud::ticket_issue::Request req{};
+  std::vector<unsigned char> bytes;std::string error;
+  const auto dest=home/"p2p"/"request.mctr";
+  const bool ok=t>0&&meshcloud::ticket_issue::request(key,
+       static_cast<std::uint64_t>(t),req)&&
+       meshcloud::ticket_issue::encode_request(req,bytes)&&
+       meshcloud::ticket_issue::write_new(dest,bytes,error);
+  EVP_PKEY_free(key);
+  if(ok)report("Signed 13 GiB ticket request.mctr saved; share PUBLIC request with 3 auditors");
+  else report("Ticket request failed: remove expired request.mctr or check storage");
+  return;
+ }
  if(action==Action::AuditListen) {
   // Auditor bootstrap must NEVER require a member.ticket: it is the secure
   // pre-membership proving channel, not an escape hatch to CID operations.
