@@ -50,7 +50,6 @@ using Context=std::unique_ptr<SSL_CTX,decltype(&SSL_CTX_free)>;
 using SSLHandle=std::unique_ptr<SSL,decltype(&SSL_free)>;
 using Certificate=std::unique_ptr<X509,decltype(&X509_free)>;
 using PKey=std::unique_ptr<EVP_PKEY,decltype(&EVP_PKEY_free)>;
-constexpr std::size_t max_wire=4*1024*1024+8192;
 constexpr char exporter_label[]="EXPORTER-MeshCloud-P2P-v1";
 std::uint64_t epoch_now() {
  const auto n=std::chrono::duration_cast<std::chrono::seconds>(
