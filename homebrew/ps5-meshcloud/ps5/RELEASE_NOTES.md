@@ -2,7 +2,7 @@
 
 Native PS5 OpenGL UI, mounted storage diagnostics, Ed25519 pinned TLS 1.3 peer link and encrypted CID chunk GET/PUT.
 
-**A real PS5↔PC peer connection requires externally issued 3-of-5 signed storage audit tickets proving at least 10 GiB each.** No ticket or non-pinned peer: no CID lookup, metadata, upload or download. The app includes NO issuer, no self-signed membership bypass and no production auditor network. This is an audited-LAN transport prototype, not the finished public cloud.
+**A real PS5↔PC peer connection requires externally issued 3-of-5 signed storage audit tickets proving at least 13 GiB each.** No ticket or non-pinned peer: no CID lookup, metadata, upload or download. The app includes NO issuer, no self-signed membership bypass and no production auditor network. This is an audited-LAN transport prototype, not the finished public cloud.
 
 PS5 configuration: /data/PS5MeshCloud/p2p/identity.pem, member.ticket, auditors.keys, peers.keys and network.conf. Encrypted MCB1 blocks can be placed into /data/PS5MeshCloud/files. The native Network tab starts a one-request listener with X, PUTs a selected encrypted block with Square, or GETs the configured CID with Triangle. Direct port 39718, one operation per listener. No automatic discovery or relay, so direct peers see each other's LAN IP.
 
@@ -12,4 +12,4 @@ Native PS5 hardware validation remains required after a successful GitHub build.
 
 ## Bitcoin-inspired v0.8 peer discovery
 
-Nodes now maintain a persistent signed SQLite address book and exchange bounded signed LAN endpoints **only** inside fully authenticated TLS 1.3 / 10 GiB membership channels. Peers can reconnect after restart using cached endpoints rather than a master server. Explicit local-IP advertising is optional. The PS5 Network page has R2 for signed GETADDR. See [P2P_DISCOVERY.md](../P2P_DISCOVERY.md) (or the repository root P2P_DISCOVERY.md) for bootstrap details and current security limits.
+Nodes now maintain a persistent signed SQLite address book and exchange bounded signed LAN endpoints **only** inside fully authenticated TLS 1.3 / 13 GiB membership channels. Peers can reconnect after restart using cached endpoints rather than a master server. Explicit local-IP advertising is optional. The PS5 Network page has R2 for signed GETADDR. See [P2P_DISCOVERY.md](../P2P_DISCOVERY.md) (or the repository root P2P_DISCOVERY.md) for bootstrap details and current security limits.
