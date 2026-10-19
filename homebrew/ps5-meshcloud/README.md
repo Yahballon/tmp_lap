@@ -1,8 +1,8 @@
 # MeshCloud by YAHBALLON
 
-**v0.4.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
+**v0.5.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
 
-This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention; separately tested Reed-Solomon recovery and cryptographically validated short-lived membership tickets have now been added, but are not yet connected to a P2P service. **It is not yet a working P2P network or native PS5 application.**
+This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
 
 ## Non-negotiable network membership rule
 
@@ -110,3 +110,17 @@ No guest access or network bypass was introduced. The v0.4.0 desktop pre-alpha r
 GitHub Actions builds both Windows apps in the same MSVC x64 job. The artifact `meshcloud-windows-x64.zip` contains `MeshCloud-GUI.exe` **and** `meshcloud.exe`, plus the OpenSSL/SQLite DLLs required by the dynamic vcpkg toolchain. Linux and macOS retain the CLI. The GUI backend adds migration, file listing, cancellation and stream roundtrip tests to CI.
 
 The Windows GUI is an offline app in this pre-alpha. It does not collect or transmit IP addresses because it opens no P2P connections. Once real network connections exist, relays will still observe the client's IP; anonymization is not guaranteed.
+
+## v0.5 – Verified CID shard exchange (developer-only, no open sockets)
+
+The cross-platform core includes a member-only request handler for **encrypted** chunk upload/download by CID. Its tests create two simulated nodes and ephemeral quorum-signed membership credentials, then verify that:
+
+- Unverified clients cannot upload or download, even if they know the CID.
+- Chunks are addressed by the **hash of their ciphertext**, and changed bytes are rejected on upload and again on download.
+- Only canonical CIDv1 is accepted, with strict 4 MiB chunk limits per frame, while complete files remain streamable without a user-facing size cap.
+- Encrypted chunks reside in a separate shared-fragment store, not the private local vault, with SQLite quota metadata and an independent 90-day staging expiry.
+- A successful fragment GET cannot extend the entire file's inactivity period, and a malformed or expired session gets no response.
+
+This is **not yet a functioning WAN/LAN cloud**: peer transport over relays, real 10 GiB storage audits, full-file receipt proofs, signed manifests, DHT filename search, multi-node placement, automatic shard repair and native PS5 installation remain unfinished. Importantly, the current Windows GUI **still operates locally**; it does not expose any P2P ports.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the threat model, the difference between per-shard staging TTL and the user-requested 90-day full-file lifetime, and planned independent relays.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// MeshCloud by YAHBALLON v0.4.0 - native, dependency-light Windows desktop UI.
+// MeshCloud by YAHBALLON v0.5.0 - native, dependency-light Windows desktop UI.
 // Shares the same C++ storage engine with the CLI; NO P2P listener or bypass.
 #include <windows.h>
 #include <commctrl.h>
@@ -540,7 +540,7 @@ LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam) {
   SelectObject(dc,old);DeleteObject(large);
   SetTextColor(dc,muted);
   RECT sub{37,75,client.right-30,112};
-  DrawTextW(dc,L"BY YAHBALLON    /    v0.4.0 PRE-ALPHA    /    ENCRYPTED LOCAL VAULT", -1,
+  DrawTextW(dc,L"BY YAHBALLON    /    v0.5.0 PRE-ALPHA    /    ENCRYPTED LOCAL VAULT", -1,
       &sub,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
   RECT vault_title{36,150,146,192};
   DrawTextW(dc,L"Vault folder", -1,&vault_title,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
@@ -578,7 +578,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,LPWSTR,int show) {
  cls.style=CS_HREDRAW|CS_VREDRAW;
  if(!RegisterClassExW(&cls))return 1;
  app.window=CreateWindowExW(0,cls.lpszClassName,
-    L"MeshCloud by YAHBALLON - v0.4.0 pre-alpha",
+    L"MeshCloud by YAHBALLON - v0.5.0 pre-alpha",
     WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
     CW_USEDEFAULT,CW_USEDEFAULT,1280,830,nullptr,nullptr,instance,&app);
  if(!app.window)return 1;
