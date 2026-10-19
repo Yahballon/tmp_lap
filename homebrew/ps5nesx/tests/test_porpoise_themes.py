@@ -14,7 +14,7 @@ for name,background in expected.items():
     if name!="porpoise":
         assert f'm_theme=="{name}"' in exact
         assert f'look.background={background}' in exact
-    assert name in look, name
+    assert f"make_{'midnight' if name=='oled' else name}" in look, name
 assert 'std::string ThemeValue() const' in header
 assert 'const std::string& destination=theme_only ? m_paths.gs_ini : m_path;' in options
 assert 'const IniState& global = m_global ? m_own : m_globals;' in options
