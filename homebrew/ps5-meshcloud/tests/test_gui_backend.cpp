@@ -38,6 +38,7 @@ int main() {
   assert(sqlite3_close(db)==SQLITE_OK);
  }
  const auto begin=1700000000ULL;
+ {
  meshcloud::LocalVault vault(root/"vault");
  assert(vault.open());
  std::vector<meshcloud::CatalogEntry> items;
@@ -88,6 +89,7 @@ int main() {
  assert(entry.expires_at==begin+400+meshcloud::retention_seconds);
  assert(vault.catalog().list_live(begin+meshcloud::retention_seconds+1,items)&&items.size()==1);
  assert(vault.catalog().list_live(entry.expires_at,items)&&items.empty());
+ }
  fs::remove_all(root);
  std::cout<<"GUI backend: migrated v0.3 catalog, UTF-8 names, cancellable streaming, recovery and lifecycle passed\n";
 }
