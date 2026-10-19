@@ -5,6 +5,7 @@
 #include "erasure.hpp"
 #include "cid.hpp"
 #include <cassert>
+#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <optional>
