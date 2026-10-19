@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // MeshCloud by YAHBALLON v0.4.0 - native, dependency-light Windows desktop UI.
 // Shares the same C++ storage engine with the CLI; NO P2P listener or bypass.
-#define UNICODE
-#define _UNICODE
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #include <commctrl.h>
 #include <commdlg.h>
@@ -12,6 +8,9 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <ctime>
+#include <cwchar>
+#include <exception>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -209,7 +208,6 @@ void create_children(App& a) {
   column.cx=widths[i];column.fmt=LVCFMT_LEFT;
   ListView_InsertColumn(a.list,i,&column);
  }
- make_label(a.window,L"SELECTED / PASTE CID",0);
  a.cid=make_edit(a.window,id_cid,L"");
  a.copy=make_button(a.window,id_copy,L"Copy CID");
  a.cancel=make_button(a.window,id_cancel,L"Cancel operation");
