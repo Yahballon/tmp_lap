@@ -12,7 +12,7 @@ int main(int argc,char** argv) {
   std::string arg=argv[i];
   if(arg=="--help" || arg=="-h") {
    std::cout<<"MeshCloud by YAHBALLON v0.1.0 pre-alpha\n"
-    <<"Usage: meshcloud [--storage PATH] [--quota-gib N]\n"
+    <<"Usage: meshcloud [--storage PATH] [--quota-gib N] | --cid-file PATH\n"
     <<"Members must provide 10 GiB verified storage; NETWORK DISABLED pending audited proof protocol.\n";
    return 0;
   }
