@@ -18,6 +18,7 @@ bool ExactPorpoiseShelf::Init(const GfxInit& config, const std::vector<GameInfo>
     m_names.clear();
     for (const GameInfo& g : games) m_names.push_back(g.title);
     m_art.assign(games.size(), nullptr);
+    std::printf("[Porpoise Exact] texture_uv=flat_quad_rect+v_local (v1.0.18)\n");
     m_ready = m_gfx.init(config);
     std::printf("[Porpoise Exact] original UI Gfx init=%d, games=%zu\n",
                 m_ready ? 1 : 0, games.size());

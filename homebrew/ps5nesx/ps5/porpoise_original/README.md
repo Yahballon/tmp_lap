@@ -61,3 +61,28 @@ Changes:
 Copyright remains with the original Porpoise authors for their borrowed code.
 The adapter has intentionally different game-specific content and interaction.
 A successful physical PS5 test is still needed to claim visual parity.
+
+## v1.0.18 — Experimental PS5 Vulkan texture UV correction
+
+An actual PS5 screenshot of v1.0.17 shows proper untextured glass, 3D
+frames and grid floor, but the loaded NES cover textures, original Nunito
+SDF atlas, and button textures appear as narrow *vertical stripes*.
+Because all sampled textures are affected yet procedural shapes remain
+correct, this points to texture coordinate interpolation or image sampling,
+not the cover files or the missing optional Japanese font.
+
+The original Porpoise fragment shader is now rebuilt from its GLSL during
+the native GitHub Actions build. K_IMAGE, K_TEXT, K_COVER and K_REFLECTION
+reconstruct their UV coordinates using the **v_local** varying (also used
+by the visibly correct procedural glass) and flat v_p2 bounds. Original
+projection, glass effects, room grid and UI geometry are preserved. The
+shader fix is experimental and its effectiveness on the console still
+must be confirmed. A successful native build is not proof.
+
+An optional upstream NotoSansJP-Porpoise.ttf is also pinned and embedded,
+to suppress the unrelated missing-CJK-font warning. The build verifies its
+Git object checksum.
+
+If stripes persist on v1.0.18, next debug step is GPU texture upload
+row-pitch and VkImage sampling/readback. The ROM and HD-Pack core are
+unchanged; saves, cover cache and app settings remain in /data/PS5NES.
