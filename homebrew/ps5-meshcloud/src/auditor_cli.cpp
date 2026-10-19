@@ -27,8 +27,8 @@ int main(int argc,char** argv){
    return 2;
   gib=std::stoull(input);
  }catch(...){return 2;}
- if(gib<1||gib>1024){
-  std::cerr<<"Select 1..1024 GiB; true membership requires >= 10 GiB\n";
+ if(gib<1||gib>13){
+  std::cerr<<"Select 1..13 GiB; network membership requires exactly 13 GiB\n";
   return 2;
  }
  const auto size=gib*1024ULL*1024*1024;
