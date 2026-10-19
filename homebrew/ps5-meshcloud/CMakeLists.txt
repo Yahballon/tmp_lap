@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
-project(meshcloud VERSION 0.4.0 LANGUAGES CXX)
+project(meshcloud VERSION 0.5.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -8,7 +8,7 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(SQLite3 REQUIRED)
 add_library(meshcloud_core STATIC
   src/core.cpp src/cid.cpp src/stream.cpp src/catalog.cpp src/vault.cpp
-  src/erasure.cpp src/admission.cpp src/wire.cpp)
+  src/erasure.cpp src/admission.cpp src/wire.cpp src/exchange.cpp)
 target_include_directories(meshcloud_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(meshcloud_core PUBLIC OpenSSL::Crypto SQLite::SQLite3)
 if(MSVC)
@@ -49,3 +49,7 @@ add_test(NAME bounded_authenticated_network_frames COMMAND meshcloud_wire_tests)
 add_executable(meshcloud_gui_backend_tests tests/test_gui_backend.cpp)
 target_link_libraries(meshcloud_gui_backend_tests PRIVATE meshcloud_core)
 add_test(NAME gui_catalog_migration_and_cancellable_vault COMMAND meshcloud_gui_backend_tests)
+
+add_executable(meshcloud_exchange_tests tests/test_exchange.cpp)
+target_link_libraries(meshcloud_exchange_tests PRIVATE meshcloud_core)
+add_test(NAME two_member_peers_cid_shard_exchange_and_lease_security COMMAND meshcloud_exchange_tests)
