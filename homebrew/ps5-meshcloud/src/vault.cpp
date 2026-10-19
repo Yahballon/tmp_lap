@@ -18,6 +18,7 @@
 #else
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/file.h>
 #endif
 
 namespace meshcloud {
@@ -145,6 +146,42 @@ bool read_cid_block(const fs::path& path,const std::string& cid,std::vector<unsi
  return in.gcount()==static_cast<std::streamsize>(data.size())&&!in.bad()&&cid::matches(cid,data);
 }
 } // namespace
+
+bool ProcessLock::acquire(const fs::path& path) {
+ if(native_!=-1)return true;
+#ifdef _WIN32
+ HANDLE file=CreateFileW(path.c_str(),GENERIC_READ|GENERIC_WRITE,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,
+                         OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
+ if(file==INVALID_HANDLE_VALUE)return false;
+ OVERLAPPED overlap{};
+ if(!LockFileEx(file,LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY,
+                0,1,0,&overlap)) {
+  CloseHandle(file);return false;
+ }
+ native_=reinterpret_cast<std::intptr_t>(file);
+#else
+ const int fd=::open(path.c_str(),O_RDWR|O_CREAT|O_NOFOLLOW,0600);
+ if(fd<0)return false;
+ if(flock(fd,LOCK_EX|LOCK_NB)!=0){::close(fd);return false;}
+ native_=static_cast<std::intptr_t>(fd);
+#endif
+ return true;
+}
+ProcessLock::~ProcessLock() {
+ if(native_==-1)return;
+#ifdef _WIN32
+ HANDLE file=reinterpret_cast<HANDLE>(native_);
+ OVERLAPPED overlap{};
+ UnlockFileEx(file,0,1,0,&overlap);
+ CloseHandle(file);
+#else
+ const int fd=static_cast<int>(native_);
+ flock(fd,LOCK_UN);
+ ::close(fd);
+#endif
+}
+
 bool make_key(FileKey& key){return random_bytes(key.data(),key.size());}
 bool save_key(const fs::path& path,const FileKey& key) {
  const std::string encoded=hex(key.data(),key.size())+"\n";
@@ -191,6 +228,9 @@ bool LocalVault::open() {
  std::error_code ec;
  if(!fs::exists(root_,ec))fs::create_directories(root_,ec);
  if(ec||!safe_directory(root_)){error_="Invalid vault directory";return false;}
+ if(!process_lock_.acquire(root_/".meshcloud.lock")) {
+  error_="Vault is already active in another process or filesystem locking unavailable";return false;
+ }
  for(const auto& sub:{"blocks","manifests"}) {
   const auto p=root_/sub;
   if(!fs::exists(p,ec))fs::create_directory(p,ec);
