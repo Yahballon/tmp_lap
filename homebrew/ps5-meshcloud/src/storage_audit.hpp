@@ -42,7 +42,7 @@ private:
                     bool&,VerifiedSample&);
  friend bool sign_ticket_after_proof(EVP_PKEY*,const Ledger&,
                                      const admission::MemberTicket&,
-                                     const VerifiedSample&,
+                                     VerifiedSample&,
                                      admission::AuditorSignature&);
  admission::PublicKey node_{};
  Nonce dataset_id_{};
@@ -68,6 +68,6 @@ bool verify(const Ledger&,const Challenge&,const Answer&,std::uint64_t now,
 // Auditor private keys MUST NOT run on the member whose disk they inspect.
 bool sign_ticket_after_proof(EVP_PKEY* independent_auditor_key,
                             const Ledger&,const admission::MemberTicket& ticket,
-                            const VerifiedSample& verified_proof,
+                            VerifiedSample& verified_proof,
                             admission::AuditorSignature& signed_audit);
 } // namespace meshcloud::storage_audit
