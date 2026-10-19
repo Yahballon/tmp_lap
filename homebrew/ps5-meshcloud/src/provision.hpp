@@ -27,5 +27,6 @@ bool send_once(const std::string& recipient_ipv4,std::uint16_t tcp_port,
   const admission::PublicKey& pinned_recipient,
   const std::filesystem::path& independent_data,
   const std::filesystem::path& independent_ledger,
-  std::uint64_t exact_bytes,std::string& error);
+  std::uint64_t exact_bytes,std::string& error,
+  const Progress& progress={});
 } // namespace meshcloud::provision
