@@ -16,7 +16,9 @@ checks={
     'original grid room': 'g.background();' in bridge and 'Look look;' in bridge and 'm_theme=="oled"' in bridge,
     'compact header': '"Save States"' not in bridge and '"Library"' not in bridge and 'Glyph::L1' not in bridge and 'Glyph::R1' not in bridge,
     'original glass cases': 'glass_block(g,' in bridge,
-    'real recent dock': 'Recently Browsed' in bridge,
+    'recent dock removed': 'g.text(Font::SemiBold,22,dx+32' not in bridge and 'm_recent' not in bridge,
+    'embedded no-cover texture': 'm_fallback = m_gfx.texture_rgba' in bridge,
+    'user tiger brand': 'FE_INCBIN_ASSET(fe_pp_dolphin_mask, "tiger-logo.png")' in ps5,
     'embed assets stage': 'cp -R "$root/."' in workflow,
 }
 for name,ok in checks.items():

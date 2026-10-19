@@ -473,8 +473,24 @@ void CoverService::PaintSpine(const Fonts& fonts, const GameInfo& g, CoverImage&
 	}
 }
 
+// The same bundled placeholder is shared by all games; real artwork always
+// replaces it when found locally or downloaded successfully.
+extern "C" const uint8_t fe_nocover_png[], fe_nocover_png_end[];
 void CoverService::PaintPlaceholder(const Fonts& fonts, const GameInfo& g, CoverImage& out)
 {
+    static const CoverImage embedded = [] {
+        CoverImage result;
+        const std::vector<uint8_t> png(fe_nocover_png, fe_nocover_png_end);
+        if (CoverService::Decode(png, 512, result))
+            result.kind = CoverImage::Placeholder;
+        return result;
+    }();
+    if (!embedded.rgba.empty()) {
+        out = embedded;
+        out.kind = CoverImage::Placeholder;
+        return;
+    }
+    // Keep the old title-card renderer if the bundled PNG cannot be decoded.
 	const int W = 364, H = 512;
 	Fill(out, W, H);
 	out.kind = CoverImage::Placeholder;

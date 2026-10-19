@@ -35,7 +35,7 @@ private:
     std::string m_clock;
     CoverProgress m_cover_progress;
     std::string m_theme = "porpoise";
-    std::vector<int> m_recent; // recently browsed actual selections, newest first
+    porpoise::ui::Texture* m_fallback = nullptr; // reusable bundled NO COVER GPU texture
     bool m_ready = false;
 };
 } // namespace fe

@@ -12,6 +12,7 @@ namespace fe {
 using namespace porpoise::ui;
 using namespace porpoise::ui::look;
 using PorpoiseTexture = porpoise::ui::Texture;
+extern "C" const uint8_t fe_nocover_png[], fe_nocover_png_end[];
 
 bool ExactPorpoiseShelf::Init(const GfxInit& config, const std::vector<GameInfo>& games)
 {
@@ -20,6 +21,15 @@ bool ExactPorpoiseShelf::Init(const GfxInit& config, const std::vector<GameInfo>
     m_art.assign(games.size(), nullptr);
     std::printf("[Porpoise Exact] texture_uv=flat_quad_rect+v_local (v1.0.18)\n");
     m_ready = m_gfx.init(config);
+    // A single fallback texture is shared by every game without real artwork.
+    m_fallback = nullptr;
+    if (m_ready) {
+        CoverImage placeholder;
+        const std::vector<uint8_t> bytes(fe_nocover_png, fe_nocover_png_end);
+        if (CoverService::Decode(bytes, 512, placeholder))
+            m_fallback = m_gfx.texture_rgba(placeholder.rgba.data(), placeholder.width, placeholder.height);
+        std::printf("[Porpoise Exact] built-in NO COVER: %s\n", m_fallback ? "ready" : "unavailable");
+    }
     std::printf("[Porpoise Exact] original UI Gfx init=%d, games=%zu\n",
                 m_ready ? 1 : 0, games.size());
     return m_ready;
@@ -29,6 +39,8 @@ void ExactPorpoiseShelf::Shutdown()
     if (!m_ready) return;
     for (PorpoiseTexture* t : m_art) if (t) m_gfx.free_texture(t);
     m_art.clear();
+    if (m_fallback) m_gfx.free_texture(m_fallback);
+    m_fallback = nullptr;
     m_gfx.shutdown();
     m_ready = false;
 }
@@ -48,12 +60,6 @@ void ExactPorpoiseShelf::Cover(const CoverImage& image)
 }
 void ExactPorpoiseShelf::Select(int index, float scroll, double elapsed, const std::string& clock)
 {
-    if (index != m_selected || m_recent.empty())
-    {
-        m_recent.erase(std::remove(m_recent.begin(), m_recent.end(), index), m_recent.end());
-        m_recent.insert(m_recent.begin(), index);
-        if (m_recent.size() > 3) m_recent.resize(3);
-    }
     m_selected = index;
     m_scroll = scroll;
     m_elapsed = elapsed;
@@ -70,6 +76,7 @@ void ExactPorpoiseShelf::DrawTile(int i, float cx, float cy, float w, float h,
     const float glow = focused ? 20.0f : 0.0f;
     const float inner_r = kR * 0.6f;
     PorpoiseTexture* cover = i >= 0 && static_cast<size_t>(i) < m_art.size() ? m_art[static_cast<size_t>(i)] : nullptr;
+    if (!cover) cover = m_fallback; // real covers take priority, including after refresh
     if (reflection)
     {
         const float base = cy + h * 0.5f + m;
@@ -285,37 +292,7 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
                "Nintendo Entertainment System");
     }
 
-    // Porpoise bottom glass dock: show ACTUALLY visited selections.
-    // This is 'Recently Browsed', not a fabricated play-history list.
-    const int count=static_cast<int>(m_recent.size());
-    if(count>0)
-    {
-        constexpr float ch=74,cw=ch*5.0f/7.0f,gap=18,label_w=290,dh=96,dy=902;
-        const float dw=32+label_w+count*(cw+gap)-gap+32,dx=kCx-dw*0.5f;
-        g.panel(dx,dy,dw,dh,rgba(0x0F1F63,0.55f),0.75f,kR,
-                rgba(0x4C6FD8,0.55f),1.6f,0,0.12f);
-        g.text(Font::SemiBold,22,dx+32,dy+22,kLavender,Align::Left,"Recently Browsed");
-        const int last=std::clamp(m_recent[0],0,std::max(0,shown-1));
-        if(shown>0)
-            g.text(Font::Bold,24,dx+32,dy+54,kSoft,Align::Left,m_names[last]);
-        for(int j=0;j<count;++j)
-        {
-            const int idx=m_recent[j];
-            if(idx<0||idx>=shown) continue;
-            const float cx=dx+32+label_w+j*(cw+gap)+cw*0.5f;
-            const float cy=dy+dh*0.5f;
-            PorpoiseTexture* cover=m_art[static_cast<size_t>(idx)];
-            if(cover)
-            {
-                float uv[4];
-                cover_uv(cover,cw,ch,uv);
-                g.image_part(cover,cx-cw*0.5f,cy-ch*0.5f,cw,ch,uv,kWhite,5);
-            }
-            else
-                g.panel(cx-cw*0.5f,cy-ch*0.5f,cw,ch,rgba(0x1E46C8,0.55f),
-                        0.7f,5,rgba(0x4C8DFF,0.8f),1.2f);
-        }
-    }
+    // No Recently Browsed dock: keep the coverflow and footer uncluttered.
 
     // Same prompt alignment and icon glyph renderer as Porpoise.
     constexpr float hintY=1010;
