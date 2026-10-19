@@ -2,9 +2,9 @@
   "name": "PS5NESX",
   "slug": "ps5nesx",
   "titleId": "PPSA99204",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "upstreamVersion": "1.0.0.9",
-  "releaseTag": "ps5nesx-v1.0.20",
+  "releaseTag": "ps5nesx-v1.0.21",
   "sourceRepository": "Yahballon/PS5NESX",
   "sourceScope": [
     "nes",
@@ -15,7 +15,7 @@
   "dataFolder": "/data/PS5NES",
   "installFolder": "PPSA99204",
   "core": "FCEUmm",
-  "frontend": "Original Porpoise blue-glass coverflow, layered native settings, active cover-progress HUD and additional ArcadeArtwork fallback",
+  "frontend": "Original Porpoise coverflow, expanded official Libretro NES Boxarts and auto-hiding download progress",
   "supportedRomExtensions": [
     ".nes",
     ".unf",

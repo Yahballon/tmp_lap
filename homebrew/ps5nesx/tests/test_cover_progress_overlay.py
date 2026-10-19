@@ -18,11 +18,14 @@ assert 'CoverProgress m_progress;' in header
 assert 'pending[background]=false;' in covers
 assert 'CoverService::MissingCovers' in covers
 assert 'DownloadCover(background,image)' in covers
-assert 'Fetching: ' in porpoise and 'Cover search finished' in porpoise
+assert 'Fetching: ' in porpoise and '!progress.done && !progress.offline' in porpoise
+assert 'Cover search finished' not in porpoise
 assert 'm_cover_progress' in porpoise
 assert 'arcadeartwork::Lookup' in covers
 assert 'cat_id=547' in api
 assert 'thread_local bool loaded' in api
 assert 'IsGalleryImage' in api
-assert '.nescovers-v9.missing' in covers
+assert '.nescovers-v10.missing' in covers
+assert 'libretro::Lookup' in covers
+assert 'https://thumbnails.libretro.com/' in (root/'nes/src/cover_urls.h').read_text()
 print('PASS: settings over Porpoise; progress, background caching and bounded ArcadeArtwork fallback')

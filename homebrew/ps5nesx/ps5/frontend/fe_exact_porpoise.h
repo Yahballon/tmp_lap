@@ -17,6 +17,8 @@ public:
     void Cover(const CoverImage& image);
     void Select(int index, float scroll, double elapsed, const std::string& clock);
     void SetCoverProgress(const CoverProgress& state) { m_cover_progress = state; }
+    void SetTheme(const std::string& theme);
+    const std::string& Theme() const { return m_theme; }
     void Prepare(unsigned slot, float w, float h);
     void Upload(VkCommandBuffer cmd) { if(m_ready) m_gfx.record_uploads(cmd); }
     void Record(VkCommandBuffer cmd) { if(m_ready) m_gfx.record(cmd); }
@@ -32,6 +34,7 @@ private:
     double m_elapsed = 0;
     std::string m_clock;
     CoverProgress m_cover_progress;
+    std::string m_theme = "porpoise";
     std::vector<int> m_recent; // recently browsed actual selections, newest first
     bool m_ready = false;
 };
