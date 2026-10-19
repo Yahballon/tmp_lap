@@ -67,18 +67,10 @@ std::string PeerService::status() const {
 bool PeerService::launch(Action action,std::string path) {
  if(busy_.exchange(true))return false;
  if(worker_.joinable())worker_.join();
- try {
-  worker_=std::thread([this,action,path=std::move(path)]{
-   run(action,path);
-   busy_=false;
-  });
- }catch(...){
-  // Some PS5 runtimes build with -fno-exceptions: std::thread start failure
-  // is fatal to that runtime; callers should only launch one worker at a time.
+ worker_=std::thread([this,action,path=std::move(path)]{
+  run(action,path);
   busy_=false;
-  report("Unable to start native peer thread");
-  return false;
- }
+ });
  report("P2P: secure peer job started");
  return true;
 }
