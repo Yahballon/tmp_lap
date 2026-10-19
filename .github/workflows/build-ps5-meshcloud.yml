@@ -161,7 +161,7 @@ jobs:
           p=json.loads((app/'sce_sys/param.json').read_text())
           assert p['titleId']=='PPSA99718'
           assert p['contentId']=='UP9000-PPSA99718_00-MESHCLOUDPS5APP1'
-          assert p['contentVersion']=='01.000.005'
+          assert p['contentVersion']=='01.000.006'
           for filename in ['sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']:
               assert (app/filename).is_file(),filename
           with zipfile.ZipFile('app/dist/PPSA99718.zip') as z:
@@ -271,7 +271,7 @@ jobs:
       - name: Publish explicitly labeled PS5 network-node prerelease
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: {{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view meshcloud-ps5-node-v0.12.0-prealpha >/dev/null 2>&1; then exit 0; fi
           gh release create meshcloud-ps5-node-v0.12.0-prealpha app/dist/PPSA99718.zip --target "$GITHUB_SHA" --prerelease --title "MeshCloud PS5 Network Node v0.12 (HEADLESS, no graphical UI)" --notes "Runs encrypted 13-GiB provisioning, independently signed audits and membership-gated P2P after explicit /data/PS5MeshCloud/node.conf setup. No OpenGL graphical UI. Independent auditor trust is mandatory. This is a PS5 native engineering preview."
