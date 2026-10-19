@@ -76,6 +76,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path package
           Copy-Item build/meshcloud/Release/meshcloud.exe package/
           Copy-Item build/meshcloud/Release/MeshCloud-GUI.exe package/
+          Copy-Item build/meshcloud/Release/meshcloud-peer.exe package/
           Copy-Item homebrew/ps5-meshcloud/README.md package/
           Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" | Copy-Item -Destination package/ -ErrorAction SilentlyContinue
           Set-Content package/NOT_A_NETWORK_CLIENT_YET.txt 'Windows GUI and CLI: encrypted local vault only; networking disabled'
@@ -84,6 +85,7 @@ jobs:
         run: |
           mkdir -p package
           cp build/meshcloud/meshcloud package/
+          cp build/meshcloud/meshcloud-peer package/
           cp homebrew/ps5-meshcloud/README.md package/
           printf '%s\n' 'Pre-alpha local disk diagnostic: networking disabled' > package/NOT_A_NETWORK_CLIENT_YET.txt
       - uses: actions/upload-artifact@v4
