@@ -1698,6 +1698,10 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
         else
         {
             app.Update(dt, in);
+            if (app.ExitRequested()) {
+                std::printf("[NESYX] Confirmed close from the home screen\\n");
+                break; // Proceed through normal Vulkan/audio/HTTP/pad teardown.
+            }
             app.Build(frame, Clock());
             if (app.Done() && app.Chosen() >= 0 && static_cast<size_t>(app.Chosen()) < games.size())
             {
@@ -1807,6 +1811,11 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 		delete mixer;
 	}
 
+    if (app.ExitRequested()) {
+        std::printf("[NESYX] All native resources released; exiting\\n");
+        std::fflush(stdout);
+        ::exit(0); // main_shelf.cpp would otherwise sleep forever.
+    }
 	if (!picked)
 	{
 		std::printf("[frontend] stopped without a pick; the plain list takes over\n");

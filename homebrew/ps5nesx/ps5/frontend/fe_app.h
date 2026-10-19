@@ -63,6 +63,8 @@ public:
 
 	// True once a game was picked and its launch animation has played.
 	bool Done() const { return m_done; }
+	bool ExitRequested() const { return m_exit_requested; }
+	bool ExitDialogOpen() const { return m_exit_confirm; }
 	int Chosen() const { return m_selected; }
 	// Native settings are drawn by the legacy panel renderer. The original
 	// Porpoise coverflow must stand down while it opens/closes.
@@ -118,6 +120,8 @@ private:
 	double m_held_for = 0, m_next_repeat = 0;
 	Input m_prev;
 	bool m_released = false; // buttons held at start count only once released
+	bool m_exit_confirm = false; // menu Circle opens an exclusive prompt
+	bool m_exit_requested = false; // menu Cross confirms quit
 
 	std::string m_web_url, m_web_shown;
 

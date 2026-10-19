@@ -95,6 +95,7 @@ void App::SetWebUrl(const std::string& url, const std::string& shown)
 void App::Resume(const std::string& status)
 {
     m_done = false; m_launching = false; m_released = false; m_prev = Input{};
+    m_exit_confirm = false; m_exit_requested = false;
     m_select_time = m_time; m_sheet_status = status; m_sheet_status_time = m_time;
 }
 
@@ -214,6 +215,20 @@ void App::Update(double dt, const Input& in)
 		m_sheet_scroll += (m_sheet_scroll_target - m_sheet_scroll) * a;
 	}
 
+    // Exclusive modal input: no accidental game launch or selection changes.
+    if (m_exit_confirm)
+    {
+        if (in.circle && !m_prev.circle) {
+            m_exit_confirm = false;
+            Sound(Sfx::Move, -0.2f);
+        } else if (in.cross && !m_prev.cross) {
+            m_exit_confirm = false;
+            m_exit_requested = true;
+            Sound(Sfx::Move, 0.2f);
+        }
+        m_prev = in;
+        return;
+    }
 	if (m_launching)
 	{
 		if (m_time - m_launch_time > 0.6)
@@ -262,7 +277,12 @@ void App::Update(double dt, const Input& in)
 			if (in.r1 && !m_prev.r1)
 				Sound(Step(5) ? Sfx::JumpRight : Sfx::Edge, 0.25f);
             if(in.r2&&!m_prev.r2&&!m_games.empty()){bool okay=m_covers&&m_covers->Refresh(m_selected);m_sheet_status=okay?"Updating selected cover...":"Cover update unavailable";m_sheet_status_time=m_time;}
-			if (((in.cross && !m_prev.cross) || (in.options && !m_prev.options)) && !m_games.empty())
+            if (in.circle && !m_prev.circle && m_sheet_anim < 0.05f) {
+                m_exit_confirm = true;
+                m_held = 0;
+                Sound(Sfx::Move, 0.0f);
+            }
+            else if (((in.cross && !m_prev.cross) || (in.options && !m_prev.options)) && !m_games.empty())
 			{
 				m_launching = true;
 				m_launch_time = m_time;
@@ -651,6 +671,29 @@ void App::Build(FrameDesc& f, const std::string& clock)
     }
     else if (m_nfs_keyboard_open)
         BuildNfsKeyboard(ui, W, H, k);
+
+    if (m_exit_confirm)
+    {
+        // Render after Porpoise: native UI overlay over the live game covers.
+        Fonts::AddRoundedRect(ui,0,0,W,H,0,Rgba(0.003f,0.007f,0.028f,0.79f));
+        const float pw=std::min(W-100*k,1570*k),ph=600*k;
+        const float x=(W-pw)*0.5f,y=(H-ph)*0.5f;
+        Fonts::AddRoundedRect(ui,x-5*k,y-5*k,pw+10*k,ph+10*k,34*k,Rgba(0.16f,0.72f,1.0f,0.70f));
+        Fonts::AddRoundedRect(ui,x,y,pw,ph,31*k,Rgba(0.027f,0.046f,0.13f,0.99f));
+        Fonts::AddRoundedRect(ui,x+56*k,y+49*k,94*k,7*k,3*k,Rgba(0.26f,0.84f,1.0f));
+        Fonts::AddRoundedRect(ui,x+154*k,y+49*k,65*k,7*k,3*k,Rgba(0.94f,0.33f,0.90f));
+        m_fonts->AddText(ui,"Close NESYX?",W*0.5f,y+195*k,81*k,Rgba(1,1,1),0.65f,Fonts::Center);
+        m_fonts->AddText(ui,"Do you want to close NESYX?",W*0.5f,y+297*k,43*k,
+                         Rgba(0.73f,0.80f,0.98f),0.15f,Fonts::Center);
+        const float bw=335*k,bh=111*k,gap=44*k,buttonsY=y+369*k;
+        const float yesX=W*0.5f-bw-gap*0.5f,noX=W*0.5f+gap*0.5f;
+        Fonts::AddRoundedRect(ui,yesX,buttonsY,bw,bh,21*k,Rgba(0.08f,0.40f,0.67f,0.88f));
+        Fonts::AddRoundedRect(ui,noX,buttonsY,bw,bh,21*k,Rgba(0.34f,0.13f,0.49f,0.94f));
+        m_fonts->AddText(ui,icon::Cross,yesX+54*k,buttonsY+76*k,57*k,Rgba(1,1,1),0.2f);
+        m_fonts->AddText(ui,"Yes",yesX+154*k,buttonsY+77*k,48*k,Rgba(1,1,1),0.45f);
+        m_fonts->AddText(ui,icon::Circle,noX+54*k,buttonsY+76*k,57*k,Rgba(1,1,1),0.2f);
+        m_fonts->AddText(ui,"No",noX+154*k,buttonsY+77*k,48*k,Rgba(1,1,1),0.45f);
+    }
 }
 
 // ---- vk-285-114: the options sheet ---------------------------------------------------------------------------------

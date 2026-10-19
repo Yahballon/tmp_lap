@@ -1,3 +1,11 @@
+# NESYX v1.0.25 by YAHBALLON
+
+- Brand new native cyan/purple glass loading screen replacing the original red "PS5NES v7" page.
+- Dynamic NESYX header with YAHBALLON credit and build version, real game / entry / NFS folder progress.
+- Circle in the main menu opens a confirmation popup ("Close NESYX?"). Cross = Yes (exit), Circle = No (cancel).
+- Does not interrupt an active NES game; normal Vulkan/HTTP/audio/controller teardown runs before exit.
+- Existing title ID PPSA99204, ROMs, saves, settings and high-resolution NO COVER asset remain intact.
+
 # NESYX v1.0.24 by YAHBALLON
 
 - Rebrand PS5NES/PS5NESX to NESYX in the PS5 menu, native CoverFlow, web settings and release display names.
