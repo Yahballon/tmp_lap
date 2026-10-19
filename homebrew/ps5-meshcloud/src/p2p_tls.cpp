@@ -335,6 +335,44 @@ bool parse_member_ticket(const std::vector<std::uint8_t>& bytes,
  if(!decode_ticket(bytes,ticket,empty))return false;
  return empty==admission::Challenge{};
 }
+bool discover_once(const std::string& remote_ipv4,std::uint16_t port,
+ const NodeIdentity& local,discovery::AddressBook& book,
+ const std::string& advertise_ipv4,std::string& error){
+ error.clear();
+ std::vector<discovery::SignedAddress> announcements;
+ if(!advertise_ipv4.empty()) {
+  discovery::SignedAddress self{};
+  if(!discovery::parse_lan_ipv4(advertise_ipv4,self.ipv4)) {
+   error="Only explicit private LAN IPv4 addresses may be advertised";
+   return false;
+  }
+  self.port=port;
+  self.published=epoch_now();
+  self.expires=self.published+discovery::record_lifetime;
+  if(!discovery::sign(self,local.private_key) ||
+     !book.add(self,self.published)) {
+   error="Cannot sign/save own opt-in endpoint";return false;
+  }
+  announcements.push_back(self);
+ }
+ std::vector<std::uint8_t> payload,request,response;
+ if(!discovery::encode_gossip(announcements,payload) ||
+    !wire::serialize({Operation::Discovery,std::move(payload)},request)) {
+  error="Cannot encode bounded getaddr request";return false;
+ }
+ if(!dial_once(remote_ipv4,port,local,request,response,error))return false;
+ // dial_once already verified TLS 1.3 and both independently audited tickets.
+ // A frame that is parseable but not Discovery is a denied request.
+ if(response.size()<wire::header_bytes || response[5]!=1) {
+  error="Peer did not answer with authenticated getaddr";return false;
+ }
+ std::vector<std::uint8_t> unwrapped(response.begin()+wire::header_bytes,
+                                      response.end());
+ if(!discovery::authorized_addr_reply(unwrapped,book,epoch_now())) {
+  error="Peer sent invalid signed address information";return false;
+ }
+ return true;
+}
 bool verify_tls_peer_credentials(EVP_PKEY* tls_pub,
  const admission::MemberTicket& ticket,
  const std::vector<admission::PublicKey>& pinned) {
@@ -346,7 +384,8 @@ bool verify_tls_peer_credentials(EVP_PKEY* tls_pub,
 }
 bool listen_once(const std::string& bind_ipv4,std::uint16_t port,
  const NodeIdentity& local,exchange::PeerGateway& gateway,
- std::string& error,std::atomic<bool>* stop) {
+ std::string& error,std::atomic<bool>* stop,
+ discovery::AddressBook* address_book) {
  error.clear();
  if(local.allowed_peer_keys.empty()||!socket_init()) {
   error="No pinned peer trust keys or sockets unavailable";return false;
@@ -388,10 +427,29 @@ bool listen_once(const std::string& bind_ipv4,std::uint16_t port,
  if(!tls_link(tls.get(),fd.value,true,local,peer,nonce,exporter,error))
   return false;
  std::vector<std::uint8_t> request,response;
- if(!receive_packet(tls.get(),request,max_frame_bytes) ||
-    !gateway.handle(request,peer,nonce,exporter,epoch_now(),response) ||
-    !send_packet(tls.get(),response,max_frame_bytes)) {
-  error="Authenticated frame rejected or transfer failed";return false;
+ if(!receive_packet(tls.get(),request,max_frame_bytes)) {
+  error="Could not receive bounded encrypted frame";return false;
+ }
+ wire::Frame parsed{};
+ if(!wire::authenticated_parse(request,peer,nonce,exporter,epoch_now(),parsed)){
+  error="Member admission denied, no peer data shared";return false;
+ }
+ if(parsed.operation==Operation::Discovery && address_book){
+  admission::PublicKey requester{};
+  if(!check_socket_identity(tls.get(),local,requester)) {
+   error="Discovery denied: unknown certificate";return false;
+  }
+  std::vector<std::uint8_t> payload;
+  if(!discovery::authorized_getaddr(parsed.payload,requester,*address_book,
+                                    epoch_now(),payload) ||
+     !wire::serialize({Operation::Discovery,std::move(payload)},response)) {
+   error="Invalid signed address announcement";return false;
+  }
+ }else if(!gateway.handle(request,peer,nonce,exporter,epoch_now(),response)) {
+  error="Authenticated fragment request rejected";return false;
+ }
+ if(!send_packet(tls.get(),response,max_frame_bytes)){
+  error="Could not send authenticated peer reply";return false;
  }
  SSL_shutdown(tls.get());
  return true;
