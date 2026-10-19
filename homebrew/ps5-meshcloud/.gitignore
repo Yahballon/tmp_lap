@@ -1,0 +1,14 @@
+# Never commit private file keys or cached file data
+*.key
+*.keyfile
+*.pem
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.mcb
+*.mcm
+.meshcloud.lock
+.partial-*
+mesh-vault/
+vault/
+build/
