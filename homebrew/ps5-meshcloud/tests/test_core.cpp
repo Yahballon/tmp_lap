@@ -20,6 +20,12 @@ int main() {
  for(const auto op:all)assert(authorize(op,m,now).denial==Denial::Quota);
  m.claimed_bytes=minimum_bytes;m.audited_bytes=minimum_bytes-1;
  for(const auto op:all)assert(authorize(op,m,now).denial==Denial::StorageProof);
+ m.audited_bytes=minimum_bytes;
+ m.claimed_bytes=maximum_bytes+1;
+ for(const auto op:all)assert(authorize(op,m,now).denial==Denial::Quota);
+ m.claimed_bytes=minimum_bytes;
+ m.audited_bytes=maximum_bytes+1;
+ for(const auto op:all)assert(authorize(op,m,now).denial==Denial::StorageProof);
  m.audited_bytes=minimum_bytes;m.authenticated_proof=false;
  for(const auto op:all)assert(!authorize(op,m,now).allowed);
  m.authenticated_proof=true;m.authenticated_identity=false;
@@ -31,6 +37,7 @@ int main() {
  m.expires_at=now+60;
  for(const auto op:all)assert(authorize(op,m,now).allowed);
  assert(!preflight(".",minimum_bytes-1).eligible);
+ assert(!preflight(".",maximum_bytes+1).eligible);
  const std::vector<std::uint8_t> empty{};
  const auto e=cid::from_bytes(empty);
  assert(e=="bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku");
