@@ -2,7 +2,7 @@
 
 **v0.7.0 pre-alpha – encrypted local vault, CIDv1, Reed-Solomon redundancy and quorum membership verification**
 
-This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
+This repository develops a decentralized storage network for PS5, Windows, Linux, and macOS. The desktop code implements a **LOCAL**, AES-256-GCM-encrypted, content-addressed vault with durable 90-day retention and a separate directly connectable TLS 1.3 P2P encrypted-fragment engine. A separate v0.5 module simulates two member-authenticated nodes exchanging ciphertext blocks by CID, backed by SQLite and strict quota limits; no Internet or LAN listener is enabled. **It is not yet a working P2P network or native PS5 application.**
 
 ## Non-negotiable network membership rule
 
@@ -46,7 +46,7 @@ The GUI includes: editable vault folder and folder picker, local encrypted file 
 
 Operations run in a background worker; the UI remains responsive while handling large files. The GUI refuses to overwrite an existing key or recovered file. Select a file in the table to populate its CID, click **Restore selected**, choose its matching saved `.key` file, then choose an output path.
 
-The GUI does **not** falsely pretend to be connected to other PS5 or desktop nodes. It cannot currently search the public MeshCloud network or perform a remote upload/download. The 10-GiB contribution rule remains mandatory for all future network features; local offline imports/restores do not grant network membership. The GUI is a pre-alpha file manager, not a released P2P cloud client.
+The GUI remains a local file manager, while the separate meshcloud-peer CLI can initiate and receive direct encrypted P2P fragment requests from audited nodes. It cannot currently search the public MeshCloud network or perform a remote upload/download. The 10-GiB contribution rule remains mandatory for all future network features; local offline imports/restores do not grant network membership. The GUI is a pre-alpha file manager, not a released P2P cloud client.
 
 **Keep your private `.key` files outside the vault**, backed up somewhere secure. They are not embedded into CID links. Moving or deleting the key can make the stored data unrecoverable.
 
@@ -82,7 +82,7 @@ The import prints a full manifest CID to use with local info/export. An existing
 
 ## Security boundaries and work required before a real release
 
-- **Unimplemented:** actual P2P encrypted transport/listener, DHT discovery, relay-only mode, public search indexing, interoperable network CID fetching, shard transfer, actual disk-backed audit issuing, codec-to-vault integration, fault-domain placement and repair, native PS5 UI/package. Reed-Solomon coding and quorum-signed ticket **verification** are implemented and tested as separate components.
+- **Unimplemented:** public DHT discovery, relay-only mode, public search indexing, interoperable network CID fetching, shard transfer, actual disk-backed audit issuing, codec-to-vault integration, fault-domain placement and repair, native PS5 UI/package. Reed-Solomon coding and quorum-signed ticket **verification** are implemented and tested as separate components.
 - **Unimplemented:** parallel writers within one vault (an OS-level exclusive lock instead rejects concurrent vault processes), operational DoS/rate-limit controls, anti-Sybil enforcement, an encrypted private catalog, crash-safe fsync guarantees on every platform, independent security review.
 - **Security limitations:** Key-file ACLs rely on host OS filesystem permissions; isolate the vault from untrusted local users. A local CLI cannot prove 10 GiB storage to remote nodes. Nonces are random and AES-GCM must never be reused with the same key/nonce pair.
 - **IP privacy:** Even relay-only networking would reveal a participant's connection IP to the relays, which can also observe Peer IDs. Direct P2P exposes IPs to other direct peers. There is no guarantee of anonymity. See [libp2p Circuit Relay](https://libp2p.io/docs/circuit-relay/).
