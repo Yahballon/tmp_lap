@@ -13,3 +13,7 @@ Native PS5 hardware validation remains required after a successful GitHub build.
 ## Bitcoin-inspired v0.8 peer discovery
 
 Nodes now maintain a persistent signed SQLite address book and exchange bounded signed LAN endpoints **only** inside fully authenticated TLS 1.3 / 13 GiB membership channels. Peers can reconnect after restart using cached endpoints rather than a master server. Explicit local-IP advertising is optional. The PS5 Network page has R2 for signed GETADDR. See [P2P_DISCOVERY.md](../P2P_DISCOVERY.md) (or the repository root P2P_DISCOVERY.md) for bootstrap details and current security limits.
+
+## v0.12 — audited 13 GiB LAN provisioning
+
+Windows, Linux and macOS gain `meshcloud-provision`; PS5 Network **L3** accepts 13 GiB of auditor-generated incompressible sentinel data and its SHA-256 ledger over pinned mutual TLS 1.3 on dedicated TCP 39720. Data is streamed in 64-KiB blocks and only staged/committed after full hash verification and fsync. This is pre-membership auditor-only transport, **never guest CID or file access**. Read [NETWORK_PROVISION.md](../NETWORK_PROVISION.md) for full PS5-PC setup, exact 13 GiB limit and missing public-network facilities. CI's 4 MiB transport test does not authorize membership.
