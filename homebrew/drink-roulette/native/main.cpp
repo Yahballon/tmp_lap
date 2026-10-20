@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Drink Roulette by YAHBALLON v0.1.2 — native PS5 / ps5-homebrew-ui.
+// Drink Roulette by YAHBALLON v0.1.3 — native PS5 / ps5-homebrew-ui.
 #include "game.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -33,7 +33,7 @@ std::string read(const char* path,size_t maxBytes=12*1024*1024){
  if(fread(content.data(),1,size_t(n),f)!=size_t(n))content.clear();
  fclose(f);return content;
 }
-void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.2] %s\n",text);fclose(f);}}
+void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.3] %s\n",text);fclose(f);}}
 // Persist the setup atomically. Only controller-keyboard characters are saved.
 void save(const Game& g){
  mkdir("/data/DrinkRoulette",0755);
@@ -184,10 +184,14 @@ void wheel(DrawList& d,const Font& f,unsigned a,const Game& g,const Texture& bot
  d.circle(cx,cy,162,rgb(0x100d12));
  // Radial woodgrain/depth in the fixed inner disc.
  for(int i=0;i<10;i++){float a=i*tau/10;d.line(cx+std::sin(a)*22,cy-std::cos(a)*22,cx+std::sin(a)*160,cy-std::cos(a)*160,2,rgb(0xb17d47,.12f));}
- // Real 1024-pixel translucent glass bottle texture. Rotate the image as the wheel spins.
- if(bottle.id){
-  d.shadow({cx-218,cy-64,436,128},45,18,rgb(0x00110a,.58f));
-  d.rotated_image(bottle.id,{cx-260,cy-78,520,156},g.angle-pi*.5f,white);
+ // Rotate the full sprite on a transparent square atlas.
+ // ps5-homebrew-ui rotated_image() rotates UVs, not its quad: the previous
+ // 520x156 rectangle clipped the bottle at 90/270 degree turns.
+ constexpr float bottleAtlasHalf=164.f;
+ if(bottle.id && bottle.width==bottle.height){
+  d.rotated_image(bottle.id,
+     {cx-bottleAtlasHalf,cy-bottleAtlasHalf,2.f*bottleAtlasHalf,2.f*bottleAtlasHalf},
+     pi*.5f-g.angle,white);
  }else{
   // Deterministic visual fallback if the sprite asset cannot load.
   float dx=std::sin(g.angle),dy=-std::cos(g.angle);
@@ -532,12 +536,10 @@ int main(){
   DrawList d;
   if(bg.id){d.image(bg.id,{0,0,1920,1080},kFullUv,white);if(!bg.reference)title(d,font,atlas);}else{party_backdrop(d);title(d,font,atlas);}
   // Dynamic UI panels replace the baked-in reference panels when photo is present.
-  if(bg.id){d.rounded_rect({71,286,532,695},14,rgb(0x080b16,.93f));d.rounded_rect({1415,107,447,670},15,rgb(0x090b17,.91f));}
+  if(bg.id){d.rounded_rect({71,286,532,695},14,rgb(0x080b16,.995f));d.rounded_rect({1415,107,447,670},15,rgb(0x090b17,.995f));}
   wheel(d,font,atlas,g,bottle);
   cards(d,font,atlas,g);
   overlay(d,font,atlas,g);
-  tx(d,font,atlas,"by YAHBALLON",1747,963,17,light,Align::right);
-  tx(d,font,atlas,"v0.1.2",1851,963,18,light,Align::right);
   footer(d,font,atlas,g);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);

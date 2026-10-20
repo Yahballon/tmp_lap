@@ -53,5 +53,9 @@ d.line((881,109,890,183),fill=(255,255,211,154),width=5)
 for x,y,r in [(223,108,5),(246,187,4),(325,163,3),(545,104,5),(576,193,4),(720,137,3)]:
  d.ellipse((x-r,y-r,x+r,y+r),fill=(229,255,222,125))
  d.ellipse((x-r/2,y-r/2,x+r/4,y+r/4),fill=(255,255,255,151))
-image.save(out)
-print('Built',out)
+# Store in a square transparent atlas: the renderer rotates UVs in-place.
+atlas=Image.new('RGBA',(1024,1024),(0,0,0,0))
+resized=image.resize((780,234),Image.Resampling.LANCZOS)
+atlas.alpha_composite(resized,(160,395))
+atlas.save(out)
+print('Built square bottle atlas',out)
