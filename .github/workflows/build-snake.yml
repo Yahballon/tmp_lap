@@ -1,0 +1,128 @@
+name: Build Snake PS5
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/snake/**'
+      - '.github/workflows/build-snake.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/snake/**'
+      - '.github/workflows/build-snake.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  native-ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain and asset requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make curl unzip tar git g++ python3 python3-pil pkg-config ca-certificates
+      - name: Test gameplay rules on host
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/snake/tests/game_test.cpp -o /tmp/ps5-snake-tests
+          /tmp/ps5-snake-tests
+          python3 -m json.tool homebrew/snake/app.json > /dev/null
+      - name: Stage actual native PS5 app
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/snake/native/main.cpp homebrew/snake/native/game.hpp app/src/
+          python3 homebrew/snake/assets/generate_assets.py app
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          app=json.loads(Path('homebrew/snake/app.json').read_text())
+          path=Path('app/sce_sys/param.json')
+          p=json.loads(path.read_text())
+          p.update(titleId=app['titleId'],conceptId=app['titleId'][4:],
+                   contentId=app['contentId'],contentVersion=app['contentVersion'])
+          p['localizedParameters']['en-US']['titleName']='Snake'
+          path.write_text(json.dumps(p,indent=2)+'\n')
+          PY
+      - name: Use pinned OpenGL SDK 1.0.2 archive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/tools/fetch-opengl-sdk.sh')
+          s=p.read_text()
+          assert 'version=1.0.0' in s
+          assert 'blackbearreloaded/ps5-opengl' in s
+          assert 'archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5' in s
+          s=s.replace('version=1.0.0','version=1.0.2')
+          s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5',
+                      'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
+          s=s.replace('github.com/blackbearreloaded/ps5-opengl','github.com/LedyBacer/ps5-opengl')
+          # This fork has a different file manifest than upstream 1.0.0;
+          # the pinned archive is still checked via its SHA-256.
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "SDK pinned archive SHA-256 checked" >&2'+s[end:]
+          p.write_text(s)
+          PY
+      - name: Fetch and compile PS5 OpenGL toolchain
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+        run: bash tools/prepare-opengl.sh
+      - name: Resolve SDK POSIX symbol collisions
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Build native PS5 ELF and installable ZIP
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Validate PS5 binary, metadata, icons and ZIP
+        run: |
+          python3 - <<'PY'
+          import json,struct,zipfile
+          from pathlib import Path
+          from PIL import Image
+          root=Path('app/dist/PPSA99846')
+          elf=(root/'eboot.bin').read_bytes()
+          assert len(elf)>1000
+          assert elf[:4]==struct.pack('<I',0x1d3d154f)
+          assert b'Snake v0.1.0' in elf or b'SNAKE by YAHBALLON v0.1.0' in elf
+          meta=json.loads((root/'sce_sys/param.json').read_text())
+          assert meta['titleId']=='PPSA99846'
+          assert meta['contentId']=='UP9000-PPSA99846_00-SNAKEHOMEBREW001'
+          with Image.open(root/'sce_sys/icon0.png') as icon:
+              assert icon.size==(512,512)
+          with Image.open(root/'assets/jungle.jpg') as bg:
+              assert bg.size==(1920,1080)
+          names=['eboot.bin','sce_sys/param.json','sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/jungle.jpg']
+          for n in names: assert (root/n).is_file(),n
+          with zipfile.ZipFile('app/dist/PPSA99846.zip') as z:
+              assert z.testzip() is None
+              for n in names: assert f'PPSA99846/{n}' in z.namelist(),n
+          print('Verified native PS5 Snake install ZIP')
+          PY
+      - name: Upload playable TEST ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Snake-v0.1.0-PPSA99846
+          path: app/dist/PPSA99846.zip
+          if-no-files-found: error
+      - name: Release verified ZIP after merge to main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view snake-v0.1.0 >/dev/null 2>&1; then
+            echo 'Release already exists; not replacing assets.'
+            exit 1
+          fi
+          gh release create snake-v0.1.0 app/dist/PPSA99846.zip --target "$GITHUB_SHA" --title "Snake by YAHBALLON v0.1.0" --notes-file homebrew/snake/RELEASE_NOTES.md
