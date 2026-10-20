@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Drink Roulette by YAHBALLON v0.1.5 — native PS5 / ps5-homebrew-ui.
+// Drink Roulette by YAHBALLON v0.1.6 — native PS5 / ps5-homebrew-ui.
 #include "game.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -33,7 +33,7 @@ std::string read(const char* path,size_t maxBytes=12*1024*1024){
  if(fread(content.data(),1,size_t(n),f)!=size_t(n))content.clear();
  fclose(f);return content;
 }
-void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.5] %s\n",text);fclose(f);}}
+void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.6] %s\n",text);fclose(f);}}
 // Persist the setup atomically. Only controller-keyboard characters are saved.
 void save(const Game& g){
  mkdir("/data/DrinkRoulette",0755);
@@ -341,11 +341,13 @@ void overlay(DrawList& d,const Font& f,unsigned a,Game& g){
   return;
  }
  if(g.screen==Screen::Game){
-  panel(d,88,802,535,154,0x874be1,.96f);
-  tx(d,f,a,"NOW PLAYING",119,845,18,rgb(0xfa89f9));
-  tx(d,f,a,g.players[g.active].name+"'s turn",119,889,33);
-  tx(d,f,a,g.spinning?"Bottle spinning...":"X  Spin the bottle!",119,928,23,rgb(0xffcd48));
-  tx(d,f,a,"Round "+std::to_string(g.turn+1)+(g.rounds?" / "+std::to_string(g.rounds):""),596,934,19,light,Align::right);
+  // Position this live status card immediately below the neon title.
+  // Keep it within the opaque left sidebar and clear of the wheel.
+  panel(d,88,309,490,154,0x874be1,.96f);
+  tx(d,f,a,"NOW PLAYING",119,354,18,rgb(0xfa89f9));
+  tx(d,f,a,g.players[g.active].name+"'s turn",119,399,33);
+  tx(d,f,a,g.spinning?"Bottle spinning...":"X  Spin the bottle!",119,439,23,rgb(0xffcd48));
+  tx(d,f,a,"Round "+std::to_string(g.turn+1)+(g.rounds?" / "+std::to_string(g.rounds):""),551,445,19,light,Align::right);
   return;
  }
  if(g.screen==Screen::Result){

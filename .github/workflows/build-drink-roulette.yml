@@ -40,6 +40,8 @@ jobs:
           code=(root/"native/main.cpp").read_text()
           assert "pi*.5f-g.angle,white" in code
           assert "if(!photoWheel)" in code
+          assert "panel(d,88,309,490,154,0x874be1,.96f);" in code
+          assert "panel(d,88,802,535,154" not in code
           assert "wheel(d,font,atlas,g,bottle,bg.reference);" in code
           assert "d.rounded_rect({1340,92,542,697},16,rgb(0x080d19,1.f));" in code
           assert "{cx-260,cy-78,520,156}" not in code
@@ -131,7 +133,7 @@ jobs:
           elf=(root/'eboot.bin').read_bytes()
           assert len(elf)>1000
           assert elf[:4]==struct.pack('<I',0x1d3d154f)
-          assert b'v0.1.5' in elf
+          assert b'v0.1.6' in elf
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99841'
           assert meta['contentId']=='UP9000-PPSA99841_00-DRINKROULETTE001'
@@ -153,7 +155,7 @@ jobs:
       - name: Upload test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Drink-Roulette-v0.1.5-PPSA99841
+          name: Drink-Roulette-v0.1.6-PPSA99841
           path: app/dist/PPSA99841.zip
           if-no-files-found: error
       - name: Publish verified TESTBUILDS release
@@ -161,8 +163,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view drink-roulette-v0.1.5 >/dev/null 2>&1; then
+          if gh release view drink-roulette-v0.1.6 >/dev/null 2>&1; then
             echo 'Release exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create drink-roulette-v0.1.5 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.5" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md
+          gh release create drink-roulette-v0.1.6 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.6" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md
