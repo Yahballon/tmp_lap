@@ -1,8 +1,7 @@
-# Drink Roulette v0.1.3
+# Drink Roulette v0.1.4 — Single wheel and restored glass bottle
 
-- Fix clipping of the spinning green bottle with centered square RGBA atlas and corrected rotation direction.
-- Remove developer/version text from the background artwork and native menu overlay.
-- Suppress ghosts from pre-rendered sidebar labels with more opaque native panels.
-- Add CI regression checks for bottle square shape/alpha, background dimensions, and render path.
-- Keep 433 prompts, setup wizard, modes and saved preferences.
-- Hardware appearance to be verified with a real PS5 test.
+- Fixed underlying bug: existing photographic artwork already contains the wheel; the native overlay had drawn a second wheel, offset about 34px right and 24px down.
+- Photo mode now preserves its beautiful baked roulette slices and redraws just the dark hub and the **animated** transparent glass bottle.
+- New artwork-derived 1024x1024 RGBA bottle sprite replaces green-line geometry. Its gold pivot is aligned with the hub.
+- Full-opacity mask on stale sidebars and footer removes all duplicate labels.
+- Player setup, 433 challenges and game modes preserved. Hardware rendering still must be checked.

@@ -1,4 +1,4 @@
-# Drink Roulette by YAHBALLON — v0.1.3
+# Drink Roulette by YAHBALLON — v0.1.4
 
 Native PS5 homebrew party game with 1920×1080 OpenGL presentation, neon drink-roulette lobby, an animated green glass bottle sprite, pass-and-play controller controls, and a fully offline set of **433 unique challenges**. The provided lobby design is used as the background; foreground roulette, challenge cards, and menus are rendered live.
 
@@ -48,6 +48,11 @@ This homebrew is for supported jailbroken PS5 consoles. Host and GitHub CI build
 GPL-3.0-or-later (consistent with the native UI framework). No Sony or PlayStation marks are embedded.
 
 
-## v0.1.3: Roulette display fix
+## v0.1.4: Roulette display fix
 
 The native renderer rotates texture UVs within the destination quad. The old non-square quad clipped the bottle as it spun. The bottle now uses a square transparent atlas with the center pivot aligned to the wheel. The supplied 1080p background contains no baked credits or version text; matching native overlay credits were also removed.
+
+
+## v0.1.4 — remove duplicate layers
+
+The source JPG already includes the roulette wheel, menu and status cards. Photo mode now retains that wheel and only redraws the black hub and a high-detail animated beer bottle centered on the photographed hub (962,607). Old static sidebars and footer are fully occluded by opaque native overlays. Native fallback scene retains a procedural wheel.

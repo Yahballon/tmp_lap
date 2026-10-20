@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Drink Roulette by YAHBALLON v0.1.3 — native PS5 / ps5-homebrew-ui.
+// Drink Roulette by YAHBALLON v0.1.4 — native PS5 / ps5-homebrew-ui.
 #include "game.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -33,7 +33,7 @@ std::string read(const char* path,size_t maxBytes=12*1024*1024){
  if(fread(content.data(),1,size_t(n),f)!=size_t(n))content.clear();
  fclose(f);return content;
 }
-void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.3] %s\n",text);fclose(f);}}
+void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.4] %s\n",text);fclose(f);}}
 // Persist the setup atomically. Only controller-keyboard characters are saved.
 void save(const Game& g){
  mkdir("/data/DrinkRoulette",0755);
@@ -155,48 +155,44 @@ void menu_button(DrawList& d,const Font& f,unsigned a,int i,const char* name,con
  tx(d,f,a,symbol,125,y+54,34,focus?rgb(0xffdd61):light);
  tx(d,f,a,name,207,y+52,30,white);tx(d,f,a,">",550,y+52,30,focus?rgb(0xff8ffb):muted,Align::right);
 }
-void wheel(DrawList& d,const Font& f,unsigned a,const Game& g,const Texture& bottle){
- constexpr float cx=996,cy=631,r=349;
- d.shadow({cx-r-17,cy-r+26,2*(r+17),2*(r+17)},350,32,rgb(0x000000,.82f));
- d.circle(cx,cy+10,r+25,rgb(0x090707));
- d.ring(cx,cy+9,r+23,10,rgb(0xa66b33));
- d.circle(cx,cy,r+10,rgb(0x060815));
- const float sliceWidth=tau/10.f;
- for(int i=0;i<10;i++){
-  float start=(i-.5f)*sliceWidth;
-  float sweep=sliceWidth-.015f;
-  Color c=rgb(slices[i].color);
-  d.arc(cx,cy,r,175,start,sweep,c,false);
-  d.arc(cx,cy,r+2,5,start+.017f,sweep-.032f,rgb(0xffffff,.8f),false);
-  float rad=i*sliceWidth;
-  float x=cx+std::sin(rad)*270, y=cy-std::cos(rad)*270;
-  std::string name=slices[i].label;
-  if(name=="GROUP DRINK"){
-   tx(d,f,a,"GROUP",x,y-8,17,white,Align::center);
-   tx(d,f,a,"DRINK",x,y+15,17,white,Align::center);
-  }else{
-   tx(d,f,a,name,x,y,19,white,Align::center);
+void wheel(DrawList& d,const Font& f,unsigned a,const Game& g,const Texture& bottle,bool photoWheel){
+ const float cx=photoWheel?962.f:996.f,cy=photoWheel?607.f:631.f,r=349.f;
+ // The reference JPEG already contains the colorful roulette wheel.
+ // Repainting it shifted wheel/labels 34x24 pixels and doubled the whole UI.
+ if(!photoWheel){
+  d.shadow({cx-r-17,cy-r+26,2*(r+17),2*(r+17)},350,32,rgb(0x000000,.82f));
+  d.circle(cx,cy+10,r+25,rgb(0x090707));
+  d.ring(cx,cy+9,r+23,10,rgb(0xa66b33));
+  d.circle(cx,cy,r+10,rgb(0x060815));
+  const float step=tau/10.f;
+  for(int i=0;i<10;i++){
+   float begin=(i-.5f)*step;
+   float sweep=step-.015f;
+   d.arc(cx,cy,r,175,begin,sweep,rgb(slices[i].color),false);
+   d.arc(cx,cy,r+2,5,begin+.017f,sweep-.032f,rgb(0xffffff,.8f),false);
+   float angle=i*step,x=cx+std::sin(angle)*270,y=cy-std::cos(angle)*270;
+   std::string label=slices[i].label;
+   if(label=="GROUP DRINK"){
+    tx(d,f,a,"GROUP",x,y-8,17,white,Align::center);
+    tx(d,f,a,"DRINK",x,y+15,17,white,Align::center);
+   }else tx(d,f,a,label,x,y,19,white,Align::center);
   }
+  d.ring(cx,cy,r+9,5,rgb(0xe4b96e));
  }
- d.ring(cx,cy,r+9,5,rgb(0xe4b96e));
  d.circle(cx,cy,179,rgb(0x1c1418));
  d.ring(cx,cy,178,4,rgb(0x795534));
  d.circle(cx,cy,162,rgb(0x100d12));
  // Radial woodgrain/depth in the fixed inner disc.
  for(int i=0;i<10;i++){float a=i*tau/10;d.line(cx+std::sin(a)*22,cy-std::cos(a)*22,cx+std::sin(a)*160,cy-std::cos(a)*160,2,rgb(0xb17d47,.12f));}
- // Rotate the full sprite on a transparent square atlas.
- // ps5-homebrew-ui rotated_image() rotates UVs, not its quad: the previous
- // 520x156 rectangle clipped the bottle at 90/270 degree turns.
- constexpr float bottleAtlasHalf=164.f;
- if(bottle.id && bottle.width==bottle.height){
+ // The photograph is a square transparent atlas with its gold pivot centered.
+ // The backend rotates image UVs: keep an equally square draw quad.
+ constexpr float bottleAtlasHalf=205.f;
+ if(bottle.id && bottle.width==1024 && bottle.height==1024){
   d.rotated_image(bottle.id,
-     {cx-bottleAtlasHalf,cy-bottleAtlasHalf,2.f*bottleAtlasHalf,2.f*bottleAtlasHalf},
-     pi*.5f-g.angle,white);
+    {cx-bottleAtlasHalf,cy-bottleAtlasHalf,2.f*bottleAtlasHalf,2.f*bottleAtlasHalf},
+    pi*.5f-g.angle,white);
  }else{
-  // Deterministic visual fallback if the sprite asset cannot load.
-  float dx=std::sin(g.angle),dy=-std::cos(g.angle);
-  d.line(cx-dx*157,cy-dy*157,cx+dx*158,cy+dy*158,65,rgb(0x006c36));
-  d.line(cx-dx*147,cy-dy*147,cx+dx*148,cy+dy*148,7,rgb(0xaaffbe));
+  tx(d,f,a,"BOTTLE ASSET MISSING",cx,cy-22,18,rgb(0xffb344),Align::center);
  }
  d.circle(cx,cy,15,rgb(0xd8a74e));
  d.ring(cx,cy,13,3,rgb(0xffe3a0));d.circle(cx,cy,5,rgb(0xfff8db));
@@ -204,21 +200,21 @@ void wheel(DrawList& d,const Font& f,unsigned a,const Game& g,const Texture& bot
  if(g.spinning){d.ring(cx,cy,r+14,3,rgb(0xffffff,.25f));}
 }
 void cards(DrawList& d,const Font& f,unsigned a,const Game& g){
- panel(d,1428,116,415,344);
- tx(d,f,a,"Players ("+std::to_string(g.player_count)+")",1454,163,25);
- d.line(1454,180,1818,180,1,rgb(0x647088,.4f));
+ panel(d,1373,116,470,344);
+ tx(d,f,a,"Players ("+std::to_string(g.player_count)+")",1399,163,25);
+ d.line(1399,180,1818,180,1,rgb(0x647088,.4f));
  const uint32_t pc[]={0xff3c72,0x32b5ff,0x42ef9b,0xffaa36,0xd088ff,0xffe54f,0x40e9e6,0xff6e53};
  for(int i=0;i<g.player_count&&i<4;i++){
   float y=209+i*56;
-  d.circle(1466,y+10,20,rgb(pc[i]));
-  tx(d,f,a,"P"+std::to_string(i+1),1496,y+16,18,rgb(pc[i]));
-  tx(d,f,a,g.players[i].name,1540,y+16,19,white);
+  d.circle(1411,y+10,20,rgb(pc[i]));
+  tx(d,f,a,"P"+std::to_string(i+1),1441,y+16,18,rgb(pc[i]));
+  tx(d,f,a,g.players[i].name,1485,y+16,19,white);
   tx(d,f,a,g.players[i].ready?"Ready":"Not Ready",1818,y+16,16,g.players[i].ready?rgb(0xc4fb66):rgb(0xff5479),Align::right);
  }
- if(g.player_count>4)tx(d,f,a,"+"+std::to_string(g.player_count-4)+" more players",1500,443,16,muted);
- panel(d,1428,482,415,267);
- tx(d,f,a,"Game Status",1454,531,26);
- d.line(1454,546,1818,546,1,rgb(0x647088,.4f));
+ if(g.player_count>4)tx(d,f,a,"+"+std::to_string(g.player_count-4)+" more players",1445,443,16,muted);
+ panel(d,1373,482,470,267);
+ tx(d,f,a,"Game Status",1399,531,26);
+ d.line(1399,546,1818,546,1,rgb(0x647088,.4f));
  tx(d,f,a,"♧",1457,595,24,light);tx(d,f,a,std::to_string(g.player_count)+" Players",1515,594,20);
  tx(d,f,a,"○",1457,643,22,light);tx(d,f,a,std::string(mode_names[g.mode])+" Mode",1515,642,20);
  tx(d,f,a,"▥",1457,691,22,light);tx(d,f,a,std::to_string(g.available_prompt_count())+" Challenges",1515,690,20);
@@ -226,7 +222,7 @@ void cards(DrawList& d,const Font& f,unsigned a,const Game& g){
 
 }
 void footer(DrawList& d,const Font& f,unsigned a,const Game& g){
- d.gradient_rect({0,992,1920,88},0,rgb(0x050916,.96f),rgb(0x080b13));
+ d.rounded_rect({0,964,1920,116},0,rgb(0x050916,1.f));
  tx(d,f,a,"X  Confirm",72,1041,23);
  tx(d,f,a,"O  Back",257,1041,23);
  tx(d,f,a,g.screen==Screen::Players?"SQUARE  Enter name   |   LEFT/RIGHT  Player count":g.screen==Screen::Home?"TRIANGLE  Rules   |   D-PAD  Navigate":g.screen==Screen::Game?"TRIANGLE  New session": "D-PAD  Navigate",1805,1041,21,light,Align::right);
@@ -536,8 +532,13 @@ int main(){
   DrawList d;
   if(bg.id){d.image(bg.id,{0,0,1920,1080},kFullUv,white);if(!bg.reference)title(d,font,atlas);}else{party_backdrop(d);title(d,font,atlas);}
   // Dynamic UI panels replace the baked-in reference panels when photo is present.
-  if(bg.id){d.rounded_rect({71,286,532,695},14,rgb(0x080b16,.995f));d.rounded_rect({1415,107,447,670},15,rgb(0x090b17,.995f));}
-  wheel(d,font,atlas,g,bottle);
+  // The artwork has static sidebars baked in; mask them completely.
+  if(bg.reference){
+   d.rounded_rect({65,277,555,713},15,rgb(0x080d19,1.f));
+   d.rounded_rect({1340,92,542,697},16,rgb(0x080d19,1.f));
+   d.rounded_rect({0,964,1920,116},0,rgb(0x050916,1.f));
+  }
+  wheel(d,font,atlas,g,bottle,bg.reference);
   cards(d,font,atlas,g);
   overlay(d,font,atlas,g);
   footer(d,font,atlas,g);
