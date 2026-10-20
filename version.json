@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "718e84253a7076cb8021991c49440a0f06613c2ec8e50e5b0666ea50e1b6f7f0",
+  "version": "54bd1b8af3b64a5bafc11183700c6d0ae7e6d2fb743556ebbb01f9b4ca3e9faa",
   "repository": "Yahballon/tmp_lap",
   "app_count": 17,
   "apps": [
@@ -164,14 +164,14 @@
       "name": "Drink Roulette",
       "slug": "drink-roulette",
       "title_id": "PPSA99841",
-      "version": "0.1.1",
-      "tag": "drink-roulette-v0.1.1",
+      "version": "0.1.2",
+      "tag": "drink-roulette-v0.1.2",
       "zip_name": "PPSA99841.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/drink-roulette-v0.1.1/PPSA99841.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/drink-roulette-v0.1.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/drink-roulette-v0.1.2/PPSA99841.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/drink-roulette-v0.1.2",
       "source": "homebrew/drink-roulette",
-      "size_bytes": 6435274,
-      "published_at": "2026-10-20T12:15:34Z"
+      "size_bytes": 6713307,
+      "published_at": "2026-10-20T12:54:51Z"
     },
     {
       "name": "Payload LauncherX",
