@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "54bd1b8af3b64a5bafc11183700c6d0ae7e6d2fb743556ebbb01f9b4ca3e9faa",
+  "version": "0da612d22b832c9512bb4f4eefbc2f74ba65d3f88cd5dc3bdbc2e05ec82e1693",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 17,
+  "app_count": 18,
   "apps": [
     {
       "name": "NESYX",
@@ -172,6 +172,19 @@
       "source": "homebrew/drink-roulette",
       "size_bytes": 6713307,
       "published_at": "2026-10-20T12:54:51Z"
+    },
+    {
+      "name": "Snake",
+      "slug": "snake",
+      "title_id": "PPSA99846",
+      "version": "0.1.0",
+      "tag": "snake-v0.1.0",
+      "zip_name": "PPSA99846.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/snake-v0.1.0/PPSA99846.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/snake-v0.1.0",
+      "source": "homebrew/snake",
+      "size_bytes": 6218260,
+      "published_at": "2026-10-20T13:05:50Z"
     },
     {
       "name": "Payload LauncherX",
