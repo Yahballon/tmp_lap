@@ -34,6 +34,7 @@ on:
       - Build PS5 Audiobook Reader
       - Build PS5 System Info
       - Build Drink Roulette PS5
+      - Build Snake PS5
       - Build Bible Reader for PS5
       - Build PS5 ThemeChanger
       - Build PS5DreamcastX (native Flycast)
