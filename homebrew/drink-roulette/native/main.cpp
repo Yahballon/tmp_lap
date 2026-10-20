@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Drink Roulette by YAHBALLON v0.1.4 — native PS5 / ps5-homebrew-ui.
+// Drink Roulette by YAHBALLON v0.1.5 — native PS5 / ps5-homebrew-ui.
 #include "game.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -33,7 +33,7 @@ std::string read(const char* path,size_t maxBytes=12*1024*1024){
  if(fread(content.data(),1,size_t(n),f)!=size_t(n))content.clear();
  fclose(f);return content;
 }
-void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.4] %s\n",text);fclose(f);}}
+void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.5] %s\n",text);fclose(f);}}
 // Persist the setup atomically. Only controller-keyboard characters are saved.
 void save(const Game& g){
  mkdir("/data/DrinkRoulette",0755);
@@ -103,14 +103,66 @@ Texture background(Renderer& r){
 }
 Texture load_bottle(Renderer& r){
  Texture result;
- auto bytes=read("/app0/assets/bottle.png");
- if(bytes.empty())bytes=read("/data/homebrew/PPSA99841/assets/bottle.png");
- if(bytes.empty())return result;
- int w=0,h=0,n=0;
- auto* rgba=stbi_load_from_memory((const stbi_uc*)bytes.data(),int(bytes.size()),&w,&h,&n,4);
- if(!rgba||w<=0||h<=0||w>2048||h>512){if(rgba)stbi_image_free(rgba);return result;}
- result.id=r.batch().create_texture(w,h,rgba);result.width=w;result.height=h;stbi_image_free(rgba);
- return result;
+ // Raw RGBA8 is produced and ZIP-verified in CI from the source bottle.png.
+ // Loading it directly avoids device-specific stb PNG decode failures.
+ constexpr int side=512;
+ constexpr size_t rawBytes=size_t(side)*side*4;
+ constexpr const char* rawPaths[]={
+   "/app0/assets/bottle.rgba",
+   "/data/homebrew/PPSA99841/assets/bottle.rgba",
+   "assets/bottle.rgba",
+   "/mnt/usb0/homebrew/PPSA99841/assets/bottle.rgba"
+ };
+ char message[256];
+ for(const char* path:rawPaths){
+  auto pixels=read(path,rawBytes+1);
+  if(pixels.empty())continue;
+  if(pixels.size()!=rawBytes){
+   snprintf(message,sizeof(message),"Bottle raw bad size %s: %u",path,unsigned(pixels.size()));
+   log(message);continue;
+  }
+  result.id=r.batch().create_texture(side,side,reinterpret_cast<const uint8_t*>(pixels.data()));
+  result.width=side;result.height=side;
+  if(result.id){
+   snprintf(message,sizeof(message),"Bottle loaded raw RGBA: %s (%dx%d, id=%u)",path,side,side,unsigned(result.id));
+   log(message);return result;
+  }
+  snprintf(message,sizeof(message),"Bottle raw GPU texture creation failed: %s",path);
+  log(message);
+ }
+ log("Bottle raw not available: trying source PNG");
+ constexpr const char* pngPaths[]={
+  "/app0/assets/bottle.png",
+  "/data/homebrew/PPSA99841/assets/bottle.png",
+  "assets/bottle.png",
+  "/mnt/usb0/homebrew/PPSA99841/assets/bottle.png"
+ };
+ for(const char* path:pngPaths){
+  auto bytes=read(path);
+  if(bytes.empty())continue;
+  int w=0,h=0,n=0;
+  auto* rgba=stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(bytes.data()),
+                                  int(bytes.size()),&w,&h,&n,4);
+  if(!rgba){
+   snprintf(message,sizeof(message),"Bottle PNG decode failure %s: %.96s",path,
+            stbi_failure_reason()?stbi_failure_reason():"unknown");
+   log(message);continue;
+  }
+  if(w<1||h<1||w>2048||h>2048){
+   snprintf(message,sizeof(message),"Bottle invalid PNG size: %d x %d",w,h);
+   log(message);stbi_image_free(rgba);continue;
+  }
+  result.id=r.batch().create_texture(w,h,rgba);
+  result.width=w;result.height=h;
+  stbi_image_free(rgba);
+  if(result.id){
+   snprintf(message,sizeof(message),"Bottle loaded PNG: %s (%dx%d, id=%u)",path,w,h,unsigned(result.id));
+   log(message);return result;
+  }
+  log("Bottle PNG GPU texture creation failed");
+ }
+ log("Bottle FAILED: all native RGBA and PNG paths unavailable");
+ return {};
 }
 // A dark, warm, original party-room fallback when a photo asset isn't installed.
 void party_backdrop(DrawList& d){
@@ -187,12 +239,26 @@ void wheel(DrawList& d,const Font& f,unsigned a,const Game& g,const Texture& bot
  // The photograph is a square transparent atlas with its gold pivot centered.
  // The backend rotates image UVs: keep an equally square draw quad.
  constexpr float bottleAtlasHalf=205.f;
- if(bottle.id && bottle.width==1024 && bottle.height==1024){
+ if(bottle.id){
   d.rotated_image(bottle.id,
     {cx-bottleAtlasHalf,cy-bottleAtlasHalf,2.f*bottleAtlasHalf,2.f*bottleAtlasHalf},
     pi*.5f-g.angle,white);
  }else{
-  tx(d,f,a,"BOTTLE ASSET MISSING",cx,cy-22,18,rgb(0xffb344),Align::center);
+  // Visual safety net when installation/decoding fails. No error text in
+  // the center of the game wheel; details go into the PS5 log instead.
+  const float rotation=pi*.5f-g.angle;
+  const float cc=std::cos(rotation),ss=std::sin(rotation);
+  auto stroke=[&](float x1,float y1,float x2,float y2,float thickness,Color tint){
+   d.line(cx+x1*cc-y1*ss,cy+x1*ss+y1*cc,
+          cx+x2*cc-y2*ss,cy+x2*ss+y2*cc,thickness,tint);
+  };
+  stroke(-125,0,68,0,65,rgb(0x0c542e));
+  stroke(-128,0,72,0,52,rgb(0x05834c));
+  stroke(62,0,131,0,28,rgb(0x066236));
+  stroke(118,0,141,0,26,rgb(0xe8ab56));
+  stroke(-112,-20,52,-20,6,rgb(0xa6f8bb));
+  stroke(-112,20,45,20,4,rgb(0x003c21));
+  stroke(75,-6,121,-6,3,rgb(0xbafac5));
  }
  d.circle(cx,cy,15,rgb(0xd8a74e));
  d.ring(cx,cy,13,3,rgb(0xffe3a0));d.circle(cx,cy,5,rgb(0xfff8db));

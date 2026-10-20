@@ -1,7 +1,9 @@
-# Drink Roulette v0.1.4 — Single wheel and restored glass bottle
+# Drink Roulette v0.1.5 — Missing Bottle Fix
 
-- Fixed underlying bug: existing photographic artwork already contains the wheel; the native overlay had drawn a second wheel, offset about 34px right and 24px down.
-- Photo mode now preserves its beautiful baked roulette slices and redraws just the dark hub and the **animated** transparent glass bottle.
-- New artwork-derived 1024x1024 RGBA bottle sprite replaces green-line geometry. Its gold pivot is aligned with the hub.
-- Full-opacity mask on stale sidebars and footer removes all duplicate labels.
-- Player setup, 433 challenges and game modes preserved. Hardware rendering still must be checked.
+- Fix real PS5 `BOTTLE ASSET MISSING` screen: native loader first reads a 512×512 RGBA8 sprite generated and shipped with the PS5 app, avoiding PNG decoding.
+- Fallback to PNG from native installed app, managed data and USB paths if raw image loading fails.
+- Remove brittle exact-size checks when rendering a valid GPU texture; keep a bottle-shaped native fallback instead of error text.
+- Write path, load size, decoder failure and graphics allocation status to `/data/DrinkRoulette/drink-roulette.log`.
+- CI verifies the raw image is pixel-identical to the source PNG both in the signed title folder and final `PPSA99841.zip`.
+- Keep current 433 challenges, modes, player setup, roulette wheel and corrected side-panel layout.
+- Real-device rendering must be verified on a jailbroken PS5.

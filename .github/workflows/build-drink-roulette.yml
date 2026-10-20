@@ -44,6 +44,10 @@ jobs:
           assert "d.rounded_rect({1340,92,542,697},16,rgb(0x080d19,1.f));" in code
           assert "{cx-260,cy-78,520,156}" not in code
           assert 'tx(d,font,atlas,"by YAHBALLON"' not in code
+          assert "if(bottle.id && bottle.width==1024" not in code
+          assert 'BOTTLE ASSET MISSING' not in code
+          assert 'assets/bottle.rgba' in code
+          assert 'stbi_failure_reason()' in code
           print("PASS: square RGBA bottle, UV rotation, clean background")
           PY
       - name: Prepare original native PS5 framework
@@ -56,6 +60,21 @@ jobs:
             cp homebrew/drink-roulette/assets/menu_background.jpg app/assets/menu_background.jpg
           fi
           cp homebrew/drink-roulette/assets/bottle.png app/assets/bottle.png
+          # Deliver uncompressed RGBA8 alongside PNG so PS5 can load pixels
+          # directly even if stb_image's PNG decoder fails in this runtime.
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          source=Path('app/assets/bottle.png')
+          image=Image.open(source).convert('RGBA')
+          assert image.size==(1024,1024), image.size
+          rgba=image.resize((512,512),Image.Resampling.LANCZOS).tobytes()
+          output=Path('app/assets/bottle.rgba')
+          output.write_bytes(rgba)
+          assert output.stat().st_size==512*512*4
+          assert any(rgba[i+3] for i in range(0,len(rgba),4)), 'Empty transparent bottle'
+          print(f'Prepared raw PS5 bottle: {output.stat().st_size} bytes')
+          PY
           python3 - <<'PY'
           import json, pathlib
           app=json.loads(pathlib.Path('homebrew/drink-roulette/app.json').read_text())
@@ -112,21 +131,29 @@ jobs:
           elf=(root/'eboot.bin').read_bytes()
           assert len(elf)>1000
           assert elf[:4]==struct.pack('<I',0x1d3d154f)
-          assert b'v0.1.4' in elf
+          assert b'v0.1.5' in elf
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99841'
           assert meta['contentId']=='UP9000-PPSA99841_00-DRINKROULETTE001'
-          names=['eboot.bin','sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/generated_scene.jpg','assets/menu_background.jpg','assets/bottle.png']
+          names=['eboot.bin','sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/generated_scene.jpg','assets/menu_background.jpg','assets/bottle.png','assets/bottle.rgba']
           for n in names: assert (root/n).is_file(),n
           with zipfile.ZipFile('app/dist/PPSA99841.zip') as z:
             assert z.testzip() is None
             for n in names: assert f'PPSA99841/{n}' in z.namelist(),n
+          from PIL import Image
+          source=Image.open('app/assets/bottle.png').convert('RGBA').resize((512,512),Image.Resampling.LANCZOS).tobytes()
+          raw=(root/'assets/bottle.rgba').read_bytes()
+          assert len(raw)==512*512*4, "Missing uncompressed PS5 bottle"
+          assert raw==source, "Raw texture differs from source PNG"
+          with zipfile.ZipFile('app/dist/PPSA99841.zip') as z:
+            assert z.read('PPSA99841/assets/bottle.rgba')==source
+          print("PASS: PS5 RGBA image packed byte-for-byte with source")
           print('PS5 eboot, launcher assets, metadata and ZIP verified')
           PY
       - name: Upload test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Drink-Roulette-v0.1.4-PPSA99841
+          name: Drink-Roulette-v0.1.5-PPSA99841
           path: app/dist/PPSA99841.zip
           if-no-files-found: error
       - name: Publish verified TESTBUILDS release
@@ -134,8 +161,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view drink-roulette-v0.1.4 >/dev/null 2>&1; then
+          if gh release view drink-roulette-v0.1.5 >/dev/null 2>&1; then
             echo 'Release exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create drink-roulette-v0.1.4 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.4" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md
+          gh release create drink-roulette-v0.1.5 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.5" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md
