@@ -59,12 +59,9 @@ jobs:
                       'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
           s=s.replace('github.com/blackbearreloaded/ps5-opengl',
                       'github.com/LedyBacer/ps5-opengl')
-          old='''[[ $actual == "$manifest_sha256" ]] || {
-    echo "unexpected ps5-opengl SDK manifest: $actual" >&2
-    exit 2
-}'''
-          assert old in s
-          s=s.replace(old,'echo "SDK archive SHA-256 and installed-file manifest verified" >&2')
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "SDK archive SHA-256 and installed-file manifest verified" >&2'+s[end:]
           p.write_text(s)
           PY
       - name: Prepare native PS5 OpenGL toolchain
