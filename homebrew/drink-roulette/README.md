@@ -1,4 +1,4 @@
-# Drink Roulette by YAHBALLON — v0.1.0
+# Drink Roulette by YAHBALLON — v0.1.1
 
 Native, **offline**, controller-first PS5 party game, inspired by the supplied 16:9 neon-roulette menu screenshot. This is a playable OpenGL homebrew project, **not a web page** or a static game mockup.
 
@@ -33,7 +33,7 @@ The GitHub Actions workflow `.github/workflows/build-drink-roulette.yml` copies 
 
 Copy its `PPSA99841/` directory to `/data/homebrew/` on an already homebrew-capable PS5, and register it using a compatible existing loader. Metadata ID: `PPSA99841`, content ID `UP9000-PPSA99841_00-DRINKROULETTE001`. Saved settings and logs live in `/data/DrinkRoulette/`.
 
-To use **the exact reference look**, add the supplied `menu_background.jpg` to `app/assets/` during preparation; on-console the game loads it from `/app0/assets/menu_background.jpg` or `/data/homebrew/PPSA99841/assets/menu_background.jpg`. If omitted, the original generated party scene is rendered instead. Build workflow copies the optional reference photo if the file is present in the repo; GitHub sources do not currently include that binary attachment.
+To use **the exact reference look**, add the supplied `menu_background.jpg` to `app/assets/` during preparation; on-console the game loads it from `/app0/assets/menu_background.jpg` or `/data/homebrew/PPSA99841/assets/menu_background.jpg`. If omitted, the original generated party scene is rendered instead. Build workflow copies the optional reference photo if the file is present in the repo; The checked-in image is included in CI-produced PS5 ZIPs.
 
 Host test: `g++ -std=c++20 -Wall -Wextra -Werror homebrew/drink-roulette/tests/game_test.cpp -o /tmp/drink-test && /tmp/drink-test`.
 
@@ -41,6 +41,6 @@ Host test: `g++ -std=c++20 -Wall -Wextra -Werror homebrew/drink-roulette/tests/g
 
 All drinking tasks are optional. You can use water or other non-alcoholic drinks and skip any task. Adults should drink responsibly. No forced shots or timed drinking.
 
-Code / framework integration: GPL-3.0-or-later. The native UI framework is `ps5-homebrew-ui` by BlackBearReloaded as distributed in `PS5-DevBridge`; retain its license and provenance. The GitHub build uses the original procedurally generated party scene; the user's reference image is not checked into GitHub. Supply licensed artwork separately to enable exact reference backgrounds. `generate_assets.py` draws an original icon and generic background.
+Code / framework integration: GPL-3.0-or-later. The native UI framework is `ps5-homebrew-ui` by BlackBearReloaded as distributed in `PS5-DevBridge`; retain its license and provenance. The source tree ships the user-approved reference image at `assets/menu_background.jpg`; the native app overlays interactive controls and an animated roulette wheel over that backdrop. `generate_assets.py` draws an original icon and generic background.
 
 **Build status:** Local C++ game logic and syntax checked; PS5 toolchain build / console hardware test must be confirmed by an actual CI run / PS5.

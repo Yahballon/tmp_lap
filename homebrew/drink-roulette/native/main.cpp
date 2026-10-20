@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Drink Roulette by YAHBALLON v0.1.0 — native PS5 / ps5-homebrew-ui.
+// Drink Roulette by YAHBALLON v0.1.1 — native PS5 / ps5-homebrew-ui.
 #include "game.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -31,7 +31,7 @@ std::string read(const char* path,size_t maxBytes=12*1024*1024){
  rewind(f);std::string content(size_t(n),'\0');
  if(fread(content.data(),1,size_t(n),f)!=size_t(n))content.clear();fclose(f);return content;
 }
-void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.0] %s\n",text);fclose(f);}}
+void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.1] %s\n",text);fclose(f);}}
 void save(const Game& g){
  mkdir("/data/DrinkRoulette",0755);
  FILE* f=fopen("/data/DrinkRoulette/settings.tmp","wb");if(!f)return;
@@ -373,7 +373,7 @@ int main(){
   cards(d,font,atlas,g);
   overlay(d,font,atlas,g);
   tx(d,font,atlas,"by YAHBALLON",1747,963,17,light,Align::right);
-  tx(d,font,atlas,"v0.1.0",1851,963,18,light,Align::right);
+  tx(d,font,atlas,"v0.1.1",1851,963,18,light,Align::right);
   footer(d,font,atlas,g);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);

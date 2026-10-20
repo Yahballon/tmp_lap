@@ -92,7 +92,7 @@ jobs:
           elf=(root/'eboot.bin').read_bytes()
           assert len(elf)>1000
           assert elf[:4]==struct.pack('<I',0x1d3d154f)
-          assert b'v0.1.0' in elf
+          assert b'v0.1.1' in elf
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99841'
           assert meta['contentId']=='UP9000-PPSA99841_00-DRINKROULETTE001'
@@ -106,7 +106,7 @@ jobs:
       - name: Upload test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Drink-Roulette-v0.1.0-PPSA99841
+          name: Drink-Roulette-v0.1.1-PPSA99841
           path: app/dist/PPSA99841.zip
           if-no-files-found: error
       - name: Publish verified TESTBUILDS release
@@ -114,8 +114,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view drink-roulette-v0.1.0 >/dev/null 2>&1; then
+          if gh release view drink-roulette-v0.1.1 >/dev/null 2>&1; then
             echo 'Release exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create drink-roulette-v0.1.0 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.0" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md
+          gh release create drink-roulette-v0.1.1 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.1" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md
