@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "f81d7ca673e520e57bcbba28fc9ec53ec7265c867ae84f71913e8e3c3c890c3c",
+  "version": "1460722c3cb7950780e3771a7ef49b1f0d7d1db70ce76749a6cddd93c76e80ae",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 16,
+  "app_count": 17,
   "apps": [
     {
       "name": "NESYX",
@@ -159,6 +159,19 @@
       "source": "homebrew/bible-reader",
       "size_bytes": 327809697,
       "published_at": "2026-10-18T11:58:57Z"
+    },
+    {
+      "name": "Drink Roulette",
+      "slug": "drink-roulette",
+      "title_id": "PPSA99841",
+      "version": "0.1.0",
+      "tag": "drink-roulette-v0.1.0",
+      "zip_name": "PPSA99841.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/drink-roulette-v0.1.0/PPSA99841.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/drink-roulette-v0.1.0",
+      "source": "homebrew/drink-roulette",
+      "size_bytes": 6222494,
+      "published_at": "2026-10-20T12:11:11Z"
     },
     {
       "name": "Payload LauncherX",
