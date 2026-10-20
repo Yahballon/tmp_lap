@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "0b7cfec16dad0f99d2d94a152bc1d6ae554132d1c675d577c53c2bab6f38fb98",
+  "version": "92480bf1b426a7bc9bf7fbe704c01199946971433a7a99e7214e0db2525c297c",
   "repository": "Yahballon/tmp_lap",
   "app_count": 18,
   "apps": [
@@ -164,14 +164,14 @@
       "name": "Drink Roulette",
       "slug": "drink-roulette",
       "title_id": "PPSA99841",
-      "version": "0.1.4",
-      "tag": "drink-roulette-v0.1.4",
+      "version": "0.1.5",
+      "tag": "drink-roulette-v0.1.5",
       "zip_name": "PPSA99841.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/drink-roulette-v0.1.4/PPSA99841.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/drink-roulette-v0.1.4",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/drink-roulette-v0.1.5/PPSA99841.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/drink-roulette-v0.1.5",
       "source": "homebrew/drink-roulette",
-      "size_bytes": 6830899,
-      "published_at": "2026-10-20T19:37:58Z"
+      "size_bytes": 6916948,
+      "published_at": "2026-10-20T19:54:40Z"
     },
     {
       "name": "Snake",
