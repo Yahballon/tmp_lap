@@ -31,11 +31,12 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
-          cp homebrew/drink-roulette/native/main.cpp homebrew/drink-roulette/native/game.hpp app/src/
+          cp homebrew/drink-roulette/native/main.cpp homebrew/drink-roulette/native/*.hpp app/src/
           python3 homebrew/drink-roulette/assets/generate_assets.py app
           if [ -f homebrew/drink-roulette/assets/menu_background.jpg ]; then
             cp homebrew/drink-roulette/assets/menu_background.jpg app/assets/menu_background.jpg
           fi
+          cp homebrew/drink-roulette/assets/bottle.png app/assets/bottle.png
           python3 - <<'PY'
           import json, pathlib
           app=json.loads(pathlib.Path('homebrew/drink-roulette/app.json').read_text())
@@ -92,11 +93,11 @@ jobs:
           elf=(root/'eboot.bin').read_bytes()
           assert len(elf)>1000
           assert elf[:4]==struct.pack('<I',0x1d3d154f)
-          assert b'v0.1.1' in elf
+          assert b'v0.1.2' in elf
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99841'
           assert meta['contentId']=='UP9000-PPSA99841_00-DRINKROULETTE001'
-          names=['eboot.bin','sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/generated_scene.jpg']
+          names=['eboot.bin','sce_sys/icon0.png','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/generated_scene.jpg','assets/menu_background.jpg','assets/bottle.png']
           for n in names: assert (root/n).is_file(),n
           with zipfile.ZipFile('app/dist/PPSA99841.zip') as z:
             assert z.testzip() is None
@@ -106,7 +107,7 @@ jobs:
       - name: Upload test ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Drink-Roulette-v0.1.1-PPSA99841
+          name: Drink-Roulette-v0.1.2-PPSA99841
           path: app/dist/PPSA99841.zip
           if-no-files-found: error
       - name: Publish verified TESTBUILDS release
@@ -114,8 +115,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view drink-roulette-v0.1.1 >/dev/null 2>&1; then
+          if gh release view drink-roulette-v0.1.2 >/dev/null 2>&1; then
             echo 'Release exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create drink-roulette-v0.1.1 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.1" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md
+          gh release create drink-roulette-v0.1.2 app/dist/PPSA99841.zip --target "$GITHUB_SHA" --title "Drink Roulette v0.1.2" --notes-file homebrew/drink-roulette/RELEASE_NOTES.md

@@ -11,7 +11,7 @@
 namespace roulette {
 constexpr float pi=3.14159265358979323846f;
 constexpr float tau=2*pi;
-enum class Screen { Home, Players, Rules, Challenges, Settings, Game, Result, Exit };
+enum class Screen { SetupCount, SetupNames, EditName, SetupMode, SetupPack, SetupSummary, Home, Players, Rules, Challenges, Settings, Game, Result, Exit };
 enum class Category { Truth, Dare, Shot, Pass, Cheers, GroupDrink, Drink };
 struct Slice { Category category; const char* label; uint32_t color; };
 constexpr std::array<Slice,10> slices{{
@@ -21,78 +21,41 @@ constexpr std::array<Slice,10> slices{{
  {Category::Dare,"DARE",0xca3fff},{Category::Truth,"TRUTH",0xffd840},
  {Category::Shot,"SHOT",0x2d96ff},{Category::Drink,"DRINK",0xff335f}
 }};
-struct Prompt {Category category;const char* text;};
-constexpr std::array<Prompt,48> prompts{{
- {Category::Truth,"What was your most embarrassing first impression?"},
- {Category::Truth,"What is a secret talent nobody here knows?"},
- {Category::Truth,"Who in this room knows you best?"},
- {Category::Truth,"What is the funniest lie you've ever told?"},
- {Category::Truth,"What's your most ridiculous purchase?"},
- {Category::Truth,"What's the weirdest dream you've had?"},
- {Category::Truth,"What song do you secretly love?"},
- {Category::Truth,"What's your funniest childhood memory?"},
- {Category::Truth,"When was the last time you laughed until you cried?"},
- {Category::Truth,"What is something you want to learn?"},
- {Category::Dare,"Do your best celebrity impression for 15 seconds."},
- {Category::Dare,"Speak in rhyme until your next turn."},
- {Category::Dare,"Tell a joke without smiling."},
- {Category::Dare,"Sing the chorus of a favorite song."},
- {Category::Dare,"Act like a robot for 20 seconds."},
- {Category::Dare,"Make up a dance move; everyone copies you."},
- {Category::Dare,"Pretend you are a TV news reporter."},
- {Category::Dare,"Talk with an accent for one round."},
- {Category::Dare,"Invent a dramatic movie title about this party."},
- {Category::Dare,"Give someone a ridiculously fancy compliment."},
- {Category::Drink,"Take a small sip of your chosen drink, or pass."},
- {Category::Drink,"Make a toast; anyone who wants to may sip."},
- {Category::Drink,"Name a fruit in three seconds or take a water break."},
- {Category::Drink,"Choose someone to raise a glass with you."},
- {Category::Drink,"Say 'cheers' in another language."},
- {Category::Drink,"Tell your funniest party memory."},
- {Category::Shot,"Take a tiny sip, choose water, or skip this turn."},
- {Category::Shot,"Quick quiz: name three countries in five seconds."},
- {Category::Shot,"Do a mini toast to the person on your right."},
- {Category::Shot,"Name four animals that begin with different letters."},
- {Category::Shot,"Make a funny face for the group."},
- {Category::Shot,"Sip your drink or swap for a silly dare."},
- {Category::Pass,"Lucky! Skip your challenge without any penalty."},
- {Category::Pass,"You're safe. Give someone a compliment."},
- {Category::Pass,"Free pass! Choose the next player."},
- {Category::Pass,"Enjoy a break. Hydrate if you want."},
- {Category::Cheers,"Everyone raise a glass for the good times!"},
- {Category::Cheers,"Celebrate the funniest person in the room."},
- {Category::Cheers,"Share a group high-five or virtual cheers."},
- {Category::Cheers,"All together: best party chant wins."},
- {Category::Cheers,"Toast to your favorite memory together."},
- {Category::Cheers,"Make an imaginary award for one player."},
- {Category::GroupDrink,"Group toast! A sip is always optional."},
- {Category::GroupDrink,"Everyone share one fun fact about themselves."},
- {Category::GroupDrink,"Go around and name a favorite movie."},
- {Category::GroupDrink,"Everyone vote on the best dance move."},
- {Category::GroupDrink,"Do a synchronized cheer as a group."},
- {Category::GroupDrink,"Each player tells a one-word story, in order."}
-}};
+struct Prompt {Category category;const char* text;int level=0;uint32_t mode_mask=31;};
+} // namespace roulette
+#include "challenges.hpp"
+namespace roulette {
 constexpr std::array<const char*,12> name_pool{{"Alex","Jamie","Taylor","Morgan","Charlie","Sam","Jordan","Casey","Riley","Avery","Sky","Robin"}};
 struct Player {std::string name;bool ready=true;int turns=0;};
 struct Game {
- Screen screen=Screen::Home;
+ Screen screen=Screen::SetupCount;
+ bool setup_complete=false;
+ int pack=2; // 0 Light, 1 Normal, 2 All (433 distinct challenges)
+ int editing_player=0;
+ int keyboard_cursor=0;
+ int setup_focus=0;
+ Screen keyboard_return=Screen::SetupNames;
+ std::string editing_name;
  std::array<Player,8> players{};
  int player_count=4;
  int active=0;
  int focus=0;
  int settings_focus=0;
  int preview=0;
- int rounds=15;
+ int rounds=30;
  int turn=0;
- int mode=0; // 0 Standard, 1 Chill
+ int mode=0; // Standard, Wild, Couples, Quickfire, Truth & Dare
  bool spinning=false;
  float spin_start_angle=0,angle=0,spin_end_angle=0,spin_elapsed=0,spin_duration=4.0f;
  int pending_slice=0;
  int winning_slice=0;
  int prompt_index=0;
  uint64_t random_state=0x9e3779b97f4a7c15ULL;
- std::string banner="Everyone can pass; non-alcoholic drinks welcome.";
- Game(){for(int i=0;i<8;i++)players[i].name=name_pool[i];}
+ std::string banner="All challenges are optional; non-alcoholic drinks welcome.";
+ std::array<int,64> prompt_history{};
+ int history_next=0;
+ int history_size=0;
+ Game(){for(int i=0;i<8;i++)players[i].name="Player "+std::to_string(i+1);}
  void seed(uint64_t s){random_state=s?s:0x9e3779b97f4a7c15ULL;}
  uint32_t random(){uint64_t x=random_state;x^=x>>12;x^=x<<25;x^=x>>27;random_state=x;return uint32_t((x*2685821657736338717ULL)>>32);}
  int active_count() const {return player_count;}
@@ -101,20 +64,49 @@ struct Game {
    float n=std::fmod(radians+pi/10,tau);if(n<0)n+=tau;
    return std::clamp(int(n/(tau/10)),0,9);
  }
+ bool category_allowed(Category cat) const {
+   if(mode==3)return cat==Category::Shot;
+   if(mode==4)return cat==Category::Truth||cat==Category::Dare;
+   if(mode==2)return cat==Category::Truth||cat==Category::Dare||cat==Category::Cheers||cat==Category::GroupDrink;
+   return true;
+ }
+ bool prompt_available(const Prompt& p) const {return p.level<=pack&&category_allowed(p.category)&&(p.mode_mask&(1u<<mode));}
+ int available_prompt_count() const {int n=0;for(const auto& p:prompts)if(prompt_available(p))n++;return n;}
+ bool recent(int i) const {for(int j=0;j<history_size;j++)if(prompt_history[j]==i)return true;return false;}
  int random_prompt(Category category){
    std::array<int,prompts.size()> options{};int n=0;
-   for(int i=0;i<int(prompts.size());++i)if(prompts[i].category==category)options[n++]=i;
-   return n?options[random()%uint32_t(n)]:0;
+   for(int i=0;i<int(prompts.size());++i)if(prompts[i].category==category&&prompt_available(prompts[i])&&!recent(i))options[n++]=i;
+   if(n==0){history_size=0;for(int i=0;i<int(prompts.size());++i)if(prompts[i].category==category&&prompt_available(prompts[i]))options[n++]=i;}
+   if(n==0)return 0;
+   const int index=options[random()%uint32_t(n)];
+   prompt_history[history_next]=index;history_next=(history_next+1)%int(prompt_history.size());
+   history_size=std::min(int(prompt_history.size()),history_size+1);
+   return index;
  }
+ void begin_name_edit(int i,Screen ret){
+   editing_player=std::clamp(i,0,player_count-1);keyboard_return=ret;
+   editing_name=players[editing_player].name;
+   if(editing_name.rfind("Player ",0)==0)editing_name.clear();
+   keyboard_cursor=0;screen=Screen::EditName;
+ }
+ void apply_name_edit(){
+   if(editing_name.empty())editing_name="Player "+std::to_string(editing_player+1);
+   players[editing_player].name=editing_name.substr(0,16);
+   screen=keyboard_return;
+ }
+ void start_new_setup(){setup_complete=false;screen=Screen::SetupCount;setup_focus=0;spinning=false;}
+ bool slice_allowed(int i) const {return category_allowed(slices[i].category);}
  void start_session(){
    if(!all_ready()){screen=Screen::Players;banner="Set every active player to Ready before starting.";return;}
-   screen=Screen::Game;turn=0;active=0;spinning=false;angle=0;
+   screen=Screen::Game;turn=0;active=0;spinning=false;angle=0;history_size=0;history_next=0;
    for(auto& p:players)p.turns=0;
    banner="Press X to spin the bottle!";
  }
  void start_spin(){
    if(spinning||screen!=Screen::Game)return;
-   pending_slice=int(random()%slices.size());
+   std::array<int,slices.size()> options{};int n=0;
+   for(int i=0;i<int(slices.size());i++)if(slice_allowed(i))options[n++]=i;
+   pending_slice=options[random()%uint32_t(n)];
    spin_start_angle=angle;
    const float current=std::fmod(angle,tau);
    const float desired=float(pending_slice)*tau/float(slices.size());

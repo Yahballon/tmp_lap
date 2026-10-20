@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Drink Roulette by YAHBALLON v0.1.1 — native PS5 / ps5-homebrew-ui.
+// Drink Roulette by YAHBALLON v0.1.2 — native PS5 / ps5-homebrew-ui.
 #include "game.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -8,6 +8,7 @@
 #include "core/input.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_JPEG
+#define STBI_ONLY_PNG
 #define STBI_NO_STDIO
 #include "vendor/stb_image.h"
 #include <array>
@@ -29,36 +30,57 @@ std::string read(const char* path,size_t maxBytes=12*1024*1024){
  if(fseek(f,0,SEEK_END)){fclose(f);return {};}
  long n=ftell(f);if(n<=0||size_t(n)>maxBytes){fclose(f);return {};}
  rewind(f);std::string content(size_t(n),'\0');
- if(fread(content.data(),1,size_t(n),f)!=size_t(n))content.clear();fclose(f);return content;
+ if(fread(content.data(),1,size_t(n),f)!=size_t(n))content.clear();
+ fclose(f);return content;
 }
-void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.1] %s\n",text);fclose(f);}}
+void log(const char* text){mkdir("/data/DrinkRoulette",0755);if(FILE* f=fopen("/data/DrinkRoulette/drink-roulette.log","ab")){fprintf(f,"[DrinkRoulette v0.1.2] %s\n",text);fclose(f);}}
+// Persist the setup atomically. Only controller-keyboard characters are saved.
 void save(const Game& g){
  mkdir("/data/DrinkRoulette",0755);
  FILE* f=fopen("/data/DrinkRoulette/settings.tmp","wb");if(!f)return;
- fprintf(f,"v=1\nplayers=%d\nmode=%d\nrounds=%d\n",g.player_count,g.mode,g.rounds);
+ fprintf(f,"v=2\nsetup=%d\nplayers=%d\nmode=%d\npack=%d\nrounds=%d\n",g.setup_complete?1:0,g.player_count,g.mode,g.pack,g.rounds);
  for(int i=0;i<8;i++)fprintf(f,"name%d=%s\n",i,g.players[i].name.c_str());
  if(fclose(f)==0)rename("/data/DrinkRoulette/settings.tmp","/data/DrinkRoulette/settings.ini");
 }
+std::string safe_name(std::string text){
+ std::string s;for(char ch:text){
+  if(s.size()>=16)break;
+  if((ch>='A'&&ch<='Z')||(ch>='a'&&ch<='z')||(ch>='0'&&ch<='9')||ch==' '||ch=='-'||ch=='_'||ch=='.')s.push_back(ch);
+ }
+ return s;
+}
 void load(Game& g){
  FILE* f=fopen("/data/DrinkRoulette/settings.ini","rb");if(!f)return;
- char line[256]={};bool ok=false;
+ char line[256]={};int version=0;bool setup=false;
  while(fgets(line,sizeof(line),f)){
   int n=0;
-  if(sscanf(line,"v=%d",&n)==1){ok=(n==1);continue;}
-  if(!ok)continue;
-  if(sscanf(line,"players=%d",&n)==1)g.player_count=std::clamp(n,2,8);
-  else if(sscanf(line,"mode=%d",&n)==1)g.mode=std::clamp(n,0,1);
-  else if(sscanf(line,"rounds=%d",&n)==1&&n>=0&&n<=30)g.rounds=n;
+  if(sscanf(line,"v=%d",&n)==1){version=n;continue;}
+  if(version<1||version>2)continue;
+  if(sscanf(line,"setup=%d",&n)==1)setup=n!=0;
+  else if(sscanf(line,"players=%d",&n)==1)g.player_count=std::clamp(n,2,8);
+  else if(sscanf(line,"mode=%d",&n)==1)g.mode=std::clamp(n,0,4);
+  else if(sscanf(line,"pack=%d",&n)==1)g.pack=std::clamp(n,0,2);
+  else if(sscanf(line,"rounds=%d",&n)==1&&n>=0&&n<=120)g.rounds=n;
   else{
    int i=-1;char name[100]={};
    if(sscanf(line,"name%d=%99[^\n]",&i,name)==2&&i>=0&&i<8){
-    // Save format only admits names from this preset list; reject arbitrary input.
-    for(auto allowed:name_pool)if(std::string(name)==allowed)g.players[i].name=allowed;
+    const auto clean=safe_name(name);if(!clean.empty())g.players[i].name=clean;
    }
   }
  }
  fclose(f);
+ // v1 players get a fresh setup prompt once, even after upgrading.
+ g.setup_complete=version==2&&setup;
+ g.screen=g.setup_complete?Screen::Home:Screen::SetupCount;
 }
+constexpr const char* mode_names[]={"Standard","Wild","Couples","Quickfire","Truth & Dare"};
+constexpr const char* pack_names[]={"Light","Normal","All Challenges"};
+constexpr const char* keyboard_keys[]={
+ "A","B","C","D","E","F","G","H","I","J",
+ "K","L","M","N","O","P","Q","R","S","T",
+ "U","V","W","X","Y","Z","0","1","2","3",
+ "4","5","6","7","8","9","SPACE","DEL","OK","CANCEL"
+};
 void tx(DrawList& d,const Font& f,unsigned a,const std::string& s,float x,float y,float size,Color c=white,Align align=Align::left){d.text(f,a,s,x,y,size,c,align);}
 void panel(DrawList& d,float x,float y,float w,float h,uint32_t border=0x37435c,float alpha=.96f){
  d.shadow({x,y,w,h},18,15,rgb(0x01010d,.65f));
@@ -78,6 +100,17 @@ Texture background(Renderer& r){
  if(!p||w<1||h<1||w>4096||h>4096){if(p)stbi_image_free(p);return result;}
  result.id=r.batch().create_texture(w,h,p);result.width=w;result.height=h;
  stbi_image_free(p);return result;
+}
+Texture load_bottle(Renderer& r){
+ Texture result;
+ auto bytes=read("/app0/assets/bottle.png");
+ if(bytes.empty())bytes=read("/data/homebrew/PPSA99841/assets/bottle.png");
+ if(bytes.empty())return result;
+ int w=0,h=0,n=0;
+ auto* rgba=stbi_load_from_memory((const stbi_uc*)bytes.data(),int(bytes.size()),&w,&h,&n,4);
+ if(!rgba||w<=0||h<=0||w>2048||h>512){if(rgba)stbi_image_free(rgba);return result;}
+ result.id=r.batch().create_texture(w,h,rgba);result.width=w;result.height=h;stbi_image_free(rgba);
+ return result;
 }
 // A dark, warm, original party-room fallback when a photo asset isn't installed.
 void party_backdrop(DrawList& d){
@@ -122,7 +155,7 @@ void menu_button(DrawList& d,const Font& f,unsigned a,int i,const char* name,con
  tx(d,f,a,symbol,125,y+54,34,focus?rgb(0xffdd61):light);
  tx(d,f,a,name,207,y+52,30,white);tx(d,f,a,">",550,y+52,30,focus?rgb(0xff8ffb):muted,Align::right);
 }
-void wheel(DrawList& d,const Font& f,unsigned a,const Game& g){
+void wheel(DrawList& d,const Font& f,unsigned a,const Game& g,const Texture& bottle){
  constexpr float cx=996,cy=631,r=349;
  d.shadow({cx-r-17,cy-r+26,2*(r+17),2*(r+17)},350,32,rgb(0x000000,.82f));
  d.circle(cx,cy+10,r+25,rgb(0x090707));
@@ -151,30 +184,18 @@ void wheel(DrawList& d,const Font& f,unsigned a,const Game& g){
  d.circle(cx,cy,162,rgb(0x100d12));
  // Radial woodgrain/depth in the fixed inner disc.
  for(int i=0;i<10;i++){float a=i*tau/10;d.line(cx+std::sin(a)*22,cy-std::cos(a)*22,cx+std::sin(a)*160,cy-std::cos(a)*160,2,rgb(0xb17d47,.12f));}
- // Bottle pointer built from native polygons; moves each frame rather than being pre-rendered.
- const float angle=g.angle;
- const float dx=std::sin(angle),dy=-std::cos(angle),nx=-dy,ny=dx;
- auto p=[&](float l,float w,int n)->std::array<float,2>{(void)n;return {cx+dx*l+nx*w,cy+dy*l+ny*w};};
-  // Outline closed separately to correctly taper the neck and body.
- const std::array<std::array<float,2>,16> bottle{{
- {-185,-9},{-171,-12},{-158,-18},{-144,-34},{-116,-40},
- {5,-40},{62,-34},{87,-13},{162,-13},{174,-10},
- {174,10},{162,13},{87,13},{62,34},{5,40},{-116,40}
- }};
- std::vector<float> xy;xy.reserve(36);
- for(auto pt:bottle){auto z=p(pt[0],pt[1],0);xy.push_back(z[0]);xy.push_back(z[1]);}
- // Bottle base is a solid green silhouette. A last polygon forms the rounded heel.
- d.polygon(xy.data(),int(xy.size()/2),rgb(0x038c36));
- auto top=p(-80,-30,0),end=p(28,-30,0);
- d.line(top[0],top[1],end[0],end[1],7,rgb(0x75ff85,.65f));
- top=p(-89,26,0);end=p(20,26,0);
- d.line(top[0],top[1],end[0],end[1],6,rgb(0x01291b,.8f));
- auto a1=p(57,-13,0),b1=p(157,-13,0);
- d.line(a1[0],a1[1],b1[0],b1[1],4,rgb(0x67ff9a,.88f));
- auto a2=p(-36,-32,0),b2=p(-36,32,0);d.line(a2[0],a2[1],b2[0],b2[1],42,rgb(0xe7bd5a,.59f));
- auto a3=p(-36,-14,0),b3=p(-36,14,0);d.line(a3[0],a3[1],b3[0],b3[1],3,rgb(0xfffca3,.5f));
- const auto tip=p(179,0,0);d.circle(tip[0],tip[1],9,rgb(0x27ff6d));
- d.circle(cx,cy,11,rgb(0xffe29b));d.circle(cx,cy,4,rgb(0xffffff));
+ // Real 1024-pixel translucent glass bottle texture. Rotate the image as the wheel spins.
+ if(bottle.id){
+  d.shadow({cx-218,cy-64,436,128},45,18,rgb(0x00110a,.58f));
+  d.rotated_image(bottle.id,{cx-260,cy-78,520,156},g.angle-pi*.5f,white);
+ }else{
+  // Deterministic visual fallback if the sprite asset cannot load.
+  float dx=std::sin(g.angle),dy=-std::cos(g.angle);
+  d.line(cx-dx*157,cy-dy*157,cx+dx*158,cy+dy*158,65,rgb(0x006c36));
+  d.line(cx-dx*147,cy-dy*147,cx+dx*148,cy+dy*148,7,rgb(0xaaffbe));
+ }
+ d.circle(cx,cy,15,rgb(0xd8a74e));
+ d.ring(cx,cy,13,3,rgb(0xffe3a0));d.circle(cx,cy,5,rgb(0xfff8db));
  // Highlight currently selected sector with a small fixed needle at the bottle tip.
  if(g.spinning){d.ring(cx,cy,r+14,3,rgb(0xffffff,.25f));}
 }
@@ -195,23 +216,64 @@ void cards(DrawList& d,const Font& f,unsigned a,const Game& g){
  tx(d,f,a,"Game Status",1454,531,26);
  d.line(1454,546,1818,546,1,rgb(0x647088,.4f));
  tx(d,f,a,"♧",1457,595,24,light);tx(d,f,a,std::to_string(g.player_count)+" Players",1515,594,20);
- tx(d,f,a,"○",1457,643,22,light);tx(d,f,a,g.mode?"Chill Mode":"Standard Mode",1515,642,20);
- tx(d,f,a,"▥",1457,691,22,light);tx(d,f,a,g.rounds?std::to_string(g.rounds)+" Challenges":"Endless",1515,690,20);
+ tx(d,f,a,"○",1457,643,22,light);tx(d,f,a,std::string(mode_names[g.mode])+" Mode",1515,642,20);
+ tx(d,f,a,"▥",1457,691,22,light);tx(d,f,a,std::to_string(g.available_prompt_count())+" Challenges",1515,690,20);
  tx(d,f,a,"~ 30-60 min",1515,733,18,muted);
- tx(d,f,a,"Good Drinks",1647,799,29,rgb(0xff4fb1));
- tx(d,f,a,"Good Friends",1626,835,29,rgb(0xff4fb1));
- tx(d,f,a,"Bad Decisions!",1605,873,29,rgb(0xff4fb1));
+
 }
 void footer(DrawList& d,const Font& f,unsigned a,const Game& g){
  d.gradient_rect({0,992,1920,88},0,rgb(0x050916,.96f),rgb(0x080b13));
  tx(d,f,a,"X  Confirm",72,1041,23);
  tx(d,f,a,"O  Back",257,1041,23);
- tx(d,f,a,g.screen==Screen::Players?"SQUARE  Rename   |   LEFT/RIGHT  Player count":g.screen==Screen::Game?"TRIANGLE  New session": "D-PAD  Navigate",1805,1041,21,light,Align::right);
+ tx(d,f,a,g.screen==Screen::Players?"SQUARE  Enter name   |   LEFT/RIGHT  Player count":g.screen==Screen::Home?"TRIANGLE  Rules   |   D-PAD  Navigate":g.screen==Screen::Game?"TRIANGLE  New session": "D-PAD  Navigate",1805,1041,21,light,Align::right);
+}
+void wrapped(DrawList& d,const Font& f,unsigned a,const std::string& message,float cx,float y,int fontSize,int maxChars,int maxLines){
+ std::vector<std::string> lines;
+ std::string current,word;
+ auto flush=[&](){if(!current.empty()){lines.push_back(current);current.clear();}};
+ for(size_t i=0;i<=message.size();i++){
+  char ch=i<message.size()?message[i]:' ';
+  if(ch==' '||ch=='\n'){
+   if(!word.empty()){
+    if(current.size()+word.size()+1>size_t(maxChars))flush();
+    if(!current.empty())current+=' ';
+    current+=word;word.clear();
+   }
+   if(ch=='\n')flush();
+  }else word+=ch;
+ }
+ flush();
+ const int count=std::min(int(lines.size()),maxLines);
+ for(int i=0;i<count;i++)tx(d,f,a,lines[i],cx,y+float(i)*41,fontSize,white,Align::center);
 }
 void overlay(DrawList& d,const Font& f,unsigned a,Game& g){
- if(g.screen==Screen::Home){const char* labels[]={"Start Game","Players","Rules","Challenges","Settings"};
-  const char* icons[]={">","+","=","*","o"};
-  for(int i=0;i<5;i++)menu_button(d,f,a,i,labels[i],icons[i],g.focus==i);return;}
+ if(g.screen==Screen::Home){
+  const uint32_t pc[]={0xff3c72,0x32b5ff,0x42ef9b,0xffaa36,0xd088ff,0xffe54f,0x40e9e6,0xff6e53};
+  auto item=[&](int index,const std::string& name,const char* symbol,float y){
+   const bool focus=index==g.focus;
+   if(focus)d.glow({94,y,475,72},13,15,rgb(0xeb22fc,.75f));
+   d.bordered_rect({96,y,475,69},14,focus?rgb(0x71008c,.96f):rgb(0x0b1426,.98f),focus?3.f:1.5f,rgb(focus?0xf741fc:0x334664));
+   tx(d,f,a,symbol,119,y+47,30,focus?rgb(0xffd65c):light);
+   tx(d,f,a,name,202,y+44,28,white);
+   tx(d,f,a,">",540,y+45,27,light,Align::right);
+  };
+  item(0,"Start Game",">",296);
+  item(1,"Players ("+std::to_string(g.player_count)+")","+",381);
+  const int visible=std::min(g.player_count,4);
+  for(int i=0;i<visible;i++){
+   float y=453+i*56;
+   d.bordered_rect({105,y,454,51},11,rgb(0x0a1729,.96f),1,rgb(0x38506a));
+   d.circle(136,y+25,16,rgb(pc[i]));
+   tx(d,f,a,"P"+std::to_string(i+1),161,y+32,20,rgb(pc[i]));
+   tx(d,f,a,g.players[i].name.substr(0,16),226,y+32,24);
+   tx(d,f,a,"edit",526,y+32,18,muted,Align::right);
+  }
+  if(g.player_count>4)tx(d,f,a,"+"+std::to_string(g.player_count-4)+" more - open Players",118,695,16,light);
+  item(2,"Game Mode","*",731);
+  item(3,"Challenges","#",810);
+  item(4,"Settings","o",889);
+  return;
+ }
  if(g.screen==Screen::Game){
   panel(d,88,802,535,154,0x874be1,.96f);
   tx(d,f,a,"NOW PLAYING",119,845,18,rgb(0xfa89f9));
@@ -225,17 +287,71 @@ void overlay(DrawList& d,const Font& f,unsigned a,Game& g){
   tx(d,f,a,"THE BOTTLE HAS SPOKEN",925,382,22,rgb(slices[g.winning_slice].color),Align::center);
   tx(d,f,a,slices[g.winning_slice].label,925,462,52,white,Align::center);
   tx(d,f,a,g.players[g.active].name+", your challenge:",925,517,25,light,Align::center);
-  std::string prompt=prompts[g.prompt_index].text;
-  if(prompt.size()>48){size_t mid=prompt.rfind(' ',48);if(mid==std::string::npos)mid=48;
-   tx(d,f,a,prompt.substr(0,mid),925,590,28,white,Align::center);
-   tx(d,f,a,prompt.substr(mid+1),925,630,28,white,Align::center);
-  }else tx(d,f,a,prompt,925,607,28,white,Align::center);
+  wrapped(d,f,a,prompts[g.prompt_index].text,925,573,27,50,4);
   tx(d,f,a,"X  Next player       O  Main menu",925,711,23,rgb(0xe49aff),Align::center);
   return;
  }
  panel(d,571,285,818,664,0xa739db,.99f);
- auto heading=[&](const char* text){tx(d,f,a,text,628,353,39,white);d.line(625,379,1333,379,2,rgb(0xf350d8,.65f));};
- if(g.screen==Screen::Players){
+ auto heading=[&](const std::string& text){tx(d,f,a,text,628,353,39,white);d.line(625,379,1333,379,2,rgb(0xf350d8,.65f));};
+ if(g.screen==Screen::SetupCount){
+  heading("WELCOME - HOW MANY PLAYERS?");
+  tx(d,f,a,"Choose how many friends are joining tonight",625,437,24,light);
+  tx(d,f,a,"<",758,665,65,rgb(0xffbd38));
+  tx(d,f,a,std::to_string(g.player_count),962,683,114,rgb(0xffe16f),Align::center);
+  tx(d,f,a,">",1144,665,65,rgb(0xffbd38));
+  tx(d,f,a,"2 - 8 players    |    LEFT/RIGHT Choose",962,798,25,white,Align::center);
+  tx(d,f,a,"X  Continue",962,917,24,rgb(0xffb9ee),Align::center);
+ }else if(g.screen==Screen::SetupNames){
+  heading("WHO IS PLAYING?");
+  tx(d,f,a,"Select a player and press X to enter their name",625,416,22,light);
+  const uint32_t pc[]={0xff3c72,0x32b5ff,0x42ef9b,0xffaa36,0xd088ff,0xffe54f,0x40e9e6,0xff6e53};
+  for(int i=0;i<g.player_count;i++){
+   const float x=617+(i/4)*368.f,y=447+(i%4)*90.f;
+   bool selected=g.setup_focus==i;
+   d.bordered_rect({x,y,355,80},12,selected?rgb(0x521476):rgb(0x0b162b),selected?2.5f:1.2f,rgb(selected?0xed50ff:0x40526b));
+   d.circle(x+26,y+38,17,rgb(pc[i]));
+   tx(d,f,a,"P"+std::to_string(i+1),x+53,y+47,20,rgb(pc[i]));
+   tx(d,f,a,g.players[i].name,x+105,y+47,22);
+  }
+  tx(d,f,a,"X  Edit name    |    SQUARE  Continue",958,909,23,rgb(0xffb9ee),Align::center);
+ }else if(g.screen==Screen::EditName){
+  heading("ENTER PLAYER "+std::to_string(g.editing_player+1)+" NAME");
+  d.bordered_rect({622,397,711,81},12,rgb(0x1e1939),2,rgb(0xfc4dee));
+  tx(d,f,a,g.editing_name.empty()?"Type a name ...":g.editing_name,650,450,31,white);
+  for(int i=0;i<40;i++){
+   const float x=627+(i%10)*70.f,y=510+(i/10)*81.f;
+   bool focus=g.keyboard_cursor==i;
+   d.bordered_rect({x,y,64,70},9,rgb(focus?0x6f139a:0x152139),focus?2.5f:1.f,rgb(focus?0xfa45ff:0x41526d));
+   tx(d,f,a,keyboard_keys[i],x+32,y+43,i>=36?12:23,white,Align::center);
+  }
+  tx(d,f,a,"D-PAD  Select    X  Type    TRIANGLE  Delete    OPTIONS  Save",958,906,19,light,Align::center);
+ }else if(g.screen==Screen::SetupMode){
+  heading("CHOOSE GAME MODE");
+  for(int i=0;i<5;i++){
+   float y=418+i*90;
+   d.bordered_rect({620,y,713,75},12,rgb(g.mode==i?0x551474:0x10192d),g.mode==i?3:1,rgb(g.mode==i?0xf04aff:0x354663));
+   tx(d,f,a,mode_names[i],665,y+49,30,white);
+  }
+  tx(d,f,a,"UP/DOWN  Select    X  Next    O  Back",945,917,20,light,Align::center);
+ }else if(g.screen==Screen::SetupPack){
+  heading("CHOOSE CHALLENGE PACK");
+  for(int i=0;i<3;i++){
+   const float y=470+i*122;
+   d.bordered_rect({621,y,713,96},12,rgb(g.pack==i?0x551474:0x10192d),g.pack==i?3:1,rgb(g.pack==i?0xf04aff:0x354663));
+   tx(d,f,a,pack_names[i],666,y+45,29);
+   int count=0;for(const auto& p:prompts)if(p.level<=i&&g.category_allowed(p.category))++count;
+   tx(d,f,a,std::to_string(count)+" challenges",1298,y+61,21,rgb(0x7ce7ff),Align::right);
+  }
+  tx(d,f,a,"UP/DOWN  Select    X  Next    O  Back",945,917,20,light,Align::center);
+ }else if(g.screen==Screen::SetupSummary){
+  heading("READY TO PLAY?");
+  tx(d,f,a,std::to_string(g.player_count)+" Players",661,474,35);
+  tx(d,f,a,std::string(mode_names[g.mode])+" Mode",661,537,35);
+  tx(d,f,a,std::to_string(g.available_prompt_count())+" Challenges",661,600,35);
+  tx(d,f,a,std::string("Challenge pack: ")+pack_names[g.pack],661,663,27,light);
+  tx(d,f,a,"Every challenge is optional - pass any time.",662,760,23,rgb(0x6ef2c1));
+  tx(d,f,a,"X  Enter Game Lobby    O  Back",960,921,24,rgb(0xffb9ee),Align::center);
+ }else if(g.screen==Screen::Players){
   heading("Players");
   tx(d,f,a,"Pass-and-play: one DualSense, 2-8 players",625,421,20,light);
   const uint32_t pc[]={0xff3c72,0x32b5ff,0x42ef9b,0xffaa36,0xd088ff,0xffe54f,0x40e9e6,0xff6e53};
@@ -247,7 +363,7 @@ void overlay(DrawList& d,const Font& f,unsigned a,Game& g){
    tx(d,f,a,"P"+std::to_string(i+1)+" "+g.players[i].name,x+53,y+36,23);
    tx(d,f,a,g.players[i].ready?"READY":"NOT READY",x+53,y+65,16,g.players[i].ready?rgb(0x62ff98):rgb(0xff667e));
   }
-  tx(d,f,a,"X  Ready / Not Ready   |   SQUARE  Change name",620,896,19,rgb(0xffbbee));
+  tx(d,f,a,"X  Ready / Not Ready   |   SQUARE  Enter name",620,896,19,rgb(0xffbbee));
   tx(d,f,a,"LEFT/RIGHT  Add or remove player   |   O  Back",620,923,17,light);
  }else if(g.screen==Screen::Rules){
   heading("Rules");
@@ -256,7 +372,7 @@ void overlay(DrawList& d,const Font& f,unsigned a,Game& g){
   tx(d,f,a,"O  Back",625,912,22,rgb(0xe6a4fd));
  }else if(g.screen==Screen::Challenges){
   heading("Challenges");
-  tx(d,f,a,std::to_string(prompts.size())+" built-in challenges",625,426,20,light);
+  tx(d,f,a,std::to_string(g.available_prompt_count())+" in this mode / "+std::to_string(prompts.size())+" total challenges",625,426,20,light);
   int start=std::clamp(g.preview-4,0,int(prompts.size())-8);
   for(int i=start;i<start+8;i++){
    float y=443+(i-start)*52;
@@ -266,15 +382,15 @@ void overlay(DrawList& d,const Font& f,unsigned a,Game& g){
   tx(d,f,a,"UP/DOWN  Browse   |   O  Back",627,913,20,rgb(0xffb9ee));
  }else if(g.screen==Screen::Settings){
   heading("Settings");
-  const char* labels[]={"Game mode", "Session length", "Reset to defaults"};
-  const std::string vals[]={g.mode?"Chill":"Standard",g.rounds?std::to_string(g.rounds)+" rounds":"Endless","Apply"};
-  for(int i=0;i<3;i++){
-   float y=431+i*132;
-   d.bordered_rect({619,y,724,112},12,i==g.settings_focus?rgb(0x50116a):rgb(0x0c1728),i==g.settings_focus?3:1,rgb(i==g.settings_focus?0xf758e8:0x444b67));
+  const char* labels[]={"Game mode", "Challenge pack", "Session length", "Run player setup again"};
+  const std::string vals[]={mode_names[g.mode],pack_names[g.pack],g.rounds?std::to_string(g.rounds)+" turns":"Endless","Launch"};
+  for(int i=0;i<4;i++){
+   float y=419+i*110;
+   d.bordered_rect({619,y,724,95},12,i==g.settings_focus?rgb(0x50116a):rgb(0x0c1728),i==g.settings_focus?3:1,rgb(i==g.settings_focus?0xf758e8:0x444b67));
    tx(d,f,a,labels[i],652,y+47,27);
    tx(d,f,a,vals[i],1311,y+78,23,rgb(0x66dfff),Align::right);
   }
-  tx(d,f,a,"X  Change   |   O  Back   |   Saves automatically",625,907,19,light);
+  tx(d,f,a,"X / LEFT-RIGHT  Change   |   O  Back",625,918,20,light);
  }else if(g.screen==Screen::Exit){
   heading("Exit Drink Roulette?");
   tx(d,f,a,"X  Quit to launcher",625,523,28);
@@ -291,6 +407,7 @@ int main(){
  if(!font.load(bytes))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);
  Texture bg=background(renderer);
+ Texture bottle=load_bottle(renderer);
  hui::ps5::Pad pad;pad.open();
  Game g;load(g);g.seed(uint64_t(hui::sys::monotonic_us())^0xdecafbaacc11ULL);
  log("Boot started");
@@ -320,32 +437,79 @@ int main(){
   const bool up=nav&hui::pad_bits::kUp,down=nav&hui::pad_bits::kDown;
   const bool left=nav&hui::pad_bits::kLeft,right=nav&hui::pad_bits::kRight;
   bool save_changed=false;
-  if(g.screen==Screen::Home){
+  if(g.screen==Screen::SetupCount){
+   if(left){g.player_count=std::max(2,g.player_count-1);save_changed=true;}
+   if(right){g.player_count=std::min(8,g.player_count+1);save_changed=true;}
+   if(was(hui::pad_bits::kCross)){g.screen=Screen::SetupNames;g.setup_focus=0;}
+  }else if(g.screen==Screen::SetupNames){
+   if(up)g.setup_focus=(g.setup_focus+g.player_count-1)%g.player_count;
+   if(down)g.setup_focus=(g.setup_focus+1)%g.player_count;
+   if(left&&g.setup_focus>=4)g.setup_focus-=4;
+   if(right&&g.setup_focus+4<g.player_count)g.setup_focus+=4;
+   if(was(hui::pad_bits::kCross))g.begin_name_edit(g.setup_focus,Screen::SetupNames);
+   if(was(hui::pad_bits::kSquare))g.screen=Screen::SetupMode;
+   if(was(hui::pad_bits::kCircle))g.screen=Screen::SetupCount;
+  }else if(g.screen==Screen::EditName){
+   if(left)g.keyboard_cursor=(g.keyboard_cursor/10)*10+(g.keyboard_cursor+9)%10;
+   if(right)g.keyboard_cursor=(g.keyboard_cursor/10)*10+(g.keyboard_cursor+1)%10;
+   if(up)g.keyboard_cursor=(g.keyboard_cursor+30)%40;
+   if(down)g.keyboard_cursor=(g.keyboard_cursor+10)%40;
+   if(was(hui::pad_bits::kCross)){
+    int index=g.keyboard_cursor;
+    if(index<36){if(g.editing_name.size()<16)g.editing_name+=keyboard_keys[index];}
+    else if(index==36){if(g.editing_name.size()<16)g.editing_name+=' ';}
+    else if(index==37){if(!g.editing_name.empty())g.editing_name.pop_back();}
+    else if(index==38){g.apply_name_edit();save_changed=true;}
+    else g.screen=g.keyboard_return;
+   }
+   if(was(hui::pad_bits::kTriangle)&&!g.editing_name.empty())g.editing_name.pop_back();
+   if(was(hui::pad_bits::kOptions)){g.apply_name_edit();save_changed=true;}
+   if(was(hui::pad_bits::kCircle))g.screen=g.keyboard_return;
+  }else if(g.screen==Screen::SetupMode){
+   if(up||left)g.mode=(g.mode+4)%5;
+   if(down||right)g.mode=(g.mode+1)%5;
+   if(was(hui::pad_bits::kCross))g.screen=Screen::SetupPack;
+   if(was(hui::pad_bits::kCircle))g.screen=Screen::SetupNames;
+  }else if(g.screen==Screen::SetupPack){
+   if(up||left)g.pack=(g.pack+2)%3;
+   if(down||right)g.pack=(g.pack+1)%3;
+   if(was(hui::pad_bits::kCross))g.screen=Screen::SetupSummary;
+   if(was(hui::pad_bits::kCircle))g.screen=Screen::SetupMode;
+  }else if(g.screen==Screen::SetupSummary){
+   if(was(hui::pad_bits::kCross)){
+    g.setup_complete=true;g.screen=Screen::Home;g.focus=0;
+    for(int i=0;i<g.player_count;i++)g.players[i].ready=true;
+    save_changed=true;
+   }
+   if(was(hui::pad_bits::kCircle))g.screen=Screen::SetupPack;
+  }else if(g.screen==Screen::Home){
    if(up)g.focus=(g.focus+4)%5;
    if(down)g.focus=(g.focus+1)%5;
    if(was(hui::pad_bits::kCross)){
     switch(g.focus){case 0:g.start_session();break;case 1:g.screen=Screen::Players;g.focus=0;break;
-     case 2:g.screen=Screen::Rules;break;case 3:g.screen=Screen::Challenges;g.preview=0;break;
+     case 2:g.screen=Screen::Settings;g.settings_focus=0;break;case 3:g.screen=Screen::Challenges;g.preview=0;break;
      default:g.screen=Screen::Settings;g.settings_focus=0;break;}
    }
+   if(was(hui::pad_bits::kTriangle))g.screen=Screen::Rules;
    if(was(hui::pad_bits::kCircle))g.screen=Screen::Exit;
   }else if(g.screen==Screen::Players){
    if(up)g.focus=(g.focus+g.player_count-1)%g.player_count;
    if(down)g.focus=(g.focus+1)%g.player_count;
    if(left){g.player_count=std::max(2,g.player_count-1);g.focus=std::min(g.focus,g.player_count-1);save_changed=true;}
    if(right){g.player_count=std::min(8,g.player_count+1);save_changed=true;}
-   if(was(hui::pad_bits::kCross))g.players[g.focus].ready=!g.players[g.focus].ready;
-   if(was(hui::pad_bits::kSquare)){g.cycle_name(g.focus);save_changed=true;}
-   if(was(hui::pad_bits::kCircle)){g.screen=Screen::Home;g.focus=0;}
+   if(was(hui::pad_bits::kCross)){g.players[g.focus].ready=!g.players[g.focus].ready;save_changed=true;}
+   if(was(hui::pad_bits::kSquare))g.begin_name_edit(g.focus,Screen::Players);
+   if(was(hui::pad_bits::kCircle)){g.screen=Screen::Home;g.focus=1;}
   }else if(g.screen==Screen::Rules||g.screen==Screen::Challenges||g.screen==Screen::Settings){
    if(g.screen==Screen::Challenges){if(up)g.preview=std::max(0,g.preview-1);if(down)g.preview=std::min(int(prompts.size())-1,g.preview+1);}
    if(g.screen==Screen::Settings){
-    if(up)g.settings_focus=(g.settings_focus+2)%3;
-    if(down)g.settings_focus=(g.settings_focus+1)%3;
+    if(up)g.settings_focus=(g.settings_focus+3)%4;
+    if(down)g.settings_focus=(g.settings_focus+1)%4;
     if(was(hui::pad_bits::kCross)||left||right){
-     if(g.settings_focus==0)g.mode=1-g.mode;
-     if(g.settings_focus==1)g.rounds=g.rounds==15?30:g.rounds==30?0:15;
-     if(g.settings_focus==2){g.mode=0;g.rounds=15;}
+     if(g.settings_focus==0)g.mode=(g.mode+1)%5;
+     else if(g.settings_focus==1)g.pack=(g.pack+1)%3;
+     else if(g.settings_focus==2)g.rounds=g.rounds==15?30:g.rounds==30?60:g.rounds==60?0:15;
+     else{g.start_new_setup();}
      save_changed=true;
     }
    }
@@ -358,7 +522,7 @@ int main(){
    if(was(hui::pad_bits::kCross))g.next_turn();
    if(was(hui::pad_bits::kCircle)){g.screen=Screen::Home;g.focus=0;}
   }else if(g.screen==Screen::Exit){
-   if(was(hui::pad_bits::kCross)){save(g);pad.close();if(bg.id)glDeleteTextures(1,&bg.id);renderer.release();display.close();hui::sys::quit();}
+   if(was(hui::pad_bits::kCross)){save(g);pad.close();if(bg.id)glDeleteTextures(1,&bg.id);if(bottle.id)glDeleteTextures(1,&bottle.id);renderer.release();display.close();hui::sys::quit();}
    if(was(hui::pad_bits::kCircle))g.screen=Screen::Home;
   }
   if(was(hui::pad_bits::kOptions)&&g.screen==Screen::Home){g.screen=Screen::Settings;g.settings_focus=0;}
@@ -368,12 +532,12 @@ int main(){
   DrawList d;
   if(bg.id){d.image(bg.id,{0,0,1920,1080},kFullUv,white);if(!bg.reference)title(d,font,atlas);}else{party_backdrop(d);title(d,font,atlas);}
   // Dynamic UI panels replace the baked-in reference panels when photo is present.
-  if(bg.id){d.rounded_rect({71,293,532,620},14,rgb(0x080b16,.91f));d.rounded_rect({1415,107,447,665},15,rgb(0x090b17,.88f));}
-  wheel(d,font,atlas,g);
+  if(bg.id){d.rounded_rect({71,286,532,695},14,rgb(0x080b16,.93f));d.rounded_rect({1415,107,447,670},15,rgb(0x090b17,.91f));}
+  wheel(d,font,atlas,g,bottle);
   cards(d,font,atlas,g);
   overlay(d,font,atlas,g);
   tx(d,font,atlas,"by YAHBALLON",1747,963,17,light,Align::right);
-  tx(d,font,atlas,"v0.1.1",1851,963,18,light,Align::right);
+  tx(d,font,atlas,"v0.1.2",1851,963,18,light,Align::right);
   footer(d,font,atlas,g);
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);

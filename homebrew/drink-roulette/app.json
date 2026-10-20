@@ -1,10 +1,10 @@
 {
   "name": "Drink Roulette",
   "slug": "drink-roulette",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "titleId": "PPSA99841",
   "contentId": "UP9000-PPSA99841_00-DRINKROULETTE001",
-  "contentVersion": "01.000.002",
-  "releaseTag": "drink-roulette-v0.1.1",
+  "contentVersion": "01.000.003",
+  "releaseTag": "drink-roulette-v0.1.2",
   "developer": "YAHBALLON"
 }
