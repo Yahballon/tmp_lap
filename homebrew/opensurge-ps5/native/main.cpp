@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.2.3 - slope following, foot-surface collision diagnostics.
+// Open Surge PS5 v0.2.4 - buffered DualSense state persistence and input diagnostics.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
+#include "pad_state.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
@@ -21,7 +22,7 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.2.3";
+constexpr const char* kVersion="0.2.4";
 constexpr const char* kTitle="OPEN SURGE PS5 - MOVEMENT FIX";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
@@ -31,7 +32,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native level preview 0.2.3] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native level preview 0.2.4] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -119,7 +120,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.2.3",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.2.4",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -193,26 +194,18 @@ int main(){
   float measured_fps=0.f;
   float accumulator=0.f;
   bool pending_jump=false;
-  uint32_t previous=0;
+  surgepreview::PadState pad_state;
   for(;;){
     // Record frame start so 16ms isn't added AFTER swap/present anymore.
     const uint64_t frame_start_us=static_cast<uint64_t>(hui::sys::monotonic_us());
     std::array<hui::PadSample,64> samples{};
     const size_t count=pad.read(samples);
-    uint32_t pressed=0,held=0;bool connected=false;
-    for(size_t i=0;i<count;++i){
-      if(!samples[i].connected)continue;
-      connected=true;
-      uint32_t bits=samples[i].buttons;
-      if(samples[i].left_x<73)bits|=hui::pad_bits::kLeft;
-      if(samples[i].left_x>183)bits|=hui::pad_bits::kRight;
-      held=bits;
-    }
-    if(!connected)held=0;
-    // Only the most recent controller sample is authoritative. A key held
-    // across multiple read() packets is one press, not repeated RESET events.
-    pressed=held & ~previous;
-    previous=held;
+    // pad.read()==0 means "no NEW samples", not "nothing is held".
+    // This is the actual source of right-walk jitter, repeated jumps and
+    // resets even though gameplay still renders at a stable ~60 FPS.
+    const auto controls=pad_state.update(samples.data(),count);
+    const uint32_t pressed=controls.pressed;
+    const uint32_t held=controls.held;
     const uint64_t now=static_cast<uint64_t>(hui::sys::monotonic_us());
     const float dt=std::clamp(float(now-last_us)/1000000.f,0.f,.075f);
     last_us=now;
@@ -228,6 +221,13 @@ int main(){
           measured_fps,level.player_x(),level.player_y(),level.velocity_x(),
           level.velocity_y(),level.grounded()?1:0,level.indexed_cells(),
           level.collision_blocks(),level.auto_respawns());
+      log_message(line);
+      std::snprintf(line,sizeof(line),
+          "PAD_DIAG raw=0x%08x held=0x%08x empty_polls=%llu samples=%llu disconnects=%llu",
+          controls.raw_buttons,controls.held,
+          static_cast<unsigned long long>(pad_state.empty_polls()),
+          static_cast<unsigned long long>(pad_state.samples_seen()),
+          static_cast<unsigned long long>(pad_state.disconnects()));
       log_message(line);
       perf_log_us=now;
     }
@@ -255,8 +255,18 @@ int main(){
         log_message("LEVEL_PREVIEW_EXIT");
       }else{
         const int dir=int((held&hui::pad_bits::kRight)!=0)-int((held&hui::pad_bits::kLeft)!=0);
-        if(pressed&hui::pad_bits::kCross)pending_jump=true;
+        if(pressed&hui::pad_bits::kCross){
+          pending_jump=true;
+          char line[112];
+          std::snprintf(line,sizeof(line),"PAD_CROSS_EDGE raw=0x%08x held=0x%08x",
+              controls.raw_buttons,controls.held);
+          log_message(line);
+        }
         if(pressed&hui::pad_bits::kSquare){
+          char line_btn[112];
+          std::snprintf(line_btn,sizeof(line_btn),"PAD_SQUARE_EDGE raw=0x%08x held=0x%08x",
+              controls.raw_buttons,controls.held);
+          log_message(line_btn);
           level.reset();accumulator=0.f;pending_jump=false;
           char line[160];
           std::snprintf(line,sizeof(line),"LEVEL_RESET x=%.1f y=%.1f grounded=%d",
@@ -307,7 +317,7 @@ int main(){
       level.draw(ui);
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.2.3  -  slope/foot-surface collision fix; NOT complete game engine",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.2.4  -  corrected buffered DualSense input; NOT complete game engine",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"STICK/D-PAD MOVE    X JUMP    SQUARE RESET    O BACK",73,1029,28,WHITE);
       char probe_line[180];

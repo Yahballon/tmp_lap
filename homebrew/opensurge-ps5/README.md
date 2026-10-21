@@ -1,6 +1,6 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.2.3 transparency + mask-collision test · PPSA99358**
+**by YAHBALLON · v0.2.4 transparency + mask-collision test · PPSA99358**
 
 **Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
@@ -20,7 +20,7 @@ It does **not** run SurgeScript gameplay scripts, the original Allegro game loop
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.2.3**. The release tag is `opensurge-ps5-v0.2.3` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.2.4**. The release tag is `opensurge-ps5-v0.2.4` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
@@ -56,3 +56,9 @@ The user's real PS5 video confirms correct original artwork, but movement was ch
 Recorded PS5 0.2.2 gameplay at **59.6 FPS** showed that movement stops at world x=723/900 even when only RIGHT is held; FPS was not the bottleneck. The old horizontal collision used the character's body probes against terrain BEFORE following the ground mask, repeatedly classifying sloping floors as solid walls (VX=0), toggling grounded/landed. This revision uses original per-pixel mask top-surface transitions across three foot sensors. When walking, it follows slopes by up to 12 world pixels per substep and steps down up to 22; real walls still block. Falling and jumping still use the original mask. A genuine bottomless drop auto-respawns instead of infinite sky camera scroll. Native diagnostics add TERRAIN_BLOCK and RESPawn counts. CI now runs the real C++ controller for 900 frames with RIGHT continuously held and asserts it crosses the visible slope into the map area (>x=1000), without asking the user to repeatedly reset.
 
 The renderer, texture coordinates and complete original game data are unchanged. This remains a preview physics approximation; original game engine/SurgeScript isn't linked.
+
+## v0.2.4 — PS5 controller buffered-input fix (based on real console logs)
+
+Hardware v0.2.3 logs showed **59.6 FPS with no terrain block** through x=1346 but repeated LEVEL_JUMP even when RIGHT was the only intended input. Root cause in native/main.cpp: `pad.read()` returns a count of **new** samples, often zero; old code reset `held=0` when no sample was provided, falsely releasing continuous RIGHT and recreating CROSS edges for still-held buttons. New `native/pad_state.hpp` persists the final controller state on empty polls, aggregates genuine edges across buffered samples, only releases on explicit disconnected/intercepted samples, and uses input priority between D-pad and left stick. The original level, slope physics and rendering are unchanged. `native_pad_state_smoke.cpp` replays 600 frames with only 1 packet every 4 frames, requiring 600/600 continuous right and zero phantom jump events. New `PAD_DIAG` logs report actual raw/held mask and empty-poll statistics.
+
+If the test still jumps without CROSS, capture `PAD_CROSS_EDGE raw=...` messages to identify hardware-reported input. This remains a native level preview and does not run original SurgeScript gameplay.
