@@ -11,7 +11,7 @@ This project adds a PS5 homebrew SCons platform overlay to the original [Godot E
 - Native PS5 `sceKernelOpen`, `sceKernelRead`, `sceKernelGetdents` PCK detection; host fallback and tests.
 - Validates Godot 4 standalone PCK magic, pack-format version and compatible engine major/minor; rejects symlinks on host and via O_NOFOLLOW on PS5.
 - CI host unit tests and **real upstream Godot experimental PS5 cross-compile job**.
-- GDScript `samples/script-smoke` fixture.
+- GDScript `samples/script-smoke` fixture and real upstream Godot Linux PCK generation/execution in CI.
 
 ## Future game folders
 ```text
@@ -29,6 +29,8 @@ g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck
 ```
 
 Read [ENGINE_PORTING.md](ENGINE_PORTING.md) for cross-build instructions, console linker work and mandatory engine/backend milestones.
+
+The CI `godot-4-gdscript-smoke-pck-NOT-PS5` artifact is a real Godot 4 test project pack, **not** an installable PS5 game. The Linux run must log `GODOT_PS5_SMOKE_READY` to pass.
 
 ## Artwork / screenshots
 No game screenshot or PS5 app icon exists yet. `engine/platform/ps5/logo.svg` is a small original vector placeholder for the Godot source tree, not an AI icon or installed console art.
