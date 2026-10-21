@@ -32,6 +32,8 @@ jobs:
           /tmp/uninstaller-bridge-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/action_bridge_test.cpp -o /tmp/uninstaller-action-test
           /tmp/uninstaller-action-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/shadowmount_api_test.cpp -o /tmp/uninstaller-shadow-test
+          /tmp/uninstaller-shadow-test
           python3 - <<'PY'
           from pathlib import Path
           main=Path('homebrew/uninstaller/native/main.cpp').read_text()
@@ -69,6 +71,15 @@ jobs:
           assert 'min_size' in Path('homebrew/uninstaller/helper/unscan.c').read_text()
           assert 'decode_icon' in main
           assert 'Console Storage' not in main
+          shadow=Path('homebrew/uninstaller/native/shadowmount_api.hpp').read_text()
+          assert '127.0.0.1:10101' in shadow
+          assert '/api/v1/games/info' in shadow
+          assert '/api/v1/games/delete' in shadow
+          assert '"confirm":true' in shadow or r'"confirm":true' in shadow or r'\"confirm\":true' in shadow
+          assert 'SHADOWMOUNT_DELETE_REQUEST' in main
+          assert 'PPSA21564' in main
+          assert 'shadowSource' in main
+          assert 'SHADOWMOUNT_RESULT' in main
           assert 'L2/R2 Storage' not in main
           assert 'panel(d,723,145,1167,863)' in main
           assert 'actions::execute' in main
