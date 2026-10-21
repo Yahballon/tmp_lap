@@ -34,6 +34,10 @@ jobs:
           git -C "$work/sdl2-ps5" remote add origin https://github.com/OpenAGC/SDL2.git
           git -C "$work/sdl2-ps5" fetch --depth 1 origin ee4c47dc0d617b3bc8f35108f9956baf228a1322
           git -C "$work/sdl2-ps5" checkout --detach FETCH_HEAD
+          git init "$work/allegro5-ps5-probe"
+          git -C "$work/allegro5-ps5-probe" remote add origin https://github.com/connorjclark/allegro5.git
+          git -C "$work/allegro5-ps5-probe" fetch --depth 1 origin aae80ca3573e19702cfc2338591a575dc75eb647
+          git -C "$work/allegro5-ps5-probe" checkout --detach FETCH_HEAD
       - name: Stage real PS5 SDK and compiler wrapper
         run: |
           set -euo pipefail
