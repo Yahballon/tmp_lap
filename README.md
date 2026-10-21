@@ -8,6 +8,7 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
+| Open Surge PS5 (native diagnostic; no gameplay) | [homebrew/opensurge-ps5](homebrew/opensurge-ps5/) | [Build Open Surge PS5 Legacy Native](.github/workflows/build-opensurge-legacy-ps5.yml) | [v0.1.1 diagnostic prerelease](https://github.com/Yahballon/tmp_lap/releases/tag/opensurge-ps5-v0.1.1) |
 | ZQuest Classic PS5 (quest-browser port prototype; gameplay not implemented) | [homebrew/zquestclassic-ps5](homebrew/zquestclassic-ps5/) | [Build ZQuest Classic PS5](.github/workflows/build-zquestclassic-ps5.yml) | No playable release yet |
 | PS5DreamcastX (Flycast, PS5GBAX-style shelf) | [homebrew/ps5-dreamcastx](homebrew/ps5-dreamcastx/) | [Build PS5DreamcastX](.github/workflows/build-ps5-dreamcastx.yml) | [v0.1.0 (after successful CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-dreamcastx-v0.1.0) |
 | PS5 System Info | [homebrew/ps5-system-info](homebrew/ps5-system-info/) | [Build PS5 System Info](.github/workflows/build-ps5-system-info.yml) | [v0.1.0 (after verified CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-system-info-v0.1.0) |

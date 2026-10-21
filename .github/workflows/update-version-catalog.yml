@@ -25,6 +25,7 @@ on:
     workflows:
       - Build PS5 Crypto Tracker
       - Build ZQuest Classic PS5 (Port Prototype)
+      - Build Open Surge PS5 Legacy Native (non-playable test)
       - Build Starbound Sprint
       - Build WWW Speedtest
       - Build PS5 Payload LauncherX

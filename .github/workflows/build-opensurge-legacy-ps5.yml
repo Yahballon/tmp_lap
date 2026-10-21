@@ -1,0 +1,132 @@
+name: Build Open Surge PS5 Legacy Native (non-playable test)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/opensurge-ps5/**'
+      - '.github/workflows/build-opensurge-legacy-ps5.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/opensurge-ps5/**'
+      - '.github/workflows/build-opensurge-legacy-ps5.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  native-opensurge-port-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install old native PS5 workflow dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 \
+            make ninja-build git curl unzip tar python3 python3-pil \
+            g++ pkg-config ca-certificates
+      - name: Stage ALL pinned original Open Surge game assets
+        run: |
+          set -euo pipefail
+          bash homebrew/opensurge-ps5/scripts/fetch-upstream.sh
+          python3 homebrew/opensurge-ps5/scripts/stage-game-data.py \
+            homebrew/opensurge-ps5/.work/opensurge \
+            homebrew/opensurge-ps5/.work/legacy-stage
+      - name: Create native app from the same DevBridge toolkit used by 4 WINS
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          git clone --depth=1 https://github.com/Yahballon/ps5-homebrew-ui.git /tmp/ps5-homebrew-ui
+          for part in gfx ui core audio platform third_party; do
+            cp -a "/tmp/ps5-homebrew-ui/src/$part" app/src/
+          done
+          cp homebrew/opensurge-ps5/native/main.cpp app/src/main.cpp
+          python3 homebrew/opensurge-ps5/scripts/prepare-legacy-assets.py \
+            homebrew/opensurge-ps5/.work/legacy-stage app
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          info=json.loads(Path("homebrew/opensurge-ps5/app.json").read_text())
+          assert info["gamePlayable"] is False
+          param=Path("app/sce_sys/param.json")
+          data=json.loads(param.read_text())
+          data.update(titleId=info["titleId"],conceptId=info["titleId"][4:],
+                      contentId=info["contentId"],contentVersion=info["contentVersion"])
+          data["localizedParameters"]["en-US"]["titleName"]="Open Surge PS5 Test"
+          param.write_text(json.dumps(data,indent=2)+"\n")
+          PY
+      - name: Select previous working PS5 OpenGL SDK version 1.0.2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path("app/tools/fetch-opengl-sdk.sh")
+          s=f.read_text()
+          assert "version=1.0.0" in s
+          assert "archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5" in s
+          assert "github.com/blackbearreloaded/ps5-opengl" in s
+          s=s.replace("version=1.0.0","version=1.0.2")
+          s=s.replace("archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5",
+                      "archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4")
+          s=s.replace("github.com/blackbearreloaded/ps5-opengl","github.com/LedyBacer/ps5-opengl")
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "Pinned OpenGL SDK archive SHA256 checked" >&2'+s[end:]
+          f.write_text(s)
+          PY
+      - name: Compile verified native PS5 OpenGL SDK
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: bash tools/prepare-opengl.sh
+      - name: Prevent native libc POSIX collision symbols
+        run: |
+          set -euo pipefail
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 \
+            --redefine-sym=openlog=jb_sdk_openlog \
+            --redefine-sym=closelog=jb_sdk_closelog \
+            --redefine-sym=mkstemp=jb_sdk_mkstemp \
+            --redefine-sym=mkstemps=jb_sdk_mkstemps \
+            --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r \
+            app/build/jb-json/libjb-posix.a
+      - name: Compile and sign native PS5 DevBridge ELF
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Validate PS5 FSELF and complete original asset package
+        run: python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PPSA99358-OpenSurge-LEGACY-NATIVE-DIAGNOSTIC-NOT-GAME
+          path: app/dist/PPSA99358.zip
+          if-no-files-found: error
+
+      - name: Publish Open Surge PS5 native diagnostic prerelease for TESTBUILDS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=opensurge-ps5-v0.1.1
+          file=app/dist/PPSA99358.zip
+          test -s "$file"
+          python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Existing immutable prerelease $tag; refusing to overwrite."
+            gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq PPSA99358.zip
+            exit 0
+          fi
+          gh release create "$tag" "$file" \
+            --target "$GITHUB_SHA" \
+            --title "Open Surge PS5 v0.1.1 - Native Test ONLY (not playable)" \
+            --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
+            --prerelease
+

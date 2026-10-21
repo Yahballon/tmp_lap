@@ -22,6 +22,8 @@ def release(slug,version,title,prerelease=False,draft=False):
 releases=[release('ps5nesx','1.0.9','PPSA99204'),
           release('zquestclassic-ps5','0.1.0','PPSA99127',True),
           release('zquestclassic-ps5','0.1.1','PPSA99127',True,True),
+          release('opensurge-ps5','0.1.1','PPSA99358',True),
+          release('opensurge-ps5','0.1.2','PPSA99358',True,True),
           release('starbound-rebased','0.1.19','PPSA99642'),
           release('starbound-rebased','0.1.20','PPSA99642',True),
           release('starbound-rebased','0.1.21','PPSA99642',True,True),
@@ -50,6 +52,9 @@ with tempfile.TemporaryDirectory() as tmp:
     zquest=root/'homebrew/zquestclassic-ps5'
     zquest.mkdir(parents=True)
     (zquest/'app.json').write_text(json.dumps({'titleId':'PPSA99127','name':'ZQuest Classic PS5','slug':'zquestclassic-ps5'}))
+    surge=root/'homebrew/opensurge-ps5'
+    surge.mkdir(parents=True)
+    (surge/'app.json').write_text(json.dumps({'titleId':'PPSA99358','name':'Open Surge PS5 Test','slug':'opensurge-ps5'}))
     nes=root/'homebrew/ps5nesx'
     nes.mkdir(parents=True)
     (nes/'app.json').write_text(json.dumps({'titleId':'PPSA99204','name':'PS5NESX','slug':'ps5nesx'}))
@@ -80,8 +85,9 @@ with tempfile.TemporaryDirectory() as tmp:
         selected={entry['title_id']:entry['version'] for entry in result['apps']}
         assert selected['PPSA99204']=='1.0.9'
         assert selected['PPSA99127']=='0.1.0' # Opt-in prototype, never an unlisted prerelease
+        assert selected['PPSA99358']=='0.1.1' # Open Surge diagnostic test, not playable
         assert result['app_count']==len(result['apps'])
-        assert selected=={'PPSA99842':'0.1.0','PPSA99127':'0.1.0','PPSA99204':'1.0.9','PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
+        assert selected=={'PPSA99842':'0.1.0','PPSA99127':'0.1.0','PPSA99358':'0.1.1','PPSA99204':'1.0.9','PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
         godot_entry=next(e for e in result['apps'] if e['title_id']=='PPSA99842')
         assert godot_entry['name']=='Godot PS5 Probe'
         assert godot_entry['tag']=='godot-ps5-probe-v0.1.0'
