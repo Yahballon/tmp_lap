@@ -31,6 +31,16 @@ with tempfile.TemporaryDirectory() as d:
         '  if(jb_startup_mark)jb_startup_mark("after constructors");\n'
         '  if (jb_startup_mark) jb_startup_mark("thread entered");\n'
         '}\n'
+        'namespace\n{\nstruct MainArguments {int argc;};\n'
+        'void run_application(void *opaque) {\n'
+        '    args->status = application_main(args->argc, args->argv, nullptr);\n'
+        '}\n'
+        'void _start() {\n'
+        '    _init_env(process_parameters);\n'
+        '    _init();\n'
+        '    int rc = pthread_attr_init(&attr);\n'
+        '    rc = pthread_join(thread, nullptr);\n'
+        '}\n'
     )
     entry=root/"main.cpp"
     entry.write_text('extern "C" int godot_ps5_run_pack(const char*);')
