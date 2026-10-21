@@ -37,6 +37,10 @@ jobs:
           /tmp/zcps5-reader-posix
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -DZCPS5_NATIVE_SCAN=1 homebrew/zquestclassic-ps5/tests/quest_reader_test.cpp -o /tmp/zcps5-reader-native
           /tmp/zcps5-reader-native
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/zquestclassic-ps5/engine/paletted_surface_test.cpp \
+            -o /tmp/zcps5-paletted-surface
+          /tmp/zcps5-paletted-surface
           python3 -m json.tool homebrew/zquestclassic-ps5/app.json >/dev/null
           python3 - <<'PY'
           import json
@@ -52,6 +56,8 @@ jobs:
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/zquestclassic-ps5/native/main.cpp homebrew/zquestclassic-ps5/native/*.hpp app/src/
+          mkdir -p app/src/engine
+          cp homebrew/zquestclassic-ps5/engine/{paletted_surface.hpp,ps5_palette_texture.hpp,ps5_palette_texture.cpp,ps5_video_probe.hpp,ps5_video_probe.cpp} app/src/engine/
           python3 homebrew/zquestclassic-ps5/assets/generate_assets.py app
           python3 - <<'PY'
           import json
@@ -114,7 +120,7 @@ jobs:
       - name: Upload PS5 port-prototype ZIP - NOT PLAYABLE ZQUEST
         uses: actions/upload-artifact@v4
         with:
-          name: ZQuest-PS5-Quest-Browser-PROTOTYPE-v0.1.4
+          name: ZQuest-PS5-Quest-Browser-PROTOTYPE-v0.1.5
           path: app/dist/PPSA99127.zip
           if-no-files-found: error
 
@@ -124,7 +130,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=zquestclassic-ps5-v0.1.4
+          tag=zquestclassic-ps5-v0.1.5
           file=app/dist/PPSA99127.zip
           test -s "$file"
           if gh release view "$tag" >/dev/null 2>&1; then
@@ -133,6 +139,6 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "ZQuest Classic PS5 v0.1.4 - Quest File Loading Test (NOT PLAYABLE)" \
+            --title "ZQuest Classic PS5 v0.1.5 - Indexed Video Test (NOT PLAYABLE)" \
             --notes-file homebrew/zquestclassic-ps5/RELEASE_NOTES.md \
             --prerelease
