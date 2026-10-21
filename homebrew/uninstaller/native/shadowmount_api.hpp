@@ -122,11 +122,19 @@ inline bool allowedSourcePath(const std::string& path){
                 path.rfind("/data/",0)==0;
   if(!approved||path.rfind("/user/",0)==0||
      path.rfind("/system",0)==0)return false;
-  if(path.rfind("/mnt/",0)==0){
-    const size_t slash=path.find('/',5);
-    if(slash==std::string::npos||slash+1>=path.size())return false;
+  // Reject path traversal even if the last component is .. or .
+  size_t segmentStart=1;
+  unsigned segments=0;
+  while(segmentStart<path.size()){
+    const size_t end=path.find('/',segmentStart);
+    const std::string segment=path.substr(segmentStart,
+        end==std::string::npos?std::string::npos:end-segmentStart);
+    if(segment.empty()||segment=="."||segment=="..")return false;
+    segments++;
+    if(end==std::string::npos)break;
+    segmentStart=end+1;
   }
-  return true;
+  return segments>=3;
 }
 inline Source parseSource(const std::string& body,const std::string& requested){
   Source s;
