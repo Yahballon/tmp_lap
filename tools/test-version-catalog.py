@@ -31,7 +31,9 @@ releases=[release('ps5nesx','1.0.9','PPSA99204'),
           release('audiobook-reader','0.2.0','PPSA99784'),
           release('ps5-system-info','0.1.0','PPSA99786'),
           release('bible-reader','0.1.0','PPSA99793'),
-          release('ps5-dreamcastx','0.1.0','PPSA99765')]
+          release('ps5-dreamcastx','0.1.0','PPSA99765'),
+          release('godot-ps5-probe','0.1.0','PPSA99842',True),
+          release('godot-ps5-probe','0.2.0','PPSA99842',True,True)]
 standalone=[{
     'tag_name':'v0.1.24','prerelease':False,'draft':False,
     'html_url':'https://github.com/Yahballon/PSJukebox/releases/tag/v0.1.24',
@@ -66,6 +68,9 @@ with tempfile.TemporaryDirectory() as tmp:
     dc=root/'homebrew/ps5-dreamcastx'
     dc.mkdir(parents=True)
     (dc/'app.json').write_text(json.dumps({'titleId':'PPSA99765','name':'PS5DreamcastX','slug':'ps5-dreamcastx'}))
+    godot=root/'homebrew/godot-ps5'
+    godot.mkdir(parents=True)
+    (godot/'app.json').write_text(json.dumps({'titleId':'PPSA99842','name':'Godot PS5 Probe','slug':'godot-ps5','engineIntegrated':False}))
     p=root/'homebrew/psjukebox'
     p.mkdir(parents=True)
     (p/'app.json').write_text(json.dumps({'titleId':'PPSA99947','name':'PSJukebox','slug':'psjukebox'}))
@@ -76,7 +81,11 @@ with tempfile.TemporaryDirectory() as tmp:
         assert selected['PPSA99204']=='1.0.9'
         assert selected['PPSA99127']=='0.1.0' # Opt-in prototype, never an unlisted prerelease
         assert result['app_count']==len(result['apps'])
-        assert selected=={'PPSA99127':'0.1.0','PPSA99204':'1.0.9','PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
+        assert selected=={'PPSA99842':'0.1.0','PPSA99127':'0.1.0','PPSA99204':'1.0.9','PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
+        godot_entry=next(e for e in result['apps'] if e['title_id']=='PPSA99842')
+        assert godot_entry['name']=='Godot PS5 Probe'
+        assert godot_entry['tag']=='godot-ps5-probe-v0.1.0'
+        assert godot_entry['zip_url']=='https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-probe-v0.1.0/PPSA99842.zip'
         jukebox=next(e for e in result['apps'] if e['title_id']=='PPSA99947')
         assert jukebox['zip_url']=='https://github.com/Yahballon/PSJukebox/releases/download/v0.1.24/PPSA99947.zip'
         # A raw.githubusercontent.com artifact does not have a GitHub
@@ -102,4 +111,4 @@ with tempfile.TemporaryDirectory() as tmp:
         before=(root/'version.json').read_bytes()
         catalog.main()
         assert (root/'version.json').read_bytes()==before
-print('PASS: TESTBUILDS catalog preserves stable releases and opts in the ZQuest PS5 prototype prerelease')
+print('PASS: TESTBUILDS catalog includes Godot PS5 Probe prerelease and preserves stable releases')

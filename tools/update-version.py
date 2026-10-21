@@ -19,11 +19,12 @@ def main():
         for release in releases:
             if release.get("draft"):continue
             tag=release.get("tag_name","")
-            # Explicit prerelease opt-in: both remain experimental TESTBUILDS.
+            # Explicit prerelease allowlist for experimental TESTBUILDS.
             # All other apps continue to use stable-only release selection.
             allowed_prerelease=(
                 re.fullmatch(r"starbound-rebased-v\d+\.\d+\.\d+",tag) or
-                re.fullmatch(r"zquestclassic-ps5-v\d+\.\d+\.\d+",tag)
+                re.fullmatch(r"zquestclassic-ps5-v\d+\.\d+\.\d+",tag) or
+                re.fullmatch(r"godot-ps5-probe-v\d+\.\d+\.\d+",tag)
             )
             if release.get("prerelease") and not allowed_prerelease:continue
             m=re.search(r"v(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$",tag)
@@ -37,6 +38,10 @@ def main():
                 label,slug=titles[title]
                 if title=="PPSA99442":
                     if not (re.fullmatch(r"v\d+\.\d+\.\d+",tag) or tag.startswith("crypto-tracker-v")):continue
+                elif title=="PPSA99842":
+                    # The native hardware diagnostic prerelease intentionally has a
+                    # different tag prefix than the future full Godot engine port.
+                    if not re.fullmatch(r"godot-ps5-probe-v\d+\.\d+\.\d+",tag):continue
                 elif not tag.startswith(slug+"-v"):continue
                 url=asset.get("browser_download_url")
                 if not url:continue
