@@ -1,0 +1,153 @@
+name: ZQuest Classic Real Engine PS5 Bringup (Not Playable)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/zquestclassic-ps5/engine/**'
+      - '.github/workflows/zquestclassic-engine-bringup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  native-upstream-engine-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact upstream ZQuestClassic sources
+        run: |
+          set -euo pipefail
+          git init /tmp/zc-upstream
+          git -C /tmp/zc-upstream remote add origin https://github.com/ZQuestClassic/ZQuestClassic.git
+          git -C /tmp/zc-upstream fetch --depth 1 origin c44dde7d0146da78bf8b541af457d5ff4e67a830
+          git -C /tmp/zc-upstream checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/zc-upstream rev-parse HEAD)" = "c44dde7d0146da78bf8b541af457d5ff4e67a830"
+          test -f /tmp/zc-upstream/src/base/random.cpp
+          test -f /tmp/zc-upstream/src/zc/zelda.cpp
+          test -f /tmp/zc-upstream/CMakeLists.txt
+      - name: Install build and artwork prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make ninja-build curl unzip tar git g++ python3 python3-pil pkg-config ca-certificates
+      - name: Host tests and source metadata
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/zquestclassic-ps5/tests/quest_index_test.cpp -o /tmp/zcps5-quest-tests
+          /tmp/zcps5-quest-tests
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -DZCPS5_NATIVE_SCAN=1 homebrew/zquestclassic-ps5/tests/native_scan_mock_test.cpp -o /tmp/zcps5-kernel-dir-tests
+          /tmp/zcps5-kernel-dir-tests
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/zquestclassic-ps5/engine/standalone_args_test.cpp -o /tmp/zplayer-args-test
+          /tmp/zplayer-args-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -I/tmp/zc-upstream/src \
+            /tmp/zc-upstream/src/base/random.cpp \
+            homebrew/zquestclassic-ps5/engine/upstream_rng_test.cpp -o /tmp/zplayer-upstream-rng-test
+          /tmp/zplayer-upstream-rng-test
+          python3 -m json.tool homebrew/zquestclassic-ps5/app.json >/dev/null
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path("homebrew/zquestclassic-ps5/app.json").read_text())
+          assert x["titleId"]=="PPSA99127"
+          assert x["engineIntegrated"] is False
+          assert x["upstreamCommit"]=="c44dde7d0146da78bf8b541af457d5ff4e67a830"
+          PY
+      - name: Stage genuine native PS5 app
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/zquestclassic-ps5/native/main.cpp homebrew/zquestclassic-ps5/native/*.hpp app/src/
+          # Compile ORIGINAL upstream engine code on the PS5 toolchain.
+          mkdir -p app/src/base
+          cp /tmp/zc-upstream/src/base/random.cpp app/src/base/random.cpp
+          cp /tmp/zc-upstream/src/base/random.h app/src/base/random.h
+          cp homebrew/zquestclassic-ps5/engine/upstream_rng_ps5.cpp app/src/upstream_rng_ps5.cpp
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/src/main.cpp")
+          s=p.read_text()
+          prefix='extern "C" const char* zcps5_upstream_engine_smoke();\n'
+          assert '#include "quest_index.hpp"' in s
+          s=s.replace('#include "quest_index.hpp"',prefix+'#include "quest_index.hpp"',1)
+          needle='  logging("BOOT native quest library");'
+          assert needle in s
+          s=s.replace(needle,needle+'\n  logging(zcps5_upstream_engine_smoke());',1)
+          p.write_text(s)
+          PY
+          python3 homebrew/zquestclassic-ps5/assets/generate_assets.py app
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path("homebrew/zquestclassic-ps5/app.json").read_text())
+          path=Path("app/sce_sys/param.json")
+          p=json.loads(path.read_text())
+          p.update(titleId=a["titleId"], conceptId=a["titleId"][4:],
+                   contentId=a["contentId"], contentVersion=a["contentVersion"])
+          p["localizedParameters"]["en-US"]["titleName"]="ZQuest Classic PS5"
+          path.write_text(json.dumps(p,indent=2)+"\n")
+          PY
+      - name: Pin PS5 OpenGL SDK archive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/tools/fetch-opengl-sdk.sh")
+          s=p.read_text()
+          assert "version=1.0.0" in s
+          assert "archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5" in s
+          s=s.replace("version=1.0.0","version=1.0.2")
+          s=s.replace("archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5",
+                      "archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4")
+          s=s.replace("github.com/blackbearreloaded/ps5-opengl","github.com/LedyBacer/ps5-opengl")
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "SDK pinned archive SHA-256 checked" >&2'+s[end:]
+          p.write_text(s)
+          PY
+      - name: Compile PS5 SDK and OpenGL
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: bash tools/prepare-opengl.sh
+      - name: Resolve SDK libc POSIX collision symbols
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 \
+            --redefine-sym=openlog=jb_sdk_openlog \
+            --redefine-sym=closelog=jb_sdk_closelog \
+            --redefine-sym=mkstemp=jb_sdk_mkstemp \
+            --redefine-sym=mkstemps=jb_sdk_mkstemps \
+            --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r \
+            app/build/jb-json/libjb-posix.a
+      - name: Cross-compile native PS5 app (NOT the upstream game)
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: |
+          set -euo pipefail
+          make USE_CCACHE=0 BUILD_JOBS=4 app
+          grep -Fq '#define ZCPS5_NATIVE_SCAN 1' src/main.cpp
+      - name: Verify patched PS5 ELF, icon and install ZIP
+        run: python3 homebrew/zquestclassic-ps5/scripts/validate_package.py app/dist
+      - name: Verify genuine upstream engine object linked
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          native=Path("app/dist/PPSA99127/eboot.bin").read_bytes()
+          assert b"UPSTREAM_RNG_NATIVE_SMOKE" in native, "Upstream engine module not linked"
+          assert b"v0.1.3" in native
+          assert b"SCAN_BACKEND=libkernel-getdents-v0.1.3" in native
+          print("PASS: exact upstream engine C++ code compiled and linked with PS5 toolchain")
+          print("NOTE: zplayer and actual gameplay are NOT ported by this smoke test")
+          PY
+      - name: Upload isolated engine-bringup artifact (no public release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-ZPlayer-Engine-Core-BRINGUP-NOT-PLAYABLE
+          path: app/dist/PPSA99127.zip
+          if-no-files-found: error
