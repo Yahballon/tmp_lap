@@ -99,14 +99,21 @@ inline void scanPkgs(std::vector<Item>& out,const std::string& root,unsigned dep
   }
   closedir(d);
 }
-inline std::vector<Item> scan() {
+using ScanLog = void(*)(const char* phase,const char* path);
+inline std::vector<Item> scan(ScanLog report=nullptr) {
   std::vector<Item> out;
+  auto step=[&](const char* type,const char* path){if(report)report(type,path);};
+  step("SCAN_FOLDER","/data/homebrew");
   addFolders(out,"/data/homebrew",Kind::Homebrew);
+  step("SCAN_FOLDER","/user/app");
   addFolders(out,"/user/app",Kind::Installed);
+  step("SCAN_FOLDER","/system_ex/app");
   addFolders(out,"/system_ex/app",Kind::Installed);
   for(int i=0;i<4;i++){
     const std::string usb="/mnt/usb"+std::to_string(i);
+    step("SCAN_FOLDER",(usb+"/homebrew").c_str());
     addFolders(out,usb+"/homebrew",Kind::Homebrew);
+    step("SCAN_PKG",usb.c_str());
     scanPkgs(out,usb);
   }
   // Favor separately managed installed applications over any duplicate app registrations.
@@ -117,6 +124,7 @@ inline std::vector<Item> scan() {
   out.erase(std::unique(out.begin(),out.end(),[](const Item& a,const Item& b){
     return a.path==b.path;
   }),out.end());
+  step("SCAN_SORTED","complete");
   return out;
 }
 inline Storage storage(const std::string& path="/data") {

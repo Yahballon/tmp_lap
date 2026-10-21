@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "inventory.hpp"
+#include "logger.hpp"
+#include "crash_report.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include <array>
 #include <cstdio>
+#include <sys/stat.h>
 #include <ctime>
 #include <string>
 using namespace hui::gfx;
@@ -18,7 +21,8 @@ void trash(DrawList& d,float x,float y,float s){d.rounded_rect({x-5*s,y,65*s,12*
 bool visible(const uninstaller::Item& a,int tab){return tab==0||(tab==1&&a.kind==uninstaller::Kind::Installed)||(tab==2&&a.kind==uninstaller::Kind::Homebrew)||(tab==3&&a.kind==uninstaller::Kind::UsbPackage);}
 int count(const std::vector<uninstaller::Item>& v,int tab){int n=0;for(const auto& a:v)if(visible(a,tab))++n;return n;}
 const uninstaller::Item* nth(const std::vector<uninstaller::Item>& v,int tab,int n){for(const auto& a:v)if(visible(a,tab)&&n--==0)return &a;return nullptr;}
-void log(const std::string& s){mkdir("/data/uninstaller",0755);if(FILE* f=fopen("/data/uninstaller/uninstaller.log","ab")){fprintf(f,"%s\n",s.c_str());fclose(f);}}
+void log(const std::string& s){uninstaller::diag::write("EVENT",s.c_str());}
+void scanLog(const char* phase,const char* path){uninstaller::diag::write(phase,path);}
 void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,const uninstaller::Storage& disk){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
@@ -78,7 +82,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select     L1/R1 Categories     X Details     Square Delete     Triangle Refresh     Circle Back",45,1063,18,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.1",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.2",1887,1063,18,muted,Align::right);
  if(!msg.empty()){d.rounded_rect({370,944,1170,69},13,color(0x102844));txt(d,f,a,msg.size()>115?msg.substr(0,110)+"...":msg,958,989,19,white,Align::center);}
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
@@ -90,17 +94,38 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
 }
 }
 int main(){
- hui::ps5::Display display;if(!display.open())hui::sys::park();
- Renderer renderer;if(!renderer.init())hui::sys::park();
+ uninstaller::diag::write("BOOT","main entered");
+ const bool crashReady=devbridge_crash::install(uninstaller::diag::kCrash);
+ uninstaller::diag::write("CRASH_REPORTER",crashReady?"installed":"unavailable");
+ uninstaller::diag::write("DISPLAY","open begin");
+ hui::ps5::Display display;
+ if(!display.open()){uninstaller::diag::write("DISPLAY","open failed");hui::sys::park();}
+ uninstaller::diag::write("DISPLAY","open ok");
+ uninstaller::diag::write("RENDERER","init begin");
+ Renderer renderer;
+ if(!renderer.init()){uninstaller::diag::write("RENDERER","init failed");hui::sys::park();}
+ uninstaller::diag::write("RENDERER","init ok");
+ uninstaller::diag::write("FONT","read begin");
  Font font;std::string fonts=read("/app0/assets/fonts/inter-semibold.huifont");
  if(fonts.empty())fonts=read("/data/homebrew/PPSA99986/assets/fonts/inter-semibold.huifont");
- if(!font.load(fonts))hui::sys::park();
+ uninstaller::diag::write("FONT",fonts.empty()?"missing":"bytes loaded");
+ if(!font.load(fonts)){uninstaller::diag::write("FONT","font.load failed");hui::sys::park();}
+ uninstaller::diag::write("FONT","font.load ok");
+ uninstaller::diag::write("FONT","atlas create begin");
  unsigned atlas=renderer.batch().create_font_texture(font);
+ uninstaller::diag::write("FONT","atlas create ok");
+ uninstaller::diag::write("PAD","open begin");
  hui::ps5::Pad pad;pad.open();
- auto items=uninstaller::scan();auto disk=uninstaller::storage();
+ uninstaller::diag::write("PAD","open returned");
+ std::vector<uninstaller::Item> items;
+ uninstaller::Storage disk{};
+ // PS5 statvfs is not proven safe with this runtime; avoid the possible
+ // unimplemented libc entry until supported console telemetry is confirmed.
+ uninstaller::diag::write("STORAGE","statvfs skipped: PS5 support unverified");
  int tab=0,selected=0,offset=0;bool confirm=false;
+ bool firstFrame=true;
  unsigned prev=0;std::string notice="Ready. Installed titles require a verified system uninstall service.";
- log("Uninstaller v0.1.1 launched");
+ uninstaller::diag::write("BOOT","initialization finished; first frame pending");
  for(;;){
   std::array<hui::PadSample,64> s{};unsigned pressed=0,buttons=prev;
   size_t n=pad.read(s);bool connected=false;
@@ -118,21 +143,39 @@ int main(){
     if(pressed&hui::pad_bits::kRight){tab=(tab+1)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kUp){if(selected>0)--selected;if(selected<offset)offset=selected;}
     if(pressed&hui::pad_bits::kDown){if(selected+1<count(items,tab))++selected;if(selected>=offset+11)offset=selected-10;}
-    if(pressed&hui::pad_bits::kTriangle){items=uninstaller::scan();disk=uninstaller::storage();selected=offset=0;notice="Refreshed.";}
+    if(pressed&hui::pad_bits::kTriangle){
+      uninstaller::diag::write("REFRESH","requested");
+      items=uninstaller::scan(scanLog);
+      selected=offset=0;notice="Refreshed.";
+      uninstaller::diag::write("REFRESH","done");
+    }
     if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){const auto* x=nth(items,tab,selected);if(x)confirm=true;}
   }else if(pressed&hui::pad_bits::kCross){
     auto* x=nth(items,tab,selected);if(x){
       if(x->kind==uninstaller::Kind::Installed){notice="Installed title uninstall requires privileged AppInstUtil integration; not enabled.";log("Installed uninstall blocked: "+x->id);}
       else{
+        uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
         const int result=uninstaller::removeFiles(*x);
-        if(result==0){notice="Selected files removed. Save data not modified.";log("Removed: "+x->path);items=uninstaller::scan();disk=uninstaller::storage();selected=offset=0;}
+        if(result==0){notice="Selected files removed. Save data not modified.";log("Removed: "+x->path);items=uninstaller::scan(scanLog);selected=offset=0;}
         else{notice="Remove failed: error "+std::to_string(result);log("Remove failed: "+x->path+" error "+std::to_string(result));}
       }
     }
     confirm=false;
   }
+  if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw begin");
   DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,disk);
+  if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw done");
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
-  hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
+  hui::sys::hide_splash_screen();
+  if(firstFrame){
+    firstFrame=false;
+    uninstaller::diag::write("FIRST_FRAME","present ok");
+    uninstaller::diag::write("SCAN","begin after first frame");
+    items=uninstaller::scan(scanLog);
+    log("Discovered "+std::to_string(items.size())+" entries");
+    uninstaller::diag::write("SCAN","completed");
+    notice="Scan complete. Installed title deletion remains disabled.";
+  }
+  hui::sys::sleep_us(16000);
  }
 }
