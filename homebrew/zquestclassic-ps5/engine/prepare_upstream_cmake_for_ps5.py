@@ -243,3 +243,15 @@ endif()
 """.replace("@@{",chr(36)+chr(123))
 assert 'target_link_libraries(zplayer PRIVATE core zcsound' in cmake_text
 runtime.write_text(cmake_text+compat)
+
+# Allegro's desktop native dialog addon is intentionally unavailable in the
+# PS5 test target. This call is only used after Z_error_fatal has already
+# emitted its original error through log_console and a breadcrumb. Preserve
+# that reporting, print to stderr, then follow the same abort() path. No
+# successful-gameplay or fake native dialog symbol is supplied here.
+error_dialog=a.cmake_root/"src/zalleg/zsys.cpp"
+error_cpp=error_dialog.read_text()
+original='al_show_native_message_box(all_get_display(), "ZQuest Classic: I AM ERROR", "", buf, NULL, ALLEGRO_MESSAGEBOX_ERROR);'
+assert error_cpp.count(original)==1, "Upstream fatal-error dialog changed"
+error_cpp=error_cpp.replace(original, 'fputs(buf, stderr); fputc(10, stderr); fflush(stderr);',1)
+error_dialog.write_text(error_cpp)
