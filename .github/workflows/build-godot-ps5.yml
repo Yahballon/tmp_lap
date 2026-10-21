@@ -79,7 +79,7 @@ jobs:
           # SCons emits separate core/main/scene/servers/GDScript .a libs.
           # The original upload of bin/*.a only had a 21 KB platform shim.
           python3 homebrew/godot-ps5/scripts/package_static_engine.py \
-            /tmp/godot /tmp/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip
+            /tmp/godot /tmp/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip --min-archives 8
       - name: Retrieve genuine Godot 4 GDScript smoke fixture
         uses: actions/download-artifact@v4
         with:
