@@ -167,3 +167,26 @@ signature="void zalleg_bring_window_to_foreground(ALLEGRO_DISPLAY* display)"
 assert zs.count(signature)==1,"Upstream zalleg signature changed"
 zs=zs.replace(signature,"void zalleg_bring_window_to_foreground([[maybe_unused]] ALLEGRO_DISPLAY* display)",1)
 zalleg.write_text(zs)
+
+# PS5-DevBridge's working ELF linker imports native SDK functions from the
+# real target/lib/*.so SDK stub libraries. CMake's generic -lScePad etc.
+# names are not SDK files. Link actual stubs and retain strict undefined-
+# symbol checking; do not replace PS5 OS interfaces with dummy symbols.
+root_cmake=a.cmake_root/"CMakeLists.txt"
+root_text=root_cmake.read_text()
+assert "add_executable(zplayer " in root_text
+assert "target_link_libraries(zplayer PRIVATE core zcsound" in root_text
+root_text += r'''
+if(ZC_PS5_TARGET_ONLY_PROBE)
+  file(GLOB ZC_PS5_IMPORT_STUBS "$ENV{PS5_PAYLOAD_SDK}/target/lib/*.so")
+  if(NOT ZC_PS5_IMPORT_STUBS)
+    message(FATAL_ERROR "PS5 SDK import stubs not found")
+  endif()
+  list(LENGTH ZC_PS5_IMPORT_STUBS _zc_ps5_stub_count)
+  message(STATUS "PS5 SDK stub imports for original zplayer: ${_zc_ps5_stub_count}")
+  target_link_libraries(zplayer PRIVATE ${ZC_PS5_IMPORT_STUBS})
+  get_target_property(_zc_link zplayer LINK_LIBRARIES)
+  message(STATUS "PS5 zplayer link interface: ${_zc_link}")
+endif()
+'''
+root_cmake.write_text(root_text)
