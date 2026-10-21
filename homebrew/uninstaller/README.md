@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.13 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.14 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, expanded selected-title detail pane, full DualSense menu controls, and confirmation dialog.
 
@@ -37,7 +37,7 @@ The supplied screenshot is a visual reference, not a real PS5 capture. Native bu
 
 GPL-3.0-or-later, matching PS5-DevBridge homebrew UI. Developer: YAHBALLON.
 
-**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.13 (PPSA99986) or later.
+**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.14 (PPSA99986) or later.
 
 ## Crash diagnostics in v0.1.2
 
@@ -92,11 +92,11 @@ The PS5 console logs showed EPERM (errno 1) at /data/homebrew, /mnt/usb0 and the
 - Existing protections remain: no raw unlink of system title folders, no save-data removal, and the application's own title ID cannot be removed.
 - Diagnostic logs: `/data/Uninstaller/uninstaller.log`.
 
-## v0.1.13 — working deletion bridge hardware test
+## v0.1.14 — working deletion bridge hardware test
 
 The v0.1.7 PS5 console log confirms `REMOVE_PRECHECK Action folder is not private; aborting` on every installed-title and USB-PKG removal attempt. The graphical app cannot safely own `/data/Uninstaller/actions` in its sandbox, even with elfldr.
 
-v0.1.13 no longer uses that directory. Instead it sends a single-use `unremove.elf` to the existing localhost:9021 elfldr; the ELF creates a 128-bit random capability, announces it on its existing private loader stream, listens temporarily on **127.0.0.1:9176**, and accepts just one authenticated, explicitly confirmed action. It returns the native return code immediately to the UI and logs `REMOVE_HELPER` and `REMOVE_RESULT`.
+v0.1.14 no longer uses that directory. Instead it sends a single-use `unremove.elf` to the existing localhost:9021 elfldr; the ELF creates a 128-bit random capability, announces it on its existing private loader stream, listens temporarily on **127.0.0.1:9176**, and accepts just one authenticated, explicitly confirmed action. It returns the native return code immediately to the UI and logs `REMOVE_HELPER` and `REMOVE_RESULT`.
 
 - Installed native PS5/PS4 registered titles: `sceAppInstUtilAppUnInstall` request for a validated title actually present under `/user/app`; zero means request accepted, **not proof that asynchronous removal completed**. Saves are not targeted.
 - USB PKG archives: carefully validated standalone `.pkg` file removal. It does not uninstall the installed copy.
@@ -105,23 +105,23 @@ v0.1.13 no longer uses that directory. Instead it sends a single-use `unremove.e
 - The user must explicitly select the entry and confirm. No removal occurs during a scan, refresh, thumbnail read, or normal startup.
 - **Hardware testing required:** begin with an expendable USB homebrew folder or an unimportant PKG, then test an installed throwaway homebrew title on your own PS5 firmware. See `/data/Uninstaller/uninstaller.log`.
 
-## v0.1.13 installed-title diagnostics
+## v0.1.14 installed-title diagnostics
 
-Game uninstall now calls the SDK-linked one-argument Sony API, matching the Playden title-remover payload. Logs record `REMOVE_STAGE` for title validation, AppInstUtil initialization, installer authid switch and uninstall IPC. If the helper ends unexpectedly, the last stage identifies the likely failure point. Test only an expendable installed game first; v0.1.13 is compiled but game uninstall on firmware 5.10 is not yet hardware-confirmed.
+Game uninstall now calls the SDK-linked one-argument Sony API, matching the Playden title-remover payload. Logs record `REMOVE_STAGE` for title validation, AppInstUtil initialization, installer authid switch and uninstall IPC. If the helper ends unexpectedly, the last stage identifies the likely failure point. Test only an expendable installed game first; v0.1.14 is compiled but game uninstall on firmware 5.10 is not yet hardware-confirmed.
 
-## v0.1.13 — Clean two-column UI
+## v0.1.14 — Clean two-column UI
 
 - Removed the full Console Storage box and the now-unused L2/R2 drive switcher.
 - Larger selected-title logo and information on the right, with a wide uninstall button.
 - Existing game uninstall, USB homebrew and USB PKG deletion paths are **unchanged**. Scan progress, title logos and logs remain available.
 
-## PPSA21564 ShadowMountPlus source deletion (v0.1.13)
+## PPSA21564 ShadowMountPlus source deletion (v0.1.14)
 
-ShadowMountPlus can re-add the same game after uninstall if its original folder or backing image remains under a watched scan root. Uninstaller v0.1.13 has an **optional, separately confirmed ShadowMount source-delete path** for the requested `PPSA21564` title. Select that game's entry and press **X**, review the source path returned by ShadowMountPlus, then press **X** again to authorize permanent deletion. **Square** still performs the regular game/app uninstall. The source and the installed title are different things: deleting the source removes the actual game dump/image, while regular uninstall only unregisters its tile.
+ShadowMountPlus can re-add the same game after uninstall if its original folder or backing image remains under a watched scan root. Uninstaller v0.1.14 has an **optional, separately confirmed ShadowMount source-delete path** for the requested `PPSA21564` title. Select that game's entry and press **X**, review the source path returned by ShadowMountPlus, then press **X** again to authorize permanent deletion. **Square** still performs the regular game/app uninstall. The source and the installed title are different things: deleting the source removes the actual game dump/image, while regular uninstall only unregisters its tile.
 
 This uses the official ShadowMountPlus 1.7 API on `127.0.0.1:10101` (`/api/v1/version`, `/api/v1/games/info`, `/api/v1/games/delete`, `/api/v1/games/storage/status`). The app checks the `delete_game_source` capability, game ID and ability to manage the actual source, then asks for confirmation. The response is asynchronous; progress is displayed and errors appear in `/data/Uninstaller/uninstaller.log`. No direct unlink, recursive directory deletion or destructive fallback is attempted by this new feature. If ShadowMountPlus 1.7 is unavailable, the function stays unavailable without touching data.
 
-## v0.1.13 — unified installed-title and ShadowMount USB-source removal
+## v0.1.14 — unified installed-title and ShadowMount USB-source removal
 
 Users confirmed that a ShadowMount-mounted copy of `PPSA21564` was coming back because the original backing folder is actually `/mnt/usb0/PPSA21564-app`, not a regular installed package. The old 1.7 HTTP source-delete endpoint is not usable on every configured ShadowMount instance. This release supports the actual USB layout and unifies the user flow for ALL eligible installed titles.
 
@@ -131,6 +131,19 @@ The native app remains responsive while a large USB game folder is being process
 
 **Hardware testing is still required on firmware 5.10.** Start with an expendable USB-backed game. Log under `/data/Uninstaller/uninstaller.log` now includes `UNIFIED_PREFLIGHT`, `UNIFIED_UNINSTALL`, `REMOVE_STAGE` and `UNIFIED_RESULT`. This path is irreversible; do not test on important game data.
 
-## v0.1.13 — Classic Delete restored
+## v0.1.14 — Classic Delete restored
 
-Reverts the v0.1.12 Turbo Delete performance experiment after PS5 hardware reports the optimized removal does not work. The original v0.1.11 implementation is restored: exactly matched ShadowMount USB game folders are renamed out of the watched source path and traversed twice, once to validate and again to remove entries with the conventional recursive `lstat` / `unlink` / `rmdir` approach. The old single-use helper protocol is also restored, removing the Turbo progress reader. One-button game/title and USB source removal, normal PS5 AppInstUtil, USB homebrew/PKG removal, scanning and save protections all remain unchanged. No actual faster-deletion claim. If v0.1.12 left a hidden `.uninstaller-...` quarantine folder due to failure, v0.1.13 does not automatically touch that folder; inspect it separately before manual cleanup.
+Reverts the v0.1.12 Turbo Delete performance experiment after PS5 hardware reports the optimized removal does not work. The original v0.1.11 implementation is restored: exactly matched ShadowMount USB game folders are renamed out of the watched source path and traversed twice, once to validate and again to remove entries with the conventional recursive `lstat` / `unlink` / `rmdir` approach. The old single-use helper protocol is also restored, removing the Turbo progress reader. One-button game/title and USB source removal, normal PS5 AppInstUtil, USB homebrew/PKG removal, scanning and save protections all remain unchanged. No actual faster-deletion claim. If v0.1.12 left a hidden `.uninstaller-...` quarantine folder due to failure, v0.1.14 does not automatically touch that folder; inspect it separately before manual cleanup.
+
+## v0.1.14 — Source diagnostics and verified rescan
+
+PS5 firmware 5.10 log shows that `PPSA11386`, `PPSA99794`, `PPSA03639`, and `PPSA14363` returned a successful *native uninstall request* but **no verified ShadowMount USB folder** was discovered. This does **not** guarantee the registered game tile or physical USB files are removed. The console-side scanner must recheck.
+
+- Detect two exact safe USB backing-folder formats at the top level of `/mnt/usb0..7`: `<TITLEID>-app` and `<TITLEID>-app0`. Still require valid game markers and a matching tracker (when present) and explicit user confirmation. No broad recursive search or unverified deletion.
+- Read and log ShadowMount `mount.lnk` / `mount_img.lnk` tracker paths and distinguish rejected mismatched paths from missing files, using `SOURCE_DIAG` messages. These are read-only diagnostics; no file is removed on failed matching.
+- Keep the v0.1.11 / v0.1.13 **classic** safe two-pass `tree_walk` / `unlink` / `rmdir` algorithm.
+- **Fix the classic ELF communication 4 KiB cap:** stream stage lines and collect only the final authenticated `UREM2_RESULT`, retaining the reported source path and a quarantined path on failure. Native removal waiting time extended to 90 seconds of silence; every 512 scanned/deleted files resets the socket timeout.
+- On the first inventory scan after an accepted removal, record `REMOVE_VERIFY_PRESENT` if the title is still in the inventory or `REMOVE_VERIFY_ABSENT` if no longer visible. The app no longer treats AppInstUtil acceptance alone as proof of completion.
+- Saves remain untouched. If shadow-mount files are found outside the safe formats, diagnostic information is returned without deleting arbitrary paths.
+
+If deletion still fails, please share the latest `SOURCE_DIAG`, `UNIFIED_PREFLIGHT`, `REMOVE_STAGE`, `REMOVE_VERIFY_*` and `UNIFIED_RESULT` lines from `/data/Uninstaller/uninstaller.log`. A console-side re-mount after reboot must be checked separately.
