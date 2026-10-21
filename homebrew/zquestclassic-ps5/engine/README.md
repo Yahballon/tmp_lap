@@ -11,7 +11,7 @@ the engine's original `src/base/random.cpp` and `src/base/random.h` are
 fetched from the pinned ZQuestClassic upstream commit and compiled with the
 actual PS5 SDK as part of a throwaway, clearly marked NON-PLAYABLE test
 artifact. Its boot diagnostic `UPSTREAM_RNG_NATIVE_SMOKE seed=42 ...` is
-linked to the real source, not a stand-in implementation. It proves this
+linked to the real source, not a stand-in implementation. It proves
 that original ZQuest core code cross-compiles, **not** that ZScript or gameplay
 works.
 
@@ -51,6 +51,20 @@ compile the upstream source **unmodified**. No gameplay opcodes are replaced.
 Allegro, the original graphics/audio path and quest logic remain unported.
 The production TESTBUILDS `PPSA99127.zip` remains v0.1.4 as a native
 file-read diagnostic; the engine bringup ZIP is an isolated CI artifact.
+
+## Paletted PS5 video bridge milestone
+
+`paletted_surface.hpp` now converts legacy 8-bit indexed frames and their
+6-bit RGB Allegro palettes to RGBA8 with proper pitch handling. The
+`ps5_palette_texture.cpp` adapter updates one OpenGL texture inside the
+already proven PS5-DevBridge EGL renderer. A separate CI-staged build renders
+an **original 256x224 moving test pattern**, never copyrighted quest art, in
+the right-hand panel with a "NOT GAMEPLAY" notice.
+
+The upstream engine is **not providing the pixels yet**. The PS5 GPU
+submission and pixel presentation need on-console verification after CI.
+See [VIDEO_PORT.md](VIDEO_PORT.md) for SDL2/OSMesa evaluation, implementation
+details and remaining input/audio integration.
 
 ## Engine backend path
 

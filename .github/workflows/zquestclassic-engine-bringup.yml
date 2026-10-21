@@ -49,6 +49,10 @@ jobs:
             homebrew/zquestclassic-ps5/engine/zasm_table_test.cpp \
             -lfmt -o /tmp/zplayer-zasm-table-test
           /tmp/zplayer-zasm-table-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -Ihomebrew/zquestclassic-ps5/engine \
+            homebrew/zquestclassic-ps5/engine/paletted_surface_test.cpp \
+            -o /tmp/zplayer-indexed-frame-test
+          /tmp/zplayer-indexed-frame-test
           python3 -m json.tool homebrew/zquestclassic-ps5/app.json >/dev/null
           python3 - <<'PY'
           import json
@@ -75,6 +79,9 @@ jobs:
           cp /tmp/zc-upstream/src/base/{general.h,ints.h,zfix.h} app/src/base/
           cp -a /usr/include/fmt /usr/include/nlohmann app/src/
           cp homebrew/zquestclassic-ps5/engine/upstream_zasm_ps5.cpp app/src/
+          # Staging only: Allegro-style RGB6 indexed frame to existing PS5 EGL renderer.
+          mkdir -p app/src/engine
+          cp homebrew/zquestclassic-ps5/engine/{paletted_surface.hpp,ps5_palette_texture.hpp,ps5_palette_texture.cpp,ps5_video_probe.hpp,ps5_video_probe.cpp} app/src/engine/
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/src/main.cpp")
@@ -87,6 +94,7 @@ jobs:
           s=s.replace(needle,needle+'\n  logging(zcps5_upstream_engine_smoke());'+'\n  logging(zcps5_upstream_zasm_smoke());',1)
           p.write_text(s)
           PY
+          python3 homebrew/zquestclassic-ps5/engine/inject_video_probe.py app/src/main.cpp
           python3 homebrew/zquestclassic-ps5/assets/generate_assets.py app
           python3 - <<'PY'
           import json
@@ -153,14 +161,16 @@ jobs:
           native=Path("app/dist/PPSA99127/eboot.bin").read_bytes()
           assert b"UPSTREAM_RNG_NATIVE_SMOKE" in native, "Upstream RNG object not linked"
           assert b"UPSTREAM_ZASM_TABLE_NATIVE_SMOKE" in native, "Upstream ZASM table not linked"
+          assert b"PS5_INDEXED_VIDEO_BRIDGE_READY" in native, "GPU indexed image bridge not linked"
+          assert b"8-BIT PALETTE VIDEO TEST (NOT GAMEPLAY)" in native, "Test pattern overlay absent"
           assert b"v0.1.4" in native
           assert b"SCAN_BACKEND=libkernel-getdents-v0.1.4" in native
-          print("PASS: exact upstream core RNG and ZASM command table linked in PS5 ELF")
+          print("PASS: upstream RNG + ZASM code and PS5 palette/OpenGL bridge linked in PS5 ELF")
           print("NOTE: zplayer and actual gameplay are NOT ported by this smoke test")
           PY
       - name: Upload isolated engine-bringup artifact (no public release)
         uses: actions/upload-artifact@v4
         with:
-          name: ZQuest-ZASM-Engine-Table-BRINGUP-NOT-PLAYABLE
+          name: ZQuest-PS5-RGB6-Palette-OpenGL-VIDEO-PROBE-NOT-PLAYABLE
           path: app/dist/PPSA99127.zip
           if-no-files-found: error
