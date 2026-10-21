@@ -140,3 +140,12 @@ source=source.replace('#include <memory>','#include <memory>\n#include <random>'
 source=source.replace('auto uuid = uuids::uuid_system_generator{}();',
     'std::mt19937 rng(std::random_device{}());\n\t\t\tauto uuid = uuids::uuid_random_generator{rng}();')
 zelda.write_text(source)
+
+# The desktop window-raise helper has no body on the PS5/SDL target.
+# Annotate its sole parameter, retaining the function and behavior.
+zalleg=a.cmake_root/"src/zalleg/zalleg.cpp"
+zs=zalleg.read_text()
+signature="void zalleg_bring_window_to_foreground(ALLEGRO_DISPLAY* display)"
+assert zs.count(signature)==1,"Upstream zalleg signature changed"
+zs=zs.replace(signature,"void zalleg_bring_window_to_foreground([[maybe_unused]] ALLEGRO_DISPLAY* display)",1)
+zalleg.write_text(zs)
