@@ -15,7 +15,8 @@ int main() {
     if(out) setvbuf(stdout,nullptr,_IONBF,0);
     if(err) setvbuf(stderr,nullptr,_IONBF,0);
     log_message("NATIVE_GODOT_ENTRY_START v0.2.1 RX_SEGMENT_TEST");
-    log_message("PACK=/app0/assets/godot/smoke.pck");\n    log_message("ELF_TEXT_SEGMENT=READ_EXECUTE");
+    log_message("PACK=/app0/assets/godot/smoke.pck");
+    log_message("ELF_TEXT_SEGMENT=READ_EXECUTE");
     const int result=godot_ps5_run_pack("/app0/assets/godot/smoke.pck");
     char msg[96]{};
     snprintf(msg,sizeof(msg),"NATIVE_GODOT_RETURN=%d",result);
