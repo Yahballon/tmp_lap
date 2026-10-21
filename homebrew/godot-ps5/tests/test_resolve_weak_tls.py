@@ -16,11 +16,13 @@ Symbol table '.dynsym' contains 5 entries:
     2: 0000000000000000     0 FUNC    WEAK   DEFAULT  UND _ZTHN14ResourceLoader12load_nestingE
     3: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND sceKernelOpen
     4: 0000000000000000     0 FUNC    WEAK   DEFAULT  UND unrelated_weak_symbol
+    5: 0000000000000000     0 FUNC    WEAK   DEFAULT  UND __cxa_thread_atexit_impl
 """
 names=mod.parse_weak_tls(fixture)
 assert names==sorted([
     "_ZTHN12MessageQueue16thread_singletonE",
-    "_ZTHN14ResourceLoader12load_nestingE"
+    "_ZTHN14ResourceLoader12load_nestingE",
+    "__cxa_thread_atexit_impl"
 ])
 try:
     mod.parse_weak_tls(
@@ -36,6 +38,7 @@ with tempfile.TemporaryDirectory() as d:
     value=build.read_text()
     assert value.count("--defsym=_ZTHN12MessageQueue16thread_singletonE=0")==1
     assert value.count("--defsym=_ZTHN14ResourceLoader12load_nestingE=0")==1
+    assert value.count("--defsym=__cxa_thread_atexit_impl=0")==1
     assert "--end-group" in value
     assert "sceKernelOpen" not in value
     try:
