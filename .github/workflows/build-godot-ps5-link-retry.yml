@@ -139,7 +139,7 @@ jobs:
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99843'
           assert meta['contentId']=='UP9000-PPSA99843_00-GODOTPS5HEADLESS'
-          assert meta['contentVersion']=='01.000.002'
+          assert meta['contentVersion']=='01.000.003'
           with zipfile.ZipFile(root.parent/'PPSA99843.zip') as z:
               assert z.testzip() is None
               assert 'PPSA99843/eboot.bin' in z.namelist()
@@ -150,7 +150,7 @@ jobs:
         if: steps.link.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-Engine-Smoke-v0.2.1-PPSA99843-UNTESTED
+          name: Godot-PS5-Engine-Smoke-v0.2.2-PPSA99843-UNTESTED
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
       - name: Publish experimental TESTBUILDS prerelease after verified link
@@ -159,15 +159,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=godot-ps5-engine-smoke-v0.2.1
+          tag=godot-ps5-engine-smoke-v0.2.2
           if gh release view "$tag" >/dev/null 2>&1; then
             echo 'Engine smoke release already exists.'
             exit 0
           fi
           gh release create "$tag" /tmp/godot-link-app/dist/PPSA99843.zip \
             --target "$GITHUB_SHA" \
-            --title "Godot PS5 Engine Smoke v0.2.1 (headless testing only)" \
-            --notes "Godot 4.7.2 PS5 headless engine hardware diagnostic v0.2.1 after v0.2.0 SIGSEGV: experiments with preserving R+X executable text permissions in the ELF-to-SELF converter. The crash fix remains UNVERIFIED on console. No graphical gameplay, rendering backend, audio or general project compatibility. Logs: /data/GodotPS5/engine-smoke.log, engine-stdout.log, engine-stderr.log. Signed PS5 app title PPSA99843." \
+            --title "Godot PS5 Engine Smoke v0.2.2 (headless testing only)" \
+            --notes "Godot 4.7.2 PS5 headless engine crash localization v0.2.2. Reverts unverified executable segment R+X experiment from v0.2.1 back to X-only baseline; adds independent early native CRT boot-stage log /data/GodotPS5/engine-boot-v022.log and v0.2.2 main marker to distinguish pre-main loader crashes. No claim of fixing crash or running GDScript on hardware. No graphical gameplay, rendering backend, audio or general project compatibility. Logs: /data/GodotPS5/engine-smoke.log, engine-stdout.log, engine-stderr.log. Signed PS5 app title PPSA99843." \
             --prerelease
       - name: Upload detailed native link logs
         if: always()

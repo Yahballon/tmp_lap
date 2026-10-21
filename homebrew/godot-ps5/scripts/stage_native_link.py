@@ -119,26 +119,66 @@ def stage(godot, app, entry, builtins_override=None):
     crt = crt.replace(declaration, "", 1)
     if "jb_startup_mark" in crt:
         raise ValueError("PS5 CRT still contains non-SDK startup symbol")
+    # Diagnostic v0.2.2: timestamp-free persistent startup stage markers.
+    # Keep this confined to the temporary PS5 engine smoke CRT copy.
+    # Do NOT call libc before _init_env(), which initializes the runtime.
+    crt = crt.replace(
+        "#include <pthread.h>\n",
+        "#include <pthread.h>\n"
+        "#include <fcntl.h>\n"
+        "#include <unistd.h>\n"
+        "#include <sys/stat.h>\n",
+        1,
+    )
+    stage_logger = r'''
+static void godot_ps5_boot_stage(const char *stage) {
+    (void)mkdir("/data/GodotPS5", 0755);
+    const int fd = open("/data/GodotPS5/engine-boot-v022.log",
+                        O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd < 0) return;
+    static const char prefix[] = "[PS5 CRT 0.2.2] ";
+    (void)write(fd, prefix, sizeof(prefix) - 1);
+    const char *end = stage;
+    while (*end) ++end;
+    (void)write(fd, stage, static_cast<size_t>(end - stage));
+    (void)write(fd, "\n", 1);
+    (void)close(fd);
+}
+'''
+    anchor = "namespace\n{\nstruct MainArguments"
+    if crt.count(anchor) != 1:
+        raise ValueError("DevBridge CRT namespace layout changed")
+    crt = crt.replace(anchor, stage_logger + "\n" + anchor, 1)
+    crt_marks = (
+        ("    _init_env(process_parameters);\n",
+         "    _init_env(process_parameters);\n"
+         "    godot_ps5_boot_stage(\"LIBC_INIT_RETURNED\");\n"),
+        ("    _init();\n", "    godot_ps5_boot_stage(\"BEFORE_STATIC_CONSTRUCTORS\");\n"
+         "    _init();\n"
+         "    godot_ps5_boot_stage(\"AFTER_STATIC_CONSTRUCTORS\");\n"),
+        ("    int rc = pthread_attr_init(&attr);\n",
+         "    godot_ps5_boot_stage(\"BEFORE_THREAD_CREATION\");\n"
+         "    int rc = pthread_attr_init(&attr);\n"),
+        ("    rc = pthread_join(thread, nullptr);\n",
+         "    godot_ps5_boot_stage(\"THREAD_CREATED\");\n"
+         "    rc = pthread_join(thread, nullptr);\n"),
+        ("    args->status = application_main(args->argc, args->argv, nullptr);\n",
+         "    godot_ps5_boot_stage(\"APP_THREAD_ENTER\");\n"
+         "    args->status = application_main(args->argc, args->argv, nullptr);\n"
+         "    godot_ps5_boot_stage(\"APP_MAIN_RETURNED\");\n"),
+    )
+    for original, replacement in crt_marks:
+        if crt.count(original) != 1:
+            raise ValueError("DevBridge CRT startup marker anchor changed")
+        crt = crt.replace(original, replacement, 1)
     crt_file.write_text(crt)
-    # PS5 page-fault experiment: upstream Godot is linked with an R+X
-    # executable PT_LOAD. DevBridge's generated SELF currently drops R
-    # from its code segment (X-only). Keep permissions consistent with
-    # the upstream LLVM ELF in this isolated engine-test app.
-    converter_file = app/"tooling/native/sce_module_writer.cpp"
-    converter = converter_file.read_text()
-    source_phdr = "{kProgramLoad, kFlagExecute, text.file_offset, 0, text_end, text_end, kPage}"
-    rx_phdr = "{kProgramLoad, kFlagRead | kFlagExecute, text.file_offset, 0, text_end, text_end, kPage}"
-    if converter.count(source_phdr) != 1:
-        raise ValueError("DevBridge text-segment mapping changed; cannot verify R+X fix")
-    converter_file.write_text(converter.replace(source_phdr, rx_phdr, 1))
-    print("PS5 ELF-to-SELF compatibility: executable text PT_LOAD now R+X")
     print("Excluded", removed, "optional jb_startup_mark diagnostics from PS5 CRT")
     target=app/"src/godot-smoke"
     target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(entry,target/"main.cpp")
     metadata=app/"sce_sys/param.json"
     p=json.loads(metadata.read_text())
-    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.002")
+    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.003")
     p["localizedParameters"]["en-US"]["titleName"]="Godot PS5 Engine Smoke"
     metadata.write_text(json.dumps(p,indent=2)+'\n')
     (app/"GNUmakefile").write_text('APP_SOURCE_DIR := src/godot-smoke\nAPP_ASSETS := assets\nAPP_STATIC_ARCHIVES := '+' '.join(libraries)+'\ninclude Makefile\n')

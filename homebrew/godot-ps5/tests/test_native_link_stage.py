@@ -66,7 +66,13 @@ with tempfile.TemporaryDirectory() as d:
     crt=(app/"tooling/native/app_crt.cpp").read_text()
     assert "jb_startup_mark" not in crt
     self_writer=(app/"tooling/native/sce_module_writer.cpp").read_text()
-    assert "{kProgramLoad, kFlagRead | kFlagExecute, text.file_offset, 0, text_end, text_end, kPage}" in self_writer
+    assert "{kProgramLoad, kFlagExecute, text.file_offset, 0, text_end, text_end, kPage}" in self_writer
+    assert "kFlagRead | kFlagExecute, text.file_offset" not in self_writer
+    assert "LIBC_INIT_RETURNED" in crt
+    assert "AFTER_STATIC_CONSTRUCTORS" in crt
+    assert "BEFORE_THREAD_CREATION" in crt
+    assert "APP_THREAD_ENTER" in crt
+    assert "engine-boot-v022.log" in crt
     assert "void smoke_crt()" in crt
     b=(app/"tools/build.sh").read_text()
     assert '--start-group' in b and '--end-group' in b
