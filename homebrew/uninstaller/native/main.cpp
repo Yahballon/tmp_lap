@@ -246,7 +246,7 @@ std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
 void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,
  const std::map<std::string,std::uint32_t>& icons,
  bool scanning,unsigned frame,const std::string& phase,
- bool shadowConfirm,const std::string& shadowSource,bool shadowBusy,int shadowPercent,const std::string& shadowMessage){
+ bool shadowConfirm,const std::string& shadowSource,bool shadowBusy,int shadowPercent,const std::string& shadowMessage,bool deferredInApp){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
  d.gradient_rect({1250,0,670,1050},0,color(0x051b3c,.55f),color(0x210515,.55f));
@@ -314,7 +314,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  txt(d,f,a,"D-pad Select    L1/R1 Categories    X / Square: Uninstall    Triangle: Refresh    Circle: Back",45,1063,17,muted);
  txt(d,f,a,"by YAHBALLON   v0.1.17",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
- if(!msg.empty()&&msg!="ok"){
+ if(!deferredInApp&&!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>125?msg.substr(0,122)+"...":msg;
    txt(d,f,a,brief,745,991,16,color(0x99bad9));
  }
@@ -326,12 +326,27 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   const float offset=(float)(frame%135)/135.0f;
   d.rounded_rect({1080+offset*377,930,125,11},5,color(0x2aaaff));
  }
- if(shadowBusy){
+ if(shadowBusy&&!deferredInApp){
   txt(d,f,a,shadowMessage,755,971,18,color(0xffb276));
   d.rounded_rect({1430,984,398,12},5,color(0x263d58));
   if(shadowPercent>=0)
     d.rounded_rect({1432,986,394.0f*shadowPercent/100.0f,8},4,color(0xff704d));
   else d.rounded_rect({1432+(frame%110)*2.5f,986,114,8},4,color(0xff704d));
+ }
+ if(deferredInApp){
+  // The UI deliberately remains open, but loss of foreground focus is
+  // required before ShadowMount will accept a protected deletion job.
+  d.bordered_rect({695,344,1100,435},22,color(0x03101e),3,color(0x35b8ff));
+  txt(d,f,a,"BACKGROUND UNINSTALL",1245,417,37,white,Align::center);
+  txt(d,f,a,"Press the PS button and go to Home",1245,491,30,color(0x46ceff),Align::center);
+  txt(d,f,a,"Do NOT close Uninstaller. Return later to view progress.",1245,536,21,muted,Align::center);
+  const std::string status=shadowMessage.size()>85?shadowMessage.substr(0,82)+"...":shadowMessage;
+  txt(d,f,a,status,1245,610,23,white,Align::center);
+  d.rounded_rect({833,653,820,22},9,color(0x1c3854));
+  if(shadowPercent>=0)
+    d.rounded_rect({836,656,814.0f*shadowPercent/100.0f,16},7,color(0x2bd0ac));
+  else d.rounded_rect({844+(frame%135)*4.7f,657,150,14},7,color(0x37a5ff));
+  txt(d,f,a,"Circle: close Uninstaller instead | Saves are untouched",1245,722,18,muted,Align::center);
  }
  if(confirm){
   d.bordered_rect({367,345,1190,345},20,color(0x05162b),3,color(0xff466a));
@@ -628,7 +643,7 @@ int main(){
   DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,iconTextures,scanBusy.load(),frames++,phase,
      shadowConfirm,shadowSource,sourceBusy||deferredPending,
      deferredPending?deferredPercent:sourcePercent,
-     deferredPending?deferredStatus:sourceMessage);
+     deferredPending?deferredStatus:sourceMessage,deferredPending);
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw done");
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();
