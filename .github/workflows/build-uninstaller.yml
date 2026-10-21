@@ -30,6 +30,8 @@ jobs:
           /tmp/uninstaller-discovery-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/helper_bridge_test.cpp -o /tmp/uninstaller-bridge-test
           /tmp/uninstaller-bridge-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/action_bridge_test.cpp -o /tmp/uninstaller-action-test
+          /tmp/uninstaller-action-test
           python3 - <<'PY'
           from pathlib import Path
           main=Path('homebrew/uninstaller/native/main.cpp').read_text()
@@ -44,6 +46,9 @@ jobs:
           assert '/data/etaHEN/games' in inventory
           assert '/mnt/ext' in inventory
           assert 'bridge::scan' in main
+          assert 'actions::execute' in main
+          assert 'd.rounded_rect({370,944,1170,69}' not in main
+          assert 'min_size' in Path('homebrew/uninstaller/helper/unscan.c').read_text()
           assert 'decode_icon' in main
           assert 'd.arc(' in main
           assert 'ELFLDR_STORAGE' in Path('homebrew/uninstaller/native/helper_bridge.hpp').read_text()
@@ -126,6 +131,9 @@ jobs:
           make -C homebrew/uninstaller/helper \
             PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
           test -s homebrew/uninstaller/helper/unscan.elf
+          make -C homebrew/uninstaller/helper unremove.elf \
+            PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          test -s homebrew/uninstaller/helper/unremove.elf
           python3 - <<'PY'
           from pathlib import Path
           h=Path('homebrew/uninstaller/helper/unscan.elf').read_bytes()
@@ -133,13 +141,14 @@ jobs:
           print("Read-only scanner ELF64 verified")
           PY
           cp homebrew/uninstaller/helper/unscan.elf app/unscan.elf
+          cp homebrew/uninstaller/helper/unremove.elf app/unremove.elf
       - name: Compile native PS5 application
         working-directory: app
         env:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-        run: make USE_CCACHE=0 BUILD_JOBS=4 APP_ROOT_FILES=unscan.elf app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 APP_ROOT_FILES="unscan.elf unremove.elf" app
       - name: Verify package
         run: |
           python3 - <<'PY'
@@ -151,16 +160,18 @@ jobs:
           assert json.loads((p/'sce_sys/param.json').read_text())['titleId']=='PPSA99986'
           assert (p/'sce_sys/icon0.png').stat().st_size>1000
           assert (p/'unscan.elf').read_bytes()[:6]==bytes([127,69,76,70,2,1])
+          assert (p/'unremove.elf').read_bytes()[:6]==bytes([127,69,76,70,2,1])
           assert b'/data/Uninstaller/uninstaller.log' in e
           assert b'/data/Uninstaller/crash.log' in e
           with zipfile.ZipFile('app/dist/PPSA99986.zip') as z:
             assert z.testzip() is None
             assert 'PPSA99986/eboot.bin' in z.namelist()
             assert 'PPSA99986/unscan.elf' in z.namelist()
+            assert 'PPSA99986/unremove.elf' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.5-PPSA99986
+          name: Uninstaller-v0.1.6-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -168,8 +179,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.5 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.6 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.5 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.5" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.6 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.6" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
