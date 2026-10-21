@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "309f721c6c0b193cd4a86af688c21370c80aee045d84f97b137b26eabd180832",
+  "version": "0afe7e7090a3ac88d221c46266473d5f963ee952ef6436157fb5c061d989d317",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 23,
+  "app_count": 24,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -29,6 +29,19 @@
       "source": "homebrew/ps5nesx",
       "size_bytes": 13421235,
       "published_at": "2026-10-19T13:34:39Z"
+    },
+    {
+      "name": "Open Surge PS5 Test",
+      "slug": "opensurge-ps5",
+      "title_id": "PPSA99358",
+      "version": "0.1.1",
+      "tag": "opensurge-ps5-v0.1.1",
+      "zip_name": "PPSA99358.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/opensurge-ps5-v0.1.1/PPSA99358.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/opensurge-ps5-v0.1.1",
+      "source": "homebrew/opensurge-ps5",
+      "size_bytes": 42993222,
+      "published_at": "2026-10-21T17:18:27Z"
     },
     {
       "name": "Crypto Tracker",
