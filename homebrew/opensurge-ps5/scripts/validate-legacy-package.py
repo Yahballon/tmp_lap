@@ -21,7 +21,8 @@ binary = (root / "eboot.bin").read_bytes()
 assert len(binary) > 4096
 assert binary[:4] == struct.pack("<I", 0x1D3D154F)
 for marker in (b"BOOT LEGACY PS5 NATIVE", b"ORIGINAL GAME DATA", b"GAME ROOT FOUND",
-               b"Original gameplay engine: NOT LINKED", b"RECHECK ASSETS"):
+               b"Original gameplay engine: NOT LINKED", b"RECHECK ASSETS", b"LEVEL_PREVIEW_READY",
+               b"LEVEL_PREVIEW_START", b"ORIGINAL DEMO-1 LEVEL", b"v0.2.0"):
     assert marker in binary, f"Missing native diagnostic marker {marker!r}"
 required = [
     "eboot.bin", "sce_sys/param.json", "sce_sys/icon0.png", "sce_module/libc.prx",
@@ -29,6 +30,9 @@ required = [
     "assets/game/LICENSE", "assets/game-data-manifest.json",
     "assets/probe_paths.txt", "assets/surge-preview.jpg",
     "assets/fonts/inter-semibold.huifont",
+    "assets/level-preview/header.txt", "assets/level-preview/defs.txt",
+    "assets/level-preview/bricks.txt", "assets/level-preview/sunshine.rgba",
+    "assets/level-preview/surge.rgba",
 ]
 with Image.open(root / "sce_sys/icon0.png") as img:
     assert img.size == (512, 512) and img.format == "PNG"
@@ -41,4 +45,4 @@ with zipfile.ZipFile(app/"dist/PPSA99358.zip") as archive:
         assert (root/rel).is_file(), rel
         assert f"PPSA99358/{rel}" in archive.namelist(), rel
     assert len([x for x in archive.namelist() if x.startswith("PPSA99358/assets/game/")]) >= 100
-print("PASS: PS5 native legacy DevBridge package structure, NOT playable Open Surge")
+print("PASS: PS5 v0.2.0 native original-level preview assets + executable, NOT complete gameplay")

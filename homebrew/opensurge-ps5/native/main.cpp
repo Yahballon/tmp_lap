@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge for PS5 - original-data diagnostic on proven native DevBridge stack.
-// NOT the upstream Allegro game engine; must never claim gameplay works.
+// Open Surge PS5 v0.2.0 - original game-data tilemap render and control probe.
+// NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
+#include "level_preview.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
@@ -20,8 +21,8 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.1.1";
-constexpr const char* kTitle="OPEN SURGE PS5 - LEGACY NATIVE TEST";
+constexpr const char* kVersion="0.2.0";
+constexpr const char* kTitle="OPEN SURGE PS5 - LEVEL PREVIEW";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
 Color C(unsigned hex,float opacity=1.f){return Color::rgb(hex,opacity);}
@@ -30,7 +31,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge legacy native 0.1.1] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native level preview 0.2.0] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -118,7 +119,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.1.1",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.2.0",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -145,7 +146,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   txt(ui,font,atlas,detail?"Renderer: PS5-DevBridge / OpenGL":"Checks native graphics, controller and assets",1009,806,22,WHITE);
   txt(ui,font,atlas,detail?"Controller: DualSense / PS5 pad":"Original gameplay engine: NOT LINKED",1009,847,22,detail?WHITE:GOLD);
   txt(ui,font,atlas,detail?"Audio + level simulation: NOT LINKED":"Actual playable level: NOT IMPLEMENTED",1009,888,22,GOLD);
-  txt(ui,font,atlas,"X  RECHECK   |   TRIANGLE  STATUS   |   O  EXIT",960,1005,24,WHITE,Align::center);
+  txt(ui,font,atlas,"X  LEVEL PREVIEW   |   TRIANGLE  STATUS   |   O  EXIT",960,1005,24,WHITE,Align::center);
   if(exiting){
     ui.rounded_rect({0,0,1920,1080},0,C(0x020a12,.85f));
     ui.bordered_rect({565,340,790,360},18,C(0x102631),3,ACCENT);
@@ -169,20 +170,42 @@ int main(){
   hui::ps5::Pad pad;pad.open();
   std::string root=resolve_root();
   auto probes=load_probes();run_probes(probes,root);
-  bool detail=false,exiting=false;
+  surgepreview::LevelPreview level;
+  const bool level_ready=level.load(renderer,root);
+  log_message(level_ready?
+      "LEVEL_PREVIEW_READY original demo-1.lev bricks and Surge atlas":
+      std::string("LEVEL_PREVIEW_FAILED ")+level.error());
+  bool detail=false,exiting=false,level_mode=false;
+  uint64_t last_us=static_cast<uint64_t>(hui::sys::monotonic_us());
   uint32_t previous=0;
   for(;;){
     std::array<hui::PadSample,64> samples{};
     const size_t count=pad.read(samples);
-    uint32_t pressed=0;bool connected=false;
+    uint32_t pressed=0,held=0;bool connected=false;
     for(size_t i=0;i<count;++i){
       if(!samples[i].connected)continue;
       connected=true;
-      pressed |= samples[i].buttons & ~previous;
-      previous=samples[i].buttons;
+      uint32_t bits=samples[i].buttons;
+      if(samples[i].left_x<73)bits|=hui::pad_bits::kLeft;
+      if(samples[i].left_x>183)bits|=hui::pad_bits::kRight;
+      pressed |= bits & ~previous;
+      previous=bits;
+      held=bits;
     }
-    if(!connected)previous=0;
-    if(exiting){
+    if(!connected){previous=0;held=0;}
+    const uint64_t now=static_cast<uint64_t>(hui::sys::monotonic_us());
+    const float dt=std::clamp(float(now-last_us)/1000000.f,0.f,.040f);
+    last_us=now;
+    if(level_mode && !exiting){
+      if(pressed&hui::pad_bits::kCircle){level_mode=false;log_message("LEVEL_PREVIEW_EXIT");}
+      else{
+        const int dir=int((held&hui::pad_bits::kRight)!=0)-int((held&hui::pad_bits::kLeft)!=0);
+        level.update(dt,dir,(pressed&hui::pad_bits::kCross)!=0);
+        if(pressed&hui::pad_bits::kSquare){
+          level.reset();log_message("LEVEL_PREVIEW_RESET");
+        }
+      }
+    }else if(exiting){
       if(pressed&hui::pad_bits::kCircle)exiting=false;
       if(pressed&hui::pad_bits::kCross){
         log_message("EXIT NATIVE");
@@ -192,15 +215,31 @@ int main(){
       }
     }else{
       if(pressed&hui::pad_bits::kCross){
-        root=resolve_root();run_probes(probes,root);
-        log_message("RECHECK ASSETS");
+        if(level_ready){
+          level_mode=true;level.reset();
+          log_message("LEVEL_PREVIEW_START demo-1.lev, renderer is not original game engine");
+        }else{
+          root=resolve_root();run_probes(probes,root);
+          log_message(std::string("LEVEL_PREVIEW_UNAVAILABLE ")+level.error());
+        }
       }
       if(pressed&hui::pad_bits::kTriangle)detail=!detail;
       if(pressed&hui::pad_bits::kOptions)detail=!detail;
       if(pressed&hui::pad_bits::kCircle)exiting=true;
     }
     DrawList ui;
-    draw(ui,font,atlas,preview,probes,root,detail,exiting);
+    if(level_mode && level_ready){
+      level.draw(ui);
+      ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
+      txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
+      txt(ui,font,atlas,"v0.2.0  -  native terrain + movement preview; NOT original gameplay engine",66,125,21,GOLD);
+      ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
+      txt(ui,font,atlas,"LEFT STICK / D-PAD MOVE    X JUMP    SQUARE RESET    O BACK",73,1029,28,WHITE);
+    }else{
+      draw(ui,font,atlas,preview,probes,root,detail,exiting);
+      if(!level_ready)
+        txt(ui,font,atlas,std::string("LEVEL PREVIEW: ")+level.error(),103,905,19,GOLD);
+    }
     renderer.begin();renderer.draw(ui);
     renderer.present(0,display.width(),display.height());
     display.swap();
