@@ -26,10 +26,11 @@ jobs:
           test -f /tmp/zc-upstream/src/base/random.cpp
           test -f /tmp/zc-upstream/src/zc/zelda.cpp
           test -f /tmp/zc-upstream/CMakeLists.txt
+          python3 homebrew/zquestclassic-ps5/engine/zplayer_build_probe.py /tmp/zc-upstream
       - name: Install build and artwork prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make ninja-build curl unzip tar git g++ python3 python3-pil pkg-config ca-certificates
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 make ninja-build curl unzip tar git g++ python3 python3-pil pkg-config ca-certificates libfmt-dev nlohmann-json3-dev
       - name: Host tests and source metadata
         run: |
           set -euo pipefail
@@ -43,6 +44,11 @@ jobs:
             /tmp/zc-upstream/src/base/random.cpp \
             homebrew/zquestclassic-ps5/engine/upstream_rng_test.cpp -o /tmp/zplayer-upstream-rng-test
           /tmp/zplayer-upstream-rng-test
+          g++ -std=c++20 -O0 -Wall -Wextra -I/tmp/zc-upstream/src \
+            /tmp/zc-upstream/src/components/zasm/table.cpp \
+            homebrew/zquestclassic-ps5/engine/zasm_table_test.cpp \
+            -lfmt -o /tmp/zplayer-zasm-table-test
+          /tmp/zplayer-zasm-table-test
           python3 -m json.tool homebrew/zquestclassic-ps5/app.json >/dev/null
           python3 - <<'PY'
           import json
@@ -63,16 +69,22 @@ jobs:
           cp /tmp/zc-upstream/src/base/random.cpp app/src/base/random.cpp
           cp /tmp/zc-upstream/src/base/random.h app/src/base/random.h
           cp homebrew/zquestclassic-ps5/engine/upstream_rng_ps5.cpp app/src/upstream_rng_ps5.cpp
+          mkdir -p app/src/components/zasm
+          cp /tmp/zc-upstream/src/components/zasm/{table.cpp,table.h,defines.h} app/src/components/zasm/
+          python3 homebrew/zquestclassic-ps5/engine/prepare_zasm_for_ps5.py app/src/components/zasm/table.cpp
+          cp /tmp/zc-upstream/src/base/{general.h,ints.h,zfix.h} app/src/base/
+          cp -a /usr/include/fmt /usr/include/nlohmann app/src/
+          cp homebrew/zquestclassic-ps5/engine/upstream_zasm_ps5.cpp app/src/
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/src/main.cpp")
           s=p.read_text()
-          prefix='extern "C" const char* zcps5_upstream_engine_smoke();\n'
+          prefix='extern "C" const char* zcps5_upstream_engine_smoke();\nextern "C" const char* zcps5_upstream_zasm_smoke();\n'
           assert '#include "quest_index.hpp"' in s
           s=s.replace('#include "quest_index.hpp"',prefix+'#include "quest_index.hpp"',1)
           needle='  logging("BOOT native quest library");'
           assert needle in s
-          s=s.replace(needle,needle+'\n  logging(zcps5_upstream_engine_smoke());',1)
+          s=s.replace(needle,needle+'\n  logging(zcps5_upstream_engine_smoke());'+'\n  logging(zcps5_upstream_zasm_smoke());',1)
           p.write_text(s)
           PY
           python3 homebrew/zquestclassic-ps5/assets/generate_assets.py app
@@ -139,15 +151,16 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           native=Path("app/dist/PPSA99127/eboot.bin").read_bytes()
-          assert b"UPSTREAM_RNG_NATIVE_SMOKE" in native, "Upstream engine module not linked"
-          assert b"v0.1.3" in native
-          assert b"SCAN_BACKEND=libkernel-getdents-v0.1.3" in native
-          print("PASS: exact upstream engine C++ code compiled and linked with PS5 toolchain")
+          assert b"UPSTREAM_RNG_NATIVE_SMOKE" in native, "Upstream RNG object not linked"
+          assert b"UPSTREAM_ZASM_TABLE_NATIVE_SMOKE" in native, "Upstream ZASM table not linked"
+          assert b"v0.1.4" in native
+          assert b"SCAN_BACKEND=libkernel-getdents-v0.1.4" in native
+          print("PASS: exact upstream core RNG and ZASM command table linked in PS5 ELF")
           print("NOTE: zplayer and actual gameplay are NOT ported by this smoke test")
           PY
       - name: Upload isolated engine-bringup artifact (no public release)
         uses: actions/upload-artifact@v4
         with:
-          name: ZQuest-ZPlayer-Engine-Core-BRINGUP-NOT-PLAYABLE
+          name: ZQuest-ZASM-Engine-Table-BRINGUP-NOT-PLAYABLE
           path: app/dist/PPSA99127.zip
           if-no-files-found: error
