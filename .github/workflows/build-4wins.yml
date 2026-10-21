@@ -28,6 +28,8 @@ jobs:
           /tmp/4wins-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/4wins/tests/controls_test.cpp -o /tmp/4wins-controls-test
           /tmp/4wins-controls-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/4wins/tests/geometry_test.cpp -o /tmp/4wins-geometry-test
+          /tmp/4wins-geometry-test
           python3 -m json.tool homebrew/4wins/app.json >/dev/null
       - name: Stage native PS5 title
         run: |
@@ -46,6 +48,11 @@ jobs:
           assert Image.open('app/assets/scene_game.jpg').size == (1920,1080)
           assert (Path('app/assets/red.rgba').stat().st_size) == 96*96*4
           assert (Path('app/assets/yellow.rgba').stat().st_size) == 96*96*4
+          from PIL import Image
+          scene=Image.open('app/assets/scene_game.jpg').convert('RGB')
+          # No original menu or player labels must survive in staged bitmap.
+          for p in ((200,310),(220,550),(700,930),(1160,930)):
+            assert max(scene.getpixel(p)) < 75, (p,scene.getpixel(p))
           PY
           python3 - <<'PY'
           import json
@@ -118,7 +125,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: 4WINS-v0.1.1-PPSA99858
+          name: 4WINS-v0.1.2-PPSA99858
           path: app/dist/PPSA99858.zip
           if-no-files-found: error
       - name: Publish verified 4 WINS TESTBUILDS release
@@ -126,8 +133,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view 4wins-v0.1.1 >/dev/null 2>&1; then
+          if gh release view 4wins-v0.1.2 >/dev/null 2>&1; then
             echo 'Release already exists. Not replacing immutable asset.'
             exit 1
           fi
-          gh release create 4wins-v0.1.1 app/dist/PPSA99858.zip --target "$GITHUB_SHA" --title '4 WINS by YAHBALLON v0.1.1' --notes-file homebrew/4wins/RELEASE_NOTES.md
+          gh release create 4wins-v0.1.2 app/dist/PPSA99858.zip --target "$GITHUB_SHA" --title '4 WINS by YAHBALLON v0.1.2' --notes-file homebrew/4wins/RELEASE_NOTES.md
