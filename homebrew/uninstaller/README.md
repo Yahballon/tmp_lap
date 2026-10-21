@@ -114,3 +114,9 @@ Game uninstall now calls the SDK-linked one-argument Sony API, matching the Play
 - Removed the full Console Storage box and the now-unused L2/R2 drive switcher.
 - Larger selected-title logo and information on the right, with a wide uninstall button.
 - Existing game uninstall, USB homebrew and USB PKG deletion paths are **unchanged**. Scan progress, title logos and logs remain available.
+
+## PPSA21564 ShadowMountPlus source deletion (v0.1.10)
+
+ShadowMountPlus can re-add the same game after uninstall if its original folder or backing image remains under a watched scan root. Uninstaller v0.1.10 has an **optional, separately confirmed ShadowMount source-delete path** for the requested `PPSA21564` title. Select that game's entry and press **X**, review the source path returned by ShadowMountPlus, then press **X** again to authorize permanent deletion. **Square** still performs the regular game/app uninstall. The source and the installed title are different things: deleting the source removes the actual game dump/image, while regular uninstall only unregisters its tile.
+
+This uses the official ShadowMountPlus 1.7 API on `127.0.0.1:10101` (`/api/v1/version`, `/api/v1/games/info`, `/api/v1/games/delete`, `/api/v1/games/storage/status`). The app checks the `delete_game_source` capability, game ID and ability to manage the actual source, then asks for confirmation. The response is asynchronous; progress is displayed and errors appear in `/data/Uninstaller/uninstaller.log`. No direct unlink, recursive directory deletion or destructive fallback is attempted by this new feature. If ShadowMountPlus 1.7 is unavailable, the function stays unavailable without touching data.
