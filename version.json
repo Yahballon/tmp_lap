@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "d15b21714b681a198d4de9fc129c748ec8945472c8c80b4e3ea18d054c8cf338",
+  "version": "56ac42a12b403b746cc3309d94a5e19a846c3687ecc84a57f3939bbdc145f2ca",
   "repository": "Yahballon/tmp_lap",
   "app_count": 24,
   "apps": [
@@ -34,14 +34,14 @@
       "name": "Open Surge PS5 Test",
       "slug": "opensurge-ps5",
       "title_id": "PPSA99358",
-      "version": "0.2.0",
-      "tag": "opensurge-ps5-v0.2.0",
+      "version": "0.2.1",
+      "tag": "opensurge-ps5-v0.2.1",
       "zip_name": "PPSA99358.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/opensurge-ps5-v0.2.0/PPSA99358.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/opensurge-ps5-v0.2.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/opensurge-ps5-v0.2.1/PPSA99358.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/opensurge-ps5-v0.2.1",
       "source": "homebrew/opensurge-ps5",
-      "size_bytes": 43139497,
-      "published_at": "2026-10-21T17:42:06Z"
+      "size_bytes": 43148884,
+      "published_at": "2026-10-21T18:10:19Z"
     },
     {
       "name": "Crypto Tracker",
