@@ -26,6 +26,18 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/inventory_test.cpp -o /tmp/uninstaller-test
           /tmp/uninstaller-test
+          python3 - <<'PY'
+          from pathlib import Path
+          main=Path('homebrew/uninstaller/native/main.cpp').read_text()
+          header=Path('homebrew/uninstaller/native/logger.hpp').read_text()
+          assert '/data/Uninstaller/uninstaller.log' in header
+          assert '/data/Uninstaller/crash.log' in header
+          assert 'devbridge_crash::install' in main
+          assert 'uninstaller::scan(scanLog)' in main
+          assert 'uninstaller::storage()' not in main
+          assert 'FIRST_FRAME' in main
+          print('Crash logging and deferred scan sanity checks: PASS')
+          PY
           python3 -m json.tool homebrew/uninstaller/app.json >/dev/null
           python3 - <<'PY'
           from pathlib import Path
@@ -102,13 +114,15 @@ jobs:
           assert struct.unpack('<I',e[:4])[0]==0x1d3d154f
           assert json.loads((p/'sce_sys/param.json').read_text())['titleId']=='PPSA99986'
           assert (p/'sce_sys/icon0.png').stat().st_size>1000
+          assert b'/data/Uninstaller/uninstaller.log' in e
+          assert b'/data/Uninstaller/crash.log' in e
           with zipfile.ZipFile('app/dist/PPSA99986.zip') as z:
             assert z.testzip() is None
             assert 'PPSA99986/eboot.bin' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.1-PPSA99986
+          name: Uninstaller-v0.1.2-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -116,8 +130,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.1 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.2 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.1 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.1" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.2 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.2" --notes-file homebrew/uninstaller/RELEASE_NOTES.md

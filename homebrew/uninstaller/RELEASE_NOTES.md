@@ -1,3 +1,9 @@
-Uninstaller v0.1.1 source: native neon dashboard, filesystem and USB PKG list, safe homebrew/USB archive removal, confirmations and tests. Installed game uninstallation is not yet enabled.
+# Uninstaller v0.1.2 — crash instrumentation
 
-Corrected previously conflicting PPSA99873 identity to unique PPSA99986. v0.1.0 is superseded and must not be installed. Save data remains untouched.
+- Persist early-start diagnostic log at `/data/Uninstaller/uninstaller.log`.
+- Add best-effort native signal crash report at `/data/Uninstaller/crash.log`.
+- Render the first frame before filesystem scans and log the last scanned root.
+- Avoid unverified PS5 `statvfs` calls suspected in the startup crash; capacity is shown as unavailable.
+- Keep PPSA99986 and preserve game save data. Installed game uninstall remains disabled until verified.
+
+Crash fix is not claimed hardware-verified until tested on a jailbroken console.
