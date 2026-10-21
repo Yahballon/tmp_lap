@@ -120,13 +120,25 @@ def stage(godot, app, entry, builtins_override=None):
     if "jb_startup_mark" in crt:
         raise ValueError("PS5 CRT still contains non-SDK startup symbol")
     crt_file.write_text(crt)
+    # PS5 page-fault experiment: upstream Godot is linked with an R+X
+    # executable PT_LOAD. DevBridge's generated SELF currently drops R
+    # from its code segment (X-only). Keep permissions consistent with
+    # the upstream LLVM ELF in this isolated engine-test app.
+    converter_file = app/"tooling/native/sce_module_writer.cpp"
+    converter = converter_file.read_text()
+    source_phdr = "{kProgramLoad, kFlagExecute, text.file_offset, 0, text_end, text_end, kPage}"
+    rx_phdr = "{kProgramLoad, kFlagRead | kFlagExecute, text.file_offset, 0, text_end, text_end, kPage}"
+    if converter.count(source_phdr) != 1:
+        raise ValueError("DevBridge text-segment mapping changed; cannot verify R+X fix")
+    converter_file.write_text(converter.replace(source_phdr, rx_phdr, 1))
+    print("PS5 ELF-to-SELF compatibility: executable text PT_LOAD now R+X")
     print("Excluded", removed, "optional jb_startup_mark diagnostics from PS5 CRT")
     target=app/"src/godot-smoke"
     target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(entry,target/"main.cpp")
     metadata=app/"sce_sys/param.json"
     p=json.loads(metadata.read_text())
-    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.001")
+    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.002")
     p["localizedParameters"]["en-US"]["titleName"]="Godot PS5 Engine Smoke"
     metadata.write_text(json.dumps(p,indent=2)+'\n')
     (app/"GNUmakefile").write_text('APP_SOURCE_DIR := src/godot-smoke\nAPP_ASSETS := assets\nAPP_STATIC_ARCHIVES := '+' '.join(libraries)+'\ninclude Makefile\n')
