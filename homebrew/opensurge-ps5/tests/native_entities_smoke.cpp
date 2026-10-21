@@ -28,6 +28,17 @@ int main(int argc,char** argv){
     assert(result.spring_power==600.f);
     result=entities.tick(1.f/120.f,8144.f,10080.f,30.f);
     assert(result.spring_power==960.f);
+    // A spring must never react repeatedly to stationary contact; old 0.3.0
+    // console log showed many consecutive BOUNCE messages around x=2928.
+    for(int i=0;i<100;++i){
+        result=entities.tick(1.f/120.f,8144.f,10080.f,30.f);
+        assert(result.spring_power==0.f);
+    }
+    // Leave its collision range to rearm, then land on it once again.
+    for(int i=0;i<80;++i)
+        entities.tick(1.f/120.f,8300.f,10080.f,30.f);
+    result=entities.tick(1.f/120.f,8144.f,10080.f,30.f);
+    assert(result.spring_power==960.f);
     // Spring does not trigger on upward velocity.
     result=entities.tick(1.f/120.f,8144.f,10080.f,-250.f);
     assert(result.spring_power==0.f);

@@ -13,8 +13,8 @@
 namespace surgepreview {
 struct NativeEntity {
     enum Kind {Ring,Spring,Stronger,Goal} kind=Ring;
-    float x=0,y=0,disappearing=0;
-    bool consumed=false;
+    float x=0,y=0,disappearing=0,spring_cooldown=0;
+    bool consumed=false,spring_armed=true;
 };
 struct EntityEvents {
     int collected=0;
@@ -84,7 +84,7 @@ public:
     size_t visible() const{return visible_;}
     void reset(){
         clock_=0;rings_=0;completed_=false;
-        for(auto& o:objects_){o.consumed=false;o.disappearing=0;}
+        for(auto& o:objects_){o.consumed=false;o.disappearing=0;o.spring_cooldown=0;o.spring_armed=true;}
     }
     // Called with the player's world-space x, y=feet and downward velocity.
     // We reproduce only the basic collision behavior documented in the
@@ -95,6 +95,14 @@ public:
         dt=std::clamp(dt,0.f,1.f/60.f);
         clock_+=dt;
         for(auto& item:objects_){
+            // Springs can trigger again only after their hitbox has been left.
+            // The old implementation retriggered repeatedly at x≈2928.
+            if(item.kind==NativeEntity::Spring || item.kind==NativeEntity::Stronger){
+                item.spring_cooldown=std::max(0.f,item.spring_cooldown-dt);
+                if(!item.spring_armed && item.spring_cooldown<=0.f &&
+                   (std::abs(px-item.x)>40.f || std::abs(feet-item.y)>55.f))
+                    item.spring_armed=true;
+            }
             if(item.consumed){
                 if(item.disappearing>0)item.disappearing+=dt;
                 continue;
@@ -113,10 +121,13 @@ public:
                    feet>=item.y-54.f && feet<=item.y+8.f){
                     completed_=true;events.goal=true;
                 }
-            } else if(downward>=0.f &&
+            } else if(item.spring_armed && item.spring_cooldown<=0.f &&
+                      downward>=0.f &&
                       std::abs(px-item.x)<19.f &&
                       feet>=item.y-10.f && feet<=item.y+12.f){
                 events.spring_power=item.kind==NativeEntity::Stronger?960.f:600.f;
+                item.spring_armed=false;
+                item.spring_cooldown=0.4f;
             }
         }
         return events;

@@ -1,6 +1,6 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.3.0 transparency + mask-collision test · PPSA99358**
+**by YAHBALLON · v0.3.1 transparency + mask-collision test · PPSA99358**
 
 **Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
@@ -20,7 +20,7 @@ It does **not** run SurgeScript gameplay scripts, the original Allegro game loop
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.3.0**. The release tag is `opensurge-ps5-v0.3.0` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.3.1**. The release tag is `opensurge-ps5-v0.3.1` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
@@ -64,7 +64,7 @@ Hardware v0.2.3 logs showed **59.6 FPS with no terrain block** through x=1346 bu
 If the test still jumps without CROSS, capture `PAD_CROSS_EDGE raw=...` messages to identify hardware-reported input. This remains a native level preview and does not run original SurgeScript gameplay.
 
 
-## v0.3.0 - Original demo entity subset
+## v0.3.1 - Original demo entity subset
 
 Based on the PS5-tested v0.2.4 native input and rendering stack.
 
@@ -73,3 +73,16 @@ Original levels/demo-1.lev includes 275 entity records. This version adds first 
 Original images and sprites are loaded from the same pinned Open Surge upstream sources. X remains jump; Square resets the level and collectibles. Goal displays a completion flag, not a true stage transition.
 
 SurgeScript execution, enemy AI, full damage physics, sound, full stages, checkpoints, and save states are still missing. This is an experimental native compatibility subset, not a complete Open Surge engine port.
+
+
+## v0.3.1 - Original Surge movement and animation subset
+
+Based on the player's successful firmware 5.10 test of v0.3.0; measured 59.5–59.6 FPS, original 124 collectible entities and spring mechanics confirmed.
+
+Adds crouch with DOWN at rest, look-up with UP at rest, rolling by pressing DOWN while moving, and a Spin Dash: hold DOWN and press X to charge, tap X again for +0.25 (up to 1.0), release DOWN to launch at 480–720 world pixels/second. Uses upstream Open Surge `physicsactor.c` charge equations. Buffered DualSense held-state handling is unchanged from the verified v0.2.4 fix.
+
+Maps genuine frames from pinned Open Surge `sprites/players/surge.spr`: idle 0; walking 1–8; running 9–16; jump and rolling 19–26; duck 39; look-up 36; charge 20/22/24/26; brake 29–32; falling 42–45. This is a targeted native animation state mapping, not SurgeScript playback.
+
+Fixes spring rapid retrigger from the uploaded v0.3.0 console log at x≈2928: a spring must be left and its cooldown elapsed before firing again.
+
+Tests native C++ spins/charges/rolls and the real upstream data; all old collision and PS5 input smoke tests remain. Enemies, sound, authentic sensor physics, all level transitions and save games remain incomplete.

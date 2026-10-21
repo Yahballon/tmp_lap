@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.2.3 - continuous pixel-mask slope tracking, stable ground and collision diagnostics.
+// Open Surge PS5 v0.3.1 - native roll and charge/release Spin Dash with original sprite animations.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -35,12 +35,35 @@ public:
     size_t indexed_cells() const {return cells_.size();}
     unsigned collision_blocks() const {return blocked_;}
     unsigned auto_respawns() const {return respawns_;}
+    bool rolling() const {return rolling_;}
+    bool charging() const {return charging_;}
+    bool crouching() const {return ground_ && down_ && !rolling_ && !charging_ && std::abs(vx_)<60.f;}
+    bool looking_up() const {return ground_ && up_ && !down_ && !rolling_ && std::abs(vx_)<60.f;}
+    float dash_charge() const {return charge_;}
+    unsigned dash_releases() const {return dash_releases_;}
+    int sprite_frame() const {
+        static constexpr int spin[12]={19,20,20,21,22,22,23,24,24,25,26,26};
+        static constexpr int brake[4]={29,30,31,32};
+        if(charging_)return 20+2*(int(elapsed_*40.f)%4);
+        if(rolling_ || !ground_ && vy_<0.f)
+            return spin[int(elapsed_*40.f)%12];
+        if(!ground_ && vy_>=0.f)
+            return 42+(int(elapsed_*20.f)%4);
+        if(crouching())return 39;
+        if(looking_up())return 36;
+        if(braking_)return brake[int(elapsed_*16.f)%4];
+        if(spring_anim_>0.f)return 40+(int(elapsed_*16.f)%2);
+        if(std::abs(vx_)>245.f)return 9+(int(elapsed_*20.f)%8);
+        if(std::abs(vx_)>10.f)return 1+(int(elapsed_*20.f)%8);
+        return 0;
+    }
     // Experimental native spring velocity hook from original 'Spring
     // Standard/Stronger' SurgeScript values (600 and 960 world units/sec).
     void spring_bounce(float strength) {
         if(!ready()||strength<100.f||strength>1400.f)return;
         vy_=-strength;
-        ground_=false;
+        ground_=false;spring_anim_=0.32f;
+        charging_=false;charge_=0.f;rolling_=false;
         y_-=3.f; // free the player's feet from the spring platform
     }
 
@@ -144,7 +167,8 @@ public:
     void reset(){
         x_=startx_; y_=starty_; vx_=vy_=0;ground_=false;facing_=1;
         blocked_=0;last_ground_y_=y_;
-        elapsed_=0;
+        elapsed_=0;down_=up_=rolling_=charging_=braking_=false;
+        charge_=0.f;spring_anim_=0.f;dash_releases_=0;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -173,16 +197,53 @@ public:
     // IMPORTANT: walking on a slope follows the surface before checking a
     // horizontal wall; the old code collided with the ground as though it
     // were a wall, setting VX=0 at x≈723/900 despite a 60 FPS display.
-    void update(float dt,int dir,bool jump){
+    void update(float dt,int dir,bool jump,bool down=false,bool up=false){
         if(!ready())return;
         dt=std::clamp(dt,0.f,1.f/60.f);
         dir=std::clamp(dir,-1,1);
-        if(dir!=0)facing_=dir;
-        const float target=dir*310.f;
-        const float accel=(ground_?(dir?2200.f:2600.f):1500.f)*dt;
-        vx_+=std::clamp(target-vx_,-accel,accel);
-        if(jump&&ground_){
+        down_=down;up_=up;
+        spring_anim_=std::max(0.f,spring_anim_-dt);
+        // See upstream physicsactor.c (Open Surge 0.6.1.3):
+        // CHARGING: tap fire1 repeatedly to add 0.25 intensity; release DOWN
+        // to launch gsp = (12*60/3)*(2+intensity) = 480..720 world px/s.
+        // Do NOT turn a DOWN+X charge into a jump.
+        if(charging_){
+            vx_=0.f;
+            charge_=std::max(0.f,charge_*(1.f-1.88f*dt));
+            if(down){
+                if(jump)charge_=std::min(1.f,charge_+0.25f);
+                elapsed_+=dt;
+                return;
+            }
+            vx_=(facing_>=0?1.f:-1.f)*(480.f+240.f*charge_);
+            charge_=0.f;charging_=false;rolling_=true;
+            ++dash_releases_;
+        }else if(ground_ && down && jump && std::abs(vx_)<60.f && !rolling_){
+            charging_=true;charge_=0.f;vx_=0.f;
+            elapsed_+=dt;
+            return;
+        }
+        if(dir!=0 && !rolling_)facing_=dir;
+        if(ground_ && down && std::abs(vx_)>=60.f && !rolling_)rolling_=true;
+        braking_=ground_ && !rolling_ && dir!=0 && vx_*dir<0.f &&
+                 std::abs(vx_)>220.f;
+        if(rolling_){
+            // Rolling preserves momentum, rather than forcing target speed=310
+            // every frame. No roll acceleration from holding the direction.
+            // Original roll friction 3/128 * 60^2 = 84.375 px/s^2.
+            const float friction=(dir!=0 && vx_*dir<0.f)?450.f:84.375f;
+            const float delta=friction*dt;
+            if(std::abs(vx_)<=delta)vx_=0.f;
+            else vx_-=std::copysign(delta,vx_);
+            if(ground_ && std::abs(vx_)<30.f)rolling_=false;
+        }else{
+            const float target=(down && ground_)?0.f:dir*310.f;
+            const float accel=(ground_?(dir?2200.f:2600.f):1500.f)*dt;
+            vx_+=std::clamp(target-vx_,-accel,accel);
+        }
+        if(jump && ground_ && !down && !charging_){
             vy_=-505.f;ground_=false;
+            rolling_=false;
         }
         // Keep ground contact stable across frame substeps and small changes
         // in mask height instead of falling and re-landing each single frame.
@@ -283,9 +344,7 @@ public:
                      {u0,v0,u1-u0,v1-v0},white);
             if(++visible_>=1200)break;
         }
-        int frame=0;
-        if(!ground_){frame=19+(int(elapsed_*25.f)%8);}
-        else if(vx_!=0){frame=1+(int(elapsed_*18.f)%8);}
+        const int frame=sprite_frame();
         const int col=frame%8,row=frame/8;
         const int sx=col*64,sy=32+row*64;
         if(sx+64<=herow_ && sy+64<=heroh_){
@@ -428,6 +487,9 @@ private:
     int visible_=0,facing_=1;
     float x_=0,y_=0,vx_=0,vy_=0,elapsed_=0,startx_=0,starty_=0;
     bool ground_=false;
+    bool down_=false,up_=false,rolling_=false,charging_=false,braking_=false;
+    float charge_=0.f,spring_anim_=0.f;
+    unsigned dash_releases_=0;
     float last_ground_y_=0.f;
     unsigned blocked_=0,respawns_=0;
     std::string error_;
