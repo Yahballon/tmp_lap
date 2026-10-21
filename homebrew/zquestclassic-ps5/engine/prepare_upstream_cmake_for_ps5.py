@@ -77,3 +77,13 @@ fix=r'''if (s != 0) {
     }'''
 source=source.replace(site,fix,1)
 proc.write_text(source)
+
+
+# Desktop-only foreground switching has nothing to do on a native PS5;
+# mark its parameter deliberately unused. Retain all desktop branches.
+zalleg=a.cmake_root/"src/zalleg/zalleg.cpp"
+source=zalleg.read_text()
+needle="void zalleg_bring_window_to_foreground(ALLEGRO_DISPLAY* display)\n{\n"
+assert source.count(needle)==1,"Pinned upstream zalleg foreground signature changed"
+source=source.replace(needle,needle+"\t(void)display; // PS5: no desktop window foreground API\n",1)
+zalleg.write_text(source)
