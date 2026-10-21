@@ -5,7 +5,7 @@ import json
 import shutil
 from pathlib import Path
 
-def stage(godot, app, entry):
+def stage(godot, app, entry, builtins_override=None):
     godot = Path(godot).resolve()
     app = Path(app).resolve()
     manifest = json.loads((godot/"godot-ps5-full-manifest.json").read_text())
@@ -42,7 +42,7 @@ def stage(godot, app, entry):
     if not compiler:
         raise ValueError("Missing PS5 Clang for builtins")
     resource = Path(subprocess.check_output([compiler, "--print-resource-dir"],text=True).strip())
-    builtin = resource/"lib/linux/libclang_rt.builtins-x86_64.a"
+    builtin = Path(builtins_override) if builtins_override else resource/"lib/linux/libclang_rt.builtins-x86_64.a"
     if not builtin.is_file():
         raise ValueError("Missing compiler builtins archive: "+str(builtin))
     dest=app/"godot-libs/runtime/libclang_rt.builtins-x86_64.a"
@@ -72,5 +72,6 @@ if __name__=="__main__":
     a.add_argument("--godot",required=True)
     a.add_argument("--app",required=True)
     a.add_argument("--entry",required=True)
+    a.add_argument("--builtins-override")
     x=a.parse_args()
-    stage(x.godot,x.app,x.entry)
+    stage(x.godot,x.app,x.entry,x.builtins_override)
