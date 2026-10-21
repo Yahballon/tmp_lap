@@ -52,20 +52,20 @@ python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_upstream_cmake_for_ps5.
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_allegro_for_ps5_probe.py" "$allegro"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_sdl2_for_ps5_probe.py" "$sdl"
 echo "PS5 adaptations: portable stduuid; WANT_NFD=OFF" >> "$report"
+# The generator must receive every -D flag as a single shell command.
+# Avoid accidental blank lines after a continuation backslash.
+bash -n "$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_full_probe.sh"
 echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100" \
-
   -DTHREADS_PREFER_PTHREAD_FLAG=OFF \
   -DCMAKE_HAVE_LIBC_PTHREAD=TRUE \
-
   "-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG" \
   "-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG" \
   "-DCMAKE_C_FLAGS=-DZC_PS5_LIBC_NO_STRERROR_S=1 -DZC_PS5_NO_GLU_HEADER=1" \
   "-DCMAKE_CXX_FLAGS=-fexceptions -frtti" \
-
   "-DZC_PS5_LIBC_LINK_PROBE=ON" \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
   -DFETCHCONTENT_SOURCE_DIR_SDL2="$sdl" \
