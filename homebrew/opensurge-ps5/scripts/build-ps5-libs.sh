@@ -27,7 +27,7 @@ toolchain="$project/ps5/ps5-static-toolchain.cmake"
 mkdir -p "$prefix"
 
 cmake -S "$work/surgescript" -B "$work/build-surgescript-ps5" \
-  -DCMAKE_TOOLCHAIN_FILE="$toolchain" -DCMAKE_INSTALL_PREFIX="$prefix" \
+  -DCMAKE_TOOLCHAIN_FILE="$toolchain" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX="$prefix" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-DOPENSURGE_PS5" -DWANT_SHARED=OFF -DWANT_STATIC=ON -DWANT_EXECUTABLE=OFF
 cmake --build "$work/build-surgescript-ps5" --parallel "${BUILD_JOBS:-4}" --target surgescript-static
 cmake --install "$work/build-surgescript-ps5"

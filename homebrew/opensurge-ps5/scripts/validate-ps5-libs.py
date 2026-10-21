@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify native PS5 cross-compile artifacts rather than trusting CI exit code."""
 from __future__ import annotations
+import json
 import os
 import re
 import subprocess
@@ -19,9 +20,11 @@ for library in ("libsurgescript-static.a", "libphysfs.a"):
     print(f"{library}: {len(members)} object members")
 
 for name in ("surgescript", "physfs"):
-    cache = (work / f"build-{name}-ps5" / "CMakeCache.txt").read_text()
-    if not re.search(r"CMAKE_C_COMPILER:FILEPATH=.*prospero-clang18", cache):
-        raise SystemExit(f"{name}: compiler was not the PS5 wrapper")
+    directory = work / f"build-{name}-ps5"
+    cache = (directory / "CMakeCache.txt").read_text()
+    commands = json.loads((directory / "compile_commands.json").read_text())
+    if not commands or not all("prospero-clang18" in row["command"] for row in commands):
+        raise SystemExit(f"{name}: real build compile commands did not use PS5 wrapper")
     if not re.search(r"CMAKE_TOOLCHAIN_FILE:FILEPATH=.*ps5-static-toolchain.cmake", cache):
         raise SystemExit(f"{name}: toolchain configuration not verified")
     print(f"{name}: PS5-target wrapper verified in CMake cache")
