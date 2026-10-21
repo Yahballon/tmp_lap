@@ -16,6 +16,19 @@ with tempfile.TemporaryDirectory() as d:
     app=root/"app"
     (app/"tools").mkdir(parents=True)
     (app/"sce_sys").mkdir()
+    (app/"tooling/native").mkdir(parents=True)
+    (app/"tooling/native/app_crt.cpp").write_text(
+        'extern "C" {\n'
+        '    void jb_startup_mark(const char*) __attribute__((weak));\n'
+        '}\n'
+        'void smoke_crt(){\n'
+        '  if(jb_startup_mark)jb_startup_mark("before runtime");\n'
+        '  if (jb_startup_mark) jb_startup_mark("after runtime");\n'
+        '  if (jb_startup_mark) jb_startup_mark("before constructors");\n'
+        '  if(jb_startup_mark)jb_startup_mark("after constructors");\n'
+        '  if (jb_startup_mark) jb_startup_mark("thread entered");\n'
+        '}\n'
+    )
     entry=root/"main.cpp"
     entry.write_text('extern "C" int godot_ps5_run_pack(const char*);')
     (app/"sce_sys/param.json").write_text(json.dumps({"localizedParameters":{"en-US":{}}}))
@@ -46,6 +59,9 @@ with tempfile.TemporaryDirectory() as d:
     builtins=root/"libclang_rt.builtins-x86_64.a"
     builtins.write_bytes(b"!<arch>\n"+b"R"*128)
     assert module.stage(gd,app,entry,builtins_override=builtins) is None
+    crt=(app/"tooling/native/app_crt.cpp").read_text()
+    assert "jb_startup_mark" not in crt
+    assert "void smoke_crt()" in crt
     b=(app/"tools/build.sh").read_text()
     assert '--start-group' in b and '--end-group' in b
     assert '[A-Za-z0-9_.+-]+' in b, "PS5 libc++.a filenames rejected by old regex"
