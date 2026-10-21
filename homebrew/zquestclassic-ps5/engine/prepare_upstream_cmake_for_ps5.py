@@ -188,6 +188,11 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
   # The official v0.42 PS5 SDK includes LLVM libc++, libc++abi and
   # libunwind archives. The standard CMake compiler invocation does NOT
   # automatically link these PS5-specific C++ exception/locale runtimes.
+  set(_zc_assert_source "$ENV{ZC_PS5_ASSERT_SOURCE}")
+  if(NOT EXISTS "${_zc_assert_source}")
+    message(FATAL_ERROR "PS5 FreeBSD ABI assertion handler missing")
+  endif()
+  target_sources(zplayer PRIVATE "${_zc_assert_source}")
   set(_zc_runtime_root "$ENV{PS5_PAYLOAD_SDK}/target/lib")
   set(_zc_runtime_archives
       "${_zc_runtime_root}/libc++.a"
