@@ -14,6 +14,10 @@ for command in cmake git llvm-ar-18 llvm-ranlib-18 "$PS5_CLANG"; do
 done
 test -s "$PS5_PAYLOAD_SDK/target/lib/libc.a" || { echo "Missing PS5 target SDK" >&2; exit 2; }
 test -f "$PS5_CC" || { echo "Missing PS5 Clang wrapper" >&2; exit 2; }
+# The upstream template invokes this wrapper with sh; CMake invokes its compiler directly.
+# Mark only our isolated temporary copy executable, never change the SDK repository.
+chmod u+x "$PS5_CC"
+test -x "$PS5_CC" || { echo "PS5 compiler wrapper is not executable" >&2; exit 2; }
 
 work=${1:-"$project/.work"}
 bash "$project/scripts/fetch-upstream.sh" "$work"
