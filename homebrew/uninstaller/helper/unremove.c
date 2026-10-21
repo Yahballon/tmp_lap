@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Uninstaller v0.1.11: single-use local action broker for existing elfldr.
+// Uninstaller v0.1.12: single-use local action broker for existing elfldr.
 // NO shared writable request folder, NO arbitrary paths or system-dir unlink.
 // The helper prints a random capability only to its elfldr stdout connection,
 // then accepts one confirmed operation over 127.0.0.1:9176 for <=15 seconds.
@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -88,16 +89,25 @@ static int homebrew_ok(const char* path){
   return lstat(path,&st)==0&&S_ISDIR(st.st_mode);
 }
 static int progress_fd=-1;
+static unsigned progress_total=0;
+static struct timeval progress_started;
+static unsigned long long progress_millis(void){
+  struct timeval now;
+  if(gettimeofday(&now,NULL)!=0)return 0;
+  return (unsigned long long)(now.tv_sec-progress_started.tv_sec)*1000ull+
+         (unsigned long long)(now.tv_usec-progress_started.tv_usec+1000000)%1000000/1000ull;
+}
 static void progress_ping(unsigned count,int applying){
-  if(progress_fd>=0 && count>0 && count%512==0){
-    char text[98];
-    snprintf(text,sizeof text,"UREM2_STAGE %s_%u\n",
-             applying?"removing_files":"checking_files",count);
+  if(progress_fd>=0 && count>0 && count%128==0){
+    char text[128];
+    snprintf(text,sizeof text,"UREM2_PROGRESS %s %u %u %llu\n",
+             applying?"DELETE":"CHECK",count,
+             applying?progress_total:0u,progress_millis());
     send(progress_fd,text,strlen(text),0);
   }
 }
 // Validate the *entire* tree before any deletion. Refuse symlinks and
-// special nodes to avoid unexpected traversal. Bounded 15000 entries.
+// special nodes to avoid unexpected traversal. Bounded 500000 entries.
 static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
   if(depth>64||*count>=500000)return E2BIG;
   struct stat st;
@@ -239,8 +249,20 @@ static int remove_game_source(const char* src,const char* id,int client){
   unsigned inspected=0,removed=0;
   // Pre-flight whole renamed folder; aborts on symlinks and special files.
   progress_fd=client;
+  gettimeofday(&progress_started,NULL);
+  progress_total=0;
   int err=tree_walk(staged,0,0,&inspected);
-  if(err==0)err=tree_walk(staged,1,0,&removed);
+  if(err==0){
+    progress_total=inspected;
+    char message[128];
+    snprintf(message,sizeof message,"UREM2_PROGRESS CHECK %u %u %llu\n",
+             inspected,inspected,progress_millis());
+    send(client,message,strlen(message),0);
+    err=tree_walk(staged,1,0,&removed);
+    snprintf(message,sizeof message,"UREM2_PROGRESS DELETE %u %u %llu\n",
+             removed,inspected,progress_millis());
+    send(client,message,strlen(message),0);
+  }
   progress_fd=-1;
   if(err!=0){
     char error[900];
