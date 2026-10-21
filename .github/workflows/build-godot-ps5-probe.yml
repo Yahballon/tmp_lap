@@ -1,6 +1,11 @@
 name: Build Godot PS5 Native Probe v0.1.0
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/godot-ps5/probe/**'
+      - 'homebrew/godot-ps5/engine/platform/ps5/pck_locator.hpp'
+      - '.github/workflows/build-godot-ps5-probe.yml'
   push:
     branches:
       - feature/godot-ps5-engine-foundation
