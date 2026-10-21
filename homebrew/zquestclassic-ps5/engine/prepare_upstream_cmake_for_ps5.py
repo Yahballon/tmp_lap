@@ -222,12 +222,23 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
       "-Wl,--undefined=ps5_strtod_l")
   foreach(_name IN ITEMS
       strtoll_l strtof_l strtod_l strtold_l
-      sscanf_l snprintf_l asprintf_l __runes_for_locale)
+      sscanf_l snprintf_l asprintf_l __runes_for_locale
+      strftime_l mbsrtowcs_l wcsnrtombs_l wcrtomb_l mbsnrtowcs_l
+      catopen catgets catclose)
     target_link_options(zplayer PRIVATE
         "-Wl,--defsym,@@{_name}=ps5_@@{_name}")
   endforeach()
   target_link_libraries(zplayer PRIVATE "@@{_ps5_platform}")
   message(STATUS "Native PS5 libc locale implementation used by original zplayer")
+  # Mihawk PS5_PayloadSDK xlocale.c contains the listed runtime functions.
+  # Keep the archive after the LLVM C++ runtimes; force extraction of actual
+  # PS5 implementations rather than stubbing the missing C locale symbols.
+  foreach(_zc_locale_symbol IN ITEMS
+      strftime_l mbsrtowcs_l wcsnrtombs_l wcrtomb_l mbsnrtowcs_l
+      catopen catgets catclose)
+    target_link_options(zplayer PRIVATE
+        "-Wl,--undefined=ps5_${_zc_locale_symbol}")
+  endforeach()
 endif()
 """.replace("@@{",chr(36)+chr(123))
 assert 'target_link_libraries(zplayer PRIVATE core zcsound' in cmake_text
