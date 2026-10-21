@@ -156,7 +156,7 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
   if(report)report("REMOVE_HELPER","ready, authenticated one-shot request");
   int action=socket(AF_INET,SOCK_STREAM,0);
   if(action<0){close(fd);result.detail="Cannot connect to removal helper";return result;}
-  struct timeval responseTimeout{20,0};
+  struct timeval responseTimeout{90,0};
   setsockopt(action,SOL_SOCKET,SO_SNDTIMEO,&responseTimeout,sizeof responseTimeout);
   setsockopt(action,SOL_SOCKET,SO_RCVTIMEO,&responseTimeout,sizeof responseTimeout);
   addr.sin_port=htons(9176);
@@ -178,47 +178,55 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
     close(action);close(fd);result.detail="Removal request transmission failed";
     return result;
   }
-  std::string reply,lastStage;
-  size_t parsed=0;
-  while(reply.size()<4096){
+  // The classic helper emits a stage per 512 files. Large games may produce
+  // far more than 4 KiB of messages before its final authenticated result.
+  // Read line-by-line, retaining only the final reply and source details.
+  std::string pending,lastStage,answer,selectedSource,stagedPath,readError;
+  bool finished=false;
+  while(!finished){
     const ssize_t n=recv(action,buffer,sizeof buffer,0);
-    if(n<=0)break;
-    reply.append(buffer,(size_t)n);
-    while(true){
-      const size_t nl=reply.find('\n',parsed);
-      if(nl==std::string::npos)break;
-      const std::string line=reply.substr(parsed,nl-parsed);
-      parsed=nl+1;
+    if(n<=0){if(n<0)readError="Removal helper timed out or stopped";break;}
+    pending.append(buffer,(size_t)n);
+    if(pending.size()>8192){
+      readError="Malformed or oversized removal line";break;
+    }
+    size_t eol;
+    while((eol=pending.find('\n'))!=std::string::npos){
+      const std::string line=pending.substr(0,eol);
+      pending.erase(0,eol+1);
       if(line.rfind("UREM2_STAGE ",0)==0){
         lastStage=line.substr(sizeof("UREM2_STAGE ")-1);
-        if(report)report("REMOVE_STAGE",lastStage.c_str());
+        // Limit verbose disk scans to one logged counter every 4096 files.
+        bool logStage=true;
+        const size_t at=lastStage.find("_files_");
+        if(at!=std::string::npos){
+          const char* digits=lastStage.c_str()+at+7;
+          unsigned count=0;
+          logStage=std::sscanf(digits,"%u",&count)==1&&count%4096==0;
+        }
+        if(logStage&&report)report("REMOVE_STAGE",lastStage.c_str());
+      }else if(line.rfind("UREM2_SOURCE ",0)==0){
+        selectedSource=line.substr(sizeof("UREM2_SOURCE ")-1);
+        if(selectedSource=="-")selectedSource.clear();
+        if(report)report("SHADOWMOUNT_SOURCE",
+           selectedSource.empty()?"none":selectedSource.c_str());
+      }else if(line.rfind("UREM2_DIAG ",0)==0){
+        if(report)report("SOURCE_DIAG",line.c_str()+sizeof("UREM2_DIAG ")-1);
+      }else if(line.rfind("UREM2_STAGED ",0)==0){
+        stagedPath=line.substr(sizeof("UREM2_STAGED ")-1);
+      }else if(line.rfind("UREM2_RESULT ",0)==0){
+        answer=line+"\n";finished=true;break;
       }
     }
-    const size_t marker=reply.find("UREM2_RESULT "+token+" ");
-    if(marker!=std::string::npos&&reply.find('\n',marker)!=std::string::npos)break;
   }
   close(action);close(fd);
-  result=parseResponse(reply,token,item.kind);
+  if(!answer.empty())result=parseResponse(answer,token,item.kind);
+  else result.detail=readError.empty()?
+      "No authenticated removal result":readError;
+  result.source=selectedSource;
   result.launched=true;
-  const auto p=reply.find("UREM2_SOURCE ");
-  if(p!=std::string::npos){
-    const auto end=reply.find('\n',p);
-    if(end!=std::string::npos && end-p<740){
-      result.source=reply.substr(p+sizeof("UREM2_SOURCE ")-1,
-                     end-p-(sizeof("UREM2_SOURCE ")-1));
-      if(result.source=="-")result.source.clear();
-      if(report)report("SHADOWMOUNT_SOURCE",
-                       result.source.empty()?"none":result.source.c_str());
-    }
-  }
-  const auto partial=reply.find("UREM2_STAGED ");
-  if(partial!=std::string::npos && !result.accepted){
-    const auto end=reply.find('\n',partial);
-    if(end!=std::string::npos)
-      result.detail+="; quarantined files at "+reply.substr(
-        partial+sizeof("UREM2_STAGED ")-1,
-        end-partial-(sizeof("UREM2_STAGED ")-1));
-  }
+  if(!stagedPath.empty()&&!result.accepted)
+    result.detail+="; quarantined files at "+stagedPath;
   if(!result.accepted&&result.code==-1&&!lastStage.empty())
     result.detail="Title uninstall ended during "+lastStage+" (native helper may have stopped)";
   if(report)report("REMOVE_RESULT",result.detail.c_str());
