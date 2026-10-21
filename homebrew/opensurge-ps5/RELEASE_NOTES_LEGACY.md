@@ -1,12 +1,11 @@
-# Open Surge PS5 v0.2.4 — continuous DualSense input fix
+# Open Surge PS5 v0.3.0 - Collectibles, Springs and Goal
 
-Real firmware 5.10 testing of v0.2.3 showed stable 59.6 FPS and almost no terrain-block events, yet movement stalled and jumps repeated. The new investigation found that `scePadRead` returns only *new* samples, and the native code erroneously cleared held buttons on every empty read. This repeatedly interrupted RIGHT and retriggered any held face-button.
+After user confirmation that v0.2.4 movement is smooth, this version preserves its input, collision and graphics pipeline while adding real game interactions.
 
-- Preserve button and stick-held state when no new pad sample is available.
-- Only release on an explicit release/disconnect event; preserve short taps from multiple buffered packets.
-- Prioritize D-pad direction over contradictory left-stick direction.
-- Run host C++ regression: 600 consecutive render frames with sparse pad packets must preserve RIGHT in every frame and generate zero fake CROSS presses.
-- Add `PAD_DIAG`, `PAD_CROSS_EDGE` and `PAD_SQUARE_EDGE` logs so future input failures can be distinguished from map collision.
-- Retain original 0.2.3 terrain, physics prototype, graphics, asset licensing, and reliable native PS5 OpenGL pipeline.
+- Load original demo level entity records and stage collectible/spring/goal native data.
+- 124 genuine collectible positions, original animated collectible sheet, pickup counter and one-time collection.
+- Original Spring Standard and Stronger positions, respectively 600/960 upward launch impulses.
+- Original Goal position/sprite and a demo goal-reached flag (no full end-of-level transition).
+- Original complete game resources/attribution retained; native entity C++ regression runs before packaging.
 
-Still an **experimental level preview**, not the complete original Open Surge/SurgeScript game. Console confirmation required.
+This remains a limited native port subset: no SurgeScript runtime gameplay, full original physics/enemies/sfx/checkpoints/stage transitions/saves.

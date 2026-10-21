@@ -1,20 +1,21 @@
 {
   "name": "Open Surge PS5 Test",
   "slug": "opensurge-ps5",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "titleId": "PPSA99358",
   "contentId": "UP9000-PPSA99358_00-OPENSURGEPS5PORT",
-  "contentVersion": "01.005.000",
+  "contentVersion": "01.006.000",
   "developer": "YAHBALLON",
   "upstream": "alemart/opensurge",
   "upstreamVersion": "0.6.1.3",
   "buildArchitecture": "PS5-DevBridge / ps5-homebrew-ui native OpenGL",
   "nativeFrontend": true,
   "engineIntegrated": false,
-  "ps5BuildStatus": "buffered-pad-held-state-ci-pending",
+  "ps5BuildStatus": "original-entity-interactions-pending-ci",
   "installableGame": false,
   "gamePlayable": false,
-  "testbuildRelease": "opensurge-ps5-v0.2.4",
+  "testbuildRelease": "opensurge-ps5-v0.3.0",
   "nativeLevelPreview": true,
-  "originalGameEngineIntegrated": false
+  "originalGameEngineIntegrated": false,
+  "nativeEntitySubset": true
 }

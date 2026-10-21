@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.2.4 - buffered DualSense state persistence and input diagnostics.
+// Open Surge PS5 v0.3.0 - first original level entity interactions (native subset).
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
+#include "level_entities.hpp"
 #include "pad_state.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -22,7 +23,7 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.2.4";
+constexpr const char* kVersion="0.3.0";
 constexpr const char* kTitle="OPEN SURGE PS5 - MOVEMENT FIX";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
@@ -32,7 +33,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native level preview 0.2.4] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native entity preview 0.3.0] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -120,7 +121,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.2.4",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.3.0",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -173,6 +174,11 @@ int main(){
   auto probes=load_probes();run_probes(probes,root);
   surgepreview::LevelPreview level;
   const bool level_ready=level.load(renderer,root);
+  surgepreview::LevelEntities entities;
+  const bool entities_ready=level_ready && entities.load(renderer,root);
+  log_message(entities_ready?
+      "ORIGINAL_ENTITIES_READY collectibles, springs and goal":
+      std::string("ORIGINAL_ENTITIES_FAILED ")+entities.error());
   log_message(level_ready?
       "LEVEL_PREVIEW_READY original demo-1.lev brick sheet, magenta alpha and collision mask":
       std::string("LEVEL_PREVIEW_FAILED ")+level.error());
@@ -267,7 +273,8 @@ int main(){
           std::snprintf(line_btn,sizeof(line_btn),"PAD_SQUARE_EDGE raw=0x%08x held=0x%08x",
               controls.raw_buttons,controls.held);
           log_message(line_btn);
-          level.reset();accumulator=0.f;pending_jump=false;
+          level.reset();if(entities_ready)entities.reset();
+          accumulator=0.f;pending_jump=false;
           char line[160];
           std::snprintf(line,sizeof(line),"LEVEL_RESET x=%.1f y=%.1f grounded=%d",
                         level.player_x(),level.player_y(),level.grounded()?1:0);
@@ -283,6 +290,23 @@ int main(){
           const bool jump=pending_jump;
           pending_jump=false;
           level.update(step,dir,jump);
+          if(entities_ready){
+            const auto event=entities.tick(step,level.player_x(),level.player_y(),
+                                            level.velocity_y());
+            if(event.collected){
+              char line[120];
+              std::snprintf(line,sizeof(line),"COLLECTIBLE_PICKUP gained=%d total=%d",
+                            event.collected,entities.collected());
+              log_message(line);
+            }
+            if(event.spring_power>0.f){
+              level.spring_bounce(event.spring_power);
+              log_message(event.spring_power>800.f?
+                 "ORIGINAL_SPRING_STRONGER_BOUNCE 960":
+                 "ORIGINAL_SPRING_STANDARD_BOUNCE 600");
+            }
+            if(event.goal)log_message("ORIGINAL_GOAL_REACHED demo-1 preview only");
+          }
           if(jump&&was_grounded)log_message("LEVEL_JUMP");
           if(!was_grounded&&level.grounded())log_message("LEVEL_LANDED");
           accumulator-=step;++ticks;
@@ -301,6 +325,7 @@ int main(){
       if(pressed&hui::pad_bits::kCross){
         if(level_ready){
           level_mode=true;level.reset();
+          if(entities_ready)entities.reset();
           accumulator=0.f;pending_jump=false;
           log_message("LEVEL_PREVIEW_START demo-1.lev, terrain slope-follow test; original gameplay engine not linked");
         }else{
@@ -315,9 +340,10 @@ int main(){
     DrawList ui;
     if(level_mode && level_ready){
       level.draw(ui);
+      if(entities_ready)entities.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.2.4  -  corrected buffered DualSense input; NOT complete game engine",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.3.0  -  original rings + springs + goal; SurgeScript integration pending",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"STICK/D-PAD MOVE    X JUMP    SQUARE RESET    O BACK",73,1029,28,WHITE);
       char probe_line[180];
@@ -327,6 +353,13 @@ int main(){
           level.velocity_x(),measured_fps);
       ui.rounded_rect({1230,30,630,67},10,C(0x092431,.87f));
       txt(ui,font,atlas,probe_line,1240,72,19,ACCENT);
+      if(entities_ready){
+        char hud[140];
+        std::snprintf(hud,sizeof(hud),"COLLECTIBLES %03d     %s",
+                      entities.collected(),entities.complete()?"DEMO GOAL REACHED":"DEMO LEVEL");
+        ui.rounded_rect({1240,116,620,62},12,C(0x092431,.90f));
+        txt(ui,font,atlas,hud,1258,157,24,entities.complete()?GOLD:ACCENT);
+      }
     }else{
       draw(ui,font,atlas,preview,probes,root,detail,exiting);
       if(!level_ready)
