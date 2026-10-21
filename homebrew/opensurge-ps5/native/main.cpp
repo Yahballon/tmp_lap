@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.4.0 - native original hazards, enemy damage and lives.
+// Open Surge PS5 v0.5.0 - original 48k native audio SFX and streaming demo music.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
 #include "level_entities.hpp"
 #include "level_hazards.hpp"
+#include "game_audio.hpp"
 #include "pad_state.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -24,7 +25,7 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.4.0";
+constexpr const char* kVersion="0.5.0";
 constexpr const char* kTitle="OPEN SURGE PS5 - MOVEMENT FIX";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
@@ -34,7 +35,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native combat preview 0.4.0] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native audio preview 0.5.0] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -122,7 +123,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.4.0",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.5.0",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -173,6 +174,15 @@ int main(){
   hui::ps5::Pad pad;pad.open();
   std::string root=resolve_root();
   auto probes=load_probes();run_probes(probes,root);
+  surgepreview::GameAudio audio;
+  const bool audio_ready=audio.init(root);
+  {
+    char line[180];
+    std::snprintf(line,sizeof(line),"ORIGINAL_AUDIO_INIT %s sfx=%d music=%d output=%d",
+                  audio.status().c_str(),audio.clips_loaded(),
+                  audio.music_ready()?1:0,audio_ready?1:0);
+    log_message(line);
+  }
   surgepreview::LevelPreview level;
   const bool level_ready=level.load(renderer,root);
   surgepreview::LevelEntities entities;
@@ -241,6 +251,14 @@ int main(){
           static_cast<unsigned long long>(pad_state.samples_seen()),
           static_cast<unsigned long long>(pad_state.disconnects()));
       log_message(line);
+      if(audio_ready){
+        std::snprintf(line,sizeof(line),
+          "AUDIO_PERF sfx=%d music=%d err=%llu underrun=%llu",
+          audio.clips_loaded(),audio.music_enabled()?1:0,
+          static_cast<unsigned long long>(audio.output_errors()),
+          static_cast<unsigned long long>(audio.underruns()));
+        log_message(line);
+      }
       perf_log_us=now;
     }
     if(level_mode){
@@ -264,8 +282,13 @@ int main(){
     if(level_mode && !exiting){
       if(pressed&hui::pad_bits::kCircle){
         level_mode=false;accumulator=0.f;pending_jump=false;
+        audio.level_active(false);
         log_message("LEVEL_PREVIEW_EXIT");
       }else{
+        if(pressed&hui::pad_bits::kTriangle){
+          const bool on=audio.toggle_music();
+          log_message(on?"ORIGINAL_MUSIC_ENABLED":"ORIGINAL_MUSIC_MUTED");
+        }
         const int dir=int((held&hui::pad_bits::kRight)!=0)-int((held&hui::pad_bits::kLeft)!=0);
         if(pressed&hui::pad_bits::kCross){
           pending_jump=true;
@@ -281,6 +304,7 @@ int main(){
           log_message(line_btn);
           level.reset();if(entities_ready)entities.reset();
           if(hazards_ready)hazards.reset_game();
+          audio.play(surgepreview::Sound::Checkpoint);
           accumulator=0.f;pending_jump=false;
           char line[160];
           std::snprintf(line,sizeof(line),"LEVEL_RESET x=%.1f y=%.1f grounded=%d",
@@ -304,17 +328,25 @@ int main(){
                          (held&hui::pad_bits::kDown)!=0,
                          (held&hui::pad_bits::kUp)!=0);
           if(!was_charging && level.charging())
+          {
              log_message("MOVE_SPINDASH_CHARGE started DOWN+X");
-          if(jump && was_charging && level.charging())
+             audio.play(surgepreview::Sound::Charge);
+          }
+          if(jump && was_charging && level.charging()){
              log_message("MOVE_SPINDASH_RECHARGE X");
+             audio.play(surgepreview::Sound::ChargingUp);
+          }
           if(level.dash_releases()!=releases_before){
              char dash_log[132];
              std::snprintf(dash_log,sizeof(dash_log),
                            "MOVE_SPINDASH_RELEASE vx=%.1f",level.velocity_x());
              log_message(dash_log);
+             audio.play(surgepreview::Sound::Release);
           }
-          if(!was_rolling && level.rolling() && !level.charging())
+          if(!was_rolling && level.rolling() && !level.charging()){
              log_message("MOVE_ROLL_START");
+             audio.play(surgepreview::Sound::Roll);
+          }
           if(entities_ready){
             const auto event=entities.tick(step,level.player_x(),level.player_y(),
                                             level.velocity_y());
@@ -323,14 +355,19 @@ int main(){
               std::snprintf(line,sizeof(line),"COLLECTIBLE_PICKUP gained=%d total=%d",
                             event.collected,entities.collected());
               log_message(line);
+              audio.play(surgepreview::Sound::Collectible,0.48f);
             }
             if(event.spring_power>0.f){
+              audio.play(surgepreview::Sound::Spring);
               level.spring_bounce(event.spring_power);
               log_message(event.spring_power>800.f?
                  "ORIGINAL_SPRING_STRONGER_BOUNCE 960":
                  "ORIGINAL_SPRING_STANDARD_BOUNCE 600");
             }
-            if(event.goal)log_message("ORIGINAL_GOAL_REACHED demo-1 preview only");
+            if(event.goal){
+              log_message("ORIGINAL_GOAL_REACHED demo-1 preview only");
+              audio.play(surgepreview::Sound::Endsign);
+            }
           }
           if(hazards_ready && !hazards.game_over()){
             const bool attacking=level.rolling()||
@@ -343,6 +380,7 @@ int main(){
               std::snprintf(line,sizeof(line),"ENEMY_DEFEATED total=%d score=%d",
                            hazards.defeated(),hazards.score());
               log_message(line);
+              audio.play(surgepreview::Sound::Destroy);
             }
             if(damage.hit){
               if(entities_ready && rings>0){
@@ -350,11 +388,13 @@ int main(){
                 char line[100];
                 std::snprintf(line,sizeof(line),"PLAYER_HIT_RING_LOSS count=%d",lost);
                 log_message(line);
+                audio.play(surgepreview::Sound::CollectibleLoss);
                 level.hit_recoil(damage.source_x);
               }else{
                 char line[100];
                 std::snprintf(line,sizeof(line),"PLAYER_LOST_LIFE remaining=%d",hazards.lives());
                 log_message(line);
+                audio.play(surgepreview::Sound::Death);
                 if(!hazards.game_over()){
                   level.reset();
                   if(entities_ready)entities.reset();
@@ -363,7 +403,10 @@ int main(){
               }
             }
           }
-          if(jump&&was_grounded)log_message("LEVEL_JUMP");
+          if(jump && was_grounded && !level.charging()){
+            log_message("LEVEL_JUMP");
+            if(level.velocity_y()<0.f)audio.play(surgepreview::Sound::Jump);
+          }
           if(!was_grounded&&level.grounded())log_message("LEVEL_LANDED");
           accumulator-=step;++ticks;
         }
@@ -373,6 +416,7 @@ int main(){
       if(pressed&hui::pad_bits::kCircle)exiting=false;
       if(pressed&hui::pad_bits::kCross){
         log_message("EXIT NATIVE");
+        audio.shutdown();
         pad.close();
         renderer.release();display.close();
         hui::sys::quit();
@@ -381,6 +425,7 @@ int main(){
       if(pressed&hui::pad_bits::kCross){
         if(level_ready){
           level_mode=true;level.reset();
+          audio.level_active(true);
           if(entities_ready)entities.reset();
           if(hazards_ready)hazards.reset_game();
           accumulator=0.f;pending_jump=false;
@@ -394,6 +439,7 @@ int main(){
       if(pressed&hui::pad_bits::kOptions)detail=!detail;
       if(pressed&hui::pad_bits::kCircle)exiting=true;
     }
+    audio.pump();
     DrawList ui;
     if(level_mode && level_ready){
       level.draw(ui);
@@ -401,9 +447,9 @@ int main(){
       if(hazards_ready)hazards.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.4.0  -  ORIGINAL ENEMIES / SPIKES / LIVES; SurgeScript not linked",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.5.0  -  ORIGINAL AUDIO SFX + LEVEL MUSIC; SurgeScript pending",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
-      txt(ui,font,atlas,"D-PAD MOVE  X JUMP  DOWN+X CHARGE  RELEASE DOWN DASH  SQUARE RESET  O BACK",73,1029,28,WHITE);
+      txt(ui,font,atlas,"MOVE  X JUMP  DOWN+X DASH  TRIANGLE MUSIC  SQUARE RESET  O BACK",73,1029,28,WHITE);
       char probe_line[180];
       std::snprintf(probe_line,sizeof(probe_line),
           "SURGE (%.0f,%.0f) GROUND:%s VX:%+.0f FPS:%.0f",
@@ -428,6 +474,10 @@ int main(){
                       entities.collected(),entities.complete()?"DEMO GOAL REACHED":"DEMO LEVEL");
         ui.rounded_rect({1240,116,620,62},12,C(0x092431,.90f));
         txt(ui,font,atlas,hud,1258,157,24,entities.complete()?GOLD:ACCENT);
+      }
+      if(audio_ready){
+        const char* sound=audio.music_enabled()&&audio.music_ready()?"MUSIC ON":"MUSIC OFF";
+        txt(ui,font,atlas,sound,1812,375,21,ACCENT,Align::right);
       }
       if(hazards_ready){
         char stat[120];
