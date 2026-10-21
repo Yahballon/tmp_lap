@@ -80,12 +80,19 @@ jobs:
           # The original upload of bin/*.a only had a 21 KB platform shim.
           python3 homebrew/godot-ps5/scripts/package_static_engine.py \
             /tmp/godot /tmp/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip
+      - name: Retrieve genuine Godot 4 GDScript smoke fixture
+        uses: actions/download-artifact@v4
+        with:
+          name: godot-4-gdscript-smoke-pck-NOT-PS5
+          path: /tmp/godot-smoke-pck
       - name: Attempt native PS5 eboot link against ACTUAL Godot engine
         id: godot_link
         continue-on-error: true
         run: |
           set -euo pipefail
           cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-link-app
+          mkdir -p /tmp/godot-link-app/assets/godot
+          cp /tmp/godot-smoke-pck/smoke.pck /tmp/godot-link-app/assets/godot/smoke.pck
           python3 homebrew/godot-ps5/scripts/stage_native_link.py \
             --godot /tmp/godot \
             --app /tmp/godot-link-app \
@@ -112,6 +119,7 @@ jobs:
           with zipfile.ZipFile(archive) as z:
               assert z.testzip() is None
               assert "PPSA99843/eboot.bin" in z.namelist()
+              assert "PPSA99843/assets/godot/smoke.pck" in z.namelist()
           print("Genuine Godot engine headless PS5 binary linked and package structurally verified.")
           PY
       - name: Upload REAL Godot engine headless installer for hardware testing
