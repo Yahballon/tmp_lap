@@ -1,10 +1,10 @@
 {
   "name": "Uninstaller",
   "slug": "uninstaller",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "titleId": "PPSA99986",
   "contentId": "UP9000-PPSA99986_00-UNINSTALLER00001",
-  "contentVersion": "01.000.010",
-  "releaseTag": "uninstaller-v0.1.9",
+  "contentVersion": "01.000.011",
+  "releaseTag": "uninstaller-v0.1.10",
   "developer": "YAHBALLON"
 }
