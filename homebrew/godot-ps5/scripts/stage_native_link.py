@@ -44,7 +44,7 @@ def stage(godot, app, entry, builtins_override=None):
     if sdk_pthread.is_file():
         compat_pthread.symlink_to(sdk_pthread)
     else:
-        compat_pthread.write_bytes(b"!<arch>\\n")
+        compat_pthread.write_bytes(b"!<arch>\n")
     # Builtins are compiler-version dependent, so use Clang's actual
     # resource directory rather than assuming an SDK-specific location.
     import shutil as _shutil
@@ -66,7 +66,7 @@ def stage(godot, app, entry, builtins_override=None):
     assert source.count(prefix) == 1 and source.count(suffix) == 1
     # Resolve LLVM !dependent-library "pthread" embedded in libc++ objects.
     # The archive is only a linker alias, not a pthread implementation.
-    source = source.replace(prefix, prefix+'\\nlink_inputs+=("-L$root/godot-libs/runtime")', 1)
+    source = source.replace(prefix, prefix+'\nlink_inputs+=("-L$root/godot-libs/runtime")', 1)
     source = source.replace(prefix,prefix+'\nlink_inputs+=("--start-group")',1)
     source = source.replace(suffix+'\ndone',suffix+'\ndone\nlink_inputs+=("--end-group")',1)
     # DevBridge's original whitelist disallows '+' in static archive names.
