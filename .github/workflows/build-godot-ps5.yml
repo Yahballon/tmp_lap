@@ -28,6 +28,7 @@ jobs:
           /tmp/godot-ps5-native-mock
           python3 homebrew/godot-ps5/tests/test_static_bundle.py
           python3 homebrew/godot-ps5/tests/test_native_link_stage.py
+          python3 homebrew/godot-ps5/tests/test_resolve_weak_tls.py
           python3 homebrew/godot-ps5/tests/test_patch_ps5_kvm.py
       - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
         run: |
@@ -98,11 +99,23 @@ jobs:
             --godot /tmp/godot \
             --app /tmp/godot-link-app \
             --entry homebrew/godot-ps5/native/engine_smoke_main.cpp
-          (
+          if (
             cd /tmp/godot-link-app
             env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
               make USE_CCACHE=0 BUILD_JOBS=4 app
-          ) 2>&1 | tee /tmp/godot-ps5-native-link.log
+          ) 2>&1 | tee /tmp/godot-ps5-native-link.log; then
+            echo "PS5 engine binary linked and converted on first pass"
+          else
+            test -s /tmp/godot-link-app/build/llvm-pie.elf
+            python3 homebrew/godot-ps5/scripts/resolve_weak_tls.py \
+              --elf /tmp/godot-link-app/build/llvm-pie.elf \
+              --build-sh /tmp/godot-link-app/tools/build.sh | tee -a /tmp/godot-ps5-native-link.log
+            (
+              cd /tmp/godot-link-app
+              env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+                make USE_CCACHE=0 BUILD_JOBS=4 app
+            ) 2>&1 | tee -a /tmp/godot-ps5-native-link.log
+          fi
           test -s /tmp/godot-link-app/dist/PPSA99843/eboot.bin
           echo "GODOT_ENGINE_EBOOT_LINK_SUCCESS" | tee -a /tmp/godot-ps5-native-link.log
       - name: Validate native Godot engine smoke installer
