@@ -22,10 +22,10 @@ Source icon `assets/icon.svg` and procedurally rendered PS5 icon are original
 artwork; they are not AI-generated and use no Nintendo/Zelda artwork. A real
 app UI screenshot has not been captured.
 
-For v0.1.2 the PS5 compile fails unless the native libkernel backend is enabled;
-startup log includes `SCAN_BACKEND=libkernel-getdents-v0.1.2` to prove which
-backend was built. The workflow additionally verifies the `-DZCPS5_NATIVE_SCAN=1`
-flag and this marker in the packaged binary.
+For v0.1.2 the native scanner is explicitly enabled in `native/main.cpp`,
+without changing the OpenGL SDK's compilation flags. Startup log includes
+`SCAN_BACKEND=libkernel-getdents-v0.1.2`; CI verifies this marker in the
+packaged binary.
 
 After scanning, the **Options** screen shows opened-folder/error counts. Detailed
 `DIR_OK`, `DIR_FAIL`, `DENTS_FAIL`, `QUEST_FOUND`, and `SCAN_DONE`
