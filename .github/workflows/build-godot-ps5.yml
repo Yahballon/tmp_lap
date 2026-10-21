@@ -24,6 +24,8 @@ jobs:
           python3 homebrew/godot-ps5/scripts/check_overlay.py
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_locator_test.cpp -o /tmp/godot-ps5-test
           /tmp/godot-ps5-test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_native_mock_test.cpp -o /tmp/godot-ps5-native-mock
+          /tmp/godot-ps5-native-mock
       - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
         run: |
           set -euo pipefail
