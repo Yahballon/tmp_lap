@@ -34,7 +34,7 @@ else:
 with tempfile.TemporaryDirectory() as d:
     build=Path(d)/"build.sh"
     build.write_text('link_inputs+=("--start-group")\nlink_inputs+=("--end-group")\n')
-    assert mod.insert_optional_linker_zero(build,names)==2
+    assert mod.insert_optional_linker_zero(build,names)==3
     value=build.read_text()
     assert value.count("--defsym=_ZTHN12MessageQueue16thread_singletonE=0")==1
     assert value.count("--defsym=_ZTHN14ResourceLoader12load_nestingE=0")==1
