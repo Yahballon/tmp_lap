@@ -7,6 +7,8 @@ on:
     paths:
       - 'homebrew/godot-ps5/scripts/stage_native_link.py'
       - 'homebrew/godot-ps5/tests/test_native_link_stage.py'
+      - 'homebrew/godot-ps5/scripts/resolve_weak_tls.py'
+      - 'homebrew/godot-ps5/tests/test_resolve_weak_tls.py'
       - 'homebrew/godot-ps5/native/engine_smoke_main.cpp'
       - '.github/workflows/build-godot-ps5-link-retry.yml'
 
