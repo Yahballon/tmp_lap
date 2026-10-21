@@ -69,7 +69,7 @@ inline Result parseResponse(const std::string& reply,const std::string& token,Ki
     result.detail="Malformed removal reply";return result;
   }
   result.code=(int)code;
-  result.accepted=(code==0&&(state==1||state==2||state==4));
+  result.accepted=(code==0&&(state==1||state==2||state==4||state==5));
   result.verified=(code==0&&(state==2||state==4));
   if(code!=0){
     char codeText[24];std::snprintf(codeText,sizeof codeText,"%08X",code);
@@ -80,6 +80,8 @@ inline Result parseResponse(const std::string& reply,const std::string& token,Ki
                  "Game source deleted and PS5 uninstall requested"):
        kind==Kind::Homebrew?"USB homebrew folder removed":
                  "USB PKG file deleted (installed game unaffected)";
+  }else if(state==5&&code==0){
+    result.detail="Deferred ShadowMount deletion scheduled; close UI to begin";
   }else if(state==3&&code==0){
     result.detail="ShadowMount USB source scan completed";
   }else if(result.accepted){
@@ -89,7 +91,7 @@ inline Result parseResponse(const std::string& reply,const std::string& token,Ki
   }
   return result;
 }
-enum class Mode { Normal, ProbeGame, UninstallAll };
+enum class Mode { Normal, ProbeGame, UninstallAll, DeferShadow };
 inline Result execute(const Item& item,ScanLog report=nullptr,
                       const char* elf="/app0/unremove.elf",
                       Mode mode=Mode::Normal,const std::string& expectedSource=""){
@@ -165,10 +167,17 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
     result.detail="Removal helper listening socket not reachable";return result;
   }
   const std::string kind=item.kind==Kind::Installed?
-     (mode==Mode::ProbeGame?"TITLEPROBE":mode==Mode::UninstallAll?"TITLEAUTO":"TITLE"):
+     (mode==Mode::ProbeGame?"TITLEPROBE":
+      mode==Mode::UninstallAll?"TITLEAUTO":
+      mode==Mode::DeferShadow?"SHADOWDEFER":"TITLE"):
      item.kind==Kind::Homebrew?"USBHOME":"USBPKG";
   const std::string target=item.kind==Kind::Installed?
-     (mode==Mode::UninstallAll?item.id+"|"+expectedSource:item.id):item.path;
+     ((mode==Mode::UninstallAll||mode==Mode::DeferShadow)?
+       item.id+"|"+expectedSource:item.id):item.path;
+  if(mode==Mode::DeferShadow &&
+     (item.kind!=Kind::Installed||expectedSource.empty())){
+     close(action);close(fd);result.detail="Invalid deferred ShadowMount request";return result;
+  }
   if(target.find('\n')!=std::string::npos || target.find('\r')!=std::string::npos ||
      target.size()>690){
      close(action);close(fd);result.detail="Unsafe removal target";return result;
