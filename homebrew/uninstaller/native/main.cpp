@@ -142,7 +142,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
      txt(d,f,a,it->kind==uninstaller::Kind::UsbPackage?"P":it->kind==uninstaller::Kind::Installed?"G":"H",81,y+40,21,white,Align::center);
    std::string name=it->name.size()>37?it->name.substr(0,34)+"...":it->name;
    txt(d,f,a,name,124,y+29,20);
-   txt(d,f,a,it->remote?"Read-only via elfldr":it->kind==uninstaller::Kind::UsbPackage?"USB PKG file":it->kind==uninstaller::Kind::Homebrew?"Homebrew app":"Installed game / app",124,y+53,16,muted);
+   txt(d,f,a,it->remote?(uninstaller::actions::eligible(*it)?"Managed via elfldr":"Protected title"):it->kind==uninstaller::Kind::UsbPackage?"USB PKG file":it->kind==uninstaller::Kind::Homebrew?"Homebrew app":"Installed game / app",124,y+53,16,muted);
    txt(d,f,a,it->sizeKnown?uninstaller::bytes(it->size):"--",678,y+38,17,muted,Align::right);
  }
  if(count(items,tab)==0)txt(d,f,a,"No accessible titles found",100,300,22,muted);
@@ -163,7 +163,8 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   txt(d,f,a,path,1290,707,17,white,Align::right);
   d.bordered_rect({750,747,562,90},14,color(0x880c25),3,color(0xff4366));
   txt(d,f,a,uninstaller::actions::eligible(*item)?
-     (item->kind==uninstaller::Kind::UsbPackage?"Delete USB PKG":"Uninstall")
+     (item->kind==uninstaller::Kind::UsbPackage?"Delete USB PKG":
+      item->kind==uninstaller::Kind::Homebrew?"Delete Homebrew":"Uninstall")
      :"Read-only title",1031,806,30,white,Align::center);
   txt(d,f,a,"Save data stays untouched",770,880,20,muted);
   txt(d,f,a,"No system directory is deleted directly",770,926,16,muted);
@@ -191,7 +192,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    L2/R2 Storage    X Details    Square Delete    Triangle Refresh    Circle Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.7",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.8",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>104?msg.substr(0,101)+"...":msg;
@@ -210,7 +211,9 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   txt(d,f,a,"CONFIRM REMOVAL",962,432,39,color(0xff607a),Align::center);
   txt(d,f,a,item?item->name:"Unknown",962,496,25,white,Align::center);
   txt(d,f,a,"X: Confirm selected removal     Circle: Cancel",962,581,25,white,Align::center);
-  txt(d,f,a,"Permanent action. Saves are not targeted. Verify title ID.",962,636,20,muted,Align::center);
+  txt(d,f,a,item&&item->kind==uninstaller::Kind::Installed?
+    "System uninstall; saves are not targeted. Verify Title ID.":
+    "This permanently deletes the selected USB files.",962,636,20,muted,Align::center);
  }
 }
 }
@@ -309,7 +312,10 @@ int main(){
     }
     if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){
       const auto* x=nth(items,tab,selected);
-      if(x&&uninstaller::actions::eligible(*x))confirm=true;
+      if(x&&uninstaller::actions::eligible(*x)){
+        confirm=true;
+        uninstaller::diag::write("REMOVE_CONFIRM",x->path.c_str());
+      }
       else if(x)notice="This source cannot be safely removed by the current backend.";
     }
   }else if(pressed&hui::pad_bits::kCross){
@@ -320,6 +326,7 @@ int main(){
       bool refresh=false;
       if(systemAction){
         uninstaller::bridge::stop_icons();
+        uninstaller::diag::write("REMOVE_HELPER","direct authenticated local socket, no /data action files");
         const auto outcome=uninstaller::actions::execute(*x,scanLog);
         notice=outcome.detail;
         log("Native action: "+outcome.detail);

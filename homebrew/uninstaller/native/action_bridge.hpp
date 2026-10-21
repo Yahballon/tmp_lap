@@ -1,153 +1,180 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
-// Opt-in, explicitly confirmed operations via a one-shot private ELF helper.
-// No destructive action happens during inventory discovery or icon fetch.
+// Uninstaller v0.1.8: one-shot capability-authenticated local ELF action.
+// This never writes request files under the sandbox-inaccessible /data/actions.
 #include "inventory.hpp"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include <fcntl.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <cstdint>
 namespace uninstaller::actions {
-inline constexpr const char *kFolder="/data/Uninstaller/actions";
-struct Result{bool launched=false,accepted=false,verified=false;int code=-1;std::string detail;};
-
-inline bool eligible(const Item& a){
-  if(!a.remote)return isAllowedRemoval(a);
-  if(a.kind==Kind::Installed){
-    return validTitleId(a.id)&&a.id!="PPSA99986" &&
-           a.path=="/user/app/"+a.id;
-  }
-  if(a.kind!=Kind::UsbPackage || !endsPkg(a.path))return false;
-  if(a.path.rfind("/mnt/usb",0)!=0||a.path.size()<18||
-     a.path[8]<'0'||a.path[8]>'7'||a.path[9]!='/')return false;
-  return a.path.find("..")==std::string::npos &&
-         a.path.find('\\')==std::string::npos;
-}
-inline bool ownedPrivate(const char* path,bool directory){
-  struct stat st{};
-  if(lstat(path,&st)!=0||st.st_uid!=getuid()||(st.st_mode&0077))return false;
-  return directory?S_ISDIR(st.st_mode):S_ISREG(st.st_mode)&&st.st_nlink==1;
-}
-inline bool writeRequest(const Item& item,std::string& token,std::string& why){
-  token.clear();
-  if(!eligible(item)){why="Unsafe or unsupported source";return false;}
-  if(mkdir(kFolder,0700)!=0&&errno!=EEXIST){
-    why="Cannot create private actions folder";return false;
-  }
-  if(!ownedPrivate(kFolder,true)){why="Action folder is not private; aborting";return false;}
-  // Require OS cryptographic randomness; no timestamp or predictable nonce fallback.
-  unsigned char entropy[16]={0};
-  int rd=open("/dev/urandom",O_RDONLY);
-  if(rd<0 || read(rd,entropy,sizeof(entropy))!=(ssize_t)sizeof(entropy)){
-    if(rd>=0)close(rd);
-    why="Secure random source unavailable";return false;
-  }
-  close(rd);
-  char n[33];
-  for(int i=0;i<16;i++)std::snprintf(n+i*2,3,"%02x",(unsigned)entropy[i]);
-  token=n;
-  const std::string content=std::string("nonce=")+token+"\n"+
-       (item.remote&&item.kind==Kind::Installed
-         ? "kind=TITLE\ntitle="+item.id+"\n"
-         : "kind=USBPKG\npath="+item.path+"\n");
-  // Clear old result and request only if they are regular files owned by us.
-  for(const char* name:{"/data/Uninstaller/actions/result",
-                         "/data/Uninstaller/actions/request"}){
-    struct stat st{};
-    if(lstat(name,&st)==0){
-      if(!ownedPrivate(name,false)){why="Unsafe action state file";return false;}
-      if(unlink(name)!=0){why="Cannot reset action state";return false;}
-    }else if(errno!=ENOENT){why="Cannot inspect action state";return false;}
-  }
-  int fd=open("/data/Uninstaller/actions/request",
-              O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
-  if(fd<0){why="Cannot write private request";return false;}
-  const bool ok=write(fd,content.data(),content.size())==(ssize_t)content.size()
-       &&fsync(fd)==0;
-  close(fd);
-  if(!ok){why="Request write failed";return false;}
+struct Result {
+  bool launched=false,accepted=false,verified=false;
+  int code=-1;
+  std::string detail;
+};
+inline bool safeUsbPath(const std::string& s){
+  if(s.size()<18||s.size()>690||s.rfind("/mnt/usb",0)!=0 ||
+     s[8]<'0'||s[8]>'7'||s[9]!='/'||s.back()=='/' ||
+     s.find("//")!=std::string::npos||s.find("/../")!=std::string::npos ||
+     s.find("/./")!=std::string::npos||s.find('\\')!=std::string::npos)return false;
+  for(unsigned char ch:s)if(ch<32||ch==127)return false;
   return true;
 }
-inline Result execute(const Item& item,ScanLog logger=nullptr,
-                      const char* executable="/app0/unremove.elf"){
+inline bool usbHomePath(const std::string& s){
+  if(!safeUsbPath(s)||s.compare(10,9,"homebrew/")!=0)return false;
+  const std::string child=s.substr(19);
+  return !child.empty() && child!="." && child!=".." && child[0]!='.' &&
+         child.find('/')==std::string::npos;
+}
+inline bool eligible(const Item& item){
+  if(!item.remote)return isAllowedRemoval(item);
+  if(item.kind==Kind::Installed)
+    return validTitleId(item.id)&&item.id!="PPSA99986" &&
+           item.path=="/user/app/"+item.id;
+  if(item.kind==Kind::UsbPackage)
+    return safeUsbPath(item.path)&&endsPkg(item.path);
+  if(item.kind==Kind::Homebrew)return usbHomePath(item.path);
+  return false;
+}
+inline bool sendAll(int fd,const void* data,size_t n){
+  const char* p=(const char*)data;
+  while(n){
+    const ssize_t sent=send(fd,p,n,0);
+    if(sent<=0)return false;
+    p+=(size_t)sent;n-=(size_t)sent;
+  }
+  return true;
+}
+inline bool capability(const std::string& s){
+  if(s.size()!=32)return false;
+  for(char ch:s)if(!((ch>='0'&&ch<='9')||(ch>='a'&&ch<='f')))return false;
+  return true;
+}
+inline Result parseResponse(const std::string& reply,const std::string& token,Kind kind){
   Result result;
-  if(!eligible(item)){result.detail="Title cannot be safely removed from this source";return result;}
-  std::string nonce;
-  if(!writeRequest(item,nonce,result.detail)){
-    if(logger)logger("REMOVE_PRECHECK",result.detail.c_str());
+  const std::string marker="UREM2_RESULT "+token+" ";
+  const auto at=reply.find(marker);
+  if(at==std::string::npos){
+    result.detail="No authenticated removal result; consult REMOVE_* logs";
     return result;
   }
-  FILE* file=fopen(executable,"rb");
-  if(!file){result.detail="unremove.elf missing";return result;}
-  int fd=socket(AF_INET,SOCK_STREAM,0);
-  if(fd<0){fclose(file);result.detail="Loader socket unavailable";return result;}
-  struct timeval tv{12,0};
-  setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv));
-  setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
-  sockaddr_in addr{};addr.sin_family=AF_INET;
-  addr.sin_port=htons(9021);addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
-  if(connect(fd,(sockaddr*)&addr,sizeof(addr))!=0){
-    result.detail="elfldr not running on port 9021";
-    fclose(file);close(fd);return result;
-  }
-  result.launched=true;
-  if(logger)logger("REMOVE_DISPATCH",item.kind==Kind::Installed?item.id.c_str():"USBPKG");
-  char chunk[8192];bool transmitted=true;
-  for(;;){
-    size_t n=fread(chunk,1,sizeof(chunk),file);
-    if(!n){if(ferror(file))transmitted=false;break;}
-    size_t offset=0;
-    while(offset<n){
-      ssize_t sent=send(fd,chunk+offset,n-offset,0);
-      if(sent<=0){transmitted=false;break;}
-      offset+=(size_t)sent;
-    }
-    if(!transmitted)break;
-  }
-  fclose(file);
-  if(transmitted)shutdown(fd,SHUT_WR);
-  std::string reply;
-  while(reply.size()<4096){
-    ssize_t got=recv(fd,chunk,sizeof(chunk),0);
-    if(got<=0)break;
-    reply.append(chunk,(size_t)got);
-  }
-  close(fd);
-  if(!transmitted){result.detail="Unable to deliver ELF to loader";return result;}
-  // The payload writes an authenticated response into the private directory.
-  FILE* answer=fopen("/data/Uninstaller/actions/result","rb");
-  if(!answer){result.detail="No removal result; check system state";return result;}
-  char buf[512]={0};size_t len=fread(buf,1,sizeof(buf)-1,answer);fclose(answer);
-  std::string report(buf,len);
-  const std::string expected="nonce="+nonce+"\n";
-  if(report.rfind(expected,0)!=0){
-    result.detail="Action response nonce mismatch";return result;
-  }
   unsigned code=0,state=0;
-  const size_t c=report.find("code="),s=report.find("state=");
-  if(c==std::string::npos||s==std::string::npos||
-     std::sscanf(report.c_str()+c,"code=%x",&code)!=1||
-     std::sscanf(report.c_str()+s,"state=%u",&state)!=1){
-    result.detail="Malformed action response";return result;
+  if(std::sscanf(reply.c_str()+at+marker.size(),"%8x %u",&code,&state)!=2){
+    result.detail="Malformed removal reply";return result;
   }
   result.code=(int)code;
-  result.accepted=(code==0 && state!=0);
-  result.verified=(code==0 && state==2);
-  result.detail=code!=0?"Native removal rejected (0x"+[] (unsigned n){
-      char h[20];std::snprintf(h,sizeof(h),"%08X",n);return std::string(h);
-    }(code)+")"
-    : result.verified?"USB PKG removed; installed game untouched":
-      "Native title uninstall requested; refresh to verify completion";
-  if(logger)logger("REMOVE_RESULT",result.detail.c_str());
-  // Do not report a Sony async acceptance as verified deletion.
+  result.accepted=(code==0&&(state==1||state==2));
+  result.verified=(code==0&&state==2&&kind!=Kind::Installed);
+  if(code!=0){
+    char codeText[24];std::snprintf(codeText,sizeof codeText,"%08X",code);
+    result.detail="Native remove failed: 0x"+std::string(codeText);
+  }else if(result.verified){
+    result.detail=kind==Kind::Homebrew?"USB homebrew folder removed":
+                  "USB PKG file deleted (installed game unaffected)";
+  }else if(result.accepted){
+    result.detail="PS5 accepted uninstall; rescan to verify actual removal";
+  }else{
+    result.detail="Native remove returned unknown state";
+  }
+  return result;
+}
+inline Result execute(const Item& item,ScanLog report=nullptr,
+                      const char* elf="/app0/unremove.elf"){
+  Result result;
+  if(!item.remote || !eligible(item)){
+    result.detail="Removal source not supported by native helper";return result;
+  }
+  FILE* file=std::fopen(elf,"rb");
+  if(!file){result.detail="unremove.elf not present";return result;}
+  int fd=socket(AF_INET,SOCK_STREAM,0);
+  if(fd<0){std::fclose(file);result.detail="ELF upload socket failed";return result;}
+  struct timeval timeout{8,0};
+  setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof timeout);
+  setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof timeout);
+  sockaddr_in addr{};addr.sin_family=AF_INET;
+  addr.sin_port=htons(9021);
+  addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+  if(connect(fd,(sockaddr*)&addr,sizeof addr)!=0){
+    close(fd);std::fclose(file);
+    result.detail="elfldr not available on localhost:9021";return result;
+  }
+  if(report)report("REMOVE_DISPATCH",(std::string("uploading unremove.elf; target ")+item.path).c_str());
+  result.launched=true;
+  bool submitted=true;
+  char buffer[8192];
+  while(true){
+    const size_t n=std::fread(buffer,1,sizeof buffer,file);
+    if(!n){if(std::ferror(file))submitted=false;break;}
+    if(!sendAll(fd,buffer,n)){submitted=false;break;}
+  }
+  std::fclose(file);
+  if(!submitted){
+    close(fd);result.detail="Sending removal payload failed";return result;
+  }
+  shutdown(fd,SHUT_WR);
+  std::string output;
+  const std::string marker="UREM2_READY ";
+  size_t pos=std::string::npos,ending=std::string::npos;
+  while(output.size()<8192){
+    const ssize_t n=recv(fd,buffer,sizeof buffer,0);
+    if(n<=0)break;
+    output.append(buffer,(size_t)n);
+    pos=output.find(marker);
+    if(pos!=std::string::npos){
+      ending=output.find('\n',pos+marker.size());
+      if(ending!=std::string::npos)break;
+    }
+    if(output.find("UREM2_ERROR ")!=std::string::npos)break;
+  }
+  if(pos==std::string::npos||ending==std::string::npos){
+    close(fd);
+    result.detail=output.find("no_random")!=std::string::npos
+       ?"Removal helper could not obtain secure randomness":
+       output.find("bind")!=std::string::npos
+       ?"Removal helper port 9176 unavailable":
+       "Removal helper did not start: inspect /data/Uninstaller/crash.log";
+    if(report)report("REMOVE_HELPER_ERROR",result.detail.c_str());
+    return result;
+  }
+  const std::string token=output.substr(pos+marker.size(),ending-pos-marker.size());
+  if(!capability(token)){
+    close(fd);result.detail="Untrusted removal helper response";return result;
+  }
+  if(report)report("REMOVE_HELPER","ready, authenticated one-shot request");
+  int action=socket(AF_INET,SOCK_STREAM,0);
+  if(action<0){close(fd);result.detail="Cannot connect to removal helper";return result;}
+  struct timeval responseTimeout{8,0};
+  setsockopt(action,SOL_SOCKET,SO_SNDTIMEO,&responseTimeout,sizeof responseTimeout);
+  setsockopt(action,SOL_SOCKET,SO_RCVTIMEO,&responseTimeout,sizeof responseTimeout);
+  addr.sin_port=htons(9176);
+  if(connect(action,(sockaddr*)&addr,sizeof addr)!=0){
+    close(action);close(fd);
+    result.detail="Removal helper listening socket not reachable";return result;
+  }
+  const std::string kind=item.kind==Kind::Installed?"TITLE":
+                          item.kind==Kind::Homebrew?"USBHOME":"USBPKG";
+  const std::string target=item.kind==Kind::Installed?item.id:item.path;
+  const std::string command="ACT "+token+" "+kind+" "+target+"\n";
+  if(!sendAll(action,command.data(),command.size())){
+    close(action);close(fd);result.detail="Removal request transmission failed";
+    return result;
+  }
+  std::string reply;
+  while(reply.size()<512){
+    const ssize_t n=recv(action,buffer,sizeof buffer,0);
+    if(n<=0)break;
+    reply.append(buffer,(size_t)n);
+    if(reply.find('\n')!=std::string::npos)break;
+  }
+  close(action);close(fd);
+  result=parseResponse(reply,token,item.kind);
+  result.launched=true;
+  if(report)report("REMOVE_RESULT",result.detail.c_str());
   return result;
 }
 } // namespace uninstaller::actions
