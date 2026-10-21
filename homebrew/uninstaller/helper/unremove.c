@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Uninstaller v0.1.11: single-use local action broker for existing elfldr.
+// Uninstaller v0.1.14: single-use local action broker for existing elfldr.
 // NO shared writable request folder, NO arbitrary paths or system-dir unlink.
 // The helper prints a random capability only to its elfldr stdout connection,
 // then accepts one confirmed operation over 127.0.0.1:9176 for <=15 seconds.
@@ -147,6 +147,9 @@ static int source_syntax(const char* path,const char* title){
   if(path[9]!='/'||strchr(path+10,'/'))return 0;
   if(snprintf(expected,sizeof expected,"%s-app",title)>= (int)sizeof expected)
     return 0;
+  if(!strcmp(path+10,expected))return 1;
+  if(snprintf(expected,sizeof expected,"%s-app0",title)>= (int)sizeof expected)
+    return 0;
   return !strcmp(path+10,expected);
 }
 static int marker_exists(const char* base,const char* tail){
@@ -181,18 +184,65 @@ static int source_ok(const char* path,const char* title){
      marker_exists(path,"contents/sce_sys/param.json"))return 1;
   return 0;
 }
-static int detect_source(const char* title,char out[700]){
-  out[0]=0;
-  if(!title_ok(title))return EINVAL;
-  unsigned found=0;
-  for(unsigned i=0;i<8;i++){
-    char candidate[700];
-    snprintf(candidate,sizeof candidate,"/mnt/usb%u/%s-app",i,title);
-    if(source_ok(candidate,title)){
-      if(++found>1){out[0]=0;return EEXIST;}
-      strcpy(out,candidate);
+static void diagnostic(int client,const char* type,const char* detail){
+  // Diagnostics are read-only and must not modify or traverse source roots.
+  char clean[660]={0};size_t n=0;
+  for(const char* p=detail;p&&*p&&n+1<sizeof clean;p++){
+    unsigned char ch=(unsigned char)*p;
+    clean[n++]=(ch<32||ch>126)?'_':(char)ch;
+  }
+  char message[800];
+  snprintf(message,sizeof message,"UREM2_DIAG %s %s\n",type,clean);
+  send(client,message,strlen(message),0);
+}
+static void diagnose_tracker(const char* title,int client){
+  char tracker[130];
+  snprintf(tracker,sizeof tracker,"/user/app/%s/mount.lnk",title);
+  int fd=open(tracker,O_RDONLY|O_NOFOLLOW);
+  if(fd>=0){
+    char line[700]={0};
+    ssize_t n=read(fd,line,sizeof line-1);close(fd);
+    if(n>0){
+      line[n]=0;line[strcspn(line,"\r\n")]=0;
+      diagnostic(client,"tracker",line);
+    }else diagnostic(client,"tracker","unreadable");
+  }else if(errno!=ENOENT)diagnostic(client,"tracker","inaccessible");
+  else diagnostic(client,"tracker","missing");
+  snprintf(tracker,sizeof tracker,"/user/app/%s/mount_img.lnk",title);
+  fd=open(tracker,O_RDONLY|O_NOFOLLOW);
+  if(fd>=0){
+    char line[700]={0};
+    ssize_t n=read(fd,line,sizeof line-1);close(fd);
+    if(n>0){
+      line[n]=0;line[strcspn(line,"\r\n")]=0;
+      diagnostic(client,"image_tracker",line);
     }
   }
+}
+static int detect_source(const char* title,char out[700],int client){
+  out[0]=0;
+  if(!title_ok(title))return EINVAL;
+  diagnose_tracker(title,client);
+  unsigned found=0;
+  for(unsigned i=0;i<8;i++)for(unsigned form=0;form<2;form++){
+    char candidate[700];
+    snprintf(candidate,sizeof candidate,form?
+             "/mnt/usb%u/%s-app0":"/mnt/usb%u/%s-app",i,title);
+    struct stat st;
+    if(lstat(candidate,&st)!=0)continue;
+    if(source_ok(candidate,title)){
+      diagnostic(client,"matched_source",candidate);
+      if(++found>1){out[0]=0;return EEXIST;}
+      strcpy(out,candidate);
+    }else{
+      // Explain why a concrete matching folder was refused, rather than
+      // telling the user "none" when game bytes remain on the USB drive.
+      diagnostic(client,!S_ISDIR(st.st_mode)?"rejected_not_directory":
+                 !title_tracker_matches(candidate,title)?"rejected_tracker_mismatch":
+                 "rejected_missing_game_files",candidate);
+    }
+  }
+  if(!found)diagnostic(client,"result","no_verified_usb_game_directory");
   return 0;
 }
 static int do_system_uninstall(const char* title,int client){
@@ -264,7 +314,7 @@ static void perform(const char* kind,const char* target,unsigned* code,unsigned*
       snprintf(expected,sizeof expected,"%s",split+1);
     }else snprintf(id,sizeof id,"%s",target);
     if(!title_ok(id)){*code=EINVAL;return;}
-    int detected=detect_source(id,source);
+    int detected=detect_source(id,source,client);
     if(detected){*code=(unsigned)detected;return;}
     if(!strcmp(kind,"TITLEPROBE")){
       send_source(client,source);
