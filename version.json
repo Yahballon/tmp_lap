@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "4d2993812b94d208d1705f57f7ccbaf584cfb20e45f217034fabe1595408abc8",
+  "version": "4fb4324ca5777ecd4c9f5cbde489b0f44e54d52a92d4ef3947d3f354c52e9bc0",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 24,
+  "app_count": 25,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -224,6 +224,19 @@
       "source": "homebrew/godot-ps5",
       "size_bytes": 6061439,
       "published_at": "2026-10-21T17:07:42Z"
+    },
+    {
+      "name": "Godot PS5 Engine Smoke",
+      "slug": "godot-ps5-engine-smoke",
+      "title_id": "PPSA99843",
+      "version": "0.2.0",
+      "tag": "godot-ps5-engine-smoke-v0.2.0",
+      "zip_name": "PPSA99843.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-engine-smoke-v0.2.0/PPSA99843.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-engine-smoke-v0.2.0",
+      "source": "homebrew/godot-ps5-engine-smoke",
+      "size_bytes": 15537943,
+      "published_at": "2026-10-21T21:00:05Z"
     },
     {
       "name": "Snake",
