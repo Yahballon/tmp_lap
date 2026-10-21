@@ -19,7 +19,7 @@ for filename,dimension in (("sunshine.rgba",meta["atlas"]),("surge.rgba",meta["h
     assert (root/filename).stat().st_size==dimension[0]*dimension[1]*4
     pixels=(root/filename).read_bytes()
     # Original magenta transparency must be zero alpha, not hot-pink blocks.
-    assert not any(pixels[i:i+3]==b"\\xff\\x00\\xff" and pixels[i+3]!=0
+    assert not any(pixels[i:i+3]==bytes((255,0,255)) and pixels[i+3]!=0
                    for i in range(0,len(pixels),4)), filename
 collision=(root/"collision.bin").read_bytes()
 assert len(collision)==meta["atlas"][0]*meta["atlas"][1]
