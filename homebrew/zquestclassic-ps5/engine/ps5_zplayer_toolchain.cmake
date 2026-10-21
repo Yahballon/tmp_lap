@@ -18,6 +18,12 @@ set(CMAKE_CXX_COMPILER_TARGET x86_64-sie-ps5)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_SYSROOT "$ENV{PS5_PAYLOAD_SDK}")
 set(CMAKE_FIND_ROOT_PATH "$ENV{PS5_PAYLOAD_SDK}")
+# SDK Sce imports and real libc/pthread libraries are in target/lib,
+# not in the sysroot's normal FreeBSD /usr/lib directory. The native
+# PS5-DevBridge linker uses these SDK libraries explicitly.
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-L$ENV{PS5_PAYLOAD_SDK}/target/lib")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-L$ENV{PS5_PAYLOAD_SDK}/target/lib")
+set(CMAKE_MODULE_LINKER_FLAGS_INIT "-L$ENV{PS5_PAYLOAD_SDK}/target/lib")
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
