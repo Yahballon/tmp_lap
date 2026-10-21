@@ -1,31 +1,18 @@
-# ZQuest Classic PS5 v0.1.1 — Native Quest Scanner Fix
+# ZQuest Classic PS5 v0.1.2 — Activate PS5 Kernel Scanner
 
-**Experimental PS5 TESTBUILD · by YAHBALLON · PPSA99127**
+**TESTBUILD · by YAHBALLON · PPSA99127**
 
-**NOT PLAYABLE:** This is still the native PS5 quest browser. The original
-ZQuest Classic `zplayer` engine is not integrated and quests cannot yet run.
+Fixes the configuration error found in the v0.1.1 console logs: `DIR_FAIL code=1` showed the POSIX fallback rather than a native PS5 kernel scan. The native PS5 Makefile expects `APP_DEFINITIONS=ZCPS5_NATIVE_SCAN=1` (without a leading `-D`).
 
-## Fixes
-- Replace sandbox-incompatible libc `opendir` / `readdir` with direct
-  `sceKernelOpen`, `sceKernelGetdents`, and `sceKernelClose` enumeration.
-- Avoid silently hiding `.qst` entries when `lstat` is unavailable.
-- Support `DT_UNKNOWN` quest names in the native directory stream.
-- Add `DIR_OK`, `DIR_FAIL`, `DENTS_FAIL`, `QUEST_FOUND`, and `SCAN_DONE`
-  diagnostics at `/data/ZQuestClassic/logs/port.log`.
-- Show folder-access and error counts under Options.
-- Add mocked native syscall regression test with
-  `the_deep.qst` and `255example.qst`.
-- Keep original Title ID `PPSA99127`, persistent data paths and icon.
+Changes:
+- Correct compile definition forwarding to the PS5 toolchain.
+- Make production compilation fail if the native backend is not enabled.
+- Verify compiled Ninja flags and final ELF backend marker.
+- Log `SCAN_BACKEND=libkernel-getdents-v0.1.2` at startup.
+- Preserve Title ID PPSA99127, save directories, existing icon and quest files.
 
-## Test on PS5
-Place both `.qst` files at `/data/ZQuestClassic/quests` as before.
-Update from TESTBUILDS and press Square to rescan.
-If still empty, press Options and send the scan status and the
-`/data/ZQuestClassic/logs/port.log` diagnostics.
-The PS5 filesystem may still reject direct kernel access under some
-firmware/mount configurations; hardware verification is pending.
+Expected Quest files: `/data/ZQuestClassic/quests/the_deep.qst` and `/data/ZQuestClassic/quests/255example.qst`.
 
-## Build and provenance
-Native PS5 cross-compilation and executable/ZIP checks run in GitHub Actions.
-Upstream ZQuestClassic/ZQuestClassic remains GPLv3 (not yet linked).
-No Nintendo assets or commercially copyrighted quests are bundled.
+If files are still missing, send the fresh `/data/ZQuestClassic/logs/port.log` lines, especially the backend marker and `DIR_FAIL` codes. Native kernel access has not yet been confirmed on the user's firmware.
+
+**Still NOT PLAYABLE:** the full ZQuest `zplayer` engine is not integrated. This release tests the library scanner only.
