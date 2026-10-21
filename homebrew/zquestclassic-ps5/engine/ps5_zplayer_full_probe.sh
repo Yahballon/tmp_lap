@@ -30,6 +30,11 @@ find "$PS5_PAYLOAD_SDK/target/lib" -maxdepth 1 -type f \( -name "*.so" -o -name 
 export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
 test -f "${PS5_OPENGL_PREFIX:?}/lib/libPS5OpenGL.a"
 test -f "$PS5_OPENGL_PREFIX/include/GL/glcorearb.h"
+test -d "$PS5_PAYLOAD_SDK/target/lib"
+echo "PS5 import libraries present:" >> "$report"
+find "$PS5_PAYLOAD_SDK/target/lib" -maxdepth 1 -type f \
+  \( -name "libSce*.so" -o -name "libm*" -o -name "libpthread*" \) \
+  -printf "%f\n" | sort | head -n 40 >> "$report"
 platform="$work/ps5-platform"
 test "$(git -C "$platform" rev-parse HEAD)" = "b5efad528e0ac1b8289f39d72a0e890ff68ff0a6"
 export ZC_PS5_PLATFORM_ARCHIVE="$platform/platform/build/ps5/libzcps5locale.a"
@@ -61,6 +66,7 @@ echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
+  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib" \
   "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100" \
   -DTHREADS_PREFER_PTHREAD_FLAG=OFF \
   -DCMAKE_HAVE_LIBC_PTHREAD=TRUE \
