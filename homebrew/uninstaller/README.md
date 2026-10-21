@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.6 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.7 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, detail pane, storage capacity when available, full DualSense menu controls, and confirmation dialog.
 
@@ -37,7 +37,7 @@ The supplied screenshot is a visual reference, not a real PS5 capture. Native bu
 
 GPL-3.0-or-later, matching PS5-DevBridge homebrew UI. Developer: YAHBALLON.
 
-**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.6 (PPSA99986) or later.
+**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.7 (PPSA99986) or later.
 
 ## Crash diagnostics in v0.1.2
 
@@ -83,3 +83,11 @@ The PS5 console logs showed EPERM (errno 1) at /data/homebrew, /mnt/usb0 and the
 - USB PKG archives under /mnt/usb0..7 are eligible for explicit remove after strict lstat validation. Deleting a USB archive does not uninstall the registered copy.
 - Custom game dump mounts or homebrew folders accessed only through the privileged helper remain read-only because recursive folder deletion may destroy unrelated assets. No game saves, app databases, or system folders are manually modified.
 - Experimental PS5 system uninstall: source compiles, but firmware-specific execution results are NOT guaranteed. First test using a disposable homebrew app rather than a purchased game. Log details at /data/Uninstaller/uninstaller.log.
+
+## v0.1.7 — nonblocking scan progress
+
+- The first scan and Triangle refresh run on a worker thread. The main renderer continues drawing a blue animated progress bar with truthful, phase-based status. Percentage is intentionally not fabricated: elfldr does not expose a verified total count during transmission.
+- Controller actions are temporarily locked while the inventory is being rebuilt, preventing stale title selection and accidental deletion. Completed items and volumes are transferred back to the renderer thread before use.
+- The existing explicit removal confirmation and AppInstUtil/USB-PKG backend from v0.1.6 remain present. Hardware confirmation of native uninstall success is still required; do not assume accepted system requests have completed.
+- Existing protections remain: no raw unlink of system title folders, no save-data removal, and the application's own title ID cannot be removed.
+- Diagnostic logs: `/data/Uninstaller/uninstaller.log`.
