@@ -29,6 +29,15 @@ end=text.index(end_marker,start)
 assert "export(EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
 assert "install(\n  EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
 text=text[:start]+"# PS5 probe: omit desktop package exports for SDL2-static.\n"+text[end:]
+# The Allegro SDL backend must not pull in desktop UNIX devices or
+# separate libm/libpthread link flags on the PS5, where the SDK supplies
+# libc math/thread functionality. Link resolution will still check symbols.
+unix='if(ALLEGRO_UNIX) # not MACOSX\n    list(APPEND LIBRARY_SOURCES ${ALLEGRO_SRC_UNIX_FILES})\n    list(APPEND PLATFORM_LIBS m ${CMAKE_THREAD_LIBS_INIT})\nendif(ALLEGRO_UNIX)'
+assert text.count(unix)==1, "Pinned Allegro UNIX library declaration changed"
+text=text.replace(unix, 'if(ALLEGRO_UNIX AND NOT ZC_PS5_NO_DESKTOP_UNIX_LIBS) # not MACOSX\n    list(APPEND LIBRARY_SOURCES ${ALLEGRO_SRC_UNIX_FILES})\n    list(APPEND PLATFORM_LIBS m ${CMAKE_THREAD_LIBS_INIT})\nendif()',1)
+sdl='list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY} m)'
+assert text.count(sdl)==1, "Pinned Allegro SDL library declaration changed"
+text=text.replace(sdl, 'if(ZC_PS5_NO_DESKTOP_UNIX_LIBS)\n        list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY})\n    else()\n        list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY} m)\n    endif()',1)
 path.write_text(text)
 
 # The PS5 libc exposes POSIX strerror_r, not the Annex-K strerror_s.
