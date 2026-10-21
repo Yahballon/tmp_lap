@@ -83,11 +83,11 @@ print("PS5 Allegro: bypass unused GLU header and missing strerror_s, no desktop 
 # Keep the real DUMB decoder intact and remove only the extra link flag.
 dumb_find=args.allegro_root/"cmake/FindDUMB.cmake"
 dumb_cmake=dumb_find.read_text()
-needle="  if(NOT MSVC)\\n    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\\n  endif()"
+needle="  if(NOT MSVC)\n    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\n  endif()"
 assert dumb_cmake.count(needle)==1,"Pinned Allegro FindDUMB math linkage changed"
 dumb_cmake=dumb_cmake.replace(
     needle,
-    "  if(NOT MSVC AND NOT ZC_PS5_NO_DESKTOP_UNIX_LIBS)\\n"
-    "    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\\n"
+    "  if(NOT MSVC AND NOT ZC_PS5_NO_DESKTOP_UNIX_LIBS)\n"
+    "    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\n"
     "  endif()",1)
 dumb_find.write_text(dumb_cmake)
