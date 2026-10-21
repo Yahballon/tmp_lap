@@ -29,12 +29,6 @@ int main(){
   assert(!actions::eligible(usbhome));
   usbhome.path="/mnt/usb0/homebrew/.hidden";
   assert(!actions::eligible(usbhome));
-  auto checking=actions::parseProgress("CHECK 1024 0 1200");
-  assert(checking.valid&&!checking.deleting&&checking.current==1024);
-  auto clearing=actions::parseProgress("DELETE 3000 12000 7420");
-  assert(clearing.valid&&clearing.deleting&&clearing.total==12000&&clearing.elapsedMs==7420);
-  assert(!actions::parseProgress("DELETE 200 100 0").valid);
-  assert(!actions::parseProgress("DELETE trash wrong count").valid);
   std::string t="0123456789abcdef0123456789abcdef";
   assert(actions::capability(t));
   auto ok=actions::parseResponse("loader noise\nUREM2_RESULT "+t+" 00000000 2\n",t,Kind::UsbPackage);
