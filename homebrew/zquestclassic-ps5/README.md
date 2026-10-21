@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/icon.svg" width="170" alt="Original ZQuest Classic PS5 port-prototype emblem"></p>
 
-# ZQuest Classic PS5 — Port Foundation v0.1.4
+# ZQuest Classic PS5 — Port Foundation v0.1.5
 
 **Native PS5 homebrew prototype · by YAHBALLON · PPSA99127**
 
@@ -22,13 +22,13 @@ Source icon `assets/icon.svg` and procedurally rendered PS5 icon are original
 artwork; they are not AI-generated and use no Nintendo/Zelda artwork. A real
 app UI screenshot has not been captured.
 
-For v0.1.4 the native scanner is explicitly enabled in `native/main.cpp`,
+For v0.1.5 the native scanner is explicitly enabled in `native/main.cpp`,
 without changing the OpenGL SDK's compilation flags. Startup log includes
-`SCAN_BACKEND=libkernel-getdents-v0.1.4`; CI verifies this marker in the
+`SCAN_BACKEND=libkernel-getdents-v0.1.5`; CI verifies this marker in the
 packaged binary.
 
 The v0.1.2 on-console logs proved the quest directory opens but native getdents
-returned `0x80020016` (EINVAL). v0.1.4 changes the entry buffer from
+returned `0x80020016` (EINVAL). v0.1.5 changes the entry buffer from
 16 KiB to 64 KiB with 16 KiB alignment, matching the existing PS5GBCX
 implementation. Hardware results still need to be verified.
 
@@ -53,7 +53,7 @@ The bundled app also scans `/data/homebrew/PPSA99127/quests/`. Supported
 library discovery format: `.qst` (case-insensitive). Finding a filename
 does **not** mean the engine can open or run that quest yet.
 
-## Quest file read diagnostics (v0.1.4)
+## Quest file read diagnostics (v0.1.5)
 
 The confirmed v0.1.3 directory scanner lists `.qst` filenames but did
 not previously prove that actual quest contents were readable by PS5. The new
@@ -65,12 +65,27 @@ Read progress and failures are written to
 `/data/ZQuestClassic/logs/port.log`. Send `QUEST_READ_FAIL` diagnostics
 if pressing X produces an error instead of `READ SUCCESS`.
 
+## PS5 video bridge test (v0.1.5)
+
+Press **Triangle** to show/hide the test-only 256x224 animated pixel pattern
+in the right panel. This exercises 6-bit Allegro-style palette conversion,
+8-bit indexed pixels, RGBA8 OpenGL texture update and nearest-neighbor
+presentation on the native PS5 EGL renderer. **It does not render any
+actual quest.** Press Circle to leave the video test without closing the app.
+
+The log will show `PS5_INDEXED_VIDEO_BRIDGE_READY`,
+`VIDEO_TEST_ON` and `VIDEO_TEST_OFF`, or
+`PS5_INDEXED_VIDEO_BRIDGE_FAILED` if GPU initialization fails.
+See [engine/VIDEO_PORT.md](engine/VIDEO_PORT.md). Hardware behavior
+still requires on-console confirmation.
+
 ## DualSense
 
 | Button | Current action |
 | --- | --- |
 | D-pad / Left stick Up/Down | Select quest |
 | Cross | Read selected .qst bytes and show I/O results (NOT Play) |
+| Triangle | Toggle animated indexed-palette PS5 graphics test (NOT gameplay) |
 | Square | Rescan quest locations |
 | Options | Technical port status |
 | Circle | Back / confirm exit dialog |
@@ -86,7 +101,7 @@ workflow builds an actual PS5 ELF then packages `PPSA99127.zip`; only an
 observed successful Actions job establishes a valid artifact.
 
 After successful native CI, the **experimental prerelease** can be downloaded from
-[ZQuest Classic PS5 v0.1.4](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.4)
+[ZQuest Classic PS5 v0.1.5](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.5)
 and is intentionally included in the TESTBUILDS catalog so the controller-first
 library UI can be tested on real hardware. The release is **NOT PLAYABLE**.
 
