@@ -107,41 +107,47 @@ bool startScan(){
  return true;
 }
 
-struct ShadowJobData {
+struct RemovalStatus {
  std::mutex mutex;
  bool active=false,done=false,success=false;
- int percent=0;std::string message;
+ std::string message;
 };
-ShadowJobData shadowJob;
-void* shadowPoller(void* ptr){
- const int job=*(int*)ptr;delete (int*)ptr;
- for(int i=0;i<300;i++){
-  const auto state=uninstaller::shadow::status(job);
-  {std::lock_guard<std::mutex> lock(shadowJob.mutex);
-    shadowJob.percent=state.progress;shadowJob.message=state.label;
-    if(state.finished){shadowJob.active=false;shadowJob.done=true;
-      shadowJob.success=state.success;return nullptr;}
-  }
-  usleep(2000000);
+RemovalStatus removal;
+struct RemovalRequest {
+ uninstaller::Item item;
+ std::string source;
+};
+void* removeWorker(void* arg){
+ RemovalRequest* job=(RemovalRequest*)arg;
+ uninstaller::diag::write("UNIFIED_UNINSTALL",job->item.id.c_str());
+ const auto mode=job->item.kind==uninstaller::Kind::Installed?
+      uninstaller::actions::Mode::UninstallAll:uninstaller::actions::Mode::Normal;
+ const auto result=uninstaller::actions::execute(
+     job->item,scanLog,"/app0/unremove.elf",mode,job->source);
+ {std::lock_guard<std::mutex> guard(removal.mutex);
+  removal.active=false;removal.done=true;
+  removal.success=result.accepted;
+  removal.message=result.detail;
  }
- {std::lock_guard<std::mutex> lock(shadowJob.mutex);
-  shadowJob.active=false;shadowJob.done=true;
-  shadowJob.message="ShadowMount job continues; check status through ShadowMount";
- }
+ delete job;
  return nullptr;
 }
-void monitorShadowJob(int job){
- {std::lock_guard<std::mutex> lock(shadowJob.mutex);
-   shadowJob.active=true;shadowJob.done=false;shadowJob.success=false;
-   shadowJob.percent=0;shadowJob.message="ShadowMount deletion queued";
+bool runRemoval(const uninstaller::Item& item,const std::string& source){
+ {std::lock_guard<std::mutex> guard(removal.mutex);
+  if(removal.active)return false;
+  removal.active=true;removal.done=false;removal.success=false;
+  removal.message="Uninstalling title and matching USB source...";
  }
- pthread_t worker{};
- int* number=new int(job);
- if(pthread_create(&worker,nullptr,shadowPoller,number)!=0){
-   delete number;
-   std::lock_guard<std::mutex> lock(shadowJob.mutex);
-   shadowJob.active=false;shadowJob.message="Deletion queued; status polling unavailable";
- }else pthread_detach(worker);
+ pthread_t thread{};
+ RemovalRequest* request=new RemovalRequest{item,source};
+ if(pthread_create(&thread,nullptr,removeWorker,request)!=0){
+  delete request;
+  std::lock_guard<std::mutex> guard(removal.mutex);
+  removal.active=false;removal.message="Removal worker could not start";
+  return false;
+ }
+ pthread_detach(thread);
+ return true;
 }
 std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
   if(png.empty()||png.size()>3*1024*1024)return 0;
@@ -214,16 +220,16 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
      (item->kind==uninstaller::Kind::UsbPackage?"Delete USB PKG":
       item->kind==uninstaller::Kind::Homebrew?"Delete Homebrew":"Uninstall")
      :"Read-only title",1300,781,32,white,Align::center);
-  if(item->kind==uninstaller::Kind::Installed&&item->id=="PPSA21564")
-    txt(d,f,a,"X: Delete ShadowMount source   |   Square: Uninstall tile",770,868,20,color(0xff8494));
+  if(item->kind==uninstaller::Kind::Installed)
+    txt(d,f,a,"X / Square: Uninstall game and associated USB source",770,868,20,color(0xff8494));
   txt(d,f,a,"Save data stays untouched",770,894,21,muted);
   txt(d,f,a,"Installed titles are removed through the PS5 installer service",770,938,18,muted);
  }else{
   txt(d,f,a,"Select a game, application or USB package",770,692,27,muted);
  }
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
- txt(d,f,a,"D-pad Select   L1/R1 Categories   X: ShadowMount source / Select   Square: Uninstall   Triangle: Refresh   Circle: Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.10",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"D-pad Select    L1/R1 Categories    X / Square: Uninstall    Triangle: Refresh    Circle: Back",45,1063,17,muted);
+ txt(d,f,a,"by YAHBALLON   v0.1.11",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>125?msg.substr(0,122)+"...":msg;
@@ -240,22 +246,22 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  if(shadowBusy){
   txt(d,f,a,shadowMessage,755,971,18,color(0xffb276));
   d.rounded_rect({1430,984,398,12},5,color(0x263d58));
-  d.rounded_rect({1432,986,394.0f*shadowPercent/100.0f,8},4,color(0xff704d));
+  d.rounded_rect({1432+(frame%110)*2.5f,986,114,8},4,color(0xff704d));
  }
  if(confirm){
   d.bordered_rect({367,345,1190,345},20,color(0x05162b),3,color(0xff466a));
-  txt(d,f,a,shadowConfirm?"PERMANENT SHADOWMOUNT SOURCE DELETE":"CONFIRM REMOVAL",
+  txt(d,f,a,shadowConfirm?"CONFIRM COMPLETE GAME REMOVAL":"CONFIRM REMOVAL",
       962,398,36,color(0xff607a),Align::center);
   txt(d,f,a,item?item->name:"Unknown",962,455,26,white,Align::center);
   if(shadowConfirm){
     const std::string source=shadowSource.size()>104?shadowSource.substr(0,101)+"...":shadowSource;
     txt(d,f,a,source,962,511,19,white,Align::center);
-    txt(d,f,a,"X: Delete physical source permanently    Circle: Cancel",962,579,23,white,Align::center);
-    txt(d,f,a,"This destroys the actual game dump or image. Not just the tile.",962,632,19,color(0xff8494),Align::center);
+    txt(d,f,a,"X: Remove game + source    Circle: Cancel",962,579,23,white,Align::center);
+    txt(d,f,a,"Permanently deletes the matching USB source. Saves not targeted.",962,632,19,color(0xff8494),Align::center);
   }else{
     txt(d,f,a,"X: Confirm selected removal     Circle: Cancel",962,567,25,white,Align::center);
     txt(d,f,a,item&&item->kind==uninstaller::Kind::Installed?
-      "System uninstall; saves are not targeted. Verify Title ID.":
+      "Scans for a matching ShadowMount USB folder. Saves are not targeted.":
       "This permanently deletes the selected USB files.",962,622,20,muted,Align::center);
   }
  }
@@ -300,15 +306,14 @@ int main(){
  for(;;){
   bool sourceBusy=false,sourceDone=false,sourceSuccess=false;
   int sourcePercent=0;std::string sourceMessage;
-  {std::lock_guard<std::mutex> lock(shadowJob.mutex);
-    sourceBusy=shadowJob.active;sourceDone=shadowJob.done;
-    sourceSuccess=shadowJob.success;sourcePercent=shadowJob.percent;
-    sourceMessage=shadowJob.message;
+  {std::lock_guard<std::mutex> lock(removal.mutex);
+    sourceBusy=removal.active;sourceDone=removal.done;
+    sourceSuccess=removal.success;sourceMessage=removal.message;
   }
   if(sourceDone&&!shadowDoneHandled){
     shadowDoneHandled=true;
     notice=sourceMessage;
-    uninstaller::diag::write("SHADOWMOUNT_RESULT",sourceMessage.c_str());
+    uninstaller::diag::write("UNIFIED_RESULT",sourceMessage.c_str());
     if(sourceSuccess&&!scanBusy.load())startScan();
   }
   if(sourceBusy)shadowDoneHandled=false;
@@ -331,7 +336,7 @@ int main(){
     pressed|=buttons&~prev;prev=buttons;
   }
   if(!connected)prev=0;
-  if(scanBusy.load())pressed=0;
+  if(scanBusy.load()||sourceBusy)pressed=0;
   if(pressed&hui::pad_bits::kCircle){if(confirm){confirm=false;shadowConfirm=false;}else{uninstaller::bridge::stop_icons();for(const auto& entry:iconTextures)if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}pad.close();renderer.release();display.close();hui::sys::quit();}}
   if(!confirm){
     if(pressed&hui::pad_bits::kL1){tab=(tab+3)%4;selected=offset=0;}
@@ -348,66 +353,44 @@ int main(){
       notice.clear();
       if(!startScan())notice="Cannot start scan";
     }
-    if(pressed&hui::pad_bits::kCross){
-      const auto* x=nth(items,tab,selected);
-      if(x&&x->id=="PPSA21564"&&x->kind==uninstaller::Kind::Installed){
-        if(sourceBusy)notice="ShadowMount deletion already in progress";
-        else{
-          const auto info=uninstaller::shadow::inspect(x->id);
-          uninstaller::diag::write("SHADOWMOUNT_INSPECT",
-             info.valid?info.path.c_str():info.error.c_str());
-          if(info.valid){shadowConfirm=true;shadowSource=info.path;confirm=true;}
-          else notice=info.error;
-        }
-      }else if(x&&uninstaller::actions::eligible(*x)){
-        shadowConfirm=false;confirm=true;
-      }else if(x)notice="This source cannot be safely removed";
-    }
-    if(pressed&hui::pad_bits::kSquare){
+    if(pressed&(hui::pad_bits::kCross|hui::pad_bits::kSquare)){
       const auto* x=nth(items,tab,selected);
       if(x&&uninstaller::actions::eligible(*x)){
-        shadowConfirm=false;confirm=true;
-        uninstaller::diag::write("REMOVE_CONFIRM",x->path.c_str());
+        if(x->kind==uninstaller::Kind::Installed&&x->remote){
+          uninstaller::bridge::stop_icons();
+          const auto probe=uninstaller::actions::execute(
+              *x,scanLog,"/app0/unremove.elf",uninstaller::actions::Mode::ProbeGame);
+          if(probe.code!=0){
+            notice="USB source scan failed: "+probe.detail;
+          }else{
+            shadowSource=probe.source;
+            shadowConfirm=!shadowSource.empty();
+            confirm=true;
+            uninstaller::diag::write("UNIFIED_PREFLIGHT",
+               shadowConfirm?shadowSource.c_str():"No matching USB source");
+          }
+        }else{
+          shadowSource.clear();shadowConfirm=false;confirm=true;
+        }
       }else if(x)notice="This source cannot be safely removed";
     }
   }else if(pressed&hui::pad_bits::kCross){
     const auto* x=nth(items,tab,selected);
-    if(shadowConfirm){
-      if(x&&x->id=="PPSA21564"&&!sourceBusy){
-        uninstaller::diag::write("SHADOWMOUNT_DELETE_REQUEST",x->id.c_str());
-        const auto action=uninstaller::shadow::remove(x->id,shadowSource);
-        notice=action.message;
-        uninstaller::diag::write("SHADOWMOUNT_DELETE_RESULT",notice.c_str());
-        if(action.queued){monitorShadowJob(action.job);shadowDoneHandled=false;}
-        else if(action.absent)startScan();
-      }
-      shadowConfirm=false;shadowSource.clear();confirm=false;
-    }else if(x&&uninstaller::actions::eligible(*x)){
+    if(x&&uninstaller::actions::eligible(*x)){
       uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
-      const bool systemAction=x->remote;
-      bool refresh=false;
-      if(systemAction){
+      if(x->remote){
         uninstaller::bridge::stop_icons();
-        uninstaller::diag::write("REMOVE_HELPER","direct authenticated local socket, no /data action files");
-        const auto outcome=uninstaller::actions::execute(*x,scanLog);
-        notice=outcome.detail;
-        log("Native action: "+outcome.detail);
-        refresh=outcome.accepted;
+        if(runRemoval(*x,shadowSource)){
+          notice="Removing selected title and any verified USB source...";
+          shadowDoneHandled=false;
+        }else notice="Cannot launch removal worker";
       }else{
         const int rc=uninstaller::removeFiles(*x);
         notice=rc==0?"Selected files removed":"Removal rejected: "+std::to_string(rc);
-        log(notice);refresh=rc==0;
-      }
-      if(refresh){
-        uninstaller::bridge::stop_icons();
-        for(const auto& icon:iconTextures)if(icon.second){
-          GLuint texture=icon.second;glDeleteTextures(1,&texture);
-        }
-        iconTextures.clear();++iconEpoch;
-        if(!startScan())notice="Action sent, refresh unavailable";
+        if(rc==0&&!startScan())notice="Removed, but refresh could not start";
       }
     }
-    confirm=false;
+    shadowConfirm=false;shadowSource.clear();confirm=false;
   }
 
   // Complete at most one image decode per frame.
