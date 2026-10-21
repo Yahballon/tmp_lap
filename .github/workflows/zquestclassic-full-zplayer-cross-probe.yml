@@ -1,0 +1,63 @@
+name: ZQuest Original ZPlayer PS5 Cross-Compilation Probe
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/zquestclassic-ps5/engine/ps5_zplayer_*'
+      - '.github/workflows/zquestclassic-full-zplayer-cross-probe.yml'
+permissions:
+  contents: read
+jobs:
+  actual-upstream-zplayer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools for native PS5 cross-build
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make git ca-certificates \
+            pkg-config python3 python3-pip curl unzip tar python3-pil libfmt-dev nlohmann-json3-dev
+          python3 -m pip install --break-system-packages 'cmake>=3.29,<4.1'
+          cmake --version
+      - name: Fetch pinned ZQuestClassic and PS5 SDL2 sources
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/zcps5-full-zplayer"
+          mkdir -p "$work"
+          git init "$work/upstream"
+          git -C "$work/upstream" remote add origin https://github.com/ZQuestClassic/ZQuestClassic.git
+          git -C "$work/upstream" fetch --depth 1 origin c44dde7d0146da78bf8b541af457d5ff4e67a830
+          git -C "$work/upstream" checkout --detach FETCH_HEAD
+          git init "$work/sdl2-ps5"
+          git -C "$work/sdl2-ps5" remote add origin https://github.com/OpenAGC/SDL2.git
+          git -C "$work/sdl2-ps5" fetch --depth 1 origin ee4c47dc0d617b3bc8f35108f9956baf228a1322
+          git -C "$work/sdl2-ps5" checkout --detach FETCH_HEAD
+      - name: Stage real PS5 SDK and compiler wrapper
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          bash app/tools/setup-native-dependencies.sh
+          test -f app/.deps/native/ps5-payload-sdk/target/include/c++/v1/vector
+      - name: Attempt genuine zplayer cross-compile
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+        run: |
+          export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          export PS5_DEVBRIDGE_TOOL="$GITHUB_WORKSPACE/app/tooling/prospero-clang18"
+          bash homebrew/zquestclassic-ps5/engine/ps5_zplayer_full_probe.sh
+      - name: Export complete real-engine compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-ZPlayer-PS5-Full-CMake-Compile-Logs-NOT-PLAYABLE
+          path: |
+            ${{ runner.temp }}/zcps5-full-zplayer/configure.log
+            ${{ runner.temp }}/zcps5-full-zplayer/compile.log
+            ${{ runner.temp }}/zcps5-full-zplayer/results.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: warn
+# No pretend playable artifact, no release/TESTBUILDS mutation here.
