@@ -58,11 +58,13 @@ def stage(godot, app, entry, builtins_override=None):
     # DevBridge's original whitelist disallows '+' in static archive names.
     # PS5 libc++.a and libc++abi.a are standard SDK filenames, not invalid.
     # Keep strict path matching while permitting literal plus signs.
-    old_archives = "[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*"
-    new_archives = "[A-Za-z0-9_.+-]+(/[A-Za-z0-9_.+-]+)*"
-    if source.count(old_archives) != 1:
-        raise ValueError("DevBridge archive validation regex changed")
-    source = source.replace(old_archives, new_archives, 1)
+    # Only update the static archive validation rule. The same character
+    # class also occurs in source paths, import stubs, app metadata, etc.
+    original_archive_rule = "    [[ $archive =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*"
+    patched_archive_rule = "    [[ $archive =~ ^[A-Za-z0-9_.+-]+(/[A-Za-z0-9_.+-]+)*"
+    if source.count(original_archive_rule) != 1:
+        raise ValueError("DevBridge static archive validation rule changed")
+    source = source.replace(original_archive_rule, patched_archive_rule, 1)
     build.write_text(source)
     target=app/"src/godot-smoke"
     target.mkdir(parents=True,exist_ok=True)
