@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Uninstaller v0.1.8: single-use local action broker for existing elfldr.
+// Uninstaller v0.1.9: single-use local action broker for existing elfldr.
 // NO shared writable request folder, NO arbitrary paths or system-dir unlink.
 // The helper prints a random capability only to its elfldr stdout connection,
 // then accepts one confirmed operation over 127.0.0.1:9176 for <=15 seconds.
@@ -20,22 +20,11 @@
 
 #define AUTHID_INSTALLER 0x4800000000000006ull
 #define PORT 9176
-int sceKernelLoadStartModule(const char*,size_t,const void*,unsigned,void*,int*);
-typedef int (*init_fn)(void);
-typedef int (*term_fn)(void);
-typedef int (*uninstall_fn)(const char*,void*,void*);
-static init_fn init_app=NULL;
-static term_fn term_app=NULL;
-static uninstall_fn uninstall_app=NULL;
-static int load_installer(void){
-  int h=sceKernelLoadStartModule("/system/common/lib/libSceAppInstUtil.sprx",
-                                 0,NULL,0,NULL,NULL);
-  if(h<0)return h;
-  init_app=(init_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,"sceAppInstUtilInitialize");
-  term_app=(term_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,"sceAppInstUtilTerminate");
-  uninstall_app=(uninstall_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,"sceAppInstUtilAppUnInstall");
-  return init_app&&uninstall_app?0:ENOSYS;
-}
+// Use direct AppInstUtil SDK imports, consistent with tested PS5 title-remover.
+// The Sony uninstall API takes a single title ID argument.
+int sceAppInstUtilInitialize(void);
+int sceAppInstUtilAppUnInstall(const char *title_id);
+
 static int strong_random(char out[33]){
   unsigned char bytes[16];
   int f=open("/dev/urandom",O_RDONLY);
@@ -130,22 +119,43 @@ static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
   if(!apply)return 0;
   return rmdir(path)==0?0:errno;
 }
-static void perform(const char* kind,const char* target,unsigned* code,unsigned* state){
+static void report_stage(int client,const char* phase){
+  char msg[96];
+  snprintf(msg,sizeof msg,"UREM2_STAGE %s\n",phase);
+  send(client,msg,strlen(msg),0);
+  printf("UREM2_STAGE %s\n",phase);
+}
+static void perform(const char* kind,const char* target,unsigned* code,unsigned* state,int client){
   *code=EINVAL;*state=0;
   if(!strcmp(kind,"TITLE")){
-    if(!title_ok(target)||!installed(target))return;
-    int rc=load_installer();
-    if(rc==0)rc=init_app();
-    if(rc==0){
-      uint64_t saved=kernel_get_ucred_authid(-1);
-      kernel_set_ucred_authid(-1,AUTHID_INSTALLER);
-      rc=kernel_get_ucred_authid(-1)==AUTHID_INSTALLER
-          ?uninstall_app(target,NULL,NULL):EPERM;
-      kernel_set_ucred_authid(-1,saved);
-      if(term_app)term_app();
+    report_stage(client,"title_validate");
+    if(!title_ok(target)||!installed(target)){
+      report_stage(client,"invalid_installed_title");
+      return;
     }
+    report_stage(client,"appinst_initialize");
+    int rc=sceAppInstUtilInitialize();
+    if(rc!=0){
+      report_stage(client,"appinst_init_rejected");
+      *code=(unsigned)rc;
+      return;
+    }
+    // Initialize AppInstUtil before switching to the installer authid.
+    report_stage(client,"installer_authid");
+    uint64_t saved=kernel_get_ucred_authid(-1);
+    kernel_set_ucred_authid(-1,AUTHID_INSTALLER);
+    if(kernel_get_ucred_authid(-1)!=AUTHID_INSTALLER){
+      report_stage(client,"installer_authid_rejected");
+      *code=EPERM;
+      kernel_set_ucred_authid(-1,saved);
+      return;
+    }
+    report_stage(client,"appinst_uninstall");
+    rc=sceAppInstUtilAppUnInstall(target);
+    report_stage(client,"appinst_uninstall_returned");
+    kernel_set_ucred_authid(-1,saved);
     *code=(unsigned)rc;
-    if(rc==0)*state=1; // accepted, system removal may be asynchronous
+    if(rc==0)*state=1; // accepted; asynchronous native operation may remain
   }else if(!strcmp(kind,"USBPKG")){
     if(!pkg_ok(target))return;
     *code=unlink(target)==0?0:(unsigned)errno;
@@ -205,7 +215,7 @@ int main(void){
   if(!sep){send_full(client,"UREM2_ERROR format\n");close(client);return 7;}
   *sep=0;const char* target=sep+1;
   unsigned code=0,state=0;
-  perform(kind,target,&code,&state);
+  perform(kind,target,&code,&state,client);
   char report[160];
   snprintf(report,sizeof report,"UREM2_RESULT %s %08x %u\n",token,code,state);
   send_full(client,report);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
-// Uninstaller v0.1.8: one-shot capability-authenticated local ELF action.
+// Uninstaller v0.1.9: one-shot capability-authenticated local ELF action.
 // This never writes request files under the sandbox-inaccessible /data/actions.
 #include "inventory.hpp"
 #include <arpa/inet.h>
@@ -148,7 +148,7 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
   if(report)report("REMOVE_HELPER","ready, authenticated one-shot request");
   int action=socket(AF_INET,SOCK_STREAM,0);
   if(action<0){close(fd);result.detail="Cannot connect to removal helper";return result;}
-  struct timeval responseTimeout{8,0};
+  struct timeval responseTimeout{20,0};
   setsockopt(action,SOL_SOCKET,SO_SNDTIMEO,&responseTimeout,sizeof responseTimeout);
   setsockopt(action,SOL_SOCKET,SO_RCVTIMEO,&responseTimeout,sizeof responseTimeout);
   addr.sin_port=htons(9176);
@@ -164,16 +164,30 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
     close(action);close(fd);result.detail="Removal request transmission failed";
     return result;
   }
-  std::string reply;
-  while(reply.size()<512){
+  std::string reply,lastStage;
+  size_t parsed=0;
+  while(reply.size()<4096){
     const ssize_t n=recv(action,buffer,sizeof buffer,0);
     if(n<=0)break;
     reply.append(buffer,(size_t)n);
-    if(reply.find('\n')!=std::string::npos)break;
+    while(true){
+      const size_t nl=reply.find('\n',parsed);
+      if(nl==std::string::npos)break;
+      const std::string line=reply.substr(parsed,nl-parsed);
+      parsed=nl+1;
+      if(line.rfind("UREM2_STAGE ",0)==0){
+        lastStage=line.substr(sizeof("UREM2_STAGE ")-1);
+        if(report)report("REMOVE_STAGE",lastStage.c_str());
+      }
+    }
+    const size_t marker=reply.find("UREM2_RESULT "+token+" ");
+    if(marker!=std::string::npos&&reply.find('\n',marker)!=std::string::npos)break;
   }
   close(action);close(fd);
   result=parseResponse(reply,token,item.kind);
   result.launched=true;
+  if(!result.accepted&&result.code==-1&&!lastStage.empty())
+    result.detail="Title uninstall ended during "+lastStage+" (native helper may have stopped)";
   if(report)report("REMOVE_RESULT",result.detail.c_str());
   return result;
 }

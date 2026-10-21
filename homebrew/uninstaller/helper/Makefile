@@ -7,4 +7,4 @@ all: unscan.elf
 unscan.elf: unscan.c
 	$(CC) $(CFLAGS) -o $@ $<
 unremove.elf: unremove.c
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $< -lSceIpmi -lSceAppInstUtil -lSceUserService -lSceSystemService

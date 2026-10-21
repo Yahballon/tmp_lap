@@ -55,6 +55,12 @@ jobs:
           action=Path('homebrew/uninstaller/native/action_bridge.hpp').read_text()
           helper=Path('homebrew/uninstaller/helper/unremove.c').read_text()
           assert 'UREM2_READY' in helper and 'UREM2_RESULT' in helper
+          assert 'sceAppInstUtilAppUnInstall(target)' in helper
+          assert 'sceAppInstUtilInitialize()' in helper
+          assert 'kernel_dynlib_dlsym' not in helper
+          assert 'report_stage(client,"appinst_initialize")' in helper
+          assert '-lSceAppInstUtil' in Path('homebrew/uninstaller/helper/Makefile').read_text()
+          assert 'REMOVE_STAGE' in action
           assert 'UREM2_READY' in action and 'UREM2_RESULT' in action
           assert 'action folder is not private' not in action.lower()
           assert 'REMOVE_HELPER' in main
@@ -183,7 +189,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.8-PPSA99986
+          name: Uninstaller-v0.1.9-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -191,8 +197,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.8 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.9 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.8 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.8" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.9 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.9" --notes-file homebrew/uninstaller/RELEASE_NOTES.md

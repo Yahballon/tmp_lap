@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.8 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.9 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, detail pane, storage capacity when available, full DualSense menu controls, and confirmation dialog.
 
@@ -37,7 +37,7 @@ The supplied screenshot is a visual reference, not a real PS5 capture. Native bu
 
 GPL-3.0-or-later, matching PS5-DevBridge homebrew UI. Developer: YAHBALLON.
 
-**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.8 (PPSA99986) or later.
+**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.9 (PPSA99986) or later.
 
 ## Crash diagnostics in v0.1.2
 
@@ -92,11 +92,11 @@ The PS5 console logs showed EPERM (errno 1) at /data/homebrew, /mnt/usb0 and the
 - Existing protections remain: no raw unlink of system title folders, no save-data removal, and the application's own title ID cannot be removed.
 - Diagnostic logs: `/data/Uninstaller/uninstaller.log`.
 
-## v0.1.8 — working deletion bridge hardware test
+## v0.1.9 — working deletion bridge hardware test
 
 The v0.1.7 PS5 console log confirms `REMOVE_PRECHECK Action folder is not private; aborting` on every installed-title and USB-PKG removal attempt. The graphical app cannot safely own `/data/Uninstaller/actions` in its sandbox, even with elfldr.
 
-v0.1.8 no longer uses that directory. Instead it sends a single-use `unremove.elf` to the existing localhost:9021 elfldr; the ELF creates a 128-bit random capability, announces it on its existing private loader stream, listens temporarily on **127.0.0.1:9176**, and accepts just one authenticated, explicitly confirmed action. It returns the native return code immediately to the UI and logs `REMOVE_HELPER` and `REMOVE_RESULT`.
+v0.1.9 no longer uses that directory. Instead it sends a single-use `unremove.elf` to the existing localhost:9021 elfldr; the ELF creates a 128-bit random capability, announces it on its existing private loader stream, listens temporarily on **127.0.0.1:9176**, and accepts just one authenticated, explicitly confirmed action. It returns the native return code immediately to the UI and logs `REMOVE_HELPER` and `REMOVE_RESULT`.
 
 - Installed native PS5/PS4 registered titles: `sceAppInstUtilAppUnInstall` request for a validated title actually present under `/user/app`; zero means request accepted, **not proof that asynchronous removal completed**. Saves are not targeted.
 - USB PKG archives: carefully validated standalone `.pkg` file removal. It does not uninstall the installed copy.
@@ -104,3 +104,7 @@ v0.1.8 no longer uses that directory. Instead it sends a single-use `unremove.el
 - Unsupported paths, protected/system title roots, and the Uninstaller's own title remain non-removable.
 - The user must explicitly select the entry and confirm. No removal occurs during a scan, refresh, thumbnail read, or normal startup.
 - **Hardware testing required:** begin with an expendable USB homebrew folder or an unimportant PKG, then test an installed throwaway homebrew title on your own PS5 firmware. See `/data/Uninstaller/uninstaller.log`.
+
+## v0.1.9 installed-title diagnostics
+
+Game uninstall now calls the SDK-linked one-argument Sony API, matching the Playden title-remover payload. Logs record `REMOVE_STAGE` for title validation, AppInstUtil initialization, installer authid switch and uninstall IPC. If the helper ends unexpectedly, the last stage identifies the likely failure point. Test only an expendable installed game first; v0.1.9 is compiled but game uninstall on firmware 5.10 is not yet hardware-confirmed.
