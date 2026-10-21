@@ -1,10 +1,10 @@
 {
   "name": "4 WINS",
   "slug": "4wins",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "titleId": "PPSA99858",
   "contentId": "UP9000-PPSA99858_00-FOURWINSHOMEBREW",
-  "contentVersion": "01.000.002",
-  "releaseTag": "4wins-v0.1.1",
+  "contentVersion": "01.000.003",
+  "releaseTag": "4wins-v0.1.2",
   "developer": "YAHBALLON"
 }
