@@ -99,10 +99,17 @@ jobs:
           export PS5_PAYLOAD_SDK="$sdk"
           platform="$RUNNER_TEMP/zcps5-full-zplayer/ps5-platform"
           test "$(git -C "$platform" rev-parse HEAD)" = "b5efad528e0ac1b8289f39d72a0e890ff68ff0a6"
+          # Only compile the actual native C-locale services. The complete
+          # platform library includes a different kernel ucontext ABI, and
+          # is NOT suitable for this unmodified PS5 payload SDK.
           make -C "$platform/platform" \
             CC="$GITHUB_WORKSPACE/app/tooling/prospero-clang18" \
-            AR=llvm-ar-18 -j 3
-          test -s "$platform/platform/build/ps5/libps5platform.a"
+            AR=llvm-ar-18 -j 2 \
+            build/ps5/locale.o build/ps5/xlocale.o
+          llvm-ar-18 rcs "$platform/platform/build/ps5/libzcps5locale.a" \
+            "$platform/platform/build/ps5/locale.o" \
+            "$platform/platform/build/ps5/xlocale.o"
+          test -s "$platform/platform/build/ps5/libzcps5locale.a"
           echo "REAL_PS5_LIBC_LOCALE_ARCHIVE_READY"
       - name: Attempt genuine zplayer cross-compile
         env:
