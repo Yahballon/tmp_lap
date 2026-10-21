@@ -201,6 +201,7 @@ int main(){
    if(pressed&hui::pad_bits::kSquare){
     if(!library.empty())start_edit(library[size_t(selected)]);
    }
+   if(pressed&hui::pad_bits::kTouchpad){capture.clear();scroll=0;}
    if(pressed&hui::pad_bits::kOptions)start_new();
    if(pressed&hui::pad_bits::kCross){
     if(!library.empty())run(library[size_t(selected)],&stack_anchor);

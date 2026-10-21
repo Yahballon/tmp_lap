@@ -114,7 +114,7 @@ inline const char* save_message(SaveResult v) {
 // On failures the destination stays untouched. User scripts only.
 inline SaveResult save_script(const std::string& dir,const std::string& name,const std::string& code){
  if(!valid_filename(name))return SaveResult::invalid_name;
- if(code.size()>kMaxBytes||code.find('\0')!=std::string::npos)return SaveResult::invalid_code;
+ if(code.empty()||code.size()>kMaxBytes||code.find('\0')!=std::string::npos)return SaveResult::invalid_code;
  std::string dest=dir+"/"+name;
  struct stat st{};
  if(lstat(dest.c_str(),&st)==0){

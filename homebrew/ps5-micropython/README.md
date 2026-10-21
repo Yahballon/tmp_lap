@@ -27,6 +27,7 @@ A real, embedded [MicroPython](https://github.com/micropython/micropython) inter
 | Library | Square | Edit selected script (demo = new copy) |
 | Library | Options | New Python script |
 | Library | Triangle | Rescan folder |
+| Library | Touchpad | Clear console output |
 | Library | L1 / R1 | Scroll console log |
 | Library | Circle | Exit app |
 | Editor | D-pad / Left stick | Choose on-screen keyboard character |

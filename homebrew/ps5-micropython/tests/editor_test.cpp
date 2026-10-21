@@ -36,6 +36,7 @@ int main() {
  assert(unique_filename(dir)=="script_002.py");
  assert(save_script(dir,"script_001.py","print(42)\n")==SaveResult::ok);
  assert(save_script(dir,"../bad.py","x")==SaveResult::invalid_name);
+ assert(save_script(dir,"script_001.py","")==SaveResult::invalid_code);
  assert(save_script(dir,"script_001.py",std::string(kMaxBytes+1,'x'))==SaveResult::invalid_code);
  assert(symlink("/tmp",(std::string(dir)+"/danger.py").c_str())==0);
  assert(save_script(dir,"danger.py","x")==SaveResult::unsafe_target);
