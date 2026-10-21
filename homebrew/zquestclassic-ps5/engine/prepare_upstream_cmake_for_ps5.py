@@ -87,3 +87,14 @@ needle="void zalleg_bring_window_to_foreground(ALLEGRO_DISPLAY* display)\n{\n"
 assert source.count(needle)==1,"Pinned upstream zalleg foreground signature changed"
 source=source.replace(needle,needle+"\t(void)display; // PS5: no desktop window foreground API\n",1)
 zalleg.write_text(source)
+
+
+# The original cross-platform in-game file picker uses Windows stricmp for
+# matching quest extensions. POSIX strcasecmp is the semantic equivalent.
+chooser=a.cmake_root/"src/core/jwinfsel.cpp"
+source=chooser.read_text()
+assert source.count("stricmp(ext, tok)")==1,"Original file filter lookup changed"
+assert '#include <cstring>' in source and '#include <strings.h>' not in source
+source=source.replace('#include <cstring>','#include <cstring>\n#include <strings.h>',1)
+source=source.replace('stricmp(ext, tok)','strcasecmp(ext, tok)',1)
+chooser.write_text(source)
