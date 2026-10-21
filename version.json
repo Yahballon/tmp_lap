@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "92eba973212396b231b76ae8afa54f4b0b7ade85e9bcd09f232a6499ad5eb521",
+  "version": "00a6ae0f7b8a71c75301ca8b906e1902d5974d20ecf80dafd59f6c9f66f86e37",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 18,
+  "app_count": 19,
   "apps": [
     {
       "name": "NESYX",
@@ -237,6 +237,19 @@
       "source": "https://github.com/Yahballon/PSJukebox",
       "size_bytes": 21797369,
       "published_at": "2026-10-18T18:54:10Z"
+    },
+    {
+      "name": "Uninstaller",
+      "slug": "uninstaller",
+      "title_id": "PPSA99986",
+      "version": "0.1.1",
+      "tag": "uninstaller-v0.1.1",
+      "zip_name": "PPSA99986.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/uninstaller-v0.1.1/PPSA99986.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/uninstaller-v0.1.1",
+      "source": "homebrew/uninstaller",
+      "size_bytes": 6068558,
+      "published_at": "2026-10-21T06:29:44Z"
     }
   ]
 }
