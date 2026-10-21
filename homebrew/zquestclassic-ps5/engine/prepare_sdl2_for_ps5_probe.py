@@ -33,7 +33,7 @@ text = cmake.read_text()
 target_link = "  target_link_libraries(SDL2-static PRIVATE ${EXTRA_LIBS} ${EXTRA_LDFLAGS} ${CMAKE_DEPENDS})"
 assert text.count(target_link)==1, "Pinned SDL2-static link line changed"
 ps5_link = """  if(ZC_PS5_SDL_TARGET)
-    foreach(_ps5_systemlib IN ITEMS m pthread -lm -lpthread -pthread)
+    foreach(_ps5_systemlib IN ITEMS m pthread -lm -lpthread -pthread SceSystemService ScePad SceUserService SceAudioOut SceVideoOut SceKeyboard SceImeDialog samplerate)
       list(REMOVE_ITEM EXTRA_LIBS "${_ps5_systemlib}")
       list(REMOVE_ITEM EXTRA_LDFLAGS "${_ps5_systemlib}")
       list(REMOVE_ITEM CMAKE_DEPENDS "${_ps5_systemlib}")
