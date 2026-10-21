@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'homebrew/zquestclassic-ps5/**'
+      - '!homebrew/zquestclassic-ps5/engine/**'
       - '.github/workflows/build-zquestclassic-ps5.yml'
   push:
     branches: [main]
     paths:
       - 'homebrew/zquestclassic-ps5/**'
+      - '!homebrew/zquestclassic-ps5/engine/**'
       - '.github/workflows/build-zquestclassic-ps5.yml'
 
 permissions:
@@ -122,8 +124,8 @@ jobs:
           file=app/dist/PPSA99127.zip
           test -s "$file"
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Refusing to overwrite an existing immutable release: $tag" >&2
-            exit 1
+            echo "Release $tag already exists; keeping immutable artifact unchanged."
+            exit 0
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
