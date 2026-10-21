@@ -18,6 +18,16 @@ class PortIntegrationTests(unittest.TestCase):
             self.assertRegex(lock[name]["commit"], r"^[0-9a-f]{40}$")
             self.assertNotIn("master", lock[name]["tag"])
 
+    def test_native_c_library_cross_compiler_is_not_a_fake_game(self):
+        native = (PROJECT / "scripts" / "build-ps5-libs.sh").read_text()
+        self.assertIn("surgescript-static", native)
+        self.assertIn("physfs-static", native)
+        self.assertNotIn("gh release create", native)
+        self.assertNotIn("eboot.bin", native)
+        toolchain = (PROJECT / "ps5" / "ps5-static-toolchain.cmake").read_text()
+        self.assertIn("x86_64-sie-ps5", toolchain)
+        self.assertIn("CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY", toolchain)
+
     def test_title_identity(self):
         meta = json.loads((PROJECT / "app.json").read_text())
         self.assertEqual(meta["titleId"], "PPSA99358")

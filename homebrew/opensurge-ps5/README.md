@@ -4,7 +4,7 @@
 
 Based on the complete [Open Surge Engine](https://github.com/alemart/opensurge), **not a rewritten or simulated platformer**. Upstream uses the [SurgeScript](https://github.com/alemart/surgescript) virtual machine, Allegro 5 graphics, input and audio, plus PhysicsFS asset mounting.
 
-> **Current status — NOT PLAYABLE ON PS5.** No native PS5 `eboot.bin`, install ZIP, release, game UI screenshot or AI-generated PS5 icon is claimed. This project currently pins the upstream game engine, tests its Linux build, and adds an isolated PS5 entrypoint. The complete PS5 Allegro/SDL runtime and packaging must still be ported and tested.
+> **Current status — NOT PLAYABLE ON PS5.** No native PS5 `eboot.bin`, install ZIP, release, game UI screenshot or AI-generated PS5 icon is claimed. This project currently pins the upstream game engine, tests its Linux build, adds a PS5-target static C dependency build for SurgeScript + PhysicsFS, and an isolated PS5 entrypoint. The complete PS5 Allegro/SDL runtime and packaging must still be ported and tested.
 
 ## Full-port goal
 
@@ -19,7 +19,7 @@ Preserve the original gameplay, levels, sprites, sound effects, music, title scr
 | `scripts/build-host.sh` | Build the original complete game engine on Linux |
 | `ps5/ps5_launcher.h` | PS5 native launch arguments and persistent data path |
 | `scripts/patch-ps5.py` | Carefully integrate PS5 entrypoint without deleting engine gameplay |
-| `scripts/build-ps5.sh` | Fail-closed cross-build entrypoint requiring real PS5 Allegro/SurgeScript/PhysicsFS ports |
+| `scripts/build-ps5-libs.sh` | Cross-compile original VM and PhysicsFS for the PS5 ABI |\n| `ps5/ps5-static-toolchain.cmake` | Use PS5-DevBridge target compiler for C-only libraries |\n| `scripts/validate-ps5-libs.py` | Check native static objects and headers |\n| `scripts/build-ps5.sh` | Fail-closed cross-build entrypoint requiring real PS5 Allegro/SurgeScript/PhysicsFS ports |
 | `PORTING.md` | Technical blockers, bridge path and console acceptance tests |
 
 ## Host validation (Linux)
