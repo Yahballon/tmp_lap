@@ -9,7 +9,6 @@
 #include <mutex>
 #include <atomic>
 #include <pthread.h>
-#include <GLES3/gl3.h>
 #include "logger.hpp"
 #include "crash_report.hpp"
 #include "gfx/renderer.hpp"
