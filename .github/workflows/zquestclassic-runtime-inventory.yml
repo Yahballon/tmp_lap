@@ -32,5 +32,5 @@ jobs:
           if ! find "$sdk" -type f -name 'libc++.a' -print -quit | grep -q .; then
             echo 'SDK_LIBCXX_STATIC_MISSING: build the official ps5-payload-dev/sdk LLVM libcxx runtime for a full ZQuest player; never stub exceptions.'
           else
-            echo 'SDK_LIBCXX_ARCHIVE_PRESENT: link native libc++, libc++abi and libunwind using the SDK's real archive paths.'
+            echo "SDK_LIBCXX_ARCHIVE_PRESENT: link native libc++, libc++abi and libunwind using real SDK archives."
           fi
