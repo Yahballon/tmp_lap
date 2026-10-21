@@ -57,3 +57,34 @@ Console diagnostic `PPSA99842` showed `smoke.pck` under
 header discovery with PS5 libkernel I/O and the diagnostic renderer.
 It **does not** mean `FileAccessUnix`, `DirAccessUnix`, GDScript or
 other runtime components have been exercised on console.
+
+## Native engine link integration (new)
+
+The PS5 diagnostic already confirmed native `getdents` and PCK header reads
+on hardware. The next test is a **different PS5 title**, `PPSA99843`,
+that invokes `godot_ps5_run_pack()` from the *original compiled Godot
+engine* instead of a PCK header-only checker.
+
+The CI job in `.github/workflows/build-godot-ps5.yml` now:
+
+- Cross-compiles Godot 4.7.2 and verifies every archive is present.
+- Generates a manifest listing static libraries and their SHA-256 hashes.
+- Stages all archives in a PS5-DevBridge native app, adds `--start-group`
+  and `--end-group` to resolve interdependent engine components.
+- Copies a genuine Godot 4 GDScript smoke PCK into
+  `/app0/assets/godot/smoke.pck` to avoid USB I/O complicating the very
+  first engine-execution test.
+- Attempts a **real signed native PS5 link**, retains linker diagnostics,
+  and builds `PPSA99843.zip` *only if the linker succeeds*.
+
+If a working headless installer is produced, PS5 hardware validation must
+check `/data/GodotPS5/engine-smoke.log`,
+`/data/GodotPS5/engine-stdout.log`, and
+`/data/GodotPS5/engine-stderr.log`. The critical acceptance condition
+is observing the Godot GDScript output `GODOT_PS5_SMOKE_READY`
+**on the console**. A successful linker output or archive build is not that
+test. There is still no native Godot DisplayServer, renderer, or audio driver.
+
+Do **not** add PPSA99843 to TESTBUILDS until the build is verified and
+clearly labeled as an engine smoke test; never describe it as a playable
+Godot game port before hardware testing.
