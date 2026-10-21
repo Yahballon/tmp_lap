@@ -99,11 +99,40 @@ jobs:
           PS5_CLANG: clang-18
           BUILD_JOBS: '4'
           USE_CCACHE: '0'
-          APP_DEFINITIONS: 'ZCPS5_NATIVE_SCAN=1'
         run: |
           set -euo pipefail
-          make USE_CCACHE=0 BUILD_JOBS=4 APP_DEFINITIONS=ZCPS5_NATIVE_SCAN=1 app
-          grep -q -- '-DZCPS5_NATIVE_SCAN=1' build/app.ninja
+          make USE_CCACHE=0 BUILD_JOBS=4 app
+          # The native scanner flag is local to the app translation unit;
+          # setting it globally would modify the graphics SDK's compilation.
+          grep -q '^#define ZCPS5_NATIVE_SCAN 1
+      - name: Verify patched PS5 ELF, icon and install ZIP
+        run: python3 homebrew/zquestclassic-ps5/scripts/validate_package.py app/dist
+      - name: Upload PS5 port-prototype ZIP - NOT PLAYABLE ZQUEST
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-PS5-Quest-Browser-PROTOTYPE-v0.1.2
+          path: app/dist/PPSA99127.zip
+          if-no-files-found: error
+
+      - name: Publish clearly labeled prerelease for TESTBUILDS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=zquestclassic-ps5-v0.1.2
+          file=app/dist/PPSA99127.zip
+          test -s "$file"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Refusing to overwrite an existing immutable release: $tag" >&2
+            exit 1
+          fi
+          gh release create "$tag" "$file" \
+            --target "$GITHUB_SHA" \
+            --title "ZQuest Classic PS5 v0.1.2 - Active Kernel Scanner (NOT PLAYABLE)" \
+            --notes-file homebrew/zquestclassic-ps5/RELEASE_NOTES.md \
+            --prerelease
+ src/main.cpp
       - name: Verify patched PS5 ELF, icon and install ZIP
         run: python3 homebrew/zquestclassic-ps5/scripts/validate_package.py app/dist
       - name: Upload PS5 port-prototype ZIP - NOT PLAYABLE ZQUEST
