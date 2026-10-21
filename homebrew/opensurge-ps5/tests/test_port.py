@@ -49,7 +49,10 @@ class PortIntegrationTests(unittest.TestCase):
         meta = json.loads((PROJECT / "app.json").read_text())
         self.assertEqual(meta["titleId"], "PPSA99358")
         self.assertFalse(meta["engineIntegrated"])
-        self.assertFalse(meta["installable"])
+        self.assertFalse(meta["gamePlayable"])
+        self.assertFalse(meta["installableGame"])
+        self.assertTrue(meta["nativeFrontend"])
+        self.assertIn("PS5-DevBridge", meta["buildArchitecture"])
         self.assertEqual(meta["slug"], "opensurge-ps5")
 
     def test_patches_real_upstream_main_without_replacing_gameplay(self):
