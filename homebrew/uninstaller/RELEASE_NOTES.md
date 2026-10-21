@@ -1,11 +1,9 @@
-# Uninstaller v0.1.14 — Game/source diagnostics and reliable classic removal
+# Uninstaller v0.1.15 — ShadowMount-first removal
 
-PS5 v0.1.13 console log shows successful AppInstUtil uninstall-request return codes for multiple games, but `SHADOWMOUNT_SOURCE none` during preflight, so no verified USB game data was deleted. Some registrations appeared absent in subsequent scanner outputs; completion/re-mount status must be verified.
-
-- Keep the classic tree_walk + unlink + rmdir deletion backend of v0.1.11 intact.
-- Extend conservative ShadowMount source discovery to exact `<TITLEID>-app0` as well as `<TITLEID>-app` on USB0–USB7, without weakening mount-tracker checks or traversing unrelated folders.
-- Add read-only `SOURCE_DIAG` logs for mount.lnk, mount_img.lnk, existing rejected source directories and exact reason they were rejected.
-- Stream helper output line-by-line without the previous 4 KiB total-output cutoff that could prematurely abort large classic game deletions; preserve final authenticated results, selected source and quarantined path on failure.
-- Show/log `REMOVE_VERIFY_PRESENT` / `REMOVE_VERIFY_ABSENT` after the automatic inventory rescan. Distinguish an accepted Sony uninstall request from confirmed disappearance in the inventory.
-- Retain one-button X/Square confirmation, PS5 AppInstUtil, USB Homebrew and PKG deletion, no save-data deletion.
-- No runtime removal result is claimed for v0.1.14 prior to PS5 hardware testing.
+- The same X/Square confirmation now prefers the official ShadowMountPlus 1.7 deletion API for verified managed game folders and backing images.
+- Reads and confirms the physical source path and management status before issuing `/api/v1/games/delete`.
+- Tracks the asynchronous job through `/api/v1/games/storage/status`; validates job ID, operation, title ID and source path on every response, and displays actual progress.
+- On confirmed source deletion, asks PS5 AppInstUtil to clean up the remaining title registration, followed by inventory rescan.
+- Preserves the v0.1.14 classic validated `tree_walk`/unlink/rmdir fallback for titles not managed by ShadowMount or if its compatible API is unavailable.
+- Refuses unsafe bypass when ShadowMount recognizes a source but denies access; no raw source delete after API failure or uncertain job status.
+- No changes to USB PKG, homebrew or save-data behavior. Hardware verification of the new ShadowMount route is still required.
