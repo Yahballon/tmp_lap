@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "e4146f09aa776a5c29c5a579b72afc228481eb98dc9b77e292d37423ef195527",
+  "version": "07b421c51729bbf0d8f2d50784cd1f2729e775b960d005c4d6057431ddcd489b",
   "repository": "Yahballon/tmp_lap",
   "app_count": 21,
   "apps": [
@@ -164,14 +164,14 @@
       "name": "PS5 MicroPython",
       "slug": "ps5-micropython",
       "title_id": "PPSA99791",
-      "version": "0.1.1",
-      "tag": "ps5-micropython-v0.1.1",
+      "version": "0.2.0",
+      "tag": "ps5-micropython-v0.2.0",
       "zip_name": "PPSA99791.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-micropython-v0.1.1/PPSA99791.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-micropython-v0.1.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-micropython-v0.2.0/PPSA99791.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-micropython-v0.2.0",
       "source": "homebrew/ps5-micropython",
-      "size_bytes": 6163487,
-      "published_at": "2026-10-21T08:16:33Z"
+      "size_bytes": 6169627,
+      "published_at": "2026-10-21T08:37:28Z"
     },
     {
       "name": "Bible Reader",
