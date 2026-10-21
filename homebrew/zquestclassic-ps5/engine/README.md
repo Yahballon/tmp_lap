@@ -6,13 +6,13 @@
 Quest Browser and already detects real `.qst` files. Pressing Cross shows
 details, because no `zplayer` game loop exists in the installed executable.
 
-This branch adds a reproducible upstream **engine C++ compilation milestone**:
+The engine-bringup workflow provides reproducible upstream **C++ compilation milestones**:
 the engine's original `src/base/random.cpp` and `src/base/random.h` are
 fetched from the pinned ZQuestClassic upstream commit and compiled with the
 actual PS5 SDK as part of a throwaway, clearly marked NON-PLAYABLE test
 artifact. Its boot diagnostic `UPSTREAM_RNG_NATIVE_SMOKE seed=42 ...` is
 linked to the real source, not a stand-in implementation. It proves this
-one dependency-free engine unit cross-compiles, **not** that ZScript or gameplay
+that original ZQuest core code cross-compiles, **not** that ZScript or gameplay
 works.
 
 ## Pinned upstream
@@ -31,6 +31,26 @@ works.
 - `standalone_args.hpp` generates those actual arguments and a PS5 writable
   save path for an existing indexed quest. It is a *future player-call bridge*,
   not a launcher yet; it is deliberately not wired to Cross.
+
+## Native ZASM command-table milestone (PR #198)
+
+The native PS5 SDK now also compiles and links the **original**
+`src/components/zasm/table.cpp` instruction/variable lookup table from the
+same pinned upstream commit. CI runs host tests asserting original ZASM
+`WAITFRAME`, `GOTO`, and `SETV` opcodes, and independently validates
+`UPSTREAM_ZASM_TABLE_NATIVE_SMOKE` in the PS5 executable.
+
+The PS5-DevBridge native build uses `-fno-exceptions`, while upstream
+`table.cpp` contains two *constexpr duplicate-table assertions* implemented
+with `throw`. For this PS5 build alone, `prepare_zasm_for_ps5.py` replaces
+exactly those two compile-time assertions with `__builtin_trap()`, which
+still rejects duplicate opcodes during compile-time evaluation. Host tests
+compile the upstream source **unmodified**. No gameplay opcodes are replaced.
+
+**This does not run scripts:** zplayer, the ZASM interpreter, its VM state,
+Allegro, the original graphics/audio path and quest logic remain unported.
+The production TESTBUILDS `PPSA99127.zip` remains v0.1.4 as a native
+file-read diagnostic; the engine bringup ZIP is an isolated CI artifact.
 
 ## Engine backend path
 
