@@ -6,12 +6,12 @@ on:
       - 'homebrew/godot-ps5/**'
       - '.github/workflows/build-godot-ps5.yml'
   push:
-    branches: [main]
+    branches: [main, feature/godot-ps5-engine-foundation]
     paths:
       - 'homebrew/godot-ps5/**'
       - '.github/workflows/build-godot-ps5.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   host-tests:
     runs-on: ubuntu-24.04
@@ -129,6 +129,24 @@ jobs:
           name: Godot-PS5-GDScript-Engine-Smoke-v0.2.0-UNVERIFIED-ON-CONSOLE
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
+      - name: Publish real Godot PS5 engine-smoke prerelease after verified link
+        if: steps.godot_link.outcome == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/feature/godot-ps5-engine-foundation'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-engine-smoke-v0.2.0
+          asset=/tmp/godot-link-app/dist/PPSA99843.zip
+          test -s "$asset"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Existing release unchanged."
+            exit 0
+          fi
+          gh release create "$tag" "$asset" \
+            --target "$GITHUB_SHA" \
+            --title "Godot PS5 Engine Smoke v0.2.0 (HEADLESS / NOT GAMEPLAY)" \
+            --notes "Early real-engine hardware smoke test. Godot 4.7.2 static libraries are linked into a signed PS5 application. This tests native headless engine and GDScript startup only; no gameplay, graphics or audio support is claimed. Packaged smoke.pck loads from /app0/assets/godot/smoke.pck. Logs: /data/GodotPS5/engine-smoke.log, engine-stdout.log and engine-stderr.log. This is experimental; hardware success is not yet established." \
+            --prerelease
       - name: Upload PS5 linker diagnostics for unresolved symbols
         if: always()
         uses: actions/upload-artifact@v4
