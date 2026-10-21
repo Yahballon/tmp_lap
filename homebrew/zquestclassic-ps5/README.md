@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/icon.svg" width="170" alt="Original ZQuest Classic PS5 port-prototype emblem"></p>
 
-# ZQuest Classic PS5 — Port Foundation v0.1.0
+# ZQuest Classic PS5 — Port Foundation v0.1.1
 
 **Native PS5 homebrew prototype · by YAHBALLON · PPSA99127**
 
@@ -11,16 +11,21 @@
 ## What currently works
 
 - Native, controller-friendly 1920 × 1080 UI, not a web wrapper or screenshot.
-- Bounded incremental scanning for original/user-supplied `.qst` files.
+- Bounded incremental scanning for original/user-supplied `.qst` files using direct PS5 libkernel enumeration, avoiding PS5 bigapp `opendir` failures.
 - File list, size, selected quest details and rescanning.
 - USB and internal-drive quest locations, subject to firmware/loader permissions.
 - English UI, sensible exit confirmation, log at `/data/ZQuestClassic/logs/port.log`.
-- PS5 CI cross-compile/package workflow and independently tested quest scanner.
+- PS5 CI cross-compile/package workflow and host + mocked-native libkernel scanner tests.
 
 The program **does not** load quests for gameplay, support saves or play music.
 Source icon `assets/icon.svg` and procedurally rendered PS5 icon are original
 artwork; they are not AI-generated and use no Nintendo/Zelda artwork. A real
 app UI screenshot has not been captured.
+
+After scanning, the **Options** screen shows opened-folder/error counts. Detailed
+`DIR_OK`, `DIR_FAIL`, `DENTS_FAIL`, `QUEST_FOUND`, and `SCAN_DONE`
+records are written to `/data/ZQuestClassic/logs/port.log`. A missing USB root is
+expected; failures to read an existing internal quest directory are not.
 
 ## Where to place quests
 
@@ -53,12 +58,13 @@ does **not** mean the engine can open or run that quest yet.
 
 The workflow is [Build ZQuest Classic PS5](../../.github/workflows/build-zquestclassic-ps5.yml).
 It clones the PS5-DevBridge `simple-calc` native SDK sample and replaces
-its app logic with `native/main.cpp` and `native/quest_index.hpp`. The
+its app logic with `native/main.cpp`, `native/quest_index.hpp` and the
+native `native/scan_directory.hpp` libkernel scanner. The
 workflow builds an actual PS5 ELF then packages `PPSA99127.zip`; only an
 observed successful Actions job establishes a valid artifact.
 
 After successful native CI, the **experimental prerelease** can be downloaded from
-[ZQuest Classic PS5 v0.1.0](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.0)
+[ZQuest Classic PS5 v0.1.1](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.1)
 and is intentionally included in the TESTBUILDS catalog so the controller-first
 library UI can be tested on real hardware. The release is **NOT PLAYABLE**.
 
