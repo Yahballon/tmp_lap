@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -51,34 +50,46 @@ public:
         }
         atlasw_=atlasw;atlash_=atlash;herow_=herow;heroh_=heroh;
         const auto defs=read(base+"defs.txt",80*1024);
-        std::istringstream defstream(defs);
-        std::string line;
         int defined=0;
-        while(std::getline(defstream,line)){
-            std::istringstream row(line);
-            int id=0,sx=0,sy=0,w=0,h=0;float z=.5f;std::string type;
-            if(!(row>>id>>sx>>sy>>w>>h>>type>>z)) {error_="BRICK DEF PARSE";return false;}
+        size_t index=0;
+        while(index<defs.size()){
+            const auto end=defs.find('\n',index);
+            const auto length=end==std::string::npos?defs.size()-index:end-index;
+            if(length==0){index=end==std::string::npos?defs.size():end+1;continue;}
+            const auto row=defs.substr(index,length);
+            int id=0,sx=0,sy=0,w=0,h=0;float z=.5f;char type[16]{};
+            if(std::sscanf(row.c_str(),"%d %d %d %d %d %15s %f",
+                           &id,&sx,&sy,&w,&h,type,&z)!=7){
+                error_="BRICK DEF PARSE";return false;
+            }
             if(id<0||id>=512||defs_[id].defined||sx<0||sy<0||w<1||h<1||
                sx+w>atlasw||sy+h>atlash||!std::isfinite(z)){
                 error_="BRICK DEF BOUNDS";return false;
             }
-            if(type!="PASSABLE" && type!="SOLID" && type!="CLOUD"){
+            const std::string kind(type);
+            if(kind!="PASSABLE" && kind!="SOLID" && kind!="CLOUD"){
                 error_="BRICK TYPE INVALID";return false;
             }
-            defs_[id]={sx,sy,w,h,type=="SOLID",type=="CLOUD",true,z};
+            defs_[id]={sx,sy,w,h,kind=="SOLID",kind=="CLOUD",true,z};
             ++defined;
+            index=end==std::string::npos?defs.size():end+1;
         }
         if(defined<70){error_="BRICK DEFS INCOMPLETE";return false;}
         const auto positions=read(base+"bricks.txt",600000);
-        std::istringstream instances(positions);
-        while(std::getline(instances,line)){
-            std::istringstream row(line);
+        index=0;
+        while(index<positions.size()){
+            const auto end=positions.find('\n',index);
+            const auto length=end==std::string::npos?positions.size()-index:end-index;
+            if(length==0){index=end==std::string::npos?positions.size():end+1;continue;}
+            const auto row=positions.substr(index,length);
             int id=0,bx=0,by=0;
-            if(!(row>>id>>bx>>by) || id<0||id>=512||!defs_[id].defined ||
+            if(std::sscanf(row.c_str(),"%d %d %d",&id,&bx,&by)!=3 ||
+               id<0||id>=512||!defs_[id].defined ||
                bx<-1000000||bx>1000000||by<-1000000||by>1000000){
                 error_="LEVEL BRICK PARSE";placed_.clear();return false;
             }
             placed_.push_back({id,bx,by});
+            index=end==std::string::npos?positions.size():end+1;
         }
         if(static_cast<int>(placed_.size())!=count){
             error_="LEVEL BRICK COUNT";placed_.clear();return false;
