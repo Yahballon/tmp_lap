@@ -56,6 +56,16 @@ assert "frame.held=held_" in pad_cpp
 assert "frame.pressed |= bits & ~held_" in pad_cpp
 assert "pad_state.update(samples.data(),count)" in main_cpp
 assert "PAD_DIAG" in main_cpp
+# Confirm native entity positions are sourced from the real upstream level.
+entities=(root/"entities.tsv").read_text().splitlines()
+kinds=[line.split("\t",1)[0] for line in entities]
+assert len(entities)==128 and kinds.count("ring")==124
+assert kinds.count("spring")==1 and kinds.count("spring_stronger")==2
+assert kinds.count("goal")==1
+for name in ("collectibles","springs","goal"):
+    w,h=map(int,(root/(name+".txt")).read_text().split())
+    assert 16<=w<=4096 and 16<=h<=4096
+    assert (root/(name+".rgba")).stat().st_size==w*h*4
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

@@ -35,6 +35,14 @@ public:
     size_t indexed_cells() const {return cells_.size();}
     unsigned collision_blocks() const {return blocked_;}
     unsigned auto_respawns() const {return respawns_;}
+    // Experimental native spring velocity hook from original 'Spring
+    // Standard/Stronger' SurgeScript values (600 and 960 world units/sec).
+    void spring_bounce(float strength) {
+        if(!ready()||strength<100.f||strength>1400.f)return;
+        vy_=-strength;
+        ground_=false;
+        y_-=3.f; // free the player's feet from the spring platform
+    }
 
     bool load(Renderer& renderer,const std::string& game_root) {
         error_.clear(); placed_.clear(); cells_.clear(); atlas_=hero_=0;
