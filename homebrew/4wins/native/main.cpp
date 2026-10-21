@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// 4 WINS by YAHBALLON v0.1.0 — native PS5
-#include "game.hpp"
+// 4 WINS by YAHBALLON v0.1.1 — photo-based UI, ps5-homebrew-ui kit
+#include "controls.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -12,194 +12,253 @@
 #include "vendor/stb_image.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <sys/stat.h>
+
 using namespace hui::gfx;
 using namespace wins4;
 namespace {
-constexpr const char* VERSION="4 WINS by YAHBALLON v0.1.0";
-constexpr int S=104;
-Color rgb(unsigned x,float a=1.f){return Color::rgb(x,a);}
-std::string read(const char* name,size_t limit=12*1024*1024){
- FILE* f=fopen(name,"rb");if(!f)return {};
+constexpr int CHIP_SIZE=96;
+constexpr float COLUMN_X0=633.0f,COLUMN_STEP=106.7f,ROW_Y_TOP=285.6f,ROW_STEP=93.2f;
+constexpr const char* LABEL="4 WINS by YAHBALLON v0.1.1";
+Color C(unsigned x,float a=1.f){return Color::rgb(x,a);}
+std::string file(const std::string& path,size_t limit=18*1024*1024){
+ FILE* f=fopen(path.c_str(),"rb");if(!f)return {};
  if(fseek(f,0,SEEK_END)){fclose(f);return {};}
- long n=ftell(f);if(n<0||size_t(n)>limit){fclose(f);return {};}
- rewind(f);std::string data(size_t(n),'\0');if(fread(data.data(),1,data.size(),f)!=data.size())data.clear();
- fclose(f);return data;
+ long n=ftell(f);if(n<=0||size_t(n)>limit){fclose(f);return {};}
+ rewind(f);std::string bytes(size_t(n),'\0');if(fread(bytes.data(),1,bytes.size(),f)!=bytes.size())bytes.clear();
+ fclose(f);return bytes;
 }
-std::string asset(const char* n,size_t limit=12*1024*1024){
- const char* dirs[]={"/app0/assets/","/data/homebrew/PPSA99858/assets/","assets/"};
- for(auto* dir:dirs){std::string b=read((std::string(dir)+n).c_str(),limit);if(!b.empty())return b;}
+std::string asset(const char* name,size_t limit=18*1024*1024){
+ for(const char* prefix:{"/app0/assets/","/data/homebrew/PPSA99858/assets/","/mnt/usb0/homebrew/PPSA99858/assets/","assets/"}){
+  auto data=file(std::string(prefix)+name,limit);if(!data.empty())return data;
+ }
  return {};
 }
-struct Texture{unsigned id=0;};
-Texture jpg(Renderer& r,const char* filename){
- auto b=asset(filename);if(b.empty())return {};
- int w=0,h=0,n=0;auto* px=stbi_load_from_memory((const stbi_uc*)b.data(),int(b.size()),&w,&h,&n,4);
- if(!px)return {};unsigned tex=r.batch().create_texture(w,h,px);stbi_image_free(px);return {tex};
-}
-Texture chip(Renderer& r,const char* filename){
- auto b=asset(filename,S*S*4+1);if(b.size()!=S*S*4)return {};
- return {r.batch().create_texture(S,S,(const uint8_t*)b.data())};
-}
-void text(DrawList& d,const Font& f,unsigned a,const std::string& s,float x,float y,int size,unsigned clr=0xffffff,Align align=Align::left){
- d.text(f,a,s,x,y,float(size),rgb(clr),align);
-}
-void panel(DrawList& d,float x,float y,float w,float h,unsigned border=0x22baff){
- d.bordered_rect({x,y,w,h},18,rgb(0x061632,.94f),2,rgb(border));
+void log(const char* s){
+ mkdir("/data/4WINS",0755);mkdir("/data/4WINS/logs",0755);
+ if(FILE* f=fopen("/data/4WINS/logs/4wins.log","ab")){fprintf(f,"[4 WINS v0.1.1] %s\n",s);fclose(f);}
 }
 void save(const Game& g){
  mkdir("/data/4WINS",0755);
  FILE* f=fopen("/data/4WINS/settings.tmp","wb");if(!f)return;
- fprintf(f,"mode=%d\nlevel=%d\nfirst=%d\nrumble=%d\nscore1=%d\nscore2=%d\ndraw=%d\n",int(g.opponent),int(g.level),g.first_player_red,g.sound,g.wins[0],g.wins[1],g.draws);
+ fprintf(f,"mode=%d\nlevel=%d\nfirst=%d\nrumble=%d\nscore1=%d\nscore2=%d\ndraw=%d\n",int(g.opponent),int(g.level),int(g.first_player_red),int(g.sound),g.wins[0],g.wins[1],g.draws);
  if(fclose(f)==0)rename("/data/4WINS/settings.tmp","/data/4WINS/settings.ini");
 }
 void load(Game& g){
  FILE* f=fopen("/data/4WINS/settings.ini","rb");if(!f)return;
- char l[80];int n;
- while(fgets(l,sizeof(l),f)){
-  if(sscanf(l,"mode=%d",&n)==1)g.opponent=Opponent(std::clamp(n,0,1));
-  else if(sscanf(l,"level=%d",&n)==1)g.level=Level(std::clamp(n,0,2));
-  else if(sscanf(l,"first=%d",&n)==1)g.first_player_red=n!=0;
-  else if(sscanf(l,"rumble=%d",&n)==1)g.sound=n!=0;
-  else if(sscanf(l,"score1=%d",&n)==1)g.wins[0]=std::clamp(n,0,100000);
-  else if(sscanf(l,"score2=%d",&n)==1)g.wins[1]=std::clamp(n,0,100000);
-  else if(sscanf(l,"draw=%d",&n)==1)g.draws=std::clamp(n,0,100000);
+ char line[96];int n=0;
+ while(fgets(line,sizeof(line),f)){
+  if(sscanf(line,"mode=%d",&n)==1)g.opponent=Opponent(std::clamp(n,0,1));
+  else if(sscanf(line,"level=%d",&n)==1)g.level=Level(std::clamp(n,0,2));
+  else if(sscanf(line,"first=%d",&n)==1)g.first_player_red=n!=0;
+  else if(sscanf(line,"rumble=%d",&n)==1)g.sound=n!=0;
+  else if(sscanf(line,"score1=%d",&n)==1)g.wins[0]=std::clamp(n,0,100000);
+  else if(sscanf(line,"score2=%d",&n)==1)g.wins[1]=std::clamp(n,0,100000);
+  else if(sscanf(line,"draw=%d",&n)==1)g.draws=std::clamp(n,0,100000);
  }
  fclose(f);
 }
-void draw(DrawList& d,const Game& g,const Font& f,unsigned atlas,const Texture& menu,const Texture& scene,const Texture& red,const Texture& yellow){
- const bool playing=g.screen==Screen::Playing||g.screen==Screen::Paused||g.screen==Screen::Result;
- const auto img=playing?scene.id:menu.id;
- if(img)d.image(img,{0,0,1920,1080},kFullUv,rgb(0xffffff));
- else d.gradient_rect({0,0,1920,1080},0,rgb(0x020817),rgb(0x13255a));
- if(playing){
-  // Source game scene is a clean 7 by 6 board; overlay active discs.
-  for(int x=0;x<7;x++)for(int r=0;r<6;r++){
-    int p=g.at(x,r);unsigned id=p==1?red.id:p==2?yellow.id:0;
-    if(id)d.image(id,{573.f+x*112,720.f-r*99,104,104},kFullUv,rgb(0xffffff));
-  }
-  panel(d,57,334,435,315,g.turn==1?0xff2859:0xffcc40);
-  const char* status=g.screen==Screen::Result?(g.winner==1?"RED WINS":g.winner==2?"YELLOW WINS":"DRAW"):g.turn==1?"RED TURN":"YELLOW TURN";
-  text(d,f,atlas,status,84,405,34,g.turn==1?0xff506a:0xffdc54);
-  text(d,f,atlas,"LEFT/RIGHT   CHOOSE",84,458,25);
-  text(d,f,atlas,"X   DROP CHIP",84,507,25);
-  text(d,f,atlas,"OPTIONS   PAUSE",84,560,24);
-  text(d,f,atlas,"SCORE "+std::to_string(g.wins[0])+" : "+std::to_string(g.wins[1]),84,610,25);
-  if(g.screen==Screen::Playing){
-    const int x=625+g.selected*112;
-    d.ring(float(x),198,24,5,rgb(g.turn==1?0xff3155:0xffdc45));
-  }
-  if(g.screen==Screen::Result||g.screen==Screen::Paused){
-    panel(d,675,400,605,225,0xffdc52);
-    text(d,f,atlas,g.screen==Screen::Paused?"GAME PAUSED":status,975,475,42,0xffffff,Align::center);
-    text(d,f,atlas,g.screen==Screen::Paused?"X Resume    TRIANGLE Restart":"X Rematch    O Menu",975,551,25,0xa8dcff,Align::center);
-  }
- }else if(g.screen==Screen::Home){
-  if(g.focus>0)d.bordered_rect({58.f,283.f+float(g.focus)*100,410,76},18,rgb(0x0b3b8f,.65f),4,rgb(0x56ecff));
- }else {
-  panel(d,1450,256,410,560);
-  const bool mode=g.screen==Screen::Mode;
-  const bool diff=g.screen==Screen::Difficulty;
-  text(d,f,atlas,mode?"GAME MODE":diff?"BOT DIFFICULTY":g.screen==Screen::Settings?"SETTINGS":"EXIT?",1480,320,28,0x73dcff);
-  for(int i=0;i<(mode?2:diff?3:g.screen==Screen::Settings?4:2);i++){
-    const std::string val=mode?(i?"VS BOT":"2 PLAYERS"):diff?(i==0?"EASY":i==1?"MEDIUM":"HARD"):g.screen==Screen::Settings?(i==0?"STARTING PLAYER":i==1?"BOT LEVEL":i==2?"RUMBLE":"RESET SCORES"):(i?"NO":"YES");
-    const float y=360.f+i*95;
-    d.bordered_rect({1470,y,370,76},12,rgb(i==g.submenu?0x124c9b:0x081731,.96f),i==g.submenu?3:1,rgb(i==g.submenu?0x49dbff:0x305478));
-    text(d,f,atlas,val,1490,y+49,25);
+struct Texture{unsigned id=0;};
+Texture jpg(Renderer& renderer,const char* name){
+ auto data=asset(name);if(data.empty()){log("Background file missing");return {};}
+ int w=0,h=0,n=0;auto* px=stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(data.data()),int(data.size()),&w,&h,&n,4);
+ if(!px||w<1||h<1||w>4096||h>4096){if(px)stbi_image_free(px);log("Background decode failed");return {};}
+ auto id=renderer.batch().create_texture(w,h,px);stbi_image_free(px);return {id};
+}
+Texture chip(Renderer& renderer,const char* name){
+ auto data=asset(name,CHIP_SIZE*CHIP_SIZE*4+1);
+ if(data.size()!=CHIP_SIZE*CHIP_SIZE*4){log("Chip atlas missing");return {};}
+ return {renderer.batch().create_texture(CHIP_SIZE,CHIP_SIZE,reinterpret_cast<const uint8_t*>(data.data()))};
+}
+void txt(DrawList& d,const Font& font,unsigned atlas,const std::string& s,float x,float y,float size,unsigned tint=0xffffff,Align align=Align::left){
+ d.text(font,atlas,s,x,y,size,C(tint),align);
+}
+void rect(DrawList& d,float x,float y,float w,float h,float radius,unsigned fill,unsigned outline,float border=1.5f){
+ d.bordered_rect({x,y,w,h},radius,C(fill),border,C(outline));
+}
+void mini_button(DrawList& d,const Font& f,unsigned atlas,int item,int focus,const std::string& title,float x,float y,float width,float height,unsigned accent){
+ bool active=item==focus;
+ if(active)d.glow({x,y,width,height},17,20,C(accent,.58f));
+ d.bordered_rect({x,y,width,height},15,C(active?0x063c9b:0x060c23,.99f),active?3.f:1.6f,C(active?accent:0x27456f));
+ if(active)d.rounded_rect({x+2,y+8,5,height-16},3,C(0x73ffff));
+ txt(d,f,atlas,title,x+40,y+height*.64f,26,active?0xffffff:0xdfeaf9);
+ if(active)txt(d,f,atlas,">",x+width-26,y+height*.65f,27,0x79f9ff,Align::right);
+}
+void main_menu(DrawList& d,const Font& f,unsigned atlas,const Game& g){
+ const char* items[]={"Start Game","Game Mode","Settings","Exit"};
+ for(int i=0;i<4;i++)mini_button(d,f,atlas,i,g.focus,items[i],69,306.f+96.f*i,395,90,0x31cfff);
+ // Mode and controls belong to the menu; nothing is painted over board.
+ rect(d,69,721,395,82,12,0x060e23,0x244c7e);
+ txt(d,f,atlas,g.opponent==Opponent::Human?"2 PLAYERS - LOCAL":"1 PLAYER VS BOT",89,759,23,0xffdf78);
+ txt(d,f,atlas,g.opponent==Opponent::Human?"Take turns using one controller":(g.level==Level::Easy?"BOT: EASY":g.level==Level::Medium?"BOT: MEDIUM":"BOT: HARD"),89,789,19,0xbbd2fa);
+ txt(d,f,atlas,"D-PAD  Navigate     X  Select",74,1048,20,0xd4ecff);
+}
+void game_left(DrawList& d,const Font& f,unsigned atlas,const Game& g,const Controller& ctl){
+ // The reference photograph includes a menu. Paint one *opaque* panel over
+ // all four baked menu buttons: no stale menu labels bleed through the HUD.
+ d.rounded_rect({57,304,420,393},18,C(0x030a20,.995f));
+ rect(d,65,310,404,376,17,0x071634,g.turn==1?0xff2d64:0xffdd35,2.4f);
+ const int actor=g.screen==Screen::Result?(g.winner==3?0:g.winner):g.turn;
+ txt(d,f,atlas,g.screen==Screen::Result?(g.winner==3?"DRAW GAME":g.winner==1?"RED WINS!":"YELLOW WINS!"):g.screen==Screen::Paused?"GAME PAUSED":actor==1?"RED TO MOVE":"YELLOW TO MOVE",86,373,32,actor==2?0xffd74c:0xff4e67);
+ d.line(86,391,442,391,2,C(0x274a81));
+ if(g.opponent==Opponent::Bot&&g.turn==2&&g.screen==Screen::Playing)txt(d,f,atlas,"BOT IS THINKING...",86,443,23,0xffe65c);
+ else txt(d,f,atlas,g.opponent==Opponent::Human?"2 PLAYERS - LOCAL":"1 PLAYER VS BOT",86,443,23,0xf6f9ff);
+ txt(d,f,atlas,"LEFT / RIGHT   Select column",86,501,22,0xe7f3ff);
+ txt(d,f,atlas,"X   Drop chip",86,546,23,0xe7f3ff);
+ txt(d,f,atlas,"OPTIONS   Pause / Menu",86,591,21,0xacc7ea);
+ d.line(86,610,442,610,1,C(0x395e97));
+ txt(d,f,atlas,"SCORE",87,649,20,0x99caff);
+ txt(d,f,atlas,std::to_string(g.wins[0])+"  :  "+std::to_string(g.wins[1]),442,652,29,0xffffff,Align::right);
+ if(ctl.bot_pending&&g.turn==2)txt(d,f,atlas,"BOT",424,667,15,0xffd139,Align::right);
+}
+void draw_chip(DrawList& d,const Texture& tex,float cx,float cy,float sz,unsigned fallback){
+ if(tex.id)d.image(tex.id,{cx-sz/2,cy-sz/2,sz,sz},kFullUv,C(0xffffff));
+ else {d.circle(cx,cy,sz*.45f,C(fallback));d.ring(cx,cy,sz*.43f,5,C(0xffffff,.65f));}
+}
+void board(DrawList& d,const Font& f,unsigned atlas,const Game& g,const Controller& ctl,uint64_t now,const Texture& red,const Texture& yellow){
+ const float player_size=84.f;
+ for(int c=0;c<COLS;c++)for(int r=0;r<ROWS;r++){
+  int p=g.at(c,r);if(!p)continue;
+  if(ctl.last_drop_col==c&&ctl.last_drop_row==r&&now-ctl.drop_time<400000ULL)continue;
+  draw_chip(d,p==1?red:yellow,COLUMN_X0+c*COLUMN_STEP,ROW_Y_TOP+(ROWS-r-1)*ROW_STEP,player_size,p==1?0xff1741:0xffcc21);
+ }
+ if(ctl.last_drop_col>=0&&now-ctl.drop_time<400000ULL){
+  float elapsed=float(now-ctl.drop_time)/400000.f;
+  float progress=1.f-std::pow(1.f-std::clamp(elapsed,0.f,1.f),3.f);
+  const float target=ROW_Y_TOP+(ROWS-ctl.last_drop_row-1)*ROW_STEP;
+  const float y=195.f+(target-195.f)*progress;
+  draw_chip(d,ctl.last_drop_owner==1?red:yellow,COLUMN_X0+ctl.last_drop_col*COLUMN_STEP,y,player_size,ctl.last_drop_owner==1?0xff1741:0xffcc21);
+ }
+ if(g.screen==Screen::Playing&&!(g.turn==2&&g.opponent==Opponent::Bot)){
+  float x=COLUMN_X0+g.selected*COLUMN_STEP;
+  d.glow({x-35,198,70,40},17,15,C(g.turn==1?0xff3862:0xffe036,.8f));
+  d.triangle({x-20,204,40,28},C(g.turn==1?0xff426b:0xffdf3a),0,3.14159265f);
+  txt(d,f,atlas,std::to_string(g.selected+1),x,196,21,g.turn==1?0xff859d:0xffec9d,Align::center);
+ }
+ if(g.screen==Screen::Result&&g.winner!=3){
+  float pulse=.55f+.45f*std::sin(float(now%1500000ULL)*0.000004f);
+  for(int j=0;j<4;j++){
+   int col=g.winning_cells[j*2],row=g.winning_cells[j*2+1];
+   if(col>=0&&row>=0)d.ring(COLUMN_X0+col*COLUMN_STEP,ROW_Y_TOP+(ROWS-row-1)*ROW_STEP,42,5,C(0xffffff,pulse));
   }
  }
- text(d,f,atlas,"by YAHBALLON  v0.1.0",1850,1048,20,0xc2d8ff,Align::right);
 }
-} // namespace
+void footer(DrawList& d,const Font& f,unsigned atlas,const Game& g){
+ const bool bot=g.opponent==Opponent::Bot;
+ // The underlying photo has old player-label text; opaque re-rendered tiles
+ // fully replace the area while keeping the same neon red/yellow silhouette.
+ d.glow({490,860,432,143},18,13,C(0xff174d,.55f));
+ rect(d,500,869,418,126,18,0x130716,0xff264e,3);
+ d.circle(552,932,38,C(0xe50d3a));d.ring(552,932,36,5,C(0xff6785));
+ txt(d,f,atlas,"PLAYER 1",607,915,29,0xff536a);
+ txt(d,f,atlas,"RED  |  X DROP",609,952,21,0xffffff);
+ d.glow({990,860,432,143},18,13,C(0xffdf25,.47f));
+ rect(d,994,869,415,126,18,0x171306,0xfad82a,3);
+ d.circle(1044,932,38,C(0xffd12b));d.ring(1044,932,36,5,C(0xfff2a9));
+ txt(d,f,atlas,bot?"BOT":"PLAYER 2",1097,915,29,0xffdf4e);
+ txt(d,f,atlas,bot?(g.level==Level::Easy?"EASY AI":g.level==Level::Medium?"MEDIUM AI":"HARD AI"):"YELLOW  |  X DROP",1098,952,21,0xffffff);
+ txt(d,f,atlas,"4 WINS  v0.1.1  by YAHBALLON",1838,1047,19,0xd1e5ff,Align::right);
+}
+void overlay(DrawList& d,const Font& f,unsigned atlas,const Game& g,float clock){
+ if(g.screen==Screen::Home||g.screen==Screen::Playing)return;
+ // Selection pages and result dialogs appear *beside* the board. Unlike
+ // v0.1.0, none of them ever overlap the hole grid.
+ float x=1475,y=288,w=373,h=490;
+ d.shadow({x,y,w,h},18,21,C(0x000006,.78f));
+ rect(d,x,y,w,h,20,0x040f27,0x3094e9,2.6f);
+ const char* title="";
+ if(g.screen==Screen::Mode)title="GAME MODE";
+ else if(g.screen==Screen::Difficulty)title="BOT DIFFICULTY";
+ else if(g.screen==Screen::Settings)title="SETTINGS";
+ else if(g.screen==Screen::Paused)title="PAUSED";
+ else if(g.screen==Screen::Result)title="ROUND FINISHED";
+ else title="EXIT GAME?";
+ txt(d,f,atlas,title,x+27,y+63,27,0x8cdeff);
+ d.line(x+26,y+84,x+w-27,y+84,2,C(0x2764b2));
+ const bool mode=g.screen==Screen::Mode,diff=g.screen==Screen::Difficulty;
+ const bool settings=g.screen==Screen::Settings,paused=g.screen==Screen::Paused;
+ const bool result=g.screen==Screen::Result,exiting=g.screen==Screen::Exit;
+ const int count=mode?2:diff?3:settings?4:paused?3:2;
+ if(result){txt(d,f,atlas,g.winner==3?"IT'S A DRAW":g.winner==1?"RED WINS!":"YELLOW WINS!",x+26,y+124,29,g.winner==2?0xffd84e:0xff526d);}
+ if(exiting)txt(d,f,atlas,"Return to PS5 homebrew?",x+26,y+133,21,0xe6f4ff);
+ for(int n=0;n<count;n++){
+  std::string value;
+  if(mode)value=n==0?"2 PLAYERS":"PLAYER VS BOT";
+  else if(diff)value=n==0?"EASY":n==1?"MEDIUM":"HARD";
+  else if(settings){
+   if(n==0)value=std::string("FIRST: ")+(g.first_player_red?"RED":"YELLOW");
+   if(n==1)value=std::string("BOT: ")+(g.level==Level::Easy?"EASY":g.level==Level::Medium?"MEDIUM":"HARD");
+   if(n==2)value=std::string("RUMBLE: ")+(g.sound?"ON":"OFF");
+   if(n==3)value="RESET SCORES";
+  }else if(paused)value=n==0?"RESUME":n==1?"RESTART":"MAIN MENU";
+  else if(result)value=n==0?"REMATCH":"MAIN MENU";
+  else value=n==0?"YES, EXIT":"CANCEL";
+  const float top=y+(result||exiting?169.f:126.f)+n*76.f;
+  bool active=n==g.submenu;
+  if(active)d.glow({x+20,top,w-40,63},11,11,C(0x2d9cff,.55f));
+  rect(d,x+21,top,w-42,63,11,active?0x094098:0x0b1b38,active?0x3ee4ff:0x335685,active?2.8f:1.4f);
+  txt(d,f,atlas,value,x+41,top+43,active?25:24,0xf4f9ff);
+ }
+ txt(d,f,atlas,settings?"LEFT/RIGHT: CHANGE":"D-PAD: SELECT",x+26,y+h-49,18,0x9cbfeb);
+ txt(d,f,atlas,"X CONFIRM  /  O BACK",x+26,y+h-21,16,0x9bb8e2);
+ (void)clock;
+}
+void render(DrawList& d,const Game& g,const Controller& ctl,const Font& f,unsigned atlas,const Texture& photo,const Texture& red,const Texture& yellow,uint64_t now){
+ if(photo.id)d.image(photo.id,{0,0,1920,1080},kFullUv,C(0xffffff));
+ else{d.gradient_rect({0,0,1920,1080},0,C(0x030b26),C(0x090d19));txt(d,f,atlas,"4 WINS",70,170,112,0x72baff);}
+ if(g.screen==Screen::Home||g.screen==Screen::Mode||g.screen==Screen::Difficulty||g.screen==Screen::Settings||g.screen==Screen::Exit){
+  main_menu(d,f,atlas,g);
+  if(g.screen!=Screen::Home)overlay(d,f,atlas,g,float(now)/1000000.f);
+ }else{
+  board(d,f,atlas,g,ctl,now,red,yellow);
+  game_left(d,f,atlas,g,ctl);
+  footer(d,f,atlas,g);
+  if(g.screen!=Screen::Playing)overlay(d,f,atlas,g,float(now)/1000000.f);
+ }
+}
+}
 int main(){
+ log(LABEL);
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
- Font font;auto bytes=read("/app0/assets/fonts/inter-semibold.huifont");
- if(bytes.empty())bytes=read("/data/homebrew/PPSA99858/assets/fonts/inter-semibold.huifont");
- if(!font.load(bytes))hui::sys::park();
+ auto fdata=asset("fonts/inter-semibold.huifont",5*1024*1024);
+ Font font;if(!font.load(fdata)){log("Font unavailable");hui::sys::park();}
  unsigned atlas=renderer.batch().create_font_texture(font);
- Texture home=jpg(renderer,"scene_menu.jpg"),game=jpg(renderer,"scene_game.jpg"),red=chip(renderer,"red.rgba"),yellow=chip(renderer,"yellow.rgba");
+ Texture scene=jpg(renderer,"scene_game.jpg");
+ Texture red=chip(renderer,"red.rgba"),yellow=chip(renderer,"yellow.rgba");
  hui::ps5::Pad pad;pad.open();
+ hui::InputTracker tracker;
+ hui::InputSettings prefs;prefs.repeat_delay_us=310000;prefs.repeat_interval_us=118000;tracker.set_settings(prefs);
  Game g;load(g);g.seed^=uint64_t(hui::sys::monotonic_us());
- uint32_t previous=0;uint64_t repeat=0,bot_time=0;bool wait_bot=false;
+ Controller ctl;uint64_t previous=uint64_t(hui::sys::monotonic_us());
  for(;;){
-  auto now=uint64_t(hui::sys::monotonic_us());
-  std::array<hui::PadSample,64> events{};size_t count=pad.read(events);
-  uint32_t pressed=0,held=0;bool conn=false;
-  for(size_t i=0;i<count;i++){
-    if(!events[i].connected)continue;
-    conn=true;uint32_t b=events[i].buttons;
-    if(events[i].left_x<65)b|=hui::pad_bits::kLeft;if(events[i].left_x>190)b|=hui::pad_bits::kRight;
-    if(events[i].left_y<65)b|=hui::pad_bits::kUp;if(events[i].left_y>190)b|=hui::pad_bits::kDown;
-    pressed|=b&~previous;previous=b;held=b;
+  uint64_t now=uint64_t(hui::sys::monotonic_us());
+  float dt=std::clamp(float(now-previous)/1000000.f,0.f,.06f);previous=now;
+  std::array<hui::PadSample,64> samples{};const size_t count=pad.read(samples);
+  const hui::InputFrame frame=tracker.update(std::span<const hui::PadSample>(samples.data(),count),now);
+  const Input in{
+   .up=frame.nav==hui::Direction::up,.down=frame.nav==hui::Direction::down,
+   .left=frame.nav==hui::Direction::left,.right=frame.nav==hui::Direction::right,
+   .confirm=frame.is_pressed(hui::Action::confirm),.back=frame.is_pressed(hui::Action::back),
+   .triangle=frame.is_pressed(hui::Action::north),.options=frame.is_pressed(hui::Action::menu),
+   .l1=frame.is_pressed(hui::Action::page_prev),.r1=frame.is_pressed(hui::Action::page_next)};
+  const auto old_screen=g.screen,old_moves=g.moves;
+  if(ctl.handle(g,in,now)){
+   save(g);log("Exit requested");pad.close();
+   if(scene.id)glDeleteTextures(1,&scene.id);
+   if(red.id)glDeleteTextures(1,&red.id);
+   if(yellow.id)glDeleteTextures(1,&yellow.id);
+   renderer.release();display.close();hui::sys::quit();
   }
-  if(!conn)previous=0;
-  uint32_t direction=held&(hui::pad_bits::kLeft|hui::pad_bits::kRight|hui::pad_bits::kUp|hui::pad_bits::kDown);
-  uint32_t nav=pressed&direction;
-  if(nav)repeat=now+230000;else if(direction&&now>=repeat){nav=direction;repeat=now+120000;}
-  auto key=[&](uint32_t bit){return (pressed&bit)!=0;};
-  const bool up=(nav&hui::pad_bits::kUp)!=0,down=(nav&hui::pad_bits::kDown)!=0;
-  const bool left=(nav&hui::pad_bits::kLeft)!=0,right=(nav&hui::pad_bits::kRight)!=0;
-  bool save_now=false;
-  switch(g.screen){
-   case Screen::Home:
-    if(up)g.focus=(g.focus+3)%4;if(down)g.focus=(g.focus+1)%4;
-    if(key(hui::pad_bits::kCross)){
-     if(g.focus==0){g.reset();wait_bot=false;}
-     else if(g.focus==1){g.screen=Screen::Mode;g.submenu=int(g.opponent);}
-     else if(g.focus==2){g.screen=Screen::Settings;g.submenu=0;}
-     else g.screen=Screen::Exit;
-    }if(key(hui::pad_bits::kCircle))g.screen=Screen::Exit;break;
-   case Screen::Mode:
-    if(up||down)g.submenu=1-g.submenu;
-    if(key(hui::pad_bits::kCross)){g.opponent=Opponent(g.submenu);save_now=true;
-     if(g.opponent==Opponent::Bot){g.screen=Screen::Difficulty;g.submenu=int(g.level);}else g.screen=Screen::Home;}
-    if(key(hui::pad_bits::kCircle))g.screen=Screen::Home;break;
-   case Screen::Difficulty:
-    if(up)g.submenu=(g.submenu+2)%3;if(down)g.submenu=(g.submenu+1)%3;
-    if(key(hui::pad_bits::kCross)){g.level=Level(g.submenu);g.screen=Screen::Home;save_now=true;}
-    if(key(hui::pad_bits::kCircle))g.screen=Screen::Mode;break;
-   case Screen::Settings:
-    if(up)g.submenu=(g.submenu+3)%4;if(down)g.submenu=(g.submenu+1)%4;
-    if(left||right||key(hui::pad_bits::kCross)){
-     if(g.submenu==0)g.first_player_red=!g.first_player_red;
-     if(g.submenu==1)g.level=Level((int(g.level)+1)%3);
-     if(g.submenu==2)g.sound=!g.sound;
-     if(g.submenu==3){g.wins[0]=g.wins[1]=g.draws=0;}
-     save_now=true;
-    }
-    if(key(hui::pad_bits::kCircle))g.screen=Screen::Home;break;
-   case Screen::Playing:
-    if(key(hui::pad_bits::kOptions)){g.screen=Screen::Paused;break;}
-    if(g.opponent==Opponent::Bot&&g.turn==2){
-     if(!wait_bot){bot_time=now+400000;wait_bot=true;}
-     if(now>=bot_time){int m=g.choose_bot();if(m>=0){g.selected=m;g.drop(m);save_now=g.screen==Screen::Result;}wait_bot=false;}
-     break;
-    }
-    if(left)g.selected=(g.selected+6)%7;if(right)g.selected=(g.selected+1)%7;
-    if(key(hui::pad_bits::kCross)||(g.opponent==Opponent::Human&&g.turn==2&&key(hui::pad_bits::kCircle))){
-     if(g.drop(g.selected)){save_now=g.screen==Screen::Result;wait_bot=false;if(g.sound)pad.rumble(.13f,.1f);}
-    }break;
-   case Screen::Paused:
-    if(key(hui::pad_bits::kCross)||key(hui::pad_bits::kOptions))g.screen=Screen::Playing;
-    if(key(hui::pad_bits::kTriangle)){g.reset();wait_bot=false;}
-    if(key(hui::pad_bits::kCircle))g.screen=Screen::Home;break;
-   case Screen::Result:
-    if(key(hui::pad_bits::kCross)){g.reset();wait_bot=false;}
-    if(key(hui::pad_bits::kCircle))g.screen=Screen::Home;break;
-   case Screen::Exit:
-    if(key(hui::pad_bits::kCross)){
-      save(g);pad.close();if(home.id)glDeleteTextures(1,&home.id);if(game.id)glDeleteTextures(1,&game.id);
-      if(red.id)glDeleteTextures(1,&red.id);if(yellow.id)glDeleteTextures(1,&yellow.id);
-      renderer.release();display.close();hui::sys::quit();
-    }if(key(hui::pad_bits::kCircle))g.screen=Screen::Home;break;
-  }
-  if(save_now)save(g);
-  DrawList d;draw(d,g,font,atlas,home,game,red,yellow);
-  renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
-  hui::sys::hide_splash_screen();pad.tick(.016f);hui::sys::sleep_us(16000);
+  if(g.moves!=old_moves){pad.set_light_bar(g.turn==1?240:255,g.turn==1?40:197,g.turn==1?69:46);if(g.sound)pad.rumble(.22f,.10f);}
+  if(old_screen!=g.screen&&g.screen==Screen::Result){ctl.save_needed=true;if(g.sound)pad.rumble(.5f,.25f);}
+  if(ctl.save_needed){save(g);ctl.save_needed=false;}
+  DrawList ui;render(ui,g,ctl,font,atlas,scene,red,yellow,now);
+  renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
+  hui::sys::hide_splash_screen();pad.tick(dt);hui::sys::sleep_us(16000);
  }
 }
