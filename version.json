@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "4251949c3dc2e20b9ad395f7b29ceb134b4b694bbc379f8649d30bf2ddfed06c",
+  "version": "f1d58fe760fb092fb8fe2c302d722e3924a529bf0b0dac14182bcefa6c0fd2f7",
   "repository": "Yahballon/tmp_lap",
   "app_count": 22,
   "apps": [
@@ -216,14 +216,14 @@
       "name": "4 WINS",
       "slug": "4wins",
       "title_id": "PPSA99858",
-      "version": "0.1.1",
-      "tag": "4wins-v0.1.1",
+      "version": "0.1.2",
+      "tag": "4wins-v0.1.2",
       "zip_name": "PPSA99858.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/4wins-v0.1.1/PPSA99858.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/4wins-v0.1.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/4wins-v0.1.2/PPSA99858.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/4wins-v0.1.2",
       "source": "homebrew/4wins",
-      "size_bytes": 7684220,
-      "published_at": "2026-10-21T09:35:11Z"
+      "size_bytes": 7549193,
+      "published_at": "2026-10-21T10:19:43Z"
     },
     {
       "name": "Payload LauncherX",
