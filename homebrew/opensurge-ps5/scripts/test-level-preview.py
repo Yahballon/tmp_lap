@@ -46,6 +46,9 @@ assert "std::lower_bound(cells_.begin()" in native_cpp
 assert "1.f/120.f" in main_cpp
 assert "frame_elapsed_us<16667u" in main_cpp
 assert "PERF fps=" in main_cpp
+assert "bool find_floor(" in native_cpp
+assert "TERRAIN_BLOCK" in main_cpp
+assert "auto_respawns()" in native_cpp
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

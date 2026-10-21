@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.2.2 - indexed terrain collision + fixed-step motion preview.
+// Open Surge PS5 v0.2.3 - continuous pixel-mask slope tracking, stable ground and collision diagnostics.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -33,6 +33,8 @@ public:
     float velocity_y() const {return vy_;}
     float velocity_x() const {return vx_;}
     size_t indexed_cells() const {return cells_.size();}
+    unsigned collision_blocks() const {return blocked_;}
+    unsigned auto_respawns() const {return respawns_;}
 
     bool load(Renderer& renderer,const std::string& game_root) {
         error_.clear(); placed_.clear(); cells_.clear(); atlas_=hero_=0;
@@ -133,6 +135,7 @@ public:
     }
     void reset(){
         x_=startx_; y_=starty_; vx_=vy_=0;ground_=false;facing_=1;
+        blocked_=0;last_ground_y_=y_;
         elapsed_=0;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
@@ -156,54 +159,101 @@ public:
             }
         }
         ground_=has_foot_support(x_,y_);
+        last_ground_y_=y_;
     }
-    // Fixed-step driver calls update at 120 Hz. No variable-per-frame slowdown.
+    // Stable 120Hz step. Map dimensions and original mask stay unchanged.
+    // IMPORTANT: walking on a slope follows the surface before checking a
+    // horizontal wall; the old code collided with the ground as though it
+    // were a wall, setting VX=0 at x≈723/900 despite a 60 FPS display.
     void update(float dt,int dir,bool jump){
         if(!ready())return;
-        dt=std::clamp(dt,0.0f,1.f/60.f);
+        dt=std::clamp(dt,0.f,1.f/60.f);
         dir=std::clamp(dir,-1,1);
-        if(dir)facing_=dir;
-        // Faster, predictable acceleration and friction (not original
-        // Open Surge physics): aim for a responsive first playable prototype.
-        const float speed=310.f;
-        const float target=float(dir)*speed;
+        if(dir!=0)facing_=dir;
+        const float target=dir*310.f;
         const float accel=(ground_?(dir?2200.f:2600.f):1500.f)*dt;
         vx_+=std::clamp(target-vx_,-accel,accel);
-        if(jump&&ground_){vy_=-505.f;ground_=false;}
-        vy_=std::min(720.f,vy_+1200.f*dt);
-        const float dx=vx_*dt,dy=vy_*dt;
-        const int xsteps=std::max(1,int(std::ceil(std::abs(dx)/3.f)));
-        const float step=dx/float(xsteps);
-        for(int i=0;i<xsteps;++i){
-            const float next=x_+step;
-            if(!body_hits(next,y_)){x_=next;continue;}
-            bool walked=false;
+        if(jump&&ground_){
+            vy_=-505.f;ground_=false;
+        }
+        // Keep ground contact stable across frame substeps and small changes
+        // in mask height instead of falling and re-landing each single frame.
+        if(ground_){
+            float floor=0.f;
+            if(find_floor(x_,y_,6,18,floor)){
+                y_=floor;vy_=0.f;last_ground_y_=y_;
+            }else ground_=false;
+        }
+        const float dx=vx_*dt;
+        const int horizontal_steps=std::max(1,int(std::ceil(std::abs(dx)/2.f)));
+        for(int i=0;i<horizontal_steps;++i){
+            const float nx=x_+dx/float(horizontal_steps);
+            float new_feet=y_;
+            bool supported=false;
             if(ground_){
-                for(int rise=1;rise<=7;++rise){
-                    if(!body_hits(next,y_-float(rise))){
-                        x_=next;y_-=float(rise);walked=true;break;
+                // Probe center and both foot sensors on genuine mask surfaces.
+                // Upward slopes <=12px and downward <=22px are walkable.
+                supported=find_floor(nx,y_,12,22,new_feet);
+            }
+            if(supported){
+                if(!body_hits(nx,new_feet)){
+                    x_=nx;y_=new_feet;vy_=0.f;last_ground_y_=y_;
+                    continue;
+                }
+                // Slope can become steep for the collision body before the
+                // feet climb. Try a small upward correction, never phasing
+                // through an actually tall wall.
+                bool stepped=false;
+                for(int rise=1;rise<=12;++rise){
+                    const float ytry=new_feet-float(rise);
+                    if(body_hits(nx,ytry))continue;
+                    float floor=0.f;
+                    if(find_floor(nx,ytry,1,3,floor) &&
+                       std::abs(floor-ytry)<3.f){
+                        x_=nx;y_=floor;last_ground_y_=y_;
+                        stepped=true;break;
                     }
                 }
+                if(stepped)continue;
+            }else if(!body_hits(nx,y_)){
+                x_=nx;
+                if(ground_)ground_=false; // genuine pit / platform edge
+                continue;
             }
-            if(!walked){vx_=0;break;}
+            // This is an actual blocking wall, not arbitrary terrain "lag".
+            vx_=0.f;
+            if(dir!=0)++blocked_;
+            break;
         }
-        const int ysteps=std::max(1,int(std::ceil(std::abs(dy)/3.f)));
-        const float ystep=dy/float(ysteps);
-        bool landed=false;
-        for(int i=0;i<ysteps;++i){
-            const float next=y_+ystep;
-            if(ystep>=0){
-                if(has_foot_support(x_,next)){vy_=0;landed=true;break;}
-            }else if(head_hits(x_,next)){
-                vy_=0;break;
+        if(!ground_){
+            const float prev_feet=y_;
+            vy_=std::min(720.f,vy_+1200.f*dt);
+            const float dy=vy_*dt;
+            const int vertical_steps=std::max(1,int(std::ceil(std::abs(dy)/2.f)));
+            const float step=dy/float(vertical_steps);
+            for(int i=0;i<vertical_steps;++i){
+                const float candidate=y_+step;
+                if(step>=0.f){
+                    float floor=0.f;
+                    if(find_floor(x_,candidate,3,1,floor) &&
+                       floor>=y_-1.f && floor<=candidate+1.f){
+                        y_=floor;vy_=0.f;ground_=true;
+                        last_ground_y_=y_;
+                        break;
+                    }
+                }else if(head_hits(x_,candidate)){
+                    vy_=0.f;break;
+                }
+                y_=candidate;
             }
-            y_=next;
+            // If only holding RIGHT the original demo has real bottomless
+            // gaps. Respawn from a long fall rather than scrolling the empty
+            // sky for seconds without any level or character controls.
+            if(y_>last_ground_y_+1050.f || y_>starty_+3000.f){
+                ++respawns_;
+                reset();
+            }
         }
-        ground_=landed;
-        if(!ground_&&vy_>=0&&has_foot_support(x_,y_+1.5f)){
-            ground_=true;vy_=0;
-        }
-        if(std::abs(y_-starty_)>3000.f)reset();
         elapsed_+=dt;
     }
     void draw(DrawList& ui) {
@@ -309,22 +359,42 @@ private:
     bool head_hits(float px,float feet) const {
         return solid_at(px-11.f,feet-44.f)||solid_at(px+11.f,feet-44.f);
     }
-    bool has_foot_support(float px,float feet) const {
-        for(float fx:{px-10.f,px,px+10.f}){
-            if(solid_at(fx,feet+1.f))return true;
-            bool found_cloud=false;
-            candidates(fx,feet,[&](const PlacedBrick& b){
-                if(found_cloud)return;
-                const auto& d=defs_[b.id];
-                if(!d.cloud||fx<float(b.x)||fx>=float(b.x+d.w)||
-                    feet<float(b.y)-1.5f||feet>=float(b.y+d.h))return;
-                const int lx=int(fx-float(b.x));
-                const int ly=std::max(0,int(feet-float(b.y)+1.f));
-                found_cloud=mask_pixel(b,lx,ly);
-            });
-            if(found_cloud)return true;
+    bool floor_pixel(float px,float py) const {
+        if(solid_at(px,py))return true;
+        bool cloudy=false;
+        candidates(px,py,[&](const PlacedBrick& b){
+            if(cloudy)return;
+            const auto& d=defs_[b.id];
+            if(!d.cloud||px<float(b.x)||px>=float(b.x+d.w)||
+               py<float(b.y)||py>=float(b.y+d.h))return;
+            cloudy=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
+        });
+        return cloudy;
+    }
+    // A surface is the first occupied pixel BELOW transparent air. Searching
+    // at a foot height (rather than checking any solid pixel near the player)
+    // avoids false "landed" transitions inside solid terrain.
+    bool find_floor(float px,float feet,int rise,int drop,float& out) const {
+        bool found=false;
+        float surface=0.f;
+        const int lo=int(std::floor(feet))-rise;
+        const int hi=int(std::ceil(feet))+drop;
+        for(float sensor:{px-9.f,px,px+9.f}){
+            for(int row=lo;row<=hi;++row){
+                const float at=float(row);
+                if(!floor_pixel(sensor,at)||floor_pixel(sensor,at-1.f))continue;
+                // Prefer the highest reachable top for uphill walking.
+                if(!found || at<surface){
+                    surface=at;found=true;
+                }
+            }
         }
-        return false;
+        if(found)out=surface;
+        return found;
+    }
+    bool has_foot_support(float px,float feet) const {
+        float floor=0.f;
+        return find_floor(px,feet,2,2,floor) && std::abs(floor-feet)<=2.f;
     }
     static std::string read(const std::string& path,size_t max){
         if(FILE* file=std::fopen(path.c_str(),"rb")){
@@ -350,6 +420,8 @@ private:
     int visible_=0,facing_=1;
     float x_=0,y_=0,vx_=0,vy_=0,elapsed_=0,startx_=0,starty_=0;
     bool ground_=false;
+    float last_ground_y_=0.f;
+    unsigned blocked_=0,respawns_=0;
     std::string error_;
 };
 } // namespace surgepreview
