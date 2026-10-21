@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/icon.svg" width="170" alt="Original ZQuest Classic PS5 port-prototype emblem"></p>
 
-# ZQuest Classic PS5 — Port Foundation v0.1.3
+# ZQuest Classic PS5 — Port Foundation v0.1.4
 
 **Native PS5 homebrew prototype · by YAHBALLON · PPSA99127**
 
@@ -12,23 +12,23 @@
 
 - Native, controller-friendly 1920 × 1080 UI, not a web wrapper or screenshot.
 - Bounded incremental scanning for original/user-supplied `.qst` files using direct PS5 libkernel enumeration, avoiding PS5 bigapp `opendir` failures.
-- File list, size, selected quest details and rescanning.
+- File list, size, incremental native .qst binary read test with CRC32 and rescanning.
 - USB and internal-drive quest locations, subject to firmware/loader permissions.
 - English UI, sensible exit confirmation, log at `/data/ZQuestClassic/logs/port.log`.
 - PS5 CI cross-compile/package workflow and host + mocked-native libkernel scanner tests.
 
-The program **does not** load quests for gameplay, support saves or play music.
+The program **does not** parse or execute quests, support saves or play music. Cross reads selected file bytes only, and a successful read is not gameplay.
 Source icon `assets/icon.svg` and procedurally rendered PS5 icon are original
 artwork; they are not AI-generated and use no Nintendo/Zelda artwork. A real
 app UI screenshot has not been captured.
 
-For v0.1.3 the native scanner is explicitly enabled in `native/main.cpp`,
+For v0.1.4 the native scanner is explicitly enabled in `native/main.cpp`,
 without changing the OpenGL SDK's compilation flags. Startup log includes
-`SCAN_BACKEND=libkernel-getdents-v0.1.3`; CI verifies this marker in the
+`SCAN_BACKEND=libkernel-getdents-v0.1.4`; CI verifies this marker in the
 packaged binary.
 
 The v0.1.2 on-console logs proved the quest directory opens but native getdents
-returned `0x80020016` (EINVAL). v0.1.3 changes the entry buffer from
+returned `0x80020016` (EINVAL). v0.1.4 changes the entry buffer from
 16 KiB to 64 KiB with 16 KiB alignment, matching the existing PS5GBCX
 implementation. Hardware results still need to be verified.
 
@@ -53,12 +53,24 @@ The bundled app also scans `/data/homebrew/PPSA99127/quests/`. Supported
 library discovery format: `.qst` (case-insensitive). Finding a filename
 does **not** mean the engine can open or run that quest yet.
 
+## Quest file read diagnostics (v0.1.4)
+
+The confirmed v0.1.3 directory scanner lists `.qst` filenames but did
+not previously prove that actual quest contents were readable by PS5. The new
+`quest_reader.hpp` uses `sceKernelOpen/sceKernelRead/sceKernelClose` to
+read the selected file in 32 KiB increments, displaying progress and CRC32.
+No file contents are changed, and the game engine is still unavailable.
+
+Read progress and failures are written to
+`/data/ZQuestClassic/logs/port.log`. Send `QUEST_READ_FAIL` diagnostics
+if pressing X produces an error instead of `READ SUCCESS`.
+
 ## DualSense
 
 | Button | Current action |
 | --- | --- |
 | D-pad / Left stick Up/Down | Select quest |
-| Cross | Show/hide file details |
+| Cross | Read selected .qst bytes and show I/O results (NOT Play) |
 | Square | Rescan quest locations |
 | Options | Technical port status |
 | Circle | Back / confirm exit dialog |
@@ -74,7 +86,7 @@ workflow builds an actual PS5 ELF then packages `PPSA99127.zip`; only an
 observed successful Actions job establishes a valid artifact.
 
 After successful native CI, the **experimental prerelease** can be downloaded from
-[ZQuest Classic PS5 v0.1.3](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.3)
+[ZQuest Classic PS5 v0.1.4](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.4)
 and is intentionally included in the TESTBUILDS catalog so the controller-first
 library UI can be tested on real hardware. The release is **NOT PLAYABLE**.
 

@@ -6,6 +6,7 @@
 #error "ZQuest PS5 native kernel scanner must be enabled"
 #endif
 #include "quest_index.hpp"
+#include "quest_reader.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -21,6 +22,7 @@
 namespace {
 using namespace hui::gfx;
 using zcps5::QuestIndex;
+using zcps5::QuestReader;
 
 constexpr const char* kDataDir = "/data/ZQuestClassic";
 constexpr const char* kLogDir = "/data/ZQuestClassic/logs";
@@ -45,7 +47,7 @@ void logging(const char* text) {
   mkdir(kDataDir, 0755);
   mkdir(kLogDir, 0755);
   if (FILE* f = fopen("/data/ZQuestClassic/logs/port.log", "ab")) {
-    fprintf(f, "[ZQuest PS5 0.1.3] %s\n", text);
+    fprintf(f, "[ZQuest PS5 0.1.4] %s\n", text);
     fclose(f);
   }
 }
@@ -87,12 +89,12 @@ void scenery(DrawList& d) {
   }
 }
 void render_screen(DrawList& d, const Font& f, unsigned atlas,
-                   const QuestIndex& scan, size_t selected,
+                   const QuestIndex& scan, const QuestReader& reader, size_t selected,
                    bool info, bool status, bool exiting) {
   scenery(d);
   txt(d, f, atlas, "ZQUEST CLASSIC", 88, 116, 69, kWhite);
   txt(d, f, atlas, "PS5 PORT FOUNDATION  /  by YAHBALLON", 91, 161, 22, kMint);
-  txt(d, f, atlas, "v0.1.3", 1832, 112, 26, kDim, Align::right);
+  txt(d, f, atlas, "v0.1.4", 1832, 112, 26, kDim, Align::right);
   d.line(88, 191, 1832, 191, 2, color(0x2c6760));
   box(d, 78, 234, 1080, 692);
   txt(d, f, atlas, "QUEST LIBRARY", 110, 307, 32, kWhite);
@@ -138,6 +140,30 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
     if (scan.failed())
       txt(d, f, atlas, ellipsis(scan.first_error(), 49), 1230, 869, 16, kGold);
     txt(d, f, atlas, "Gameplay engine: pending", 1230, 898, 19, kGold);
+  } else if (reader.state() != QuestReader::State::Idle) {
+    const auto state = reader.state();
+    txt(d, f, atlas, "QUEST FILE LOAD TEST", 1230, 752, 25, kMint);
+    txt(d, f, atlas, "Read: " + human_size(reader.bytes_read()), 1230, 802, 20, kWhite);
+    if (state == QuestReader::State::Reading) {
+      txt(d, f, atlas, "Loading original .qst bytes...", 1230, 842, 19, kGold);
+      if (reader.expected_size() > 0) {
+        float progress = static_cast<float>(reader.bytes_read()) /
+                         static_cast<float>(reader.expected_size());
+        progress = std::min(1.f, std::max(0.f, progress));
+        d.rounded_rect({1230, 870, 540, 15}, 6, color(0x234b45));
+        if (progress > 0)
+          d.rounded_rect({1230, 870, 540.f * progress, 15}, 6, kMint);
+      }
+    } else if (state == QuestReader::State::Complete) {
+      char checksum[32];
+      snprintf(checksum, sizeof(checksum), "CRC32: %08X", reader.crc32());
+      txt(d, f, atlas, "READ SUCCESS - " + std::string(checksum), 1230, 837, 18, kMint);
+      txt(d, f, atlas, "First bytes: " + reader.header_hex(), 1230, 868, 15, kDim);
+    } else {
+      txt(d, f, atlas, "READ FAILED code=" + std::to_string(reader.error_code()),
+          1230, 837, 18, kGold);
+    }
+    txt(d, f, atlas, "Gameplay engine still not linked", 1230, 898, 17, kGold);
   } else if (info && !items.empty()) {
     const auto& q = items[std::min(selected, items.size() - 1)];
     txt(d, f, atlas, "SELECTED QUEST", 1230, 783, 23, kMint);
@@ -149,7 +175,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
     txt(d, f, atlas, "Folders opened: " + std::to_string(scan.opened()), 1230, 834, 21, kMint);
     txt(d, f, atlas, "Gameplay is NOT implemented yet.", 1230, 878, 21, kGold);
   }
-  txt(d, f, atlas, "D-PAD  Select    X  Details    SQUARE  Rescan    OPTIONS  Port status    O  Exit",
+  txt(d, f, atlas, "D-PAD  Select    X  Read test    SQUARE  Rescan    OPTIONS  Port status    O  Exit",
       960, 1007, 21, kWhite, Align::center);
   if (exiting) {
     d.rounded_rect({0, 0, 1920, 1080}, 0, color(0x010607, .66f));
@@ -163,7 +189,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
 
 int main() {
   logging("BOOT native quest library");
-  logging("SCAN_BACKEND=libkernel-getdents-v0.1.3");
+  logging("SCAN_BACKEND=libkernel-getdents-v0.1.4");
   logging("GETDENTS_BUFFER=65536 ALIGNMENT=16384");
   hui::ps5::Display display;
   if (!display.open()) hui::sys::park();
@@ -183,6 +209,7 @@ int main() {
 
   QuestIndex scan;
   scan.set_log(logging);
+  QuestReader reader;
   const std::vector<std::string> roots = {
       "/data/ZQuestClassic/quests", "/data/homebrew/PPSA99127/quests",
       "/mnt/usb0/ZQuestClassic/quests", "/mnt/usb1/ZQuestClassic/quests",
@@ -190,10 +217,27 @@ int main() {
   scan.begin(roots);
   size_t selected = 0;
   bool show_info = false, show_status = false, exiting = false;
+  QuestReader::State last_read_state = QuestReader::State::Idle;
   uint32_t previous_buttons = 0;
   uint64_t next_repeat = 0;
   for (;;) {
     scan.step(16);
+    reader.step();
+    if (reader.state() != last_read_state) {
+      const auto state = reader.state();
+      if (state == QuestReader::State::Complete) {
+        char msg[160];
+        snprintf(msg, sizeof(msg), "QUEST_READ_OK bytes=%llu crc32=%08X",
+                 static_cast<unsigned long long>(reader.bytes_read()), reader.crc32());
+        logging(msg);
+      } else if (state == QuestReader::State::Failed) {
+        char msg[160];
+        snprintf(msg, sizeof(msg), "QUEST_READ_FAIL code=%d bytes=%llu",
+                 reader.error_code(), static_cast<unsigned long long>(reader.bytes_read()));
+        logging(msg);
+      }
+      last_read_state = state;
+    }
     std::array<hui::PadSample, 64> samples{};
     const size_t count = pad.read(samples);
     uint32_t pressed = 0, held = 0;
@@ -230,13 +274,17 @@ int main() {
     } else {
       if ((nav & hui::pad_bits::kUp) && selected > 0) --selected;
       if ((nav & hui::pad_bits::kDown) && selected + 1 < scan.quests().size()) ++selected;
-      if (pressed & hui::pad_bits::kCross) {
-        show_info = !show_info;
+      if ((pressed & hui::pad_bits::kCross) && !scan.quests().empty()) {
+        const auto& quest = scan.quests()[std::min(selected, scan.quests().size()-1)];
+        reader.begin(quest.path, quest.size_known ? quest.bytes : 0);
+        logging(("QUEST_READ_START path=" + quest.path).c_str());
+        show_info = false;
         show_status = false;
       }
       if (pressed & hui::pad_bits::kSquare) {
         logging("RESCAN quests");
         scan.begin(roots);
+        reader.reset();
         selected = 0;
         show_info = false;
       }
@@ -250,7 +298,7 @@ int main() {
       }
     }
     DrawList ui;
-    render_screen(ui, font, atlas, scan, selected, show_info, show_status, exiting);
+    render_screen(ui, font, atlas, scan, reader, selected, show_info, show_status, exiting);
     renderer.begin();
     renderer.draw(ui);
     renderer.present(0, display.width(), display.height());
