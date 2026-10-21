@@ -91,6 +91,12 @@ combat=(Path(__file__).resolve().parents[1]/"native"/"level_hazards.hpp").read_t
 assert "bool game_over()" in combat and "void restart_level()" in combat
 assert "float invulnerability()" in combat
 assert "ENEMY_DEFEATED" in main_cpp and "PLAYER_HIT_RING_LOSS" in main_cpp
+audio=(app/"assets"/"audio-cache"/"manifest.json")
+assert audio.exists(), "Original music and sound manifest missing"
+audio_manifest=json.loads(audio.read_text())
+assert audio_manifest["sample_rate"]==48000
+assert len(audio_manifest["sfx"])>=16
+assert (app/"assets"/"audio-cache"/"level.ogg").is_file()
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

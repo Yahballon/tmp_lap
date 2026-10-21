@@ -25,7 +25,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 \
             make ninja-build git curl unzip tar python3 python3-pil \
-            g++ pkg-config ca-certificates
+            g++ pkg-config ca-certificates ffmpeg
       - name: Stage ALL pinned original Open Surge game assets
         run: |
           set -euo pipefail
@@ -47,6 +47,7 @@ jobs:
           cp homebrew/opensurge-ps5/native/pad_state.hpp app/src/pad_state.hpp
           cp homebrew/opensurge-ps5/native/level_entities.hpp app/src/level_entities.hpp
           cp homebrew/opensurge-ps5/native/level_hazards.hpp app/src/level_hazards.hpp
+          cp homebrew/opensurge-ps5/native/game_audio.hpp app/src/game_audio.hpp
           python3 homebrew/opensurge-ps5/scripts/prepare-legacy-assets.py \
             homebrew/opensurge-ps5/.work/legacy-stage app
           python3 homebrew/opensurge-ps5/scripts/prepare-level-preview.py \
@@ -55,6 +56,9 @@ jobs:
             homebrew/opensurge-ps5/.work/legacy-stage app
           python3 homebrew/opensurge-ps5/scripts/prepare-hazards-preview.py \
             homebrew/opensurge-ps5/.work/legacy-stage app
+          python3 homebrew/opensurge-ps5/scripts/prepare-audio.py \
+            homebrew/opensurge-ps5/.work/legacy-stage app
+          python3 homebrew/opensurge-ps5/scripts/test-native-audio.py app
           python3 homebrew/opensurge-ps5/scripts/test-level-preview.py app
       - name: Test actual native physics class against original level data
         run: |
@@ -157,7 +161,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.4.0
+          tag=opensurge-ps5-v0.5.0
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -168,7 +172,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.4.0 - Original Enemies, Spikes and Combat Preview" \
+            --title "Open Surge PS5 v0.5.0 - Original SFX and Music on Native sceAudioOut" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 
