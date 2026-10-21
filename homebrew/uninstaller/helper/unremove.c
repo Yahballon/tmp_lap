@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Uninstaller v0.1.14: single-use local action broker for existing elfldr.
+// Uninstaller v0.1.16: single-use local action broker for existing elfldr.
 // NO shared writable request folder, NO arbitrary paths or system-dir unlink.
 // The helper prints a random capability only to its elfldr stdout connection,
 // then accepts one confirmed operation over 127.0.0.1:9176 for <=15 seconds.
@@ -301,8 +301,259 @@ static int remove_game_source(const char* src,const char* id,int client){
   return 0;
 }
 
+
+// DEFERRED SHADOWMOUNT REMOVAL: after a one-shot authenticated request, the
+// separate elfldr payload stays alive as the native PPSA99986 application quits.
+// It must never recursively delete a managed source itself.
+static char g_defer_title[16],g_defer_source[700];
+static void defer_log(const char* event,const char* detail){
+  char line[1060];
+  snprintf(line,sizeof line,"[Uninstaller v0.1.16] %s %s\n",event,detail?detail:"");
+  fputs(line,stdout);
+  mkdir("/data/Uninstaller",0755);
+  const char* paths[]={"/data/Uninstaller/uninstaller.log",
+                       "/data/Uninstaller/deferred-shadow.log"};
+  for(unsigned i=0;i<2;i++){
+    int fd=open(paths[i],O_CREAT|O_WRONLY|O_APPEND,0644);
+    if(fd>=0){write(fd,line,strlen(line));close(fd);}
+  }
+}
+static int defer_safe_source(const char* path){
+  size_t n=strlen(path);
+  if(n<18||n>690||path[n-1]=='/'||strchr(path,'\\')||
+     strstr(path,"//")||strstr(path,"/../")||strstr(path,"/./"))return 0;
+  if(n>=3&&(!strcmp(path+n-3,"/..")||!strcmp(path+n-2,"/.")))return 0;
+  int root=0;
+  if(!strncmp(path,"/mnt/usb",8)||!strncmp(path,"/mnt/ext",8)){
+    if((path[8]<'0'||path[8]>'7')||path[9]!='/')return 0;
+    root=1;
+  }else if(!strncmp(path,"/data/",6))root=1;
+  if(!root)return 0;
+  for(size_t i=0;i<n;i++)
+    if((unsigned char)path[i]<32||(unsigned char)path[i]==127)return 0;
+  return 1;
+}
+static int defer_queue(const char* target){
+  const char* sep=strchr(target,'|');
+  if(!sep||sep-target!=9||strlen(sep+1)>690)return EINVAL;
+  char id[16]={0};memcpy(id,target,9);
+  if(!title_ok(id)||!defer_safe_source(sep+1))return EPERM;
+  snprintf(g_defer_title,sizeof g_defer_title,"%s",id);
+  snprintf(g_defer_source,sizeof g_defer_source,"%s",sep+1);
+  return 0;
+}
+static const char* defer_json_key(const char* json,const char* key){
+  static char pattern[75];
+  snprintf(pattern,sizeof pattern,"\"%s\"",key);
+  const char* p=strstr(json,pattern);
+  if(!p)return NULL;
+  p=strchr(p+strlen(pattern),':');
+  if(!p)return NULL;
+  while(*++p==' '||*p=='\t'||*p=='\r'||*p=='\n'){}
+  return p;
+}
+static int defer_json_number(const char* json,const char* key,int fallback){
+  const char* p=defer_json_key(json,key);
+  if(!p||*p<'0'||*p>'9')return fallback;
+  long result=strtol(p,NULL,10);
+  return result>=0&&result<=2147483647?(int)result:fallback;
+}
+static int defer_json_bool(const char* json,const char* key){
+  const char* p=defer_json_key(json,key);
+  return p&&strncmp(p,"true",4)==0;
+}
+static int defer_json_string(const char* json,const char* key,char* out,size_t cap){
+  out[0]=0;
+  const char* p=defer_json_key(json,key);
+  if(!p||*p!='"')return 0;
+  p++;size_t n=0;
+  while(*p&&*p!='"'){
+    if(n+1>=cap)return 0;
+    if(*p=='\\'){
+      ++p;
+      if(*p!='"'&&*p!='\\'&&*p!='/')return 0;
+    }
+    if((unsigned char)*p<32)return 0;
+    out[n++]=*p++;
+  }
+  if(*p!='"')return 0;
+  out[n]=0;return 1;
+}
+struct defer_reply {int http;char body[16384];};
+static struct defer_reply defer_post(const char* endpoint,const char* json){
+  struct defer_reply result={0};
+  int fd=socket(AF_INET,SOCK_STREAM,0);
+  if(fd<0)return result;
+  struct timeval timeout={5,0};
+  setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof timeout);
+  setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof timeout);
+  struct sockaddr_in addr={0};
+  addr.sin_family=AF_INET;addr.sin_port=htons(10101);
+  addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+  if(connect(fd,(struct sockaddr*)&addr,sizeof addr)!=0){close(fd);return result;}
+  char request[1500];
+  int n=snprintf(request,sizeof request,
+      "POST %s HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+      "Content-Type: application/json\r\nConnection: close\r\n"
+      "Content-Length: %zu\r\n\r\n%s",endpoint,strlen(json),json);
+  if(n<=0||(size_t)n>=sizeof request){close(fd);return result;}
+  size_t pos=0;
+  while(pos<(size_t)n){
+    ssize_t written=send(fd,request+pos,(size_t)n-pos,0);
+    if(written<=0){close(fd);return result;}
+    pos+=(size_t)written;
+  }
+  char response[16800];
+  size_t used=0;
+  while(used+1<sizeof response){
+    ssize_t readn=recv(fd,response+used,sizeof response-1-used,0);
+    if(readn==0)break;
+    if(readn<0){close(fd);return result;}
+    used+=(size_t)readn;
+  }
+  close(fd);response[used]=0;
+  if(sscanf(response,"HTTP/%*d.%*d %d",&result.http)!=1){
+    result.http=0;return result;
+  }
+  const char* body=strstr(response,"\r\n\r\n");
+  if(!body){result.http=0;return result;}
+  body+=4;
+  size_t size=strlen(body);
+  if(size>=sizeof result.body){result.http=0;return result;}
+  memcpy(result.body,body,size+1);
+  return result;
+}
+static int defer_inspect(void){
+  char body[128];
+  snprintf(body,sizeof body,"{\"title_id\":\"%s\"}",g_defer_title);
+  struct defer_reply r=defer_post("/api/v1/games/info",body);
+  if(r.http!=200||defer_json_number(r.body,"status",-1)!=0)return 0;
+  char id[24],path[720],type[32];
+  if(!defer_json_string(r.body,"title_id",id,sizeof id)||
+     !defer_json_string(r.body,"path",path,sizeof path)||
+     !defer_json_string(r.body,"source_type",type,sizeof type)||
+     strcmp(id,g_defer_title)||strcmp(path,g_defer_source)||
+     (strcmp(type,"folder")&&strcmp(type,"image"))||
+     !defer_json_bool(r.body,"can_manage_source")||
+     !defer_json_bool(r.body,"source_available"))return 0;
+  return 1;
+}
+static int defer_busy(const char* json){
+  char reason[80]={0};
+  if(!defer_json_string(json,"error_reason",reason,sizeof reason))return 0;
+  const char* valid[]={"game_active","runtime_prepared","runtime_busy",
+     "scanner_busy","storage_busy","title_unmount_busy","image_unmount_busy",
+     "install_pending"};
+  for(unsigned i=0;i<sizeof valid/sizeof valid[0];i++)
+    if(!strcmp(reason,valid[i]))return 1;
+  return 0;
+}
+static int defer_run(void){
+  defer_log("DEFER_START",g_defer_title);
+  // The confirmation has already been acknowledged. The GUI will call
+  // sceSystemServiceLoadExec("exit") via hui::sys::quit(). Give it time to
+  // leave the foreground and let ShadowMount observe the exit.
+  sleep(4);
+  char body[128];
+  snprintf(body,sizeof body,"{\"title_id\":\"%s\",\"confirm\":true}",g_defer_title);
+  int job=-1,source_absent=0;
+  for(int try_number=0;try_number<90;try_number++){
+    if(!defer_inspect()){
+      defer_log("DEFER_FAIL","Source changed, no longer manageable, or API unavailable");
+      return 1; // never bypass this check with direct filesystem deletion
+    }
+    struct defer_reply r=defer_post("/api/v1/games/delete",body);
+    if(r.http==202&&defer_json_number(r.body,"status",-1)==0){
+      job=defer_json_number(r.body,"job_id",-1);
+      if(job<=0){defer_log("DEFER_FAIL","Missing storage job id");return 1;}
+      char tmp[95];snprintf(tmp,sizeof tmp,"job=%d title=%s",job,g_defer_title);
+      defer_log("DEFER_QUEUED",tmp);break;
+    }
+    if(r.http==200&&defer_json_number(r.body,"status",-1)==0&&
+       defer_json_bool(r.body,"source_missing")){
+      source_absent=1;defer_log("DEFER_SOURCE_ABSENT",g_defer_title);break;
+    }
+    if(r.http==409&&defer_busy(r.body)){
+      if(try_number==0||try_number%10==0){
+        char reason[80]={0};defer_json_string(r.body,"error_reason",reason,sizeof reason);
+        defer_log("DEFER_WAIT",reason);
+      }
+      sleep(3);continue;
+    }
+    char message[240]={0};
+    defer_json_string(r.body,"error",message,sizeof message);
+    defer_log("DEFER_FAIL",message[0]?message:"ShadowMount refused delete");
+    return 1;
+  }
+  if(job<=0&&!source_absent){
+    defer_log("DEFER_FAIL","Timed out waiting for safe game exit");return 1;
+  }
+  if(job>0){
+    int progress=-1,errors=0;
+    for(int attempt=0;attempt<5400;attempt++){
+      char query[80];snprintf(query,sizeof query,"{\"job_id\":%d}",job);
+      struct defer_reply r=defer_post("/api/v1/games/storage/status",query);
+      if(r.http!=200||defer_json_number(r.body,"status",-1)!=0){
+        if(++errors>=5){
+          defer_log("DEFER_UNCERTAIN","Job status unavailable; never retry deletion blindly");
+          return 1;
+        }
+        sleep(2);continue;
+      }
+      errors=0;
+      char title[24],source[720],operation[30],state[35];
+      if(defer_json_number(r.body,"job_id",-1)!=job||
+         !defer_json_string(r.body,"title_id",title,sizeof title)||
+         !defer_json_string(r.body,"source",source,sizeof source)||
+         !defer_json_string(r.body,"operation",operation,sizeof operation)||
+         !defer_json_string(r.body,"state",state,sizeof state)||
+         strcmp(title,g_defer_title)||strcmp(source,g_defer_source)||
+         strcmp(operation,"delete")){
+        defer_log("DEFER_UNCERTAIN","Storage job identity changed");return 1;
+      }
+      int current=defer_json_number(r.body,"progress_percent",0);
+      if(current>=0&&current<=100&&current/10!=progress/10){
+        progress=current;
+        char line[96];snprintf(line,sizeof line,"%s %d%%",g_defer_title,current);
+        defer_log("DEFER_PROGRESS",line);
+      }
+      if(!strcmp(state,"completed")){
+        if(defer_json_number(r.body,"result_status",-1)!=0){
+          defer_log("DEFER_FAIL","Storage job completed with error");return 1;
+        }
+        defer_log("DEFER_SOURCE_REMOVED",g_defer_source);break;
+      }
+      if(!strcmp(state,"failed")||!strcmp(state,"cancelled")){
+        char error[160]={0};
+        defer_json_string(r.body,"result_error",error,sizeof error);
+        defer_log("DEFER_FAIL",error[0]?error:state);return 1;
+      }
+      if(attempt==5399){
+        defer_log("DEFER_UNCERTAIN","Deletion job still running after status limit");
+        return 1;
+      }
+      sleep(2);
+    }
+  }
+  if(installed(g_defer_title)){
+    int native=do_system_uninstall(g_defer_title,-1);
+    if(native!=0){
+      char msg[100];snprintf(msg,sizeof msg,"%s native_code=0x%08x",
+                  g_defer_title,(unsigned)native);
+      defer_log("DEFER_NATIVE_PENDING",msg);
+    }else defer_log("DEFER_NATIVE_ACCEPTED",g_defer_title);
+  }
+  defer_log("DEFER_DONE",g_defer_title);
+  return 0;
+}
+
 static void perform(const char* kind,const char* target,unsigned* code,unsigned* state,int client){
   *code=EINVAL;*state=0;
+  if(!strcmp(kind,"SHADOWDEFER")){
+    *code=(unsigned)defer_queue(target);
+    if(*code==0)*state=5; // authenticated dispatch accepted, deletion NOT done
+    return;
+  }
   if(!strcmp(kind,"TITLEPROBE")||!strcmp(kind,"TITLEAUTO")){
     report_stage(client,"source_inspect");
     char id[16]={0}, expected[700]={0}, source[700]={0};
@@ -433,6 +684,10 @@ int main(void){
   snprintf(report,sizeof report,"UREM2_RESULT %s %08x %u\n",token,code,state);
   send_full(client,report);
   close(client);
+  if(code==0&&state==5){
+    // Keep this independent elfldr payload alive after native UI exit.
+    return defer_run()==0?0:8;
+  }
   printf("UREM2_DONE code=%08x state=%u\n",code,state);
   return code==0?0:8;
 }
