@@ -185,6 +185,21 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
   list(LENGTH ZC_PS5_IMPORT_STUBS _zc_ps5_stub_count)
   message(STATUS "PS5 SDK stub imports for original zplayer: ${_zc_ps5_stub_count}")
   target_link_libraries(zplayer PRIVATE ${ZC_PS5_IMPORT_STUBS})
+  # The official v0.42 PS5 SDK includes LLVM libc++, libc++abi and
+  # libunwind archives. The standard CMake compiler invocation does NOT
+  # automatically link these PS5-specific C++ exception/locale runtimes.
+  set(_zc_runtime_root "$ENV{PS5_PAYLOAD_SDK}/target/lib")
+  set(_zc_runtime_archives
+      "${_zc_runtime_root}/libc++.a"
+      "${_zc_runtime_root}/libc++abi.a"
+      "${_zc_runtime_root}/libunwind.a")
+  foreach(_zc_archive IN LISTS _zc_runtime_archives)
+    if(NOT EXISTS "${_zc_archive}")
+      message(FATAL_ERROR "Missing real PS5 C++ runtime archive: ${_zc_archive}")
+    endif()
+  endforeach()
+  target_link_libraries(zplayer PRIVATE
+      "-Wl,--start-group" ${_zc_runtime_archives} "-Wl,--end-group")
   get_target_property(_zc_link zplayer LINK_LIBRARIES)
   message(STATUS "PS5 zplayer link interface: ${_zc_link}")
 endif()
