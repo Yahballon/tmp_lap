@@ -22,6 +22,7 @@ with tempfile.TemporaryDirectory() as d:
     (app/"tools/build.sh").write_text(
       'link_inputs=("$build/obj/app_crt.o" "$build/obj/app_cpp_runtime.o" "${objects[@]}")\n'
       'for archive in "${archives[@]}"; do\n'
+      '    [[ $archive =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*\\.a$ && -f $root/$archive ]] || exit 2\n'
       '    link_inputs+=("$root/$archive")\n'
       'done\n')
     files=[]
@@ -47,6 +48,7 @@ with tempfile.TemporaryDirectory() as d:
     assert module.stage(gd,app,entry,builtins_override=builtins) is None
     b=(app/"tools/build.sh").read_text()
     assert '--start-group' in b and '--end-group' in b
+    assert '[A-Za-z0-9_.+-]+' in b, "PS5 libc++.a filenames rejected by old regex"
     assert 'APP_STATIC_ARCHIVES :=' in (app/"GNUmakefile").read_text()
     assert 'libmodule_gdscript' in (app/"GNUmakefile").read_text()
     assert (app/"godot-libs"/files[0]["path"]).is_file()
