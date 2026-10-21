@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// 4 WINS by YAHBALLON v0.1.1 — photo-based UI, ps5-homebrew-ui kit
+// 4 WINS by YAHBALLON v0.1.2 — photo-based UI, ps5-homebrew-ui kit
 #include "controls.hpp"
+#include "board_layout.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -22,8 +23,7 @@ using namespace hui::gfx;
 using namespace wins4;
 namespace {
 constexpr int CHIP_SIZE=96;
-constexpr float COLUMN_X0=633.0f,COLUMN_STEP=106.7f,ROW_Y_TOP=285.6f,ROW_STEP=93.2f;
-constexpr const char* LABEL="4 WINS by YAHBALLON v0.1.1";
+constexpr const char* LABEL="4 WINS by YAHBALLON v0.1.2";
 Color C(unsigned x,float a=1.f){return Color::rgb(x,a);}
 std::string file(const std::string& path,size_t limit=18*1024*1024){
  FILE* f=fopen(path.c_str(),"rb");if(!f)return {};
@@ -40,7 +40,7 @@ std::string asset(const char* name,size_t limit=18*1024*1024){
 }
 void log(const char* s){
  mkdir("/data/4WINS",0755);mkdir("/data/4WINS/logs",0755);
- if(FILE* f=fopen("/data/4WINS/logs/4wins.log","ab")){fprintf(f,"[4 WINS v0.1.1] %s\n",s);fclose(f);}
+ if(FILE* f=fopen("/data/4WINS/logs/4wins.log","ab")){fprintf(f,"[4 WINS v0.1.2] %s\n",s);fclose(f);}
 }
 void save(const Game& g){
  mkdir("/data/4WINS",0755);
@@ -97,11 +97,19 @@ void main_menu(DrawList& d,const Font& f,unsigned atlas,const Game& g){
  txt(d,f,atlas,g.opponent==Opponent::Human?"Take turns using one controller":(g.level==Level::Easy?"BOT: EASY":g.level==Level::Medium?"BOT: MEDIUM":"BOT: HARD"),89,789,19,0xbbd2fa);
  txt(d,f,atlas,"D-PAD  Navigate     X  Select",74,1048,20,0xd4ecff);
 }
+// The reference photograph contains pre-rendered menu and player labels.
+// One opaque architectural underlay per affected region is essential: a
+// translucent material or slightly offset tile re-exposes the old texts.
+// This runs exactly once before state-specific UI. The logo and board remain
+// untouched. Bounds cover the original baked glow, not just its text.
+void mask_embedded_ui(DrawList& d){
+ d.rounded_rect({49,264,428,550},20,C(0x040b20));
+ d.rounded_rect({484,853,460,176},22,C(0x050916));
+ d.rounded_rect({982,853,462,176},22,C(0x050916));
+}
 void game_left(DrawList& d,const Font& f,unsigned atlas,const Game& g,const Controller& ctl){
- // The reference photograph includes a menu. Paint one *opaque* panel over
- // all four baked menu buttons: no stale menu labels bleed through the HUD.
- d.rounded_rect({57,304,420,393},18,C(0x030a20,.995f));
- rect(d,65,310,404,376,17,0x071634,g.turn==1?0xff2d64:0xffdd35,2.4f);
+ // The old menu is already hidden by mask_embedded_ui().
+ rect(d,65,295,404,401,17,0x071634,g.turn==1?0xff2d64:0xffdd35,2.4f);
  const int actor=g.screen==Screen::Result?(g.winner==3?0:g.winner):g.turn;
  txt(d,f,atlas,g.screen==Screen::Result?(g.winner==3?"DRAW GAME":g.winner==1?"RED WINS!":"YELLOW WINS!"):g.screen==Screen::Paused?"GAME PAUSED":actor==1?"RED TO MOVE":"YELLOW TO MOVE",86,373,32,actor==2?0xffd74c:0xff4e67);
  d.line(86,391,442,391,2,C(0x274a81));
@@ -124,17 +132,17 @@ void board(DrawList& d,const Font& f,unsigned atlas,const Game& g,const Controll
  for(int c=0;c<COLS;c++)for(int r=0;r<ROWS;r++){
   int p=g.at(c,r);if(!p)continue;
   if(ctl.last_drop_col==c&&ctl.last_drop_row==r&&now-ctl.drop_time<400000ULL)continue;
-  draw_chip(d,p==1?red:yellow,COLUMN_X0+c*COLUMN_STEP,ROW_Y_TOP+(ROWS-r-1)*ROW_STEP,player_size,p==1?0xff1741:0xffcc21);
+  draw_chip(d,p==1?red:yellow,hole_x(c),hole_y(r),player_size,p==1?0xff1741:0xffcc21);
  }
  if(ctl.last_drop_col>=0&&now-ctl.drop_time<400000ULL){
   float elapsed=float(now-ctl.drop_time)/400000.f;
   float progress=1.f-std::pow(1.f-std::clamp(elapsed,0.f,1.f),3.f);
-  const float target=ROW_Y_TOP+(ROWS-ctl.last_drop_row-1)*ROW_STEP;
+  const float target=hole_y(ctl.last_drop_row);
   const float y=195.f+(target-195.f)*progress;
-  draw_chip(d,ctl.last_drop_owner==1?red:yellow,COLUMN_X0+ctl.last_drop_col*COLUMN_STEP,y,player_size,ctl.last_drop_owner==1?0xff1741:0xffcc21);
+  draw_chip(d,ctl.last_drop_owner==1?red:yellow,hole_x(ctl.last_drop_col),y,player_size,ctl.last_drop_owner==1?0xff1741:0xffcc21);
  }
  if(g.screen==Screen::Playing&&!(g.turn==2&&g.opponent==Opponent::Bot)){
-  float x=COLUMN_X0+g.selected*COLUMN_STEP;
+  float x=hole_x(g.selected);
   d.glow({x-35,198,70,40},17,15,C(g.turn==1?0xff3862:0xffe036,.8f));
   d.triangle({x-20,204,40,28},C(g.turn==1?0xff426b:0xffdf3a),0,3.14159265f);
   txt(d,f,atlas,std::to_string(g.selected+1),x,196,21,g.turn==1?0xff859d:0xffec9d,Align::center);
@@ -143,25 +151,24 @@ void board(DrawList& d,const Font& f,unsigned atlas,const Game& g,const Controll
   float pulse=.55f+.45f*std::sin(float(now%1500000ULL)*0.000004f);
   for(int j=0;j<4;j++){
    int col=g.winning_cells[j*2],row=g.winning_cells[j*2+1];
-   if(col>=0&&row>=0)d.ring(COLUMN_X0+col*COLUMN_STEP,ROW_Y_TOP+(ROWS-row-1)*ROW_STEP,42,5,C(0xffffff,pulse));
+   if(col>=0&&row>=0)d.ring(hole_x(col),hole_y(row),38,4,C(0xffffff,pulse));
   }
  }
 }
 void footer(DrawList& d,const Font& f,unsigned atlas,const Game& g){
  const bool bot=g.opponent==Opponent::Bot;
- // The underlying photo has old player-label text; opaque re-rendered tiles
- // fully replace the area while keeping the same neon red/yellow silhouette.
- d.glow({490,860,432,143},18,13,C(0xff174d,.55f));
- rect(d,500,869,418,126,18,0x130716,0xff264e,3);
+ // Built-in labels are erased and the entire footer area is opaque.
+ d.glow({492,865,438,147},18,13,C(0xff174d,.55f));
+ rect(d,500,869,432,143,18,0x130716,0xff264e,3);
  d.circle(552,932,38,C(0xe50d3a));d.ring(552,932,36,5,C(0xff6785));
  txt(d,f,atlas,"PLAYER 1",607,915,29,0xff536a);
  txt(d,f,atlas,"RED  |  X DROP",609,952,21,0xffffff);
- d.glow({990,860,432,143},18,13,C(0xffdf25,.47f));
- rect(d,994,869,415,126,18,0x171306,0xfad82a,3);
+ d.glow({991,865,438,147},18,13,C(0xffdf25,.47f));
+ rect(d,990,869,432,143,18,0x171306,0xfad82a,3);
  d.circle(1044,932,38,C(0xffd12b));d.ring(1044,932,36,5,C(0xfff2a9));
  txt(d,f,atlas,bot?"BOT":"PLAYER 2",1097,915,29,0xffdf4e);
  txt(d,f,atlas,bot?(g.level==Level::Easy?"EASY AI":g.level==Level::Medium?"MEDIUM AI":"HARD AI"):"YELLOW  |  X DROP",1098,952,21,0xffffff);
- txt(d,f,atlas,"4 WINS  v0.1.1  by YAHBALLON",1838,1047,19,0xd1e5ff,Align::right);
+ txt(d,f,atlas,"4 WINS  v0.1.2  by YAHBALLON",1838,1047,19,0xd1e5ff,Align::right);
 }
 void overlay(DrawList& d,const Font& f,unsigned atlas,const Game& g,float clock){
  if(g.screen==Screen::Home||g.screen==Screen::Playing)return;
@@ -207,17 +214,32 @@ void overlay(DrawList& d,const Font& f,unsigned atlas,const Game& g,float clock)
  txt(d,f,atlas,"X CONFIRM  /  O BACK",x+26,y+h-21,16,0x9bb8e2);
  (void)clock;
 }
+void config_left(DrawList& d,const Font& f,unsigned atlas,const Game& g){
+ const char* title=g.screen==Screen::Mode?"SELECT GAME MODE":g.screen==Screen::Difficulty?"SELECT AI LEVEL":g.screen==Screen::Settings?"PREFERENCES":"EXIT GAME";
+ rect(d,64,302,406,264,16,0x08152f,0x318fe4,2.2f);
+ txt(d,f,atlas,title,89,365,28,0xa5e8ff);
+ d.line(90,386,441,386,2,C(0x2b4b7a));
+ txt(d,f,atlas,"D-PAD  CHANGE SELECTION",90,438,21,0xd5e7ff);
+ txt(d,f,atlas,"X  CONFIRM",90,478,21,0xd5e7ff);
+ txt(d,f,atlas,"O  BACK",90,519,21,0xd5e7ff);
+}
 void render(DrawList& d,const Game& g,const Controller& ctl,const Font& f,unsigned atlas,const Texture& photo,const Texture& red,const Texture& yellow,uint64_t now){
  if(photo.id)d.image(photo.id,{0,0,1920,1080},kFullUv,C(0xffffff));
  else{d.gradient_rect({0,0,1920,1080},0,C(0x030b26),C(0x090d19));txt(d,f,atlas,"4 WINS",70,170,112,0x72baff);}
- if(g.screen==Screen::Home||g.screen==Screen::Mode||g.screen==Screen::Difficulty||g.screen==Screen::Settings||g.screen==Screen::Exit){
+ mask_embedded_ui(d); // every frame and every screen, once; no ghost UI survives
+ if(g.screen==Screen::Home){
   main_menu(d,f,atlas,g);
-  if(g.screen!=Screen::Home)overlay(d,f,atlas,g,float(now)/1000000.f);
- }else{
+  footer(d,f,atlas,g);
+ }else if(g.screen==Screen::Playing||g.screen==Screen::Paused||g.screen==Screen::Result){
   board(d,f,atlas,g,ctl,now,red,yellow);
   game_left(d,f,atlas,g,ctl);
   footer(d,f,atlas,g);
   if(g.screen!=Screen::Playing)overlay(d,f,atlas,g,float(now)/1000000.f);
+ }else{
+  // Configuration is modal: never draw the Home menu behind a dialog.
+  config_left(d,f,atlas,g);
+  footer(d,f,atlas,g);
+  overlay(d,f,atlas,g,float(now)/1000000.f);
  }
 }
 }
@@ -246,7 +268,7 @@ int main(){
    .confirm=frame.is_pressed(hui::Action::confirm),.back=frame.is_pressed(hui::Action::back),
    .triangle=frame.is_pressed(hui::Action::north),.options=frame.is_pressed(hui::Action::menu),
    .l1=frame.is_pressed(hui::Action::page_prev),.r1=frame.is_pressed(hui::Action::page_next)};
-  const auto old_screen=g.screen; const int old_moves=g.moves;
+  const auto old_screen=g.screen;const int old_moves=g.moves;
   if(ctl.handle(g,in,now)){
    save(g);log("Exit requested");pad.close();
    if(scene.id)glDeleteTextures(1,&scene.id);
