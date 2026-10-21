@@ -1,0 +1,26 @@
+name: Validate Godot PS5 Engine Foundation
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/godot-ps5/**'
+      - '.github/workflows/build-godot-ps5.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/godot-ps5/**'
+      - '.github/workflows/build-godot-ps5.yml'
+permissions:
+  contents: read
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Godot platform overlay
+        run: |
+          set -euo pipefail
+          python3 -m py_compile homebrew/godot-ps5/engine/platform/ps5/detect.py
+          python3 homebrew/godot-ps5/scripts/check_overlay.py
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_locator_test.cpp -o /tmp/godot-ps5-test
+          /tmp/godot-ps5-test
