@@ -8,6 +8,7 @@ work="${RUNNER_TEMP:-/tmp}/zcps5-full-zplayer"
 mkdir -p "$work"
 upstream="$work/upstream"
 sdl="$work/sdl2-ps5"
+allegro="$work/allegro5-ps5-probe"
 build="$work/build"
 report="$work/results.txt"
 log="$work/configure.log"
@@ -15,6 +16,7 @@ echo "Original upstream zplayer PS5 cross-compilation, not playable" > "$report"
 test -d "$upstream/.git"
 test "$(git -C "$upstream" rev-parse HEAD)" = "c44dde7d0146da78bf8b541af457d5ff4e67a830"
 test "$(git -C "$sdl" rev-parse HEAD)" = "ee4c47dc0d617b3bc8f35108f9956baf228a1322"
+test "$(git -C "$allegro" rev-parse HEAD)" = "aae80ca3573e19702cfc2338591a575dc75eb647"
 test -f "$upstream/src/zc/zelda.cpp"
 test -f "$upstream/src/core/qst.cpp"
 test -f "$sdl/src/video/ps5/SDL_ps5video.c"
@@ -28,6 +30,7 @@ echo "Original zplayer: c44dde7d0146da78bf8b541af457d5ff4e67a830" >> "$report"
 echo "SDL2 PS5 fork: ee4c47dc0d617b3bc8f35108f9956baf228a1322" >> "$report"
 echo "Attempt original zplayer with ALLEGRO_SDL=ON and JIT_BACKEND=none" >> "$report"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_upstream_cmake_for_ps5.py" "$upstream"
+python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_allegro_for_ps5_probe.py" "$allegro"
 echo "PS5 adaptations: portable stduuid; WANT_NFD=OFF" >> "$report"
 echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
@@ -35,6 +38,8 @@ timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
   -DFETCHCONTENT_SOURCE_DIR_SDL2="$sdl" \
+  -DFETCHCONTENT_SOURCE_DIR_ALLEGRO5="$allegro" \
+  -DZC_PS5_NO_GLU_PROBE=ON \
   -DOpenGL_GL_PREFERENCE=LEGACY \
   -DOPENGL_INCLUDE_DIR="$PS5_OPENGL_PREFIX/include" \
   -DOPENGL_gl_LIBRARY="$PS5_OPENGL_PREFIX/lib/libPS5OpenGL.a" \
