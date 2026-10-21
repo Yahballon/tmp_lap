@@ -197,8 +197,8 @@ int main(){
     uninstaller::diag::write("ELFLDR","starting read-only inventory helper via 127.0.0.1:9021");
     const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
     uninstaller::bridge::merge(items,helper);
-    uninstaller::diag::write("ELFLDR","helper entries="+std::to_string(helper.items.size()).c_str());
-    log("Discovered "+std::to_string(items.size())+" entries; readable roots="+"
+    uninstaller::diag::write("ELFLDR",(std::string("helper entries=")+std::to_string(helper.items.size())).c_str());
+    log("Discovered "+std::to_string(items.size())+" entries; readable roots="+
       std::to_string(scanRootsReadable)+" inaccessible="+
       std::to_string(scanRootsDenied)+" missing="+std::to_string(scanRootsMissing));
     uninstaller::diag::write("SCAN","completed");
