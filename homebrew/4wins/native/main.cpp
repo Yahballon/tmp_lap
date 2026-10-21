@@ -103,9 +103,9 @@ void main_menu(DrawList& d,const Font& f,unsigned atlas,const Game& g){
 // This runs exactly once before state-specific UI. The logo and board remain
 // untouched. Bounds cover the original baked glow, not just its text.
 void mask_embedded_ui(DrawList& d){
- d.rounded_rect({49,264,428,550},20,C(0x040b20));
- d.rounded_rect({484,853,460,176},22,C(0x050916));
- d.rounded_rect({982,853,462,176},22,C(0x050916));
+ d.rounded_rect({49,299,428,515},20,C(0x040b20));
+ d.rounded_rect({484,875,460,154},22,C(0x050916));
+ d.rounded_rect({982,875,462,154},22,C(0x050916));
 }
 void game_left(DrawList& d,const Font& f,unsigned atlas,const Game& g,const Controller& ctl){
  // The old menu is already hidden by mask_embedded_ui().
