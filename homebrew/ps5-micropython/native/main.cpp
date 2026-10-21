@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 MicroPython by YAHBALLON v0.1.0
+// PS5 MicroPython by YAHBALLON v0.1.1
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -16,6 +16,7 @@
 namespace {
 const char* const kScripts="/data/PS5MicroPython/scripts";
 const size_t kMaxSource=65536, kMaxOutput=24576;
+constexpr int kVisibleScripts=8; // Keep lower-left script-folder instructions visible.
 alignas(16) char heap[256*1024];
 std::string capture;
 struct Script {std::string name,path;bool builtin;};
@@ -157,15 +158,15 @@ int main(){
   ui.rounded_rect({48,45,1824,103},18,Color::rgb(0x101d34));
   ui.rounded_rect({70,68,9,57},4,cyan);
   ui.text(font,atlas,"PS5 MicroPython",103,116,47,fg);
-  ui.text(font,atlas,"by YAHBALLON   v0.1.0",1838,109,23,mute,Align::right);
+  ui.text(font,atlas,"by YAHBALLON   v0.1.1",1838,109,23,mute,Align::right);
   ui.bordered_rect({48,171,610,811},19,Color::rgb(0x0c172b),2,edge);
   ui.bordered_rect({679,171,1193,811},19,Color::rgb(0x07101e),2,edge);
   ui.text(font,atlas,"PYTHON SCRIPTS",84,228,26,cyan);
   ui.text(font,atlas,"CONSOLE OUTPUT",721,228,26,cyan);
   ui.text(font,atlas,"MicroPython Embed   |   256 KB heap",1833,229,18,mute,Align::right);
   ui.line(84,251,627,251,2,edge);ui.line(721,251,1830,251,2,edge);
-  int first=std::max(0,selected-11);
-  for(int i=first;i<int(library.size())&&i<first+12;i++){
+  int first=std::max(0,selected-(kVisibleScripts-1));
+  for(int i=first;i<int(library.size())&&i<first+kVisibleScripts;i++){
    int y=274+(i-first)*53;bool active=(i==selected);
    ui.bordered_rect({80.f,float(y),543,46},9,active?Color::rgb(0x193a61):Color::rgb(0x102039),
                     active?2.f:1.f,active?cyan:edge);
@@ -174,6 +175,15 @@ int main(){
    ui.text(font,atlas,library[size_t(i)].builtin?"DEMO":"LOCAL",
            600,y+29,15,mute,Align::right);
   }
+  // Persistent guidance remains visible even after executing a Python script.
+  // Eight script rows end at y=691; this card starts at y=726 with no overlap.
+  ui.bordered_rect({80,726,543,233},14,Color::rgb(0x0d2540),2,edge);
+  ui.text(font,atlas,"ADD YOUR OWN SCRIPTS",105,766,23,cyan);
+  ui.line(105,784,597,784,1,edge);
+  ui.text(font,atlas,"Place your .py files here:",105,821,20,fg);
+  ui.text(font,atlas,"/data/PS5MicroPython/scripts/",105,857,20,cyan);
+  ui.text(font,atlas,"Transfer via FTP or a file manager.",105,895,18,mute);
+  ui.text(font,atlas,"Press TRIANGLE to refresh the list.",105,930,18,mute);
   auto lines=getLines(capture);
   const int visible=24, last=std::max(0,int(lines.size())-visible);
   scroll=std::min(scroll,last);

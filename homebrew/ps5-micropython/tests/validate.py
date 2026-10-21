@@ -7,7 +7,9 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 meta = json.loads((root / "app.json").read_text())
 assert meta["titleId"] == "PPSA99791"
-assert meta["version"] == "0.1.0"
+assert meta["version"] == "0.1.1"
+assert meta["contentVersion"] == "01.000.002"
+assert meta["releaseTag"] == "ps5-micropython-v0.1.1"
 assert re.fullmatch(r"UP[0-9]{4}-PPSA[0-9]{5}_00-[A-Z0-9]{16}", meta["contentId"])
 for name in ("hello.py", "fibonacci.py", "collections.py"):
     src = (root / "assets/scripts" / name).read_text()
@@ -20,4 +22,12 @@ ui = (root / "native/main.cpp").read_text()
 for token in ("mp_embed_init(", "mp_embed_exec_str(", "mp_embed_deinit(",
               "ps5_mp_console_write", "/data/PS5MicroPython/scripts"):
     assert token in ui, token
-print("Host-side source checks passed")
+assert "kVisibleScripts=8" in ui
+assert "i<first+kVisibleScripts" in ui
+assert "ADD YOUR OWN SCRIPTS" in ui
+assert "Place your .py files here:" in ui
+assert "Transfer via FTP or a file manager." in ui
+assert "Press TRIANGLE to refresh the list." in ui
+assert "ui.bordered_rect({80,726,543,233}" in ui
+assert "by YAHBALLON   v0.1.1" in ui
+print("Host-side source, guide and metadata checks passed")
