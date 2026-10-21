@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "31f1198a4a199682a9a42af05ea7840c331efde9652e8f9acce9b37afe820824",
+  "version": "cf1c1e459b69f4e41f5a8ff9aea0472770f9bb6f78114772407aaa2232418707",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 22,
+  "app_count": 23,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -198,6 +198,19 @@
       "source": "homebrew/drink-roulette",
       "size_bytes": 6916936,
       "published_at": "2026-10-20T20:48:02Z"
+    },
+    {
+      "name": "Godot PS5 Probe",
+      "slug": "godot-ps5",
+      "title_id": "PPSA99842",
+      "version": "0.1.0",
+      "tag": "godot-ps5-probe-v0.1.0",
+      "zip_name": "PPSA99842.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-probe-v0.1.0/PPSA99842.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-probe-v0.1.0",
+      "source": "homebrew/godot-ps5",
+      "size_bytes": 6061439,
+      "published_at": "2026-10-21T17:07:42Z"
     },
     {
       "name": "Snake",
