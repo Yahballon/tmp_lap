@@ -1,4 +1,9 @@
-# 4 WINS v0.1.0
-Native PS5 Connect Four by YAHBALLON, featuring local two-player hot-seat and one-player versus Easy, Medium or Hard bot. Includes gravity, four-in-a-row, result detection and round reset.
+# 4 WINS v0.1.1 — Visual & Navigation Overhaul
 
-**Requirements:** compatible jailbreak and homebrew installation. The PS5 native build is validated in CI before release; this is not a claim of on-console hardware testing.
+- Replaced the incorrect neon vector background with the provided cinematic neon gaming-room photograph and a clean, empty 7×6 board.
+- Rebuilt the UI using Yahballon/ps5-homebrew-ui's input tracker, focus states and SDF renderer. No duplicated/bleeding labels.
+- Fully navigable local 2-player or solo bot mode selection, Easy/Medium/Hard difficulty, settings, pause, results, restart and exit.
+- Dynamic glossy chips, drop animation, column selector, win-line highlights, bot thinking status, scores and persistence.
+- Added `controls_test.cpp` regression tests.
+
+**PS5 Title ID:** PPSA99858 (same as v0.1.0). Install `PPSA99858.zip` from this release over the old version. On-console verification is pending.
