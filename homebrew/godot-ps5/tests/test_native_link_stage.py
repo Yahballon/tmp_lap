@@ -67,6 +67,7 @@ with tempfile.TemporaryDirectory() as d:
     assert '--start-group' in b and '--end-group' in b
     assert '[A-Za-z0-9_.+-]+' in b, "PS5 libc++.a filenames rejected by old regex"
     assert "'ZSTD_trace_compress_begin','ZSTD_trace_compress_end'" in b
+    assert '--defsym=_ZTHN14ResourceLoader12load_nestingE=0' in b
     assert 'APP_STATIC_ARCHIVES :=' in (app/"GNUmakefile").read_text()
     assert 'libmodule_gdscript' in (app/"GNUmakefile").read_text()
     assert (app/"godot-libs"/files[0]["path"]).is_file()
