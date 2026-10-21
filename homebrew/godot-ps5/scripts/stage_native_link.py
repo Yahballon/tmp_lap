@@ -24,7 +24,7 @@ def stage(godot, app, entry):
         libraries.append(dest.relative_to(app).as_posix())
     build = app/"tools/build.sh"
     source = build.read_text()
-    prefix = 'link_inputs=("$build/obj/app_crt.o" "$build/obj/app_cpp_runtime.o" "\${objects[@]}")'
+    prefix = 'link_inputs=("$build/obj/app_crt.o" "$build/obj/app_cpp_runtime.o" "${objects[@]}")'
     suffix = '    link_inputs+=("$root/$archive")'
     assert source.count(prefix) == 1 and source.count(suffix) == 1
     source = source.replace(prefix,prefix+'\nlink_inputs+=("--start-group")',1)
