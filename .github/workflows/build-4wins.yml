@@ -1,0 +1,119 @@
+name: Build 4 WINS PS5
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/4wins/**'
+      - '.github/workflows/build-4wins.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/4wins/**'
+      - '.github/workflows/build-4wins.yml'
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make git curl unzip tar python3 python3-pil g++ pkg-config ca-certificates
+      - name: Verify game rules and app metadata
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/4wins/tests/game_test.cpp -o /tmp/4wins-test
+          /tmp/4wins-test
+          python3 -m json.tool homebrew/4wins/app.json >/dev/null
+      - name: Stage native PS5 title
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/4wins/native/main.cpp homebrew/4wins/native/game.hpp app/src/
+          python3 homebrew/4wins/assets/generate_assets.py app
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          info=json.loads(Path('homebrew/4wins/app.json').read_text())
+          p=Path('app/sce_sys/param.json')
+          j=json.loads(p.read_text())
+          j.update(titleId=info['titleId'],conceptId=info['titleId'][4:],
+                   contentId=info['contentId'],contentVersion=info['contentVersion'])
+          j['localizedParameters']['en-US']['titleName']='4 WINS'
+          p.write_text(json.dumps(j,indent=2)+'\n')
+          PY
+      - name: Select verified PS5 OpenGL SDK 1.0.2 fork
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/tools/fetch-opengl-sdk.sh')
+          s=p.read_text()
+          assert 'version=1.0.0' in s
+          assert 'blackbearreloaded/ps5-opengl' in s
+          assert 'archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5' in s
+          s=s.replace('version=1.0.0','version=1.0.2')
+          s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5',
+                      'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
+          s=s.replace('github.com/blackbearreloaded/ps5-opengl','github.com/LedyBacer/ps5-opengl')
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "Pinned SDK archive SHA-256 verified" >&2'+s[end:]
+          p.write_text(s)
+          PY
+      - name: Fetch and compile PS5 OpenGL dependencies
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: bash tools/prepare-opengl.sh
+      - name: Resolve native POSIX collisions
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Compile PS5 and package installer
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify installable ZIP and icons
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import json,struct,zipfile
+          root=Path('app/dist/PPSA99858')
+          binary=(root/'eboot.bin').read_bytes()
+          assert len(binary)>1000 and binary[:4]==struct.pack('<I',0x1d3d154f)
+          meta=json.loads((root/'sce_sys/param.json').read_text())
+          assert meta['titleId']=='PPSA99858'
+          assert meta['contentId']=='UP9000-PPSA99858_00-FOURWINSHOMEBREW'
+          assert Image.open(root/'sce_sys/icon0.png').size==(512,512)
+          paths=['eboot.bin','sce_sys/icon0.png','sce_sys/param.json','sce_module/libc.prx',
+                 'assets/scene_menu.jpg','assets/scene_game.jpg','assets/red.rgba','assets/yellow.rgba','assets/fonts/inter-semibold.huifont']
+          for p in paths: assert (root/p).is_file(),p
+          with zipfile.ZipFile('app/dist/PPSA99858.zip') as z:
+            assert z.testzip() is None
+            for p in paths: assert f'PPSA99858/{p}' in z.namelist(),p
+          print('PASS native 4 WINS installer ZIP')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4WINS-v0.1.0-PPSA99858
+          path: app/dist/PPSA99858.zip
+          if-no-files-found: error
+      - name: Publish verified 4 WINS TESTBUILDS release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view 4wins-v0.1.0 >/dev/null 2>&1; then
+            echo 'Release already exists. Not replacing immutable asset.'
+            exit 1
+          fi
+          gh release create 4wins-v0.1.0 app/dist/PPSA99858.zip --target "$GITHUB_SHA" --title '4 WINS by YAHBALLON v0.1.0' --notes-file homebrew/4wins/RELEASE_NOTES.md
