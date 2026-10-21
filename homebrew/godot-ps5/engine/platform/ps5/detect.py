@@ -46,6 +46,8 @@ def configure(env):
         "-fno-stack-protector", "-fno-plt", "-femulated-tls",
         "-fno-omit-frame-pointer", "-fno-exceptions",
     ])
+    # PS5 toolchain defaults to RTTI-off; Godot 4 uses typeid in its core.
+    env.Append(CXXFLAGS=["-frtti"])
     env.Append(CPPDEFINES=["PS5_ENABLED", "UNIX_ENABLED",
                            "GODOT_PS5_NATIVE_IO", ("_FILE_OFFSET_BITS", 64)])
     env.Append(CPPPATH=["#platform/ps5"])

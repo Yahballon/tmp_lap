@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Headless Godot PS5 platform (no graphics, DualSense or audio backend yet).
 #include "os_ps5.h"
+#include "core/os/main_loop.h"
 #include "core/os/memory.h"
 #include "main/main.h"
 #include "servers/display/display_server.h"
