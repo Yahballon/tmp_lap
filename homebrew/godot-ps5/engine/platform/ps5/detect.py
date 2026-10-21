@@ -44,7 +44,7 @@ def configure(env):
         "-isystem", str(sdk / "target/include/c++/v1"),
         "-isystem", str(sdk / "target/include"),
         "-fno-stack-protector", "-fno-plt", "-femulated-tls",
-        "-fno-omit-frame-pointer", "-fno-exceptions", "-fno-rtti",
+        "-fno-omit-frame-pointer", "-fno-exceptions",
     ])
     env.Append(CPPDEFINES=["PS5_ENABLED", "UNIX_ENABLED",
                            "GODOT_PS5_NATIVE_IO", ("_FILE_OFFSET_BITS", 64)])

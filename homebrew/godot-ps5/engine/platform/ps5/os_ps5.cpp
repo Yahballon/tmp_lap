@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: MIT
-// Godot OS_Unix headless base; graphics/audio/pad backend NOT implemented.
+// Headless Godot PS5 platform (no graphics, DualSense or audio backend yet).
 #include "os_ps5.h"
 #include "core/os/memory.h"
 #include "main/main.h"
-#include "servers/display_server.h"
+#include "servers/display/display_server.h"
 
 void OS_PS5::initialize() { OS_Unix::initialize_core(); }
+void OS_PS5::initialize_joypads() {
+    // Native pad-to-Godot Input bridge will be implemented later.
+}
+bool OS_PS5::_check_internal_feature_support(const String &feature) {
+    (void)feature;
+    return false; // Do not advertise unimplemented PS5 features.
+}
 void OS_PS5::finalize() { delete_main_loop(); }
 void OS_PS5::delete_main_loop() {
     if (main_loop) memdelete(main_loop);

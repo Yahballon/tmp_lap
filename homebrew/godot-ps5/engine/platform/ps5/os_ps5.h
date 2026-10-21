@@ -7,6 +7,8 @@ class OS_PS5 final : public OS_Unix {
 protected:
     void initialize() override;
     void finalize() override;
+    void initialize_joypads() override;
+    bool _check_internal_feature_support(const String &feature) override;
     void delete_main_loop() override;
     void set_main_loop(MainLoop *loop) override;
 public:
