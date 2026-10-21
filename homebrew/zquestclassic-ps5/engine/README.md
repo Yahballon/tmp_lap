@@ -67,6 +67,19 @@ submission and pixel presentation need on-console verification after CI.
 See [VIDEO_PORT.md](VIDEO_PORT.md) for SDL2/OSMesa evaluation, implementation
 details and remaining input/audio integration.
 
+## DualSense → original zplayer controls milestone
+
+The next PS5 engine-build milestone maps `hui::PadSample` readings
+from native `scePad` to ZQuestClassic's **actual one-indexed default
+PlayStation gamepad scheme** in `src/zc/control_scheme.cpp`. A host test
+verifies face buttons, D-pad, shoulder, triggers, thumbsticks, disconnect
+and press/release edges. A PS5-SDK adapter is independently compiled and
+linked into the isolated upstream engine bringup ELF.
+
+See [INPUT_PORT.md](INPUT_PORT.md) for the action map. This is not yet
+an `ALLEGRO_JOYSTICK` driver, does not dispatch game events into the
+original VM and does not make either Quest file playable.
+
 ## Engine backend path
 
 An existing PS5 SDL2 fork can reduce platform engineering:
