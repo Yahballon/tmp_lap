@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as d:
     }))
     sdk = app/".deps/native/ps5-payload-sdk/target/lib"
     sdk.mkdir(parents=True)
-    for lib in ("libc++.a", "libc++abi.a", "libunwind.a"):
+    for lib in ("libc++.a", "libc++abi.a", "libunwind.a", "libc.a"):
         (sdk/lib).write_bytes(b"!<arch>\n"+b"Q"*128)
     builtins=root/"libclang_rt.builtins-x86_64.a"
     builtins.write_bytes(b"!<arch>\n"+b"R"*128)
