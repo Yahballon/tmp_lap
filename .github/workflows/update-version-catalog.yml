@@ -74,7 +74,7 @@ jobs:
           python3 tools/test-version-catalog.py
           python3 tools/test-catalog-triggers.py
   catalog:
-    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'))
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || (github.event.workflow_run.name == 'Godot PS5 Native Engine Link Retry' && github.event.workflow_run.head_branch == 'feature/godot-ps5-engine-foundation'))))
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
