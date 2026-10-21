@@ -3,6 +3,7 @@
 // Based on upstream src/zc/zelda.cpp: zapp_check_switch("-standalone", {"qst"}).
 #pragma once
 #include <algorithm>
+#include <cctype>
 #include <string>
 #include <vector>
 
