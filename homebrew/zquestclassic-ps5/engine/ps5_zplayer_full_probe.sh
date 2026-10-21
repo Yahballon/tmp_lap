@@ -28,6 +28,8 @@ test -x "$PS5_PAYLOAD_SDK/bin/prospero-lld"
 export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
 test -f "${PS5_OPENGL_PREFIX:?}/lib/libPS5OpenGL.a"
 test -f "$PS5_OPENGL_PREFIX/include/GL/glcorearb.h"
+test -d "$PS5_PAYLOAD_SDK/target/lib"
+find "$PS5_PAYLOAD_SDK/target/lib" -maxdepth 1 -name 'libSce*.so' -printf '[zcps5] SDK module: %f\n' | head -n 12 || true
 echo "Original zplayer: c44dde7d0146da78bf8b541af457d5ff4e67a830" >> "$report"
 echo "SDL2 PS5 fork: ee4c47dc0d617b3bc8f35108f9956baf228a1322" >> "$report"
 echo "Attempt original zplayer with ALLEGRO_SDL=ON and JIT_BACKEND=none" >> "$report"
@@ -39,6 +41,7 @@ echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
+  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib" \
   "-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG" \
   "-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG" \
   "-DCMAKE_C_FLAGS=-DZC_PS5_LIBC_NO_STRERROR_S=1 -DZC_PS5_NO_GLU_HEADER=1" \
@@ -52,6 +55,7 @@ timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DZC_PS5_AUDIO_DRIVER_PROBE=ON \
   -DZC_PS5_TARGET_ONLY_PROBE=ON \
   -DZC_PS5_SDL_TARGET=ON \
+  -DZC_PS5_NO_DESKTOP_UNIX_LIBS=ON \
   -DALLEGRO_LEGACY_USE_CONSTRUCTOR=0 \
   -DOpenGL_GL_PREFERENCE=LEGACY \
   -DOPENGL_INCLUDE_DIR="$PS5_OPENGL_PREFIX/include" \
