@@ -1,0 +1,42 @@
+name: Open Surge PS5 - original engine validation (not playable)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/opensurge-ps5/**'
+      - '.github/workflows/build-opensurge-ps5.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/opensurge-ps5/**'
+      - '.github/workflows/build-opensurge-ps5.yml'
+permissions:
+  contents: read
+jobs:
+  original-engine-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install required host compilers and full game libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git cmake ninja-build gcc g++ pkg-config python3 \
+            liballegro5-dev libphysfs-dev libgl1-mesa-dev \
+            libfreetype-dev libpng-dev libjpeg-dev libvorbis-dev libogg-dev libopus-dev
+      - name: Verify immutable upstream specification and patch isolation
+        run: |
+          python3 -m unittest discover -s homebrew/opensurge-ps5/tests -p 'test_*.py' -v
+          python3 -m json.tool homebrew/opensurge-ps5/app.json >/dev/null
+          python3 -m json.tool homebrew/opensurge-ps5/upstream.lock.json >/dev/null
+      - name: Compile the real complete Open Surge source on host
+        env:
+          BUILD_JOBS: '4'
+        run: |
+          bash homebrew/opensurge-ps5/scripts/build-host.sh
+      - name: Native PS5 deliverable status
+        run: |
+          echo "HOST ENGINE COMPILED - PS5 cross-compile NOT RUN"
+          echo "No verified Allegro 5 PS5 backend, eboot.bin, installer or hardware test yet."
+          test ! -d homebrew/opensurge-ps5/dist

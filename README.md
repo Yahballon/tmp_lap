@@ -8,7 +8,7 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
-| ZQuest Classic PS5 (quest-browser port prototype; gameplay not implemented) | [homebrew/zquestclassic-ps5](homebrew/zquestclassic-ps5/) | [Build ZQuest Classic PS5](.github/workflows/build-zquestclassic-ps5.yml) | No playable release yet |
+| Open Surge PS5 (original engine integration; native runtime still missing) | [homebrew/opensurge-ps5](homebrew/opensurge-ps5/) | [Validate original engine](.github/workflows/build-opensurge-ps5.yml) | No PS5 playable release |\n| ZQuest Classic PS5 (quest-browser port prototype; gameplay not implemented) | [homebrew/zquestclassic-ps5](homebrew/zquestclassic-ps5/) | [Build ZQuest Classic PS5](.github/workflows/build-zquestclassic-ps5.yml) | No playable release yet |
 | PS5DreamcastX (Flycast, PS5GBAX-style shelf) | [homebrew/ps5-dreamcastx](homebrew/ps5-dreamcastx/) | [Build PS5DreamcastX](.github/workflows/build-ps5-dreamcastx.yml) | [v0.1.0 (after successful CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-dreamcastx-v0.1.0) |
 | PS5 System Info | [homebrew/ps5-system-info](homebrew/ps5-system-info/) | [Build PS5 System Info](.github/workflows/build-ps5-system-info.yml) | [v0.1.0 (after verified CI)](https://github.com/Yahballon/tmp_lap/releases/tag/ps5-system-info-v0.1.0) |
 | Audiobook Reader (M4B preview) | [homebrew/audiobook-reader](homebrew/audiobook-reader/) | [Build Audiobook Reader](.github/workflows/build-audiobook-reader.yml) | [v0.2.5](https://github.com/Yahballon/tmp_lap/releases/tag/audiobook-reader-v0.2.5) |

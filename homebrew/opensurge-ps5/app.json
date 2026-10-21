@@ -1,0 +1,13 @@
+{
+  "name": "Open Surge PS5",
+  "slug": "opensurge-ps5",
+  "version": "0.1.0",
+  "titleId": "PPSA99358",
+  "contentId": "UP9000-PPSA99358_00-OPENSURGEPS5PORT",
+  "developer": "YAHBALLON",
+  "upstream": "alemart/opensurge",
+  "upstreamVersion": "0.6.1.3",
+  "engineIntegrated": false,
+  "ps5BuildStatus": "blocked-unported-allegro-sdl2",
+  "installable": false
+}

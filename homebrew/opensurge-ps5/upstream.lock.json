@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "opensurge": {
+    "repository": "alemart/opensurge",
+    "tag": "v0.6.1.3",
+    "commit": "ce93744be4024ae8b3f92f2e032f442821daa706"
+  },
+  "surgescript": {
+    "repository": "alemart/surgescript",
+    "tag": "v0.6.1",
+    "commit": "56bd599302bbca1eea91d0dc8353257845b314ea"
+  },
+  "allegro": {
+    "repository": "liballeg/allegro5",
+    "tag": "5.2.11.3",
+    "commit": "9e58c5e03af16810e8cfecec719e69ce4a76b49b"
+  },
+  "physfs": {
+    "repository": "icculus/physfs",
+    "tag": "release-3.2.0",
+    "commit": "eb3383b532c5f74bfeb42ec306ba2cf80eed988c"
+  }
+}
