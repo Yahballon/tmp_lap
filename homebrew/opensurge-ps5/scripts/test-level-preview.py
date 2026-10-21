@@ -17,6 +17,14 @@ assert len(instances)>=1000
 assert meta["spawn"]==(176,9792), "Pinned original demo spawn changed"
 for filename,dimension in (("sunshine.rgba",meta["atlas"]),("surge.rgba",meta["hero"])):
     assert (root/filename).stat().st_size==dimension[0]*dimension[1]*4
+    pixels=(root/filename).read_bytes()
+    # Original magenta transparency must be zero alpha, not hot-pink blocks.
+    assert not any(pixels[i:i+3]==bytes((255,0,255)) and pixels[i+3]!=0
+                   for i in range(0,len(pixels),4)), filename
+collision=(root/"collision.bin").read_bytes()
+assert len(collision)==meta["atlas"][0]*meta["atlas"][1]
+assert all(pixel in (0,1) for pixel in collision)
+assert 1000<sum(collision)<len(collision)*.95
 by_id={int(row[0]):row for row in defs}
 assert len(by_id)==len(defs)
 assert {row[5] for row in defs}>={"SOLID","CLOUD","PASSABLE"}
@@ -26,6 +34,11 @@ assert all(0<=int(row[1])<=int(row[1])+int(row[3])<=meta["atlas"][0]
            for row in defs)
 manifest=json.loads((app/"assets"/"game-data-manifest.json").read_text())
 assert manifest["file_count"]>100
+# Regression: DrawList.image UV Rect is x,y,width,height, never x0,y0,x1,y1.
+native=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
+assert "{u0,v0,u1-u0,v1-v0}" in native
+assert "facing_<0?u0-u1:u1-u0,v1-v0" in native
+assert "mask_pixel(b,local_x,local_y)" in native
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

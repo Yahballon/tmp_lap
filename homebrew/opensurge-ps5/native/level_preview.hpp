@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.2.0 - ORIGINAL brick+sprite level renderer and movement probe.
+// Open Surge PS5 v0.2.1 - transparent original sprites + mask-based collision probe.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -28,6 +28,7 @@ public:
     float player_x() const {return x_;}
     float player_y() const {return y_;}
     bool grounded() const {return ground_;}
+    float velocity_y() const {return vy_;}
 
     bool load(Renderer& renderer,const std::string& game_root) {
         error_.clear(); placed_.clear(); atlas_=hero_=0;
@@ -100,6 +101,15 @@ public:
            player.size()!=static_cast<size_t>(herow)*heroh*4u) {
             error_="ORIGINAL TEXTURES INVALID";placed_.clear();return false;
         }
+
+        // The mask comes from Open Surge's separate, authentic brick collision
+        // image; no arbitrary 128x128 box collider for passable decorations.
+        const auto collision=read(base+"collision.bin",
+            static_cast<size_t>(atlasw)*atlash+1);
+        if(collision.size()!=static_cast<size_t>(atlasw)*atlash){
+            error_="ORIGINAL COLLISION MASK MISSING";return false;
+        }
+        mask_.assign(collision.begin(),collision.end());
         atlas_=renderer.batch().create_texture(atlasw,atlash,
                              reinterpret_cast<const unsigned char*>(bg.data()));
         hero_=renderer.batch().create_texture(herow,heroh,
@@ -111,37 +121,75 @@ public:
         return true;
     }
     void reset(){
-        x_=startx_; y_=starty_; vx_=vy_=0;ground_=false;
+        x_=startx_; y_=starty_; vx_=vy_=0;ground_=false;facing_=1;
         elapsed_=0;
+        // The spawn point is the character's source hot spot, not the bitmap
+        // bottom. Support slightly embedded spawn coordinates without snapping
+        // hundreds of pixels to an arbitrary platform.
+        for(int k=0;k<32 && body_hits(x_,y_);++k)y_-=1.0f;
+        // Level spawn is authored close to a CLOUD tile's masked surface,
+        // which may be halfway through its 128px source rectangle.
+        if(!has_foot_support(x_,y_)){
+            const float spawn_y=y_;
+            for(int k=1;k<=96;++k){
+                if(has_foot_support(x_,spawn_y-float(k))){
+                    y_=spawn_y-float(k);break;
+                }
+            }
+            if(!has_foot_support(x_,y_)){
+                for(int k=1;k<=64;++k){
+                    if(has_foot_support(x_,spawn_y+float(k))){
+                        y_=spawn_y+float(k);break;
+                    }
+                }
+            }
+        }
+        ground_=has_foot_support(x_,y_);
     }
     void update(float dt,int dir,bool jump){
         if(!ready())return;
-        dt=std::clamp(dt,0.0f,0.04f);
-        if(dir<-1)dir=-1; if(dir>1)dir=1;
-        if(dir) facing_=dir;
-        vx_=210.f*static_cast<float>(dir);
-        if(jump && ground_){vy_=-465.f;ground_=false;}
-        const float oldy=y_;
-        float newx=x_+vx_*dt;
-        float newy=y_+vy_*dt;
-        vy_=std::min(650.f,vy_+1050.f*dt);
-        // Initial flat-top collision probe; original alpha/mask, slopes and
-        // moving/platform physics have NOT yet been ported.
-        bool landing=false;
-        if(vy_>=0){
-            float best=newy;
-            for(const auto& brick:placed_){
-                const auto& def=defs_[brick.id];
-                if(!def.solid && !def.cloud)continue;
-                const float left=float(brick.x),top=float(brick.y);
-                if(newx+15.f<left||newx-15.f>left+def.w)continue;
-                if(oldy<=top+4.f && newy>=top && top<=best){
-                    best=top;landing=true;
+        dt=std::clamp(dt,0.0f,0.035f);
+        dir=std::clamp(dir,-1,1);
+        if(dir)facing_=dir;
+        // Non-original experimental movement; slope masks now govern ground.
+        const float target=dir*250.0f;
+        const float change=(ground_?1700.f:1000.f)*dt;
+        vx_+=std::clamp(target-vx_,-change,change);
+        if(jump&&ground_){vy_=-490.0f;ground_=false;}
+        vy_=std::min(700.0f,vy_+1150.0f*dt);
+        const float dx=vx_*dt,dy=vy_*dt;
+        const int xsteps=std::max(1,int(std::ceil(std::abs(dx)/2.f)));
+        const float step=dx/xsteps;
+        for(int i=0;i<xsteps;++i){
+            const float next=x_+step;
+            if(!body_hits(next,y_)){x_=next;continue;}
+            bool walked=false;
+            if(ground_){
+                // Limited, pixel-mask-derived step-up for gentler slopes.
+                for(int rise=1;rise<=8;++rise){
+                    if(!body_hits(next,y_-rise)){
+                        x_=next;y_-=rise;walked=true;break;
+                    }
                 }
             }
-            if(landing){newy=best;vy_=0;}
+            if(!walked){vx_=0;break;}
         }
-        x_=newx;y_=newy;ground_=landing;
+        const int ysteps=std::max(1,int(std::ceil(std::abs(dy)/2.f)));
+        const float ystep=dy/ysteps;
+        bool landed=false;
+        for(int i=0;i<ysteps;++i){
+            const float next=y_+ystep;
+            if(ystep>=0){
+                if(has_foot_support(x_,next)){vy_=0;landed=true;break;}
+            }else if(head_hits(x_,next)){
+                vy_=0;break;
+            }
+            y_=next;
+        }
+        ground_=landed;
+        if(!ground_ && vy_>=0 && has_foot_support(x_,y_+1.5f)){
+            ground_=true;vy_=0;
+        }
         if(std::abs(y_-starty_)>3000.f)reset();
         elapsed_+=dt;
     }
@@ -158,8 +206,10 @@ public:
             const float left=(worldx-camx)*scale,top=(worldy-camy)*scale;
             const float u0=float(def.sx)/atlasw_,v0=float(def.sy)/atlash_;
             const float u1=float(def.sx+def.w)/atlasw_,v1=float(def.sy+def.h)/atlash_;
+            // ps5-homebrew-ui Rect UV is (x,y,width,height), NOT
+            // (u0,v0,u1,v1). Passing end-points caused texture bleeding.
             ui.image(atlas_,{left,top,float(def.w)*scale,float(def.h)*scale},
-                     {u0,v0,u1,v1},white);
+                     {u0,v0,u1-u0,v1-v0},white);
             if(++visible_>=1200)break;
         }
         int frame=0;
@@ -172,11 +222,58 @@ public:
             const float u0=float(sx)/herow_,v0=float(sy)/heroh_;
             const float u1=float(sx+64)/herow_,v1=float(sy+64)/heroh_;
             // Image UV horizontal inversion for leftward movement.
+            // A subtle marker stays behind the character until GPU blending
+            // and the source-frame visibility are validated on PS5 hardware.
+            ui.rounded_rect({hx+43,hy+94,42,24},12,
+                            Color::rgb(0x003344,0.35f));
             ui.image(hero_,{hx,hy,128,128},
-                     {facing_<0?u1:u0,v0,facing_<0?u0:u1,v1},white);
+                     {facing_<0?u1:u0,v0,
+                      facing_<0?u0-u1:u1-u0,v1-v0},white);
         }
     }
 private:
+    bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
+        if(sx<0||sy<0||sx>=defs_[b.id].w||sy>=defs_[b.id].h)return false;
+        const auto& d=defs_[b.id];
+        const size_t offset=static_cast<size_t>(d.sy+sy)*atlasw_+(d.sx+sx);
+        return offset<mask_.size()&&mask_[offset]!=0;
+    }
+    bool solid_at(float px,float py) const {
+        for(const auto& b:placed_){
+            const auto& d=defs_[b.id];
+            if(!d.solid||px<float(b.x)||py<float(b.y)||
+                px>=float(b.x+d.w)||py>=float(b.y+d.h))continue;
+            if(mask_pixel(b,int(px-float(b.x)),int(py-float(b.y))))
+                return true;
+        }
+        return false;
+    }
+    bool body_hits(float px,float feet) const{
+        for(const float yy:{feet-38.f,feet-22.f,feet-8.f}){
+            if(solid_at(px-12.f,yy)||solid_at(px+12.f,yy))return true;
+        }
+        return false;
+    }
+    bool head_hits(float px,float feet) const {
+        return solid_at(px-11.f,feet-44.f)||solid_at(px+11.f,feet-44.f);
+    }
+    bool has_foot_support(float px,float feet) const {
+        for(float fx:{px-10.f,px,px+10.f}){
+            if(solid_at(fx,feet+1.f))return true;
+            for(const auto& b:placed_){
+                const auto& d=defs_[b.id];
+                if(!d.cloud||fx<float(b.x)||fx>=float(b.x+d.w)||
+                    feet<float(b.y)-1.5f||feet>=float(b.y+d.h))continue;
+                // Original CLOUD surfaces may lie inside the brick atlas,
+                // not at the bounding rectangle's y=0. Respect the actual
+                // Open Surge mask pixel at the player's foot.
+                const int local_x=int(fx-float(b.x));
+                const int local_y=std::max(0,int(feet-float(b.y)+1.f));
+                if(mask_pixel(b,local_x,local_y))return true;
+            }
+        }
+        return false;
+    }
     static std::string read(const std::string& path,size_t max){
         if(FILE* file=std::fopen(path.c_str(),"rb")){
             if(std::fseek(file,0,SEEK_END)){std::fclose(file);return {};}
@@ -194,6 +291,7 @@ private:
     }
     BrickDef defs_[512]{};
     std::vector<PlacedBrick> placed_;
+    std::vector<unsigned char> mask_;
     unsigned atlas_=0,hero_=0;
     int atlasw_=0,atlash_=0,herow_=0,heroh_=0;
     int visible_=0,facing_=1;

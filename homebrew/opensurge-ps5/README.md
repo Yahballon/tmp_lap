@@ -1,8 +1,8 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.2.0 original level-rendering preview · PPSA99358**
+**by YAHBALLON · v0.2.1 transparency + mask-collision test · PPSA99358**
 
-**Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
+**Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
 - [Native legacy PS5 diagnostic workflow](../../.github/workflows/build-opensurge-legacy-ps5.yml) — builds a correctly signed/installable-format PS5 homebrew test app, not the upstream game.
 - [Original Open Surge engine host verification](../../.github/workflows/build-opensurge-ps5.yml) — source compatibility check; experimental native C library job retained for research, not the default console packaging path.
@@ -13,14 +13,14 @@
 2. Stages **all 682 original Open Surge game files** (count observed in CI for v0.6.1.3; authoritative file count is calculated from SHA-256 manifest during each build), including quests, level data, music, fonts, scripts, sprites and license files.
 3. Displays the genuine game's image and tests opening and reading representative engine asset files **from the PS5 app mount**.
 4. Logs results to **/data/OpenSurge/legacy-port.log** so actual console behavior can be verified.
-5. **Cross** enters the new real level renderer; left stick/D-pad moves the original Surge sprite; **Cross** jumps; **Square** resets; **Circle** returns. This uses temporary flat platform collision, not original slope/mask physics.
+5. **Cross** enters the new real level renderer; left stick/D-pad moves the original Surge sprite; **Cross** jumps; **Square** resets; **Circle** returns. This now samples the original `sunshine_mask.png` collision pixels, implements gravity/jump and a first bounded slope step. It remains a physics prototype, NOT the original engine.
 6. The original diagnostics remain reachable, and the whole game asset archive stays in the release.
 
 It does **not** run SurgeScript gameplay scripts, the original Allegro game loop, enemies, rings or correct native level physics. The rendering and movement probe is a stepping stone towards those systems, not a complete port. Native app boot is only an infrastructure milestone; it is not a full game port.
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.2.0**. The release tag is `opensurge-ps5-v0.2.0` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.2.1**. The release tag is `opensurge-ps5-v0.2.1` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
