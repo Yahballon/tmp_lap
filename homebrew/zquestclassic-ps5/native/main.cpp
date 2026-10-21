@@ -7,6 +7,7 @@
 #endif
 #include "quest_index.hpp"
 #include "quest_reader.hpp"
+#include "engine/ps5_video_probe.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -47,7 +48,7 @@ void logging(const char* text) {
   mkdir(kDataDir, 0755);
   mkdir(kLogDir, 0755);
   if (FILE* f = fopen("/data/ZQuestClassic/logs/port.log", "ab")) {
-    fprintf(f, "[ZQuest PS5 0.1.4] %s\n", text);
+    fprintf(f, "[ZQuest PS5 0.1.5] %s\n", text);
     fclose(f);
   }
 }
@@ -94,7 +95,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
   scenery(d);
   txt(d, f, atlas, "ZQUEST CLASSIC", 88, 116, 69, kWhite);
   txt(d, f, atlas, "PS5 PORT FOUNDATION  /  by YAHBALLON", 91, 161, 22, kMint);
-  txt(d, f, atlas, "v0.1.4", 1832, 112, 26, kDim, Align::right);
+  txt(d, f, atlas, "v0.1.5", 1832, 112, 26, kDim, Align::right);
   d.line(88, 191, 1832, 191, 2, color(0x2c6760));
   box(d, 78, 234, 1080, 692);
   txt(d, f, atlas, "QUEST LIBRARY", 110, 307, 32, kWhite);
@@ -175,7 +176,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
     txt(d, f, atlas, "Folders opened: " + std::to_string(scan.opened()), 1230, 834, 21, kMint);
     txt(d, f, atlas, "Gameplay is NOT implemented yet.", 1230, 878, 21, kGold);
   }
-  txt(d, f, atlas, "D-PAD  Select    X  Read test    SQUARE  Rescan    OPTIONS  Port status    O  Exit",
+  txt(d, f, atlas, "D-PAD Select    X Read .qst    TRIANGLE Video Test    SQUARE Rescan    OPTIONS Status    O Exit",
       960, 1007, 21, kWhite, Align::center);
   if (exiting) {
     d.rounded_rect({0, 0, 1920, 1080}, 0, color(0x010607, .66f));
@@ -207,6 +208,11 @@ int main() {
   hui::ps5::Pad pad;
   pad.open();
 
+  // Test-only Allegro-style RGB6/palette framebuffer; not actual quest output.
+  zcps5::engine::Ps5VideoProbe video_probe;
+  bool video_ready = false;
+  bool video_test_enabled = false;
+  unsigned video_frame = 0;
   QuestIndex scan;
   scan.set_log(logging);
   QuestReader reader;
@@ -223,6 +229,9 @@ int main() {
   for (;;) {
     scan.step(16);
     reader.step();
+    if (video_test_enabled && video_ready && ((video_frame % 4u) == 0u))
+      video_probe.draw_pattern(video_frame / 4u);
+    if (video_test_enabled) ++video_frame;
     if (reader.state() != last_read_state) {
       const auto state = reader.state();
       if (state == QuestReader::State::Complete) {
@@ -266,6 +275,7 @@ int main() {
       if (pressed & hui::pad_bits::kCircle) exiting = false;
       if (pressed & hui::pad_bits::kCross) {
         logging("EXIT");
+        if (video_ready) video_probe.release();
         pad.close();
         renderer.release();
         display.close();
@@ -288,17 +298,35 @@ int main() {
         selected = 0;
         show_info = false;
       }
+      if (pressed & hui::pad_bits::kTriangle) {
+        if (!video_ready) {
+          video_ready = video_probe.init(renderer.batch());
+          logging(video_ready ? "PS5_INDEXED_VIDEO_BRIDGE_READY" :
+                                "PS5_INDEXED_VIDEO_BRIDGE_FAILED");
+        }
+        if (video_ready) {
+          video_test_enabled = !video_test_enabled;
+          logging(video_test_enabled ? "VIDEO_TEST_ON" : "VIDEO_TEST_OFF");
+        }
+      }
       if (pressed & hui::pad_bits::kOptions) {
         show_status = !show_status;
         show_info = false;
       }
       if (pressed & hui::pad_bits::kCircle) {
         if (show_info || show_status) { show_info = false; show_status = false; }
+        else if (video_test_enabled) { video_test_enabled = false; logging("VIDEO_TEST_OFF"); }
         else exiting = true;
       }
     }
     DrawList ui;
     render_screen(ui, font, atlas, scan, reader, selected, show_info, show_status, exiting);
+    if (video_test_enabled && video_ready && !exiting) {
+      ui.image(video_probe.texture(), {1230.f, 346.f, 570.f, 335.f},
+               {0.f, 0.f, 1.f, 1.f}, kWhite);
+      txt(ui, font, atlas, "8-BIT PALETTE VIDEO TEST (NOT GAMEPLAY)",
+          1230, 718, 17, kGold);
+    }
     renderer.begin();
     renderer.draw(ui);
     renderer.present(0, display.width(), display.height());
