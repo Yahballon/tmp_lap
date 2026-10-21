@@ -1,0 +1,36 @@
+name: ZQuest PS5 C++ Runtime Inventory
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/zquestclassic-runtime-inventory.yml'
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain helper prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 wget unzip make
+      - name: Inspect pinned PS5 SDK libc++ runtime availability
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc app
+          bash app/tools/setup-native-dependencies.sh
+          sdk="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          test -d "$sdk/target/lib"
+          echo "### C++ SDK static archives"
+          find "$sdk" -type f \( -name 'libc++.a' -o -name 'libc++abi.a' -o -name 'libunwind.a' -o -name 'libstdc++.a' \) -print
+          echo "### C++ SDK shared libraries"
+          find "$sdk/target/lib" -maxdepth 1 -type f \( -name '*c++*.so' -o -name '*unwind*.so' \) -print
+          echo "### PS5 SDK toolchain files"
+          find "$sdk/toolchain" -maxdepth 2 -name '*.sh' -print || true
+          if ! find "$sdk" -type f -name 'libc++.a' -print -quit | grep -q .; then
+            echo 'SDK_LIBCXX_STATIC_MISSING: build the official ps5-payload-dev/sdk LLVM libcxx runtime for a full ZQuest player; never stub exceptions.'
+          else
+            echo 'SDK_LIBCXX_ARCHIVE_PRESENT: link native libc++, libc++abi and libunwind using the SDK's real archive paths.'
+          fi
