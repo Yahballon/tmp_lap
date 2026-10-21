@@ -135,7 +135,7 @@ inline Result scan(const char* elf="/app0/unscan.elf",ScanLog report=nullptr){
        raw.rfind('\n')!=std::string::npos)break;
   }
   close(fd);
-  if(report)report("ELFLDR","received bytes="+std::to_string(raw.size()).c_str());
+  if(report)report("ELFLDR",(std::string("received bytes=")+std::to_string(raw.size())).c_str());
   Result parsed=parse(raw,report);
   parsed.connected=res.connected;
   if(report)report("ELFLDR_RESULT",parsed.message.c_str());
