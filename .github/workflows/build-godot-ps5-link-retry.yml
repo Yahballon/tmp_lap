@@ -1,0 +1,136 @@
+name: Godot PS5 Native Engine Link Retry
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/godot-ps5-engine-foundation
+    paths:
+      - 'homebrew/godot-ps5/scripts/stage_native_link.py'
+      - 'homebrew/godot-ps5/tests/test_native_link_stage.py'
+      - 'homebrew/godot-ps5/native/engine_smoke_main.cpp'
+      - '.github/workflows/build-godot-ps5-link-retry.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  ps5-engine-native-link:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native PS5 compiler/build requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 ninja-build make unzip g++ python3 ca-certificates
+      - name: Stage previously cross-compiled Godot archives + genuine smoke PCK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/godot /tmp/godot-engine-input /tmp/godot-smoke-pck
+          gh run download 39661328472 --repo Yahballon/tmp_lap \
+            --name godot-ps5-complete-static-archives-NOT-PLAYABLE \
+            --dir /tmp/godot-engine-input
+          gh run download 39661328472 --repo Yahballon/tmp_lap \
+            --name godot-4-gdscript-smoke-pck-NOT-PS5 \
+            --dir /tmp/godot-smoke-pck
+          unzip -q /tmp/godot-engine-input/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip -d /tmp/godot
+          cp /tmp/godot/manifest.json /tmp/godot/godot-ps5-full-manifest.json
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          root=pathlib.Path('/tmp/godot')
+          m=json.loads((root/'manifest.json').read_text())
+          assert m['archive_count']>=50
+          assert any(a['path'].startswith('bin/obj/modules/libmodule_gdscript.') for a in m['archives'])
+          for a in m['archives']:
+              p=root/a['path']
+              assert p.is_file() and p.stat().st_size==a['size_bytes']
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==a['sha256']
+          print('Verified reusable Godot static archive components:',len(m['archives']))
+          PY
+          test -s /tmp/godot-smoke-pck/smoke.pck
+      - name: Stage PS5-DevBridge + SDK runtime
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          bash /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+          cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-link-app
+          mkdir -p /tmp/godot-link-app/assets/godot
+          cp /tmp/godot-smoke-pck/smoke.pck /tmp/godot-link-app/assets/godot/smoke.pck
+          python3 homebrew/godot-ps5/scripts/stage_native_link.py \
+            --godot /tmp/godot \
+            --app /tmp/godot-link-app \
+            --entry homebrew/godot-ps5/native/engine_smoke_main.cpp
+      - name: Validate linker staging
+        run: |
+          set -euo pipefail
+          python3 homebrew/godot-ps5/tests/test_native_link_stage.py
+          grep -Fq 'A-Za-z0-9_.+-' /tmp/godot-link-app/tools/build.sh
+          test -f /tmp/godot-link-app/godot-libs/runtime/libc++.a
+          test -f /tmp/godot-link-app/godot-libs/runtime/libc++abi.a
+      - name: Attempt full native Godot PS5 eboot link
+        id: link
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          (
+            cd /tmp/godot-link-app
+            env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+              make USE_CCACHE=0 BUILD_JOBS=4 app
+          ) 2>&1 | tee /tmp/godot-link-retry.log
+          test -s /tmp/godot-link-app/dist/PPSA99843/eboot.bin
+          echo GODOT_ENGINE_EBOOT_LINK_SUCCESS
+      - name: Verify signed engine smoke package
+        if: steps.link.outcome == 'success'
+        run: |
+          python3 - <<'PY'
+          import pathlib,zipfile,json,struct
+          root=pathlib.Path('/tmp/godot-link-app/dist/PPSA99843')
+          data=(root/'eboot.bin').read_bytes()
+          assert len(data)>4096 and data[:4]==struct.pack('<I',0x1d3d154f)
+          meta=json.loads((root/'sce_sys/param.json').read_text())
+          assert meta['titleId']=='PPSA99843'
+          assert meta['contentId']=='UP9000-PPSA99843_00-GODOTPS5HEADLESS'
+          with zipfile.ZipFile(root.parent/'PPSA99843.zip') as z:
+              assert z.testzip() is None
+              assert 'PPSA99843/eboot.bin' in z.namelist()
+              assert 'PPSA99843/assets/godot/smoke.pck' in z.namelist()
+          print('Verified native PS5 Godot Engine headless smoke package.')
+          PY
+      - name: Upload candidate PS5 engine smoke installer
+        if: steps.link.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-Engine-Smoke-v0.2.0-PPSA99843-UNTESTED
+          path: /tmp/godot-link-app/dist/PPSA99843.zip
+          if-no-files-found: error
+      - name: Publish experimental TESTBUILDS prerelease after verified link
+        if: steps.link.outcome == 'success' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-engine-smoke-v0.2.0
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'Engine smoke release already exists.'
+            exit 0
+          fi
+          gh release create "$tag" /tmp/godot-link-app/dist/PPSA99843.zip \
+            --target "$GITHUB_SHA" \
+            --title "Godot PS5 Engine Smoke v0.2.0 (headless testing only)" \
+            --notes "Godot 4.7.2 PS5 static engine linked for native GDScript smoke testing. This is experimental and untested on console. No graphical gameplay, rendering backend, audio or general project compatibility. Logs: /data/GodotPS5/engine-smoke.log, engine-stdout.log, engine-stderr.log. Signed PS5 app title PPSA99843." \
+            --prerelease
+      - name: Upload detailed native link logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-Engine-Link-Retry-Logs
+          path: /tmp/godot-link-retry.log
+          if-no-files-found: warn
+      - name: Fail if no PS5 binary was linked
+        if: steps.link.outcome == 'failure'
+        run: |
+          echo 'Native Godot PS5 link still failed; inspect linker log artifact.' >&2
+          exit 1
