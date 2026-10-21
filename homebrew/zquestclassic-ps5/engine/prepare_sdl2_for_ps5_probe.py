@@ -25,6 +25,25 @@ source = source.replace(needle,
     "  elseif(WIN32)\n    set(SDL_CMAKE_PLATFORM WINDOWS)", 1)
 platform.write_text(source)
 
+# The PS5 SDK provides C math/thread APIs through system imports; it does
+# not package separate Linux/BSD libm or libpthread linker archives.
+# Strip only those *link options*, not source code or unresolved symbols.
+cmake = args.source / "CMakeLists.txt"
+text = cmake.read_text()
+target_link = "  target_link_libraries(SDL2-static PRIVATE ${EXTRA_LIBS} ${EXTRA_LDFLAGS} ${CMAKE_DEPENDS})"
+assert text.count(target_link)==1, "Pinned SDL2-static link line changed"
+ps5_link = """  if(ZC_PS5_SDL_TARGET)
+    foreach(_ps5_systemlib IN ITEMS m pthread -lm -lpthread -pthread)
+      list(REMOVE_ITEM EXTRA_LIBS "${_ps5_systemlib}")
+      list(REMOVE_ITEM EXTRA_LDFLAGS "${_ps5_systemlib}")
+      list(REMOVE_ITEM CMAKE_DEPENDS "${_ps5_systemlib}")
+    endforeach()
+  endif()
+"""
+text=text.replace(target_link, ps5_link+target_link,1)
+cmake.write_text(text)
+
+
 cmake = args.source / "CMakeLists.txt"
 text = cmake.read_text()
 assert "elseif(PS5)" in text
