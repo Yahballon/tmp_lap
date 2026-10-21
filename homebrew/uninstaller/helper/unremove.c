@@ -1,161 +1,215 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Uninstaller by YAHBALLON - one-shot *opt-in* native uninstall request.
-// This helper is NEVER launched by a scan. Main app must show two-step
-// confirmation and write the private request first.
-// Registered applications: Sony AppInstUtil only, never unlink app directories.
-// USB PKG archives: only lstat-verified regular .pkg files on /mnt/usbN.
-// No save-data removal, no shell commands, no arbitrary paths.
+// Uninstaller v0.1.8: single-use local action broker for existing elfldr.
+// NO shared writable request folder, NO arbitrary paths or system-dir unlink.
+// The helper prints a random capability only to its elfldr stdout connection,
+// then accepts one confirmed operation over 127.0.0.1:9176 for <=15 seconds.
 #include <ps5/kernel.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
-#define BASE "/data/Uninstaller/actions"
-#define REQUEST BASE "/request"
 #define AUTHID_INSTALLER 0x4800000000000006ull
-// Resolve the PS5 installer library dynamically: direct imports do not link
-// with the homebrew payload SDK, and can prevent loading on some firmwares.
-int sceKernelLoadStartModule(const char *, size_t, const void *, unsigned, void *, int *);
+#define PORT 9176
+int sceKernelLoadStartModule(const char*,size_t,const void*,unsigned,void*,int*);
 typedef int (*init_fn)(void);
 typedef int (*term_fn)(void);
-typedef int (*uninstall_fn)(const char *, void *, void *);
-static init_fn app_init=NULL;
-static term_fn app_term=NULL;
-static uninstall_fn app_uninstall=NULL;
+typedef int (*uninstall_fn)(const char*,void*,void*);
+static init_fn init_app=NULL;
+static term_fn term_app=NULL;
+static uninstall_fn uninstall_app=NULL;
 static int load_installer(void){
-    int h=sceKernelLoadStartModule("/system/common/lib/libSceAppInstUtil.sprx",
-                                   0,NULL,0,NULL,NULL);
-    if(h<0)return h;
-    app_init=(init_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,
-                                          "sceAppInstUtilInitialize");
-    app_term=(term_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,
-                                          "sceAppInstUtilTerminate");
-    app_uninstall=(uninstall_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,
-                                          "sceAppInstUtilAppUnInstall");
-    return app_init&&app_uninstall?0:ENOSYS;
+  int h=sceKernelLoadStartModule("/system/common/lib/libSceAppInstUtil.sprx",
+                                 0,NULL,0,NULL,NULL);
+  if(h<0)return h;
+  init_app=(init_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,"sceAppInstUtilInitialize");
+  term_app=(term_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,"sceAppInstUtilTerminate");
+  uninstall_app=(uninstall_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,"sceAppInstUtilAppUnInstall");
+  return init_app&&uninstall_app?0:ENOSYS;
 }
-
-static int private_file(const char* path,uid_t owner,int wantDir){
-    struct stat st;
-    if(lstat(path,&st)!=0||st.st_uid!=owner||(st.st_mode&0077)!=0)return 0;
-    if(wantDir)return S_ISDIR(st.st_mode);
-    return S_ISREG(st.st_mode)&&st.st_size>0&&st.st_size<900;
-}
-static int read_value(const char* txt,const char* key,char* dst,size_t limit){
-    size_t klen=strlen(key);
-    for(const char* line=txt;*line;){
-        const char* end=strchr(line,'\n');
-        size_t n=end?(size_t)(end-line):strlen(line);
-        if(n>klen+1&&strncmp(line,key,klen)==0&&line[klen]=='='){
-            size_t len=n-klen-1;
-            if(len>=limit)return 0;
-            memcpy(dst,line+klen+1,len);dst[len]=0;return 1;
-        }
-        if(!end)break;line=end+1;
-    }
-    return 0;
-}
-static int nonce_ok(const char* nonce){
-    if(strlen(nonce)!=32)return 0;
-    for(int i=0;i<32;i++)if(!((nonce[i]>='a'&&nonce[i]<='f')||
-                                (nonce[i]>='0'&&nonce[i]<='9')))return 0;
-    return 1;
+static int strong_random(char out[33]){
+  unsigned char bytes[16];
+  int f=open("/dev/urandom",O_RDONLY);
+  if(f<0)return 0;
+  size_t done=0;
+  while(done<sizeof bytes){
+    ssize_t n=read(f,bytes+done,sizeof bytes-done);
+    if(n<=0)break;
+    done+=(size_t)n;
+  }
+  close(f);
+  if(done!=sizeof bytes)return 0;
+  for(unsigned i=0;i<16;i++)snprintf(out+2*i,3,"%02x",(unsigned)bytes[i]);
+  out[32]=0;
+  return 1;
 }
 static int title_ok(const char* id){
-    if(strlen(id)!=9||!strcmp(id,"PPSA99986"))return 0;
-    if(strncmp(id,"PPSA",4)&&strncmp(id,"CUSA",4)&&
-       strncmp(id,"LAPY",4)&&strncmp(id,"FAKE",4))return 0;
-    for(int i=4;i<9;i++)if(id[i]<'0'||id[i]>'9')return 0;
-    return 1;
+  if(strlen(id)!=9||!strcmp(id,"PPSA99986"))return 0;
+  if(strncmp(id,"PPSA",4)&&strncmp(id,"CUSA",4)&&
+     strncmp(id,"FAKE",4)&&strncmp(id,"LAPY",4))return 0;
+  for(int k=4;k<9;k++)if(id[k]<'0'||id[k]>'9')return 0;
+  return 1;
 }
-static int installed(const char* title){
-    char dir[96],meta[120],sfo[120],exec[120];
-    snprintf(dir,sizeof(dir),"/user/app/%s",title);
-    struct stat st;
-    if(lstat(dir,&st)!=0||!S_ISDIR(st.st_mode))return 0;
-    snprintf(meta,sizeof(meta),"%s/sce_sys/param.json",dir);
-    snprintf(sfo,sizeof(sfo),"%s/sce_sys/param.sfo",dir);
-    snprintf(exec,sizeof(exec),"%s/eboot.bin",dir);
-    return lstat(meta,&st)==0||lstat(sfo,&st)==0||lstat(exec,&st)==0;
+static int installed(const char* id){
+  char p[190];struct stat st;
+  snprintf(p,sizeof p,"/user/app/%s",id);
+  if(lstat(p,&st)||!S_ISDIR(st.st_mode))return 0;
+  const char* parts[]={"/eboot.bin","/sce_sys/param.json","/sce_sys/param.sfo"};
+  for(unsigned i=0;i<3;i++){
+    char sub[220];snprintf(sub,sizeof sub,"%s%s",p,parts[i]);
+    if(lstat(sub,&st)==0&&S_ISREG(st.st_mode))return 1;
+  }
+  return 0;
 }
-static int pkg_path_ok(const char* path){
-    if(strlen(path)<17||strlen(path)>700)return 0;
-    if(strstr(path,"/../")||strstr(path,"//")||strchr(path,'\\')||strchr(path,'\n'))return 0;
-    int usb=0;
-    if(strncmp(path,"/mnt/usb",8)!=0)return 0;
-    if(path[8]<'0'||path[8]>'7'||path[9]!='/')return 0;
-    const char* name=strrchr(path,'/');
-    if(!name||strlen(++name)<5||name[0]=='.')return 0;
-    const char* ext=strrchr(name,'.');
-    if(!ext||(strcmp(ext,".pkg")&&strcmp(ext,".PKG")))return 0;
-    struct stat st;
-    if(lstat(path,&st)!=0||!S_ISREG(st.st_mode))return 0;
-    (void)usb;return 1;
+static int safe_path(const char* path){
+  size_t n=strlen(path);
+  if(n<18||n>690||strncmp(path,"/mnt/usb",8)||
+     path[8]<'0'||path[8]>'7'||path[9]!='/'||
+     strstr(path,"//")||strstr(path,"/../")||strstr(path,"/./")||
+     strchr(path,'\\')||path[n-1]=='/')return 0;
+  for(size_t i=0;i<n;i++)
+    if((unsigned char)path[i]<32||(unsigned char)path[i]==127)return 0;
+  return 1;
 }
-static void result(uid_t owner,const char* nonce,const char* kind,int code,int state){
-    // Deliberately no 'success' label here. The foreground app must rescan.
-    (void)kernel_set_ucred_uid(-1,owner);
-    char file[200];
-    const int len=snprintf(file,sizeof(file),
-          "nonce=%s\nkind=%s\ncode=%08x\nstate=%d\n",nonce,kind,(unsigned)code,state);
-    int fd=open(BASE "/result.tmp",O_CREAT|O_TRUNC|O_WRONLY|O_NOFOLLOW,0600);
-    if(fd<0)return;
-    int written=(write(fd,file,(size_t)len)==len);
-    fsync(fd);close(fd);
-    if(written)rename(BASE "/result.tmp",BASE "/result");
-    else unlink(BASE "/result.tmp");
+static int pkg_ok(const char* path){
+  if(!safe_path(path))return 0;
+  size_t n=strlen(path);
+  if(n<5||(strcmp(path+n-4,".pkg")&&strcmp(path+n-4,".PKG")))return 0;
+  const char* name=strrchr(path,'/');
+  if(!name||name[1]=='.')return 0;
+  struct stat st;
+  return lstat(path,&st)==0&&S_ISREG(st.st_mode)&&st.st_nlink==1;
+}
+static int homebrew_ok(const char* path){
+  if(!safe_path(path))return 0;
+  const char* first=strchr(path+10,'/');
+  if(!first||strncmp(path+10,"homebrew/",9)!=0)return 0;
+  const char* name=path+19;
+  if(!*name||strchr(name,'/')||name[0]=='.'||!strcmp(name,".."))return 0;
+  struct stat st;
+  return lstat(path,&st)==0&&S_ISDIR(st.st_mode);
+}
+// Validate the *entire* tree before any deletion. Refuse symlinks and
+// special nodes to avoid unexpected traversal. Bounded 15000 entries.
+static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
+  if(depth>20||*count>=15000)return E2BIG;
+  struct stat st;
+  if(lstat(path,&st))return errno;
+  if(S_ISLNK(st.st_mode))return EPERM;
+  if(S_ISREG(st.st_mode)){
+    (*count)++;
+    if(st.st_nlink!=1)return EPERM;
+    if(!apply)return 0;
+    return unlink(path)==0?0:errno;
+  }
+  if(!S_ISDIR(st.st_mode))return EPERM;
+  DIR* dir=opendir(path);
+  if(!dir)return errno;
+  int error=0;struct dirent* entry;
+  while((entry=readdir(dir))!=NULL){
+    if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,".."))continue;
+    if(strchr(entry->d_name,'/')||strlen(entry->d_name)>250){error=EINVAL;break;}
+    char child[1000];
+    int n=snprintf(child,sizeof child,"%s/%s",path,entry->d_name);
+    if(n<=0||(size_t)n>=sizeof child){error=ENAMETOOLONG;break;}
+    error=tree_walk(child,apply,depth+1,count);
+    if(error)break;
+  }
+  closedir(dir);
+  if(error)return error;
+  (*count)++;
+  if(!apply)return 0;
+  return rmdir(path)==0?0:errno;
+}
+static void perform(const char* kind,const char* target,unsigned* code,unsigned* state){
+  *code=EINVAL;*state=0;
+  if(!strcmp(kind,"TITLE")){
+    if(!title_ok(target)||!installed(target))return;
+    int rc=load_installer();
+    if(rc==0)rc=init_app();
+    if(rc==0){
+      uint64_t saved=kernel_get_ucred_authid(-1);
+      kernel_set_ucred_authid(-1,AUTHID_INSTALLER);
+      rc=kernel_get_ucred_authid(-1)==AUTHID_INSTALLER
+          ?uninstall_app(target,NULL,NULL):EPERM;
+      kernel_set_ucred_authid(-1,saved);
+      if(term_app)term_app();
+    }
+    *code=(unsigned)rc;
+    if(rc==0)*state=1; // accepted, system removal may be asynchronous
+  }else if(!strcmp(kind,"USBPKG")){
+    if(!pkg_ok(target))return;
+    *code=unlink(target)==0?0:(unsigned)errno;
+    if(!*code)*state=2;
+  }else if(!strcmp(kind,"USBHOME")){
+    if(!homebrew_ok(target))return;
+    unsigned inspected=0,removed=0;
+    int rc=tree_walk(target,0,0,&inspected);
+    if(rc==0)rc=tree_walk(target,1,0,&removed);
+    *code=(unsigned)rc;
+    if(rc==0)*state=2;
+  }
+}
+static int send_full(int fd,const char* s){
+  size_t n=strlen(s);
+  while(n){ssize_t v=send(fd,s,n,0);if(v<=0)return 0;s+=v;n-=(size_t)v;}
+  return 1;
 }
 int main(void){
-    setvbuf(stdout,NULL,_IONBF,0);
-    struct stat dir;
-    if(lstat(BASE,&dir)!=0||!S_ISDIR(dir.st_mode)||
-       !private_file(BASE,dir.st_uid,1)||!private_file(REQUEST,dir.st_uid,0)){
-       puts("UREM fail request_permissions");return 2;
-    }
-    int fd=open(REQUEST,O_RDONLY|O_NOFOLLOW);
-    if(fd<0){puts("UREM fail request_read");return 2;}
-    char request[901]={0};
-    ssize_t n=read(fd,request,sizeof(request)-1);close(fd);
-    if(n<=0 || n>=900){puts("UREM fail request_size");return 2;}
-    char nonce[40]={0},kind[12]={0},title[24]={0},path[720]={0};
-    if(!read_value(request,"nonce",nonce,sizeof(nonce))||!nonce_ok(nonce)||
-       !read_value(request,"kind",kind,sizeof(kind))){
-        puts("UREM fail request_format");return 2;
-    }
-    int rc=EINVAL,state=0;
-    if(!strcmp(kind,"TITLE")){
-        if(!read_value(request,"title",title,sizeof(title)) || !title_ok(title) ||
-           !installed(title)){
-            puts("UREM fail invalid_title");result(dir.st_uid,nonce,kind,EINVAL,0);return 3;
-        }
-        // Init must precede installer authid, following proven Playden behavior.
-        rc=load_installer();
-        if(rc==0)rc=app_init();
-        if(rc==0){
-            const uint64_t original=kernel_get_ucred_authid(-1);
-            kernel_set_ucred_authid(-1,AUTHID_INSTALLER);
-            if(kernel_get_ucred_authid(-1)==AUTHID_INSTALLER)
-                rc=app_uninstall(title,NULL,NULL);
-            else rc=EPERM;
-            kernel_set_ucred_authid(-1,original);
-            if(app_term)app_term();
-            state=rc==0?1:0; // request accepted; asynchronous system work may remain
-        }
-    }else if(!strcmp(kind,"USBPKG")){
-        if(!read_value(request,"path",path,sizeof(path))||!pkg_path_ok(path)){
-            puts("UREM fail invalid_pkg");result(dir.st_uid,nonce,kind,EINVAL,0);return 3;
-        }
-        rc=unlink(path)==0?0:errno;
-        state=rc==0?2:0; // physical file was removed, independent of installed games
-    }else{
-        puts("UREM fail invalid_kind");result(dir.st_uid,nonce,kind,EINVAL,0);return 3;
-    }
-    result(dir.st_uid,nonce,kind,rc,state);
-    printf("UREM completed code=0x%08x state=%d\n",(unsigned)rc,state);
-    return rc==0?0:5;
+  setvbuf(stdout,NULL,_IONBF,0);
+  char token[33]={0};
+  if(!strong_random(token)){puts("UREM2_ERROR no_random");return 2;}
+  int server=socket(AF_INET,SOCK_STREAM,0);
+  if(server<0){puts("UREM2_ERROR socket");return 2;}
+  int reuse=1;
+  setsockopt(server,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof reuse);
+  struct sockaddr_in addr={0};
+  addr.sin_family=AF_INET;
+  addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+  addr.sin_port=htons(PORT);
+  if(bind(server,(struct sockaddr*)&addr,sizeof addr)!=0||listen(server,1)!=0){
+    puts("UREM2_ERROR bind");close(server);return 3;
+  }
+  printf("UREM2_READY %s\n",token);
+  fd_set readfds;FD_ZERO(&readfds);FD_SET(server,&readfds);
+  struct timeval wait={15,0};
+  if(select(server+1,&readfds,NULL,NULL,&wait)<=0){
+    puts("UREM2_ERROR timeout");close(server);return 4;
+  }
+  int client=accept(server,NULL,NULL);
+  close(server);
+  if(client<0)return 5;
+  struct timeval shortwait={5,0};
+  setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&shortwait,sizeof shortwait);
+  setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&shortwait,sizeof shortwait);
+  char command[800]={0};size_t used=0;char ch=0;
+  while(used+1<sizeof command && recv(client,&ch,1,0)==1){
+    if(ch=='\n')break;
+    command[used++]=ch;
+  }
+  if(ch!='\n'||strncmp(command,"ACT ",4)!=0||
+     strlen(command)<4+32+1+5+1||
+     strncmp(command+4,token,32)!=0||command[36]!=' '){
+    send_full(client,"UREM2_ERROR unauthorized\n");close(client);return 6;
+  }
+  char* kind=command+37;char* sep=strchr(kind,' ');
+  if(!sep){send_full(client,"UREM2_ERROR format\n");close(client);return 7;}
+  *sep=0;const char* target=sep+1;
+  unsigned code=0,state=0;
+  perform(kind,target,&code,&state);
+  char report[160];
+  snprintf(report,sizeof report,"UREM2_RESULT %s %08x %u\n",token,code,state);
+  send_full(client,report);
+  close(client);
+  printf("UREM2_DONE code=%08x state=%u\n",code,state);
+  return code==0?0:8;
 }
