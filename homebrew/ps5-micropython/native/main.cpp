@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 MicroPython by YAHBALLON v0.2.1
+// PS5 MicroPython by YAHBALLON v0.2.2
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "port/micropython_embed.h"
 #include "editor.hpp"
+#define PS5_MICROPYTHON_NATIVE_SCAN 1
 #include "scripts_scan.hpp"
 #include <algorithm>
 #include <array>
@@ -24,6 +25,7 @@ std::string capture;
 struct Script {std::string name,path;bool builtin;};
 std::vector<Script> library;
 std::string scanStatus="SCAN: not started";
+std::string scanDetails;
 enum class Page {list,editor,confirm_discard};
 Page page=Page::list;
 pyedit::Buffer editor;
@@ -52,21 +54,24 @@ void reload() {
  library.clear();
  for(const char* n:{"hello.py","fibonacci.py","collections.py"})
   library.push_back({n,std::string("/app0/assets/scripts/")+n,true});
- const auto result=pyscan::scan(kScripts);
+ const auto result=pyscan::scan_roots(pyscan::roots());
  for(const auto& file:result.files)
-  library.push_back({"USER  "+file.name,file.path,false});
+  library.push_back({file.source+"  "+file.name,file.path,false});
  if(library.size()>3)
   std::sort(library.begin()+3,library.end(),
    [](const Script& a,const Script& b){return a.name<b.name;});
  scanStatus=result.status();
- // Store scan diagnostics as well as exposing them permanently in the UI.
+ scanDetails.clear();
+ for(const auto& root:result.roots){
+  char msg[400];
+  std::snprintf(msg,sizeof(msg),"root=%s open=%d items=%u found=%u open_error=%d read_error=%d\n",
+      root.path.c_str(),root.opened?1:0,root.entries,root.found,
+      root.open_code,root.read_code);
+  if(scanDetails.size()<6000)scanDetails+=msg;
+ }
+ // The UI always displays the status even when libc logging is unavailable.
  if(FILE* log=std::fopen("/data/PS5MicroPython/logs/scan.log","ab")){
-  std::fprintf(log,"%s | folder=%s | visited=%u | candidates=%u"
-      " | accepted=%zu | empty=%u | oversized=%u | unreadable=%u"
-      " | unsafe=%u | dir_errno=%d | file_errno=%d\n",
-      scanStatus.c_str(),kScripts,result.seen,result.candidates,
-      result.files.size(),result.empty,result.oversize,result.unreadable,
-      result.unsafe,result.directory_errno,result.last_file_errno);
+  std::fprintf(log,"%s\n%s",scanStatus.c_str(),scanDetails.c_str());
   std::fclose(log);
  }
 }
@@ -79,8 +84,9 @@ void logOutput(const std::string& name){
 void run(const Script& script,void* stack){
  capture=">>> Running "+script.name+"\n";
  std::string code=pyscan::read_script(script.path,kMaxSource);
+ if(code.empty()&&script.builtin)code=readFile(script.path,kMaxSource);
  if(code.empty()&&script.builtin)
-  code=pyscan::read_script(std::string("/data/homebrew/PPSA99791/assets/scripts/")+script.name,kMaxSource);
+  code=readFile(std::string("/data/homebrew/PPSA99791/assets/scripts/")+script.name,kMaxSource);
  if(code.empty()){
   capture+="Could not read Python script (max 64 KiB).\n";logOutput(script.name);return;
  }
@@ -119,19 +125,20 @@ void start_new() {
 }
 void start_edit(const Script& s) {
  auto code=pyscan::read_script(s.path,kMaxSource);
+ if(code.empty()&&s.builtin)code=readFile(s.path,kMaxSource);
  if(code.empty()&&s.builtin)
-  code=pyscan::read_script(std::string("/data/homebrew/PPSA99791/assets/scripts/")+s.name,kMaxSource);
+  code=readFile(std::string("/data/homebrew/PPSA99791/assets/scripts/")+s.name,kMaxSource);
  if(code.empty()){capture="\nCould not load script for editing.\n";return;}
- if(s.builtin) {
-  editorName=pyedit::unique_filename(kScripts,"demo");
+ if(s.builtin||s.path.rfind(std::string(kScripts)+"/",0)!=0) {
+  editorName=pyedit::unique_filename(kScripts,s.builtin?"demo":"usb");
   if(editorName.empty()){capture="\nNo available filename for demo copy.\n";return;}
  }else{
   editorName=s.path.substr(std::string(kScripts).size()+1);
   if(!pyedit::valid_filename(editorName)){capture="\nUnsafe filename.\n";return;}
  }
- editor.reset(code);editorNew=s.builtin;
+ editor.reset(code);editorNew=s.builtin||s.path.rfind(std::string(kScripts)+"/",0)!=0;
  page=Page::editor;keyboardIndex=0;keyboardPage=0;
- editorMessage=s.builtin?"Bundled demo: save writes a NEW user copy.":"Editing existing user file.";
+ editorMessage=s.builtin?"Demo: save makes DATA copy.":editorNew?"USB read-only: save makes DATA copy.":"Editing existing DATA file.";
 }
 bool save_editor() {
  if(editorNew){
@@ -199,7 +206,7 @@ int main(){
    if((nav&hui::pad_bits::kDown)&&selected+1<int(library.size()))++selected;
    if(pressed&hui::pad_bits::kTriangle){
     reload();selected=std::min(selected,std::max(0,int(library.size())-1));
-    capture+="\n"+scanStatus+"\n";
+    capture+="\n"+scanStatus+"\n"+scanDetails.substr(0,2000);
    }
    if(pressed&hui::pad_bits::kSquare){
     if(!library.empty())start_edit(library[size_t(selected)]);
@@ -255,7 +262,7 @@ int main(){
   ui.rounded_rect({48,45,1824,103},18,Color::rgb(0x101d34));
   ui.rounded_rect({70,68,9,57},4,cyan);
   ui.text(font,atlas,"PS5 MicroPython",103,116,47,fg);
-  ui.text(font,atlas,"by YAHBALLON   v0.2.1",1838,109,23,mute,Align::right);
+  ui.text(font,atlas,"by YAHBALLON   v0.2.2",1838,109,23,mute,Align::right);
   if(page==Page::list){
   ui.bordered_rect({48,171,610,811},19,Color::rgb(0x0c172b),2,edge);
   ui.bordered_rect({679,171,1193,811},19,Color::rgb(0x07101e),2,edge);
@@ -283,7 +290,7 @@ int main(){
   ui.text(font,atlas,"Place your .py files here:",105,821,20,fg);
   ui.text(font,atlas,"/data/PS5MicroPython/scripts/",105,857,20,cyan);
   ui.text(font,atlas,"Transfer via FTP or a file manager.",105,895,18,mute);
-  ui.text(font,atlas,"TRIANGLE refresh  |  Scan info on right",105,930,18,mute);
+  ui.text(font,atlas,"USB: /mnt/usb0/scripts  |  TRIANGLE rescan",105,930,17,mute);
   auto lines=getLines(capture);
   const int visible=23, last=std::max(0,int(lines.size())-visible);
   scroll=std::min(scroll,last);
