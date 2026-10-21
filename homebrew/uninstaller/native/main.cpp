@@ -78,7 +78,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select     L1/R1 Categories     X Details     Square Delete     Triangle Refresh     Circle Back",45,1063,18,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.0",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.1",1887,1063,18,muted,Align::right);
  if(!msg.empty()){d.rounded_rect({370,944,1170,69},13,color(0x102844));txt(d,f,a,msg.size()>115?msg.substr(0,110)+"...":msg,958,989,19,white,Align::center);}
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
@@ -93,14 +93,14 @@ int main(){
  hui::ps5::Display display;if(!display.open())hui::sys::park();
  Renderer renderer;if(!renderer.init())hui::sys::park();
  Font font;std::string fonts=read("/app0/assets/fonts/inter-semibold.huifont");
- if(fonts.empty())fonts=read("/data/homebrew/PPSA99873/assets/fonts/inter-semibold.huifont");
+ if(fonts.empty())fonts=read("/data/homebrew/PPSA99986/assets/fonts/inter-semibold.huifont");
  if(!font.load(fonts))hui::sys::park();
  unsigned atlas=renderer.batch().create_font_texture(font);
  hui::ps5::Pad pad;pad.open();
  auto items=uninstaller::scan();auto disk=uninstaller::storage();
  int tab=0,selected=0,offset=0;bool confirm=false;
  unsigned prev=0;std::string notice="Ready. Installed titles require a verified system uninstall service.";
- log("Uninstaller v0.1.0 launched");
+ log("Uninstaller v0.1.1 launched");
  for(;;){
   std::array<hui::PadSample,64> s{};unsigned pressed=0,buttons=prev;
   size_t n=pad.read(s);bool connected=false;

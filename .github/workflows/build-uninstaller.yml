@@ -27,6 +27,18 @@ jobs:
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/inventory_test.cpp -o /tmp/uninstaller-test
           /tmp/uninstaller-test
           python3 -m json.tool homebrew/uninstaller/app.json >/dev/null
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          apps = {}
+          for f in Path('homebrew').glob('*/app.json'):
+            data=json.loads(f.read_text())
+            title=data['titleId']
+            assert title not in apps, f'Conflicting Title ID {title}: {apps.get(title)} vs {f}'
+            apps[title]=str(f)
+          assert apps['PPSA99986']=='homebrew/uninstaller/app.json'
+          print('Unique PS5 homebrew Title IDs verified')
+          PY
       - name: Prepare native framework
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
@@ -84,28 +96,28 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,pathlib,struct,zipfile
-          p=pathlib.Path('app/dist/PPSA99873')
+          p=pathlib.Path('app/dist/PPSA99986')
           e=(p/'eboot.bin').read_bytes()
           assert len(e)>1000
           assert struct.unpack('<I',e[:4])[0]==0x1d3d154f
-          assert json.loads((p/'sce_sys/param.json').read_text())['titleId']=='PPSA99873'
+          assert json.loads((p/'sce_sys/param.json').read_text())['titleId']=='PPSA99986'
           assert (p/'sce_sys/icon0.png').stat().st_size>1000
-          with zipfile.ZipFile('app/dist/PPSA99873.zip') as z:
+          with zipfile.ZipFile('app/dist/PPSA99986.zip') as z:
             assert z.testzip() is None
-            assert 'PPSA99873/eboot.bin' in z.namelist()
+            assert 'PPSA99986/eboot.bin' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.0-PPSA99873
-          path: app/dist/PPSA99873.zip
+          name: Uninstaller-v0.1.1-PPSA99986
+          path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.0 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.1 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.0 app/dist/PPSA99873.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.0" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.1 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.1" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
