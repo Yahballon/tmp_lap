@@ -38,6 +38,8 @@ echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
+  "-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG" \
+  "-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG" \
   "-DCMAKE_C_FLAGS=-DZC_PS5_LIBC_NO_STRERROR_S=1 -DZC_PS5_NO_GLU_HEADER=1" \
   "-DCMAKE_CXX_FLAGS=-fexceptions -frtti" \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
@@ -66,7 +68,7 @@ if ((status != 0)); then
 fi
 echo "[zcps5] Attempting original zplayer CMake target"
 set +e
-timeout 480 cmake --build "$build" --target zplayer --parallel 3 -- -k 8 >"$work/compile.log" 2>&1
+timeout 1050 cmake --build "$build" --target zplayer --parallel 3 -- -k 8 >"$work/compile.log" 2>&1
 status=$?
 set -e
 echo "zplayer build code: $status" >> "$report"
