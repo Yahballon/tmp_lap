@@ -53,6 +53,10 @@ jobs:
             homebrew/zquestclassic-ps5/engine/paletted_surface_test.cpp \
             -o /tmp/zplayer-indexed-frame-test
           /tmp/zplayer-indexed-frame-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror \
+            homebrew/zquestclassic-ps5/engine/dualsense_zplayer_test.cpp \
+            -o /tmp/zplayer-ps5-pad-mapping-test
+          /tmp/zplayer-ps5-pad-mapping-test
           python3 -m json.tool homebrew/zquestclassic-ps5/app.json >/dev/null
           python3 - <<'PY'
           import json
@@ -82,16 +86,17 @@ jobs:
           # Staging only: Allegro-style RGB6 indexed frame to existing PS5 EGL renderer.
           mkdir -p app/src/engine
           cp homebrew/zquestclassic-ps5/engine/{paletted_surface.hpp,ps5_palette_texture.hpp,ps5_palette_texture.cpp,ps5_video_probe.hpp,ps5_video_probe.cpp} app/src/engine/
+          cp homebrew/zquestclassic-ps5/engine/{dualsense_zplayer.hpp,ps5_pad_adapter.hpp,ps5_pad_adapter_probe.cpp} app/src/engine/
           python3 - <<'PY'
           from pathlib import Path
           p=Path("app/src/main.cpp")
           s=p.read_text()
-          prefix='extern "C" const char* zcps5_upstream_engine_smoke();\nextern "C" const char* zcps5_upstream_zasm_smoke();\n'
+          prefix='extern "C" const char* zcps5_upstream_engine_smoke();\nextern "C" const char* zcps5_upstream_zasm_smoke();\nextern "C" const char* zcps5_pad_adapter_smoke();\n'
           assert '#include "quest_index.hpp"' in s
           s=s.replace('#include "quest_index.hpp"',prefix+'#include "quest_index.hpp"',1)
           needle='  logging("BOOT native quest library");'
           assert needle in s
-          s=s.replace(needle,needle+'\n  logging(zcps5_upstream_engine_smoke());'+'\n  logging(zcps5_upstream_zasm_smoke());',1)
+          s=s.replace(needle,needle+'\n  logging(zcps5_upstream_engine_smoke());'+'\n  logging(zcps5_upstream_zasm_smoke());'+'\n  logging(zcps5_pad_adapter_smoke());',1)
           p.write_text(s)
           PY
           python3 homebrew/zquestclassic-ps5/assets/generate_assets.py app
@@ -160,6 +165,7 @@ jobs:
           native=Path("app/dist/PPSA99127/eboot.bin").read_bytes()
           assert b"UPSTREAM_RNG_NATIVE_SMOKE" in native, "Upstream RNG object not linked"
           assert b"UPSTREAM_ZASM_TABLE_NATIVE_SMOKE" in native, "Upstream ZASM table not linked"
+          assert b"PS5_ZPLAYER_INPUT_MAPPING_OK" in native, "Native DualSense mapping adapter missing"
           assert b"PS5_INDEXED_VIDEO_BRIDGE_READY" in native, "GPU indexed image bridge not linked"
           assert b"8-BIT PALETTE VIDEO TEST (NOT GAMEPLAY)" in native, "Test pattern overlay absent"
           assert b"v0.1.5" in native
@@ -170,6 +176,6 @@ jobs:
       - name: Upload isolated engine-bringup artifact (no public release)
         uses: actions/upload-artifact@v4
         with:
-          name: ZQuest-PS5-RGB6-Palette-OpenGL-VIDEO-PROBE-NOT-PLAYABLE
+          name: ZQuest-PS5-Input-and-Video-Engine-Bridge-NOT-PLAYABLE
           path: app/dist/PPSA99127.zip
           if-no-files-found: error
