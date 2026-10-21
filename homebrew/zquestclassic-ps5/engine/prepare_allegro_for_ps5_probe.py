@@ -30,4 +30,16 @@ assert "export(EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
 assert "install(\n  EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
 text=text[:start]+"# PS5 probe: omit desktop package exports for SDL2-static.\n"+text[end:]
 path.write_text(text)
-print("Probe-only Allegro CMake accepts PS5 OpenGL without GLU, no desktop exports; no API stubs")
+
+# The PS5 libc exposes POSIX strerror_r, not the Annex-K strerror_s.
+# This Allegro file's generated flags incorrectly enable both; only disable
+# this unreachable error-reporting fallback in the staged PS5 C source.
+stdio=args.allegro_root/"src/file_stdio.c"
+source=stdio.read_text()
+guard="#if defined(ALLEGRO_HAVE_STRERROR_S)"
+assert source.count(guard)==1,"Pinned Allegro libc guard changed"
+assert "strerror_r(userdata->errnum" in source
+assert "strerror_s(userdata->errmsg" in source
+source=source.replace(guard,"#if defined(ALLEGRO_HAVE_STRERROR_S) && !defined(ZC_PS5_LIBC_NO_STRERROR_S)",1)
+stdio.write_text(source)
+print("PS5 Allegro: OpenGL test, no desktop exports, optional native libc strerror_r fallback; no API stubs")
