@@ -38,12 +38,19 @@ with tempfile.TemporaryDirectory() as d:
         "format":"godot-ps5-static-libs", "target":"x86_64-sie-ps5",
         "archive_count":len(files), "archives":files
     }))
-    assert module.stage(gd,app,entry) is None
+    sdk = app/".deps/native/ps5-payload-sdk/target/lib"
+    sdk.mkdir(parents=True)
+    for lib in ("libc++.a", "libc++abi.a", "libunwind.a"):
+        (sdk/lib).write_bytes(b"!<arch>\n"+b"Q"*128)
+    builtins=root/"libclang_rt.builtins-x86_64.a"
+    builtins.write_bytes(b"!<arch>\n"+b"R"*128)
+    assert module.stage(gd,app,entry,builtins_override=builtins) is None
     b=(app/"tools/build.sh").read_text()
     assert '--start-group' in b and '--end-group' in b
     assert 'APP_STATIC_ARCHIVES :=' in (app/"GNUmakefile").read_text()
     assert 'libmodule_gdscript' in (app/"GNUmakefile").read_text()
     assert (app/"godot-libs"/files[0]["path"]).is_file()
+    assert (app/"godot-libs/runtime/libc++abi.a").is_file()
     assert json.loads((app/"sce_sys/param.json").read_text())["titleId"]=="PPSA99843"
     assert (app/"src/godot-smoke/main.cpp").is_file()
 print("PASS: All 52 Godot libraries staged for grouped headless PS5 link")
