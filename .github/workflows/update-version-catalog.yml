@@ -24,6 +24,7 @@ on:
     # workflows, so workflow_run completion is the reliable instant trigger.
     workflows:
       - Build PS5 Crypto Tracker
+      - Build ZQuest Classic PS5 (Port Prototype)
       - Build Starbound Sprint
       - Build WWW Speedtest
       - Build PS5 Payload LauncherX
