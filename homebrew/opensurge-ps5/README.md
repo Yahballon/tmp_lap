@@ -19,7 +19,10 @@ It does **not** run SurgeScript gameplay scripts, physics, the original Allegro 
 
 ## How to test the native build
 
-Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This test artifact is *not* a TESTBUILDS game release and is not intended as a playable game.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.1.1**. The release tag is `opensurge-ps5-v0.1.1` and the ZIP is `PPSA99358.zip`. This launches the native diagnostic only, **not the game engine**. The catalog must refresh after the release becomes available.
+
+
+Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
 
 Place the PPSA99358 folder under /data/homebrew/ using a compatible homebrew loader, then inspect **/data/OpenSurge/legacy-port.log** for **ASSET_READ_OK** markers. This is an experiment; firmware 5.10 compatibility and console rendering remain to be verified.
 

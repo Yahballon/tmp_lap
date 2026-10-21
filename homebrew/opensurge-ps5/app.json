@@ -11,7 +11,8 @@
   "buildArchitecture": "PS5-DevBridge / ps5-homebrew-ui native OpenGL",
   "nativeFrontend": true,
   "engineIntegrated": false,
-  "ps5BuildStatus": "legacy-native-diagnostic-pending-CI",
+  "ps5BuildStatus": "legacy-native-diagnostic-ci-verified",
   "installableGame": false,
-  "gamePlayable": false
+  "gamePlayable": false,
+  "testbuildRelease": "opensurge-ps5-v0.1.1"
 }
