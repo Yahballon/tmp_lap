@@ -19,9 +19,13 @@ def main():
         for release in releases:
             if release.get("draft"):continue
             tag=release.get("tag_name","")
-            # Relayfall is deliberately published as an experimental TESTBUILD.
-            # Opt in only this title; other apps retain stable-only selection.
-            if release.get("prerelease") and not re.fullmatch(r"starbound-rebased-v\d+\.\d+\.\d+",tag):continue
+            # Explicit prerelease opt-in: both remain experimental TESTBUILDS.
+            # All other apps continue to use stable-only release selection.
+            allowed_prerelease=(
+                re.fullmatch(r"starbound-rebased-v\d+\.\d+\.\d+",tag) or
+                re.fullmatch(r"zquestclassic-ps5-v\d+\.\d+\.\d+",tag)
+            )
+            if release.get("prerelease") and not allowed_prerelease:continue
             m=re.search(r"v(\d+)\.(\d+)\.(\d+)(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$",tag)
             if not m:continue
             semver=tuple(map(int,m.groups()))
