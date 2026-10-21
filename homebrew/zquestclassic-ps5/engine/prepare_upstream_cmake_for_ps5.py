@@ -37,7 +37,25 @@ text=text.replace(packaging,'if(NOT ZC_PS5_TARGET_ONLY_PROBE)\n  add_subdirector
 shared_default="if(EMSCRIPTEN)\n\tset(BUILD_SHARED_LIBS OFF)\nelse()\n\tset(BUILD_SHARED_LIBS ON)\nendif()"
 assert text.count(shared_default)==1,"Upstream library linkage policy changed"
 text=text.replace(shared_default,"if(EMSCRIPTEN OR ZC_PS5_TARGET_ONLY_PROBE)\n\tset(BUILD_SHARED_LIBS OFF)\nelse()\n\tset(BUILD_SHARED_LIBS ON)\nendif()",1)
+# Allegro's desktop-native file-dialog addon is optional and not present in
+# the PS5 backend. Preserve actual symbols: any runtime dependence on it
+# must still fail the final link rather than silently providing stubs.
+dialog='if (NOT EMSCRIPTEN)\n\ttarget_link_libraries(allegro_with_legacy INTERFACE allegro_dialog)\nendif()'
+assert text.count(dialog)==1, "Pinned Allegro dialog linkage changed"
+text=text.replace(dialog, 'if (NOT EMSCRIPTEN AND NOT ZC_PS5_TARGET_ONLY_PROBE)\n\ttarget_link_libraries(allegro_with_legacy INTERFACE allegro_dialog)\nendif()', 1)
+
 cmake.write_text(text.replace(old,new,1))
+
+# zcsound normally becomes a desktop .so, but the native PS5 package is a
+# single homebrew ELF. Use the same original static library sources as the
+# upstream Emscripten configuration rather than changing audio behavior.
+sound=a.cmake_root/"src/components/sound/CMakeLists.txt"
+sound_text=sound.read_text()
+sound_old='if(EMSCRIPTEN)\n\tadd_library(zcsound STATIC ${ZCSOUNDSOURCES})'
+assert sound_text.count(sound_old)==1, "Pinned zcsound linkage changed"
+sound.write_text(sound_text.replace(sound_old,
+    'if(EMSCRIPTEN OR ZC_PS5_TARGET_ONLY_PROBE)\n\tadd_library(zcsound STATIC ${ZCSOUNDSOURCES})', 1))
+
 
 # Three Allegro-Legacy file format registries use Windows stricmp().
 # The PS5 SDK implements POSIX strcasecmp() with identical behavior here.
