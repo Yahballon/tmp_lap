@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Resolve only undefined weak C++ TLS init hooks before PS5 SELF conversion.
+"""Resolve narrowly allowlisted undefined weak ELF hooks before PS5 conversion.
 
 On regular ELF, a weak undefined TLS-init function resolves to null; callers
 check its address before calling. DevBridge's PS5 converter cannot import such
 non-SDK symbols and rejects the PIE. Patch the *temporary* DevBridge linker
 invocation so LLD binds those exact OPTIONAL hooks to the ELF null value.
-Never replace strong symbols, TLS storage or non-TLS code.
+Never replace strong symbols, TLS storage or ordinary runtime code.
 """
 import argparse
 from pathlib import Path
@@ -13,6 +13,12 @@ import re
 import subprocess
 
 CXX_TLS_INIT = re.compile(r"^_ZTH[A-Za-z0-9_]+$")
+# libc++abi declares this optional C-library entry as WEAK and contains
+# a real pthread-key fallback when the underlying libc does not export it.
+# See LLVM libcxxabi/src/cxa_thread_atexit.cpp.
+CXXABI_OPTIONAL_WEAK = {"__cxa_thread_atexit_impl"}
+def allowed_weak(name: str) -> bool:
+    return bool(CXX_TLS_INIT.fullmatch(name) or name in CXXABI_OPTIONAL_WEAK)
 INJECTION_POINT = 'link_inputs+=("--end-group")'
 SYM_ROW = re.compile(
     r"^\s*\d+:\s+[0-9a-fA-F]+\s+\d+\s+\S+\s+"
@@ -27,30 +33,30 @@ def parse_weak_tls(readelf_output: str) -> list[str]:
         if not match:
             continue
         name = match.group("name").split("@", 1)[0]
-        if CXX_TLS_INIT.fullmatch(name) and match.group("section") == "UND":
+        if allowed_weak(name) and match.group("section") == "UND":
             if match.group("binding") != "WEAK":
-                raise ValueError("Strong undefined C++ TLS init: " + name)
+                raise ValueError("Strong undefined optional symbol: " + name)
             results.add(name)
     return sorted(results)
 
 def insert_optional_linker_zero(build_sh: Path, names: list[str]) -> int:
     if not names:
-        raise ValueError("No undefined weak TLS hooks in linked PIE")
+        raise ValueError("No supported undefined weak hooks in linked PIE")
     source = build_sh.read_text()
     if source.count(INJECTION_POINT) != 1:
         raise ValueError("Missing precise PS5 link group marker")
     args = []
     for name in names:
-        if not CXX_TLS_INIT.fullmatch(name):
-            raise ValueError("Unsafe or non-TLS symbol: " + name)
+        if not allowed_weak(name):
+            raise ValueError("Unsafe or non-optional-weak symbol: " + name)
         if '--defsym=' + name + '=0' not in source:
             args.append('link_inputs+=("--defsym=' + name + '=0")')
     if not args:
-        raise ValueError("No new weak TLS hooks to resolve")
+        raise ValueError("No new supported weak hooks to resolve")
     source = source.replace(INJECTION_POINT,
                             "\n".join(args) + "\n" + INJECTION_POINT, 1)
     build_sh.write_text(source)
-    print("ELF-weak unresolved C++ TLS init hooks bound to null:", ", ".join(names))
+    print("ELF optional weak hooks bound to null:", ", ".join(names))
     return len(args)
 
 def resolve_from_elf(elf: Path, build_sh: Path, readelf: str) -> int:
