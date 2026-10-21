@@ -17,10 +17,44 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Godot platform overlay
+      - name: Validate platform overlay and PCK screening
         run: |
           set -euo pipefail
           python3 -m py_compile homebrew/godot-ps5/engine/platform/ps5/detect.py
           python3 homebrew/godot-ps5/scripts/check_overlay.py
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_locator_test.cpp -o /tmp/godot-ps5-test
           /tmp/godot-ps5-test
+
+  engine-cross-compile:
+    runs-on: ubuntu-24.04
+    needs: host-tests
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot SCons + PS5 toolchain prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 scons \
+            git make pkg-config python3 unzip wget ca-certificates
+      - name: Clone pinned Godot 4.7.2 and DevBridge
+        run: |
+          git clone --depth=1 --branch 4.7.2-stable https://github.com/godotengine/godot.git /tmp/godot
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+      - name: Set up pinned open PS5 payload SDK
+        run: bash /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+      - name: Cross-compile real upstream Godot source
+        env:
+          GODOT_SOURCE: /tmp/godot
+          PS5_PAYLOAD_SDK: /tmp/devbridge/templates/simple-calc/.deps/native/ps5-payload-sdk
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+        run: |
+          set -euo pipefail
+          bash homebrew/godot-ps5/scripts/build-engine.sh
+          find /tmp/godot/bin -name '*godot_ps5*.a' -type f -size +0c -print | grep .
+      - name: Archive experimental static engines (NOT playable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-ps5-crosscompile-static-NOT-PLAYABLE
+          path: /tmp/godot/bin/*.a
+          if-no-files-found: error
