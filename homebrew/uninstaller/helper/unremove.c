@@ -18,9 +18,27 @@
 #define BASE "/data/Uninstaller/actions"
 #define REQUEST BASE "/request"
 #define AUTHID_INSTALLER 0x4800000000000006ull
-int sceAppInstUtilInitialize(void);
-int sceAppInstUtilTerminate(void);
-int sceAppInstUtilAppUnInstall(const char *title_id);
+// Resolve the PS5 installer library dynamically: direct imports do not link
+// with the homebrew payload SDK, and can prevent loading on some firmwares.
+int sceKernelLoadStartModule(const char *, size_t, const void *, unsigned, void *, int *);
+typedef int (*init_fn)(void);
+typedef int (*term_fn)(void);
+typedef int (*uninstall_fn)(const char *, void *, void *);
+static init_fn app_init=NULL;
+static term_fn app_term=NULL;
+static uninstall_fn app_uninstall=NULL;
+static int load_installer(void){
+    int h=sceKernelLoadStartModule("/system/common/lib/libSceAppInstUtil.sprx",
+                                   0,NULL,0,NULL,NULL);
+    if(h<0)return h;
+    app_init=(init_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,
+                                          "sceAppInstUtilInitialize");
+    app_term=(term_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,
+                                          "sceAppInstUtilTerminate");
+    app_uninstall=(uninstall_fn)kernel_dynlib_dlsym(getpid(),(uint32_t)h,
+                                          "sceAppInstUtilAppUnInstall");
+    return app_init&&app_uninstall?0:ENOSYS;
+}
 
 static int private_file(const char* path,uid_t owner,int wantDir){
     struct stat st;
@@ -116,15 +134,16 @@ int main(void){
             puts("UREM fail invalid_title");result(dir.st_uid,nonce,kind,EINVAL,0);return 3;
         }
         // Init must precede installer authid, following proven Playden behavior.
-        rc=sceAppInstUtilInitialize();
+        rc=load_installer();
+        if(rc==0)rc=app_init();
         if(rc==0){
             const uint64_t original=kernel_get_ucred_authid(-1);
             kernel_set_ucred_authid(-1,AUTHID_INSTALLER);
             if(kernel_get_ucred_authid(-1)==AUTHID_INSTALLER)
-                rc=sceAppInstUtilAppUnInstall(title);
+                rc=app_uninstall(title,NULL,NULL);
             else rc=EPERM;
             kernel_set_ucred_authid(-1,original);
-            sceAppInstUtilTerminate();
+            if(app_term)app_term();
             state=rc==0?1:0; // request accepted; asynchronous system work may remain
         }
     }else if(!strcmp(kind,"USBPKG")){
