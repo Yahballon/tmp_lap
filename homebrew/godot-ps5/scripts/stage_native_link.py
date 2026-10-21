@@ -88,6 +88,18 @@ def stage(godot, app, entry, builtins_override=None):
     if source.count(trace_list) != 1:
         raise ValueError("DevBridge Zstd trace import allowlist changed")
     source = source.replace(trace_list, expanded, 1)
+    # Clang emits a weak C++ TLS-init reference for the constant-initialized
+    # thread_local int ResourceLoader::load_nesting = 0. The init hook does
+    # not exist: ELF unresolved-weak semantics are zero, but the PS5 SELF
+    # converter incorrectly tries to import it from the public SDK.
+    # Bind ONLY this constant-initialized optional TLS hook to zero. Keep
+    # real dynamically initialized thread_local objects fully functional.
+    optional_tls = '_ZTHN14ResourceLoader12load_nestingE'
+    linker_marker = 'link_inputs+=("--end-group")'
+    if source.count(linker_marker) != 1:
+        raise ValueError("Godot PS5 link group marker missing")
+    source = source.replace(linker_marker,
+        'link_inputs+=("--defsym='+optional_tls+'=0")\n'+linker_marker, 1)
     build.write_text(source)
     # PS5-DevBridge's CRT references an optional weak jb_startup_mark() logger.
     # The PS5 native converter rejects undefined imports not provided by the
