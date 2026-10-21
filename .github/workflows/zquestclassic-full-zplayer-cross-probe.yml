@@ -50,6 +50,10 @@ jobs:
           git -C "$work/allegro5-ps5-probe" remote add origin https://github.com/connorjclark/allegro5.git
           git -C "$work/allegro5-ps5-probe" fetch --depth 1 origin aae80ca3573e19702cfc2338591a575dc75eb647
           git -C "$work/allegro5-ps5-probe" checkout --detach FETCH_HEAD
+          git init "$work/ps5-platform"
+          git -C "$work/ps5-platform" remote add origin https://github.com/mihawk-99/PS5_PayloadSDK.git
+          git -C "$work/ps5-platform" fetch --depth 1 origin b5efad528e0ac1b8289f39d72a0e890ff68ff0a6
+          git -C "$work/ps5-platform" checkout --detach FETCH_HEAD
       - name: Stage real PS5 SDK and compiler wrapper
         run: |
           set -euo pipefail
@@ -85,6 +89,21 @@ jobs:
           bash tools/prepare-opengl.sh
           test -f .deps/ps5-opengl/current/include/GL/glcorearb.h
           test -f .deps/ps5-opengl/current/lib/libPS5OpenGL.a
+      - name: Build actual PS5 libc locale compatibility library
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+        run: |
+          set -euo pipefail
+          sdk="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          export PS5_PAYLOAD_SDK="$sdk"
+          platform="$RUNNER_TEMP/zcps5-full-zplayer/ps5-platform"
+          test "$(git -C "$platform" rev-parse HEAD)" = "b5efad528e0ac1b8289f39d72a0e890ff68ff0a6"
+          make -C "$platform/platform" \
+            CC="$GITHUB_WORKSPACE/app/tooling/prospero-clang18" \
+            AR=llvm-ar-18 -j 3
+          test -s "$platform/platform/build/ps5/libps5platform.a"
+          echo "REAL_PS5_LIBC_LOCALE_ARCHIVE_READY"
       - name: Attempt genuine zplayer cross-compile
         env:
           PS5_CLANG: clang-18
