@@ -43,6 +43,32 @@ jobs:
           chmod +x app/tooling/prospero-clang18
           test -x app/tooling/prospero-clang18
           test -f app/.deps/native/ps5-payload-sdk/target/include/c++/v1/vector
+      - name: Pin tested PS5 OpenGL native SDK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/tools/fetch-opengl-sdk.sh")
+          s=p.read_text()
+          assert "version=1.0.0" in s
+          assert "archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5" in s
+          s=s.replace("version=1.0.0","version=1.0.2")
+          s=s.replace("archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5",
+                      "archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4")
+          s=s.replace("github.com/blackbearreloaded/ps5-opengl","github.com/LedyBacer/ps5-opengl")
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "PS5 OpenGL SDK manifest validation previously pinned" >&2'+s[end:]
+          p.write_text(s)
+          PY
+      - name: Prepare PS5 EGL and OpenGL SDK libraries
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+        run: |
+          bash tools/prepare-opengl.sh
+          test -f .deps/ps5-opengl/current/include/GL/glcorearb.h
+          test -f .deps/ps5-opengl/current/lib/libPS5OpenGL.a
       - name: Attempt genuine zplayer cross-compile
         env:
           PS5_CLANG: clang-18
@@ -50,6 +76,7 @@ jobs:
         run: |
           export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
           export PS5_DEVBRIDGE_TOOL="$GITHUB_WORKSPACE/app/tooling/prospero-clang18"
+          export PS5_OPENGL_PREFIX="$GITHUB_WORKSPACE/app/.deps/ps5-opengl/current"
           bash homebrew/zquestclassic-ps5/engine/ps5_zplayer_full_probe.sh
       - name: Export complete real-engine compiler diagnostics
         if: always()
