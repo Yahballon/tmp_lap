@@ -22,6 +22,8 @@ test -f "$sdl/src/audio/ps5/SDL_ps5audio.c"
 test -f "$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake"
 test -f "${PS5_PAYLOAD_SDK:?}/target/include/c++/v1/vector"
 test -f "${PS5_DEVBRIDGE_TOOL:?}"
+test -f "${PS5_OPENGL_PREFIX:?}/lib/libPS5OpenGL.a"
+test -f "$PS5_OPENGL_PREFIX/include/GL/glcorearb.h"
 echo "Original zplayer: c44dde7d0146da78bf8b541af457d5ff4e67a830" >> "$report"
 echo "SDL2 PS5 fork: ee4c47dc0d617b3bc8f35108f9956baf228a1322" >> "$report"
 echo "Attempt original zplayer with ALLEGRO_SDL=ON and JIT_BACKEND=none" >> "$report"
@@ -33,6 +35,9 @@ timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
   -DFETCHCONTENT_SOURCE_DIR_SDL2="$sdl" \
+  -DOpenGL_GL_PREFERENCE=LEGACY \
+  -DOPENGL_INCLUDE_DIR="$PS5_OPENGL_PREFIX/include" \
+  -DOPENGL_gl_LIBRARY="$PS5_OPENGL_PREFIX/lib/libPS5OpenGL.a" \
   -DALLEGRO_SDL=ON \
   -DWANT_NFD=OFF \
   -DCOPY_RESOURCES=OFF \
