@@ -22,6 +22,32 @@ def stage(godot, app, entry):
         dest.parent.mkdir(parents=True,exist_ok=True)
         dest.symlink_to(source)
         libraries.append(dest.relative_to(app).as_posix())
+    # The Godot engine uses RTTI and libc++; DevBridge's simple-app
+    # template only links a minimal homebrew C++ allocation shim.
+    # Bring in the actual PS5 SDK's static C++ ABI and unwind libraries.
+    runtime = app/".deps/native/ps5-payload-sdk/target/lib"
+    for name in ("libc++.a", "libc++abi.a", "libunwind.a"):
+        source = runtime/name
+        if not source.is_file():
+            raise ValueError("Missing PS5 C++ runtime archive: "+str(source))
+        dest = app/"godot-libs/runtime"/name
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        dest.symlink_to(source)
+        libraries.append(dest.relative_to(app).as_posix())
+    # Builtins are compiler-version dependent, so use Clang's actual
+    # resource directory rather than assuming an SDK-specific location.
+    import shutil as _shutil
+    import subprocess
+    compiler = _shutil.which("clang-18") or _shutil.which("clang")
+    if not compiler:
+        raise ValueError("Missing PS5 Clang for builtins")
+    resource = Path(subprocess.check_output([compiler, "--print-resource-dir"],text=True).strip())
+    builtin = resource/"lib/linux/libclang_rt.builtins-x86_64.a"
+    if not builtin.is_file():
+        raise ValueError("Missing compiler builtins archive: "+str(builtin))
+    dest=app/"godot-libs/runtime/libclang_rt.builtins-x86_64.a"
+    dest.symlink_to(builtin)
+    libraries.append(dest.relative_to(app).as_posix())
     build = app/"tools/build.sh"
     source = build.read_text()
     prefix = 'link_inputs=("$build/obj/app_crt.o" "$build/obj/app_cpp_runtime.o" "${objects[@]}")'
@@ -39,7 +65,7 @@ def stage(godot, app, entry):
     p["localizedParameters"]["en-US"]["titleName"]="Godot PS5 Engine Smoke"
     metadata.write_text(json.dumps(p,indent=2)+'\n')
     (app/"GNUmakefile").write_text('APP_SOURCE_DIR := src/godot-smoke\nAPP_ASSETS := assets\nAPP_STATIC_ARCHIVES := '+' '.join(libraries)+'\ninclude Makefile\n')
-    print("Staged",len(libraries),"Godot libraries for actual PS5 engine link")
+    print("Staged",manifest["archive_count"],"Godot engine archives and 4 PS5 runtime archives")
 
 if __name__=="__main__":
     a=argparse.ArgumentParser()
