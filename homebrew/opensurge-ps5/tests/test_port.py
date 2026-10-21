@@ -28,6 +28,23 @@ class PortIntegrationTests(unittest.TestCase):
         self.assertIn("x86_64-sie-ps5", toolchain)
         self.assertIn("CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY", toolchain)
 
+    def test_ps5_surge_allocation_patch_keeps_non_ps5_code(self):
+        spec = importlib.util.spec_from_file_location("ss5", PROJECT / "scripts" / "patch-surgescript-ps5.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            path = root / "src" / "surgescript" / "runtime" / "program.c"
+            path.parent.mkdir(parents=True)
+            path.write_text("prefix\\n" + module.ANCHOR + "suffix\\n")
+            module.apply(root)
+            patched = path.read_text()
+            self.assertIn("#define alloca __builtin_alloca", patched)
+            self.assertIn("#include <malloc.h>", patched)
+            self.assertIn("#elif !(defined(__APPLE__)", patched)
+            with self.assertRaises(ValueError):
+                module.apply(root)
+
     def test_title_identity(self):
         meta = json.loads((PROJECT / "app.json").read_text())
         self.assertEqual(meta["titleId"], "PPSA99358")

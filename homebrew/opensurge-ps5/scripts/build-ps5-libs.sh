@@ -21,13 +21,14 @@ test -x "$PS5_CC" || { echo "PS5 compiler wrapper is not executable" >&2; exit 2
 
 work=${1:-"$project/.work"}
 bash "$project/scripts/fetch-upstream.sh" "$work"
+python3 "$project/scripts/patch-surgescript-ps5.py" "$work/surgescript"
 prefix="$work/ps5-port-prefix"
 toolchain="$project/ps5/ps5-static-toolchain.cmake"
 mkdir -p "$prefix"
 
 cmake -S "$work/surgescript" -B "$work/build-surgescript-ps5" \
   -DCMAKE_TOOLCHAIN_FILE="$toolchain" -DCMAKE_INSTALL_PREFIX="$prefix" \
-  -DCMAKE_BUILD_TYPE=Release -DWANT_SHARED=OFF -DWANT_STATIC=ON -DWANT_EXECUTABLE=OFF
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-DOPENSURGE_PS5" -DWANT_SHARED=OFF -DWANT_STATIC=ON -DWANT_EXECUTABLE=OFF
 cmake --build "$work/build-surgescript-ps5" --parallel "${BUILD_JOBS:-4}" --target surgescript-static
 cmake --install "$work/build-surgescript-ps5"
 
