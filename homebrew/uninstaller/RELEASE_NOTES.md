@@ -1,9 +1,8 @@
-# Uninstaller v0.1.6 – actual controlled uninstall experiments
+# Uninstaller v0.1.7 — async startup scan and progress indicator
 
-- Remove permanent Found X entries overlay.
-- Reject false tiny drive capacities, e.g. /mnt/ext0=2 MB, and never default to a fake mount.
-- Enable explicit native AppInstUtil uninstall dispatch for installed titles where title ID and /user/app/<titleId> match. Two-step confirmation and private one-shot payload with request nonce. Native API may be asynchronous; acceptance must not be confused with completed removal.
-- Allow deleting explicit USB .pkg files via a privileged helper with filesystem/path checks. Installed games are not removed when clearing a USB archive.
-- Custom mount game-dump folders and privileged homebrew folders remain read-only (not safely uninstallable by deleting arbitrary directories).
-- Protect self PPSA99986 and keep saves untouched; report all actions under /data/Uninstaller.
-- Firmware 5.10 hardware support requires testing: start with a disposable homebrew app, not a valuable retail game.
+- Added animated blue scanning progress bar to the main screen.
+- Initial inventory and Triangle refresh now run asynchronously; native PS5 renderer keeps updating instead of freezing during the scan.
+- Added phase labels while scanning local folders and while reading the elfldr inventory.
+- Input is locked during inventory replacement to avoid deleting stale entries.
+- Existing confirmed removal dialogs and native/USB removal backends are retained, but console-side system uninstall completion has not yet been verified; do not test with an important game first.
+- Logs continue at `/data/Uninstaller/uninstaller.log`.

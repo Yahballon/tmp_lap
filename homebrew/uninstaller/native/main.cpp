@@ -66,6 +66,46 @@ bool queue_icon(const uninstaller::Item& item,unsigned epoch){
   }
   pthread_detach(thread);return true;
 }
+
+struct ScanFinish {
+ std::vector<uninstaller::Item> items;
+ std::vector<uninstaller::bridge::Volume> volumes;
+ std::string message;
+};
+std::mutex scanMutex;
+std::atomic<bool> scanBusy{false};
+ScanFinish* scanReady=nullptr;
+std::string scanStep="Starting inventory";
+void updateScanStep(const std::string& step){
+ std::lock_guard<std::mutex> guard(scanMutex);
+ scanStep=step;
+}
+void* scanWorker(void*){
+ ScanFinish* result=new ScanFinish;
+ updateScanStep("Reading local homebrew folders");
+ result->items=uninstaller::scan(scanLog);
+ updateScanStep("Scanning games, homebrew and USB via elfldr");
+ const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
+ uninstaller::bridge::merge(result->items,helper);
+ result->volumes=helper.volumes;
+ result->message=helper.message;
+ {std::lock_guard<std::mutex> guard(scanMutex);scanReady=result;}
+ scanBusy.store(false);
+ return nullptr;
+}
+bool startScan(){
+ if(scanBusy.exchange(true))return false;
+ updateScanStep("Starting inventory");
+ pthread_t thread{};
+ if(pthread_create(&thread,nullptr,scanWorker,nullptr)!=0){
+  scanBusy.store(false);
+  updateScanStep("Could not launch scan thread");
+  return false;
+ }
+ pthread_detach(thread);
+ return true;
+}
+
 std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
   if(png.empty()||png.size()>3*1024*1024)return 0;
   int w=0,h=0,ch=0;
@@ -78,7 +118,8 @@ std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
 }
 
 void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,const uninstaller::Storage& disk,
- const std::map<std::string,std::uint32_t>& icons,const std::string& driveName,int activeDrive,int driveCount){
+ const std::map<std::string,std::uint32_t>& icons,const std::string& driveName,int activeDrive,int driveCount,
+ bool scanning,unsigned frame,const std::string& phase){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
  d.gradient_rect({1250,0,670,1050},0,color(0x051b3c,.55f),color(0x210515,.55f));
@@ -150,11 +191,19 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    L2/R2 Storage    X Details    Square Delete    Triangle Refresh    Circle Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.6",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.7",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>104?msg.substr(0,101)+"...":msg;
    txt(d,f,a,brief,745,991,16,color(0x99bad9));
+ }
+ if(scanning){
+  panel(d,750,837,560,136);
+  txt(d,f,a,"Scanning games, apps and USB...",768,873,21,white);
+  txt(d,f,a,phase,768,912,16,muted);
+  d.rounded_rect({769,931,521,16},7,color(0x1a3958));
+  const float offset=(float)(frame%135)/135.0f;
+  d.rounded_rect({772+offset*390,934,125,10},5,color(0x2aaaff));
  }
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
@@ -210,10 +259,23 @@ int main(){
  // unimplemented libc entry until supported console telemetry is confirmed.
  uninstaller::diag::write("STORAGE","statvfs skipped: PS5 support unverified");
  int tab=0,selected=0,offset=0;bool confirm=false;
+ unsigned frames=0;
  bool firstFrame=true;
  unsigned prev=0;std::string notice;
  uninstaller::diag::write("BOOT","initialization finished; first frame pending");
  for(;;){
+  ScanFinish* fresh=nullptr;
+  {std::lock_guard<std::mutex> guard(scanMutex);
+    fresh=scanReady;scanReady=nullptr;
+  }
+  if(fresh){
+    items=std::move(fresh->items);
+    volumes=std::move(fresh->volumes);
+    selectedDrive=0;useDrive();selected=offset=0;
+    notice=items.empty()?fresh->message:"";
+    log("Async scan found "+std::to_string(items.size())+" titles");
+    delete fresh;
+  }
   std::array<hui::PadSample,64> s{};unsigned pressed=0,buttons=prev;
   size_t n=pad.read(s);bool connected=false;
   for(size_t i=0;i<n;i++)if(s[i].connected){connected=true;buttons=s[i].buttons;
@@ -222,6 +284,7 @@ int main(){
     pressed|=buttons&~prev;prev=buttons;
   }
   if(!connected)prev=0;
+  if(scanBusy.load())pressed=0;
   if(pressed&hui::pad_bits::kCircle){if(confirm)confirm=false;else{uninstaller::bridge::stop_icons();for(const auto& entry:iconTextures)if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}pad.close();renderer.release();display.close();hui::sys::quit();}}
   if(!confirm){
     if(pressed&hui::pad_bits::kL1){tab=(tab+3)%4;selected=offset=0;}
@@ -237,19 +300,12 @@ int main(){
     if(pressed&hui::pad_bits::kUp){if(selected>0)--selected;if(selected<offset)offset=selected;}
     if(pressed&hui::pad_bits::kDown){if(selected+1<count(items,tab))++selected;if(selected>=offset+11)offset=selected-10;}
     if(pressed&hui::pad_bits::kTriangle){
-      uninstaller::diag::write("REFRESH","requested");
+      uninstaller::diag::write("REFRESH","starting");
       uninstaller::bridge::stop_icons();
-      scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
-      items=uninstaller::scan(scanLog);
-      uninstaller::diag::write("ELFLDR","refresh: launching bundled read-only scanner");
-      const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
-      uninstaller::bridge::merge(items,helper);
-      volumes=helper.volumes;selectedDrive=0;useDrive();
       for(const auto& t:iconTextures)if(t.second){GLuint tex=t.second;glDeleteTextures(1,&tex);}
       iconTextures.clear();++iconEpoch;
-      selected=offset=0;
-      notice=items.empty()?"No titles accessible. "+helper.message:"";
-      uninstaller::diag::write("REFRESH","done");
+      notice.clear();
+      if(!startScan())notice="Cannot start scan";
     }
     if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){
       const auto* x=nth(items,tab,selected);
@@ -275,15 +331,11 @@ int main(){
       }
       if(refresh){
         uninstaller::bridge::stop_icons();
-        items=uninstaller::scan(scanLog);
-        const auto result=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
-        uninstaller::bridge::merge(items,result);
-        volumes=result.volumes;selectedDrive=0;useDrive();
         for(const auto& icon:iconTextures)if(icon.second){
           GLuint texture=icon.second;glDeleteTextures(1,&texture);
         }
         iconTextures.clear();++iconEpoch;
-        selected=offset=0;
+        if(!startScan())notice="Action sent, refresh unavailable";
       }
     }
     confirm=false;
@@ -312,33 +364,17 @@ int main(){
     }
   }
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw begin");
-  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,disk,iconTextures,driveName,selectedDrive,(int)volumes.size());
+  std::string phase;
+  {std::lock_guard<std::mutex> guard(scanMutex);phase=scanStep;}
+  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,disk,iconTextures,driveName,selectedDrive,(int)volumes.size(),scanBusy.load(),frames++,phase);
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw done");
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();
   if(firstFrame){
     firstFrame=false;
     uninstaller::diag::write("FIRST_FRAME","present ok");
-    uninstaller::diag::write("SCAN","begin after first frame");
-    scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
-    items=uninstaller::scan(scanLog);
-    uninstaller::diag::write("ELFLDR","starting read-only inventory helper via 127.0.0.1:9021");
-    uninstaller::bridge::stop_icons();
-    const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
-    uninstaller::bridge::merge(items,helper);
-    volumes=helper.volumes;selectedDrive=0;useDrive();
-    uninstaller::diag::write("ELFLDR",(std::string("helper entries=")+std::to_string(helper.items.size())).c_str());
-    log("Discovered "+std::to_string(items.size())+" entries; readable roots="+
-      std::to_string(scanRootsReadable)+" inaccessible="+
-      std::to_string(scanRootsDenied)+" missing="+std::to_string(scanRootsMissing));
-    uninstaller::diag::write("SCAN","completed");
-    if(items.empty()){
-      notice="0 titles. Readable roots: "+std::to_string(scanRootsReadable)+
-       ", denied: "+std::to_string(scanRootsDenied)+
-       ". "+helper.message;
-    }else{
-      notice.clear(); // Successful scan is visible in category counters; no toast.
-    }
+    uninstaller::diag::write("SCAN","starting async inventory");
+    if(!startScan())notice="Cannot start initial scan";
   }
   hui::sys::sleep_us(16000);
  }
