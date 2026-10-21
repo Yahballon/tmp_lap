@@ -23,6 +23,28 @@ in GitHub Actions on the work branch. `configure.log`,
 A red job means the **real** engine is blocked; do not label any artifacts
 playable.
 
+## Current full-target cross-build diagnostics (PR #204)
+
+The original `zplayer` CMake target has progressed through **1,037 of 1,039
+Ninja steps** in [CI run 39642073360](https://github.com/Yahballon/tmp_lap/actions/runs/39642073360).
+The original engine sources compile, but `libzcsound.so` failed to link:
+`-lm`, `-lusbhid`, `-lpthread` and `-lallegro_dialog` came from
+desktop/BSD linkage settings, not proven PS5 runtime dependencies.
+
+The next experimental native cross-build changes **only build configuration**:
+- `zcsound` is a static library, following the original Emscripten
+  source-path strategy for a single final ELF (no shared `.so` deployment)
+- Unsupported desktop native-dialog target is excluded from the
+  `allegro_with_legacy` link interface **only in the PS5 probe**
+- The pinned OpenAGC SDL2 fork now selects its actual `PS5` platform
+  branches (native video, audio, pad, filesystem) rather than generic
+  FreeBSD drivers; all such platform calls remain real symbols and must
+  resolve at link/runtime
+
+**This is not yet proof that PS5 SDL2 compiles or functions, or that the
+original `zplayer` binary links or runs.** Do not substitute dummy video,
+audio or input implementations. On-console validation is mandatory.
+
 ## Current proven on hardware
 
 v0.1.5 in TESTBUILDS: both quests discovered and fully read, and the
