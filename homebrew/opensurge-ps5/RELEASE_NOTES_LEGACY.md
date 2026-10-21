@@ -1,13 +1,12 @@
-# Open Surge PS5 v0.3.1 - Sonic-style movement preview
+# Open Surge PS5 v0.4.0 — native enemy and hazard compatibility preview
 
-User's v0.3.0 test confirmed stable ~59.6 FPS and working pickups/spring but missing Sonic-style movement and authentic player animations.
+Based on PS5-tested v0.3.1 with stable original movement, Spin Dash, rings and springs.
 
-- DOWN at rest crouches, UP at rest looks upward using upstream frames.
-- DOWN while moving starts momentum-preserving roll. Turning against roll decelerates it; does not snap speed back to walk pace.
-- DOWN + X begins charge, repeated X adds 0.25 intensity, releasing DOWN launches a Spin Dash (480 to 720 px/s), using upstream physicsactor.c formula.
-- Original Surge.spr sprite frame selections for idle/walk/run/duck/look-up/charge/brake/rolling/jumping/falling.
-- Fix spring retrigger spam: rearm only after leaving the spring area and passing cooldown.
-- Retain PS5 v0.2.4 verified DualSense buffered controls and 120 Hz physics, all original demo objects and renderer.
-- CI runs native C++ smoke tests with actual pinned original level data for Spin Dash, reset, collectibles, and spring cooldown.
+- Stage 13 original demo enemy/hazard positions and 4 authentic sprite atlases.
+- Mosquito (5) flies left at 60 world units/s, Wolfey (1) bounded patrol at 80, Lady Bugsy (1) bounded patrol at 30 and simplified bullets at 60, Spikes (6) hurt the player.
+- Rolling or descending onto enemies defeats them, +100 score per enemy.
+- Damage gives 1.6s invulnerability. Lose collected rings first; otherwise lose a life and respawn. 3 lives and Game Over / Square restart HUD.
+- All native C++ behavior, art size and original placement checked in CI. Previous DualSense/movement/mask collision tests retained.
+- This is **NOT** the complete Open Surge engine. Full SurgeScript/Allegro, authentic enemy platformer, sound/music, multi-level stage flow, scatter rings and savegames remain to be ported.
 
-This remains a native experimental compatibility layer, **not** the original full SurgeScript runtime. No original enemy AI, level flow or complete sound yet.
+Console test required: confirm sprites, spikes, death/restart, and preserved movement at ~60 FPS.

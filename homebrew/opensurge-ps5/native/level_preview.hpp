@@ -59,6 +59,15 @@ public:
     }
     // Experimental native spring velocity hook from original 'Spring
     // Standard/Stronger' SurgeScript values (600 and 960 world units/sec).
+    void hit_recoil(float source_x) {
+        if(!ready())return;
+        vx_=(x_>=source_x?1.f:-1.f)*210.f;
+        vy_=-280.f;
+        ground_=false;
+        charging_=rolling_=false;
+        charge_=0.f;
+        y_-=4.f;
+    }
     void spring_bounce(float strength) {
         if(!ready()||strength<100.f||strength>1400.f)return;
         vy_=-strength;

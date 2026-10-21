@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.3.1 - native Spin Dash/roll animations and spring debounce.
+// Open Surge PS5 v0.4.0 - native original hazards, enemy damage and lives.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
 #include "level_entities.hpp"
+#include "level_hazards.hpp"
 #include "pad_state.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -23,7 +24,7 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.3.1";
+constexpr const char* kVersion="0.4.0";
 constexpr const char* kTitle="OPEN SURGE PS5 - MOVEMENT FIX";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
@@ -33,7 +34,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native moves preview 0.3.1] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native combat preview 0.4.0] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -121,7 +122,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.3.1",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.4.0",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -179,6 +180,11 @@ int main(){
   log_message(entities_ready?
       "ORIGINAL_ENTITIES_READY collectibles, springs and goal":
       std::string("ORIGINAL_ENTITIES_FAILED ")+entities.error());
+  surgepreview::LevelHazards hazards;
+  const bool hazards_ready=level_ready && hazards.load(renderer,root);
+  log_message(hazards_ready?
+      "ORIGINAL_HAZARDS_READY 5 mosquito 1 wolfey 1 lady_bugsy 6 spikes":
+      std::string("ORIGINAL_HAZARDS_FAILED ")+hazards.error());
   log_message(level_ready?
       "LEVEL_PREVIEW_READY original demo-1.lev brick sheet, magenta alpha and collision mask":
       std::string("LEVEL_PREVIEW_FAILED ")+level.error());
@@ -274,6 +280,7 @@ int main(){
               controls.raw_buttons,controls.held);
           log_message(line_btn);
           level.reset();if(entities_ready)entities.reset();
+          if(hazards_ready)hazards.reset_game();
           accumulator=0.f;pending_jump=false;
           char line[160];
           std::snprintf(line,sizeof(line),"LEVEL_RESET x=%.1f y=%.1f grounded=%d",
@@ -292,9 +299,10 @@ int main(){
           const bool was_charging=level.charging();
           const bool was_rolling=level.rolling();
           const unsigned releases_before=level.dash_releases();
-          level.update(step,dir,jump,
-                       (held&hui::pad_bits::kDown)!=0,
-                       (held&hui::pad_bits::kUp)!=0);
+          if(!hazards_ready || !hazards.game_over())
+            level.update(step,dir,jump,
+                         (held&hui::pad_bits::kDown)!=0,
+                         (held&hui::pad_bits::kUp)!=0);
           if(!was_charging && level.charging())
              log_message("MOVE_SPINDASH_CHARGE started DOWN+X");
           if(jump && was_charging && level.charging())
@@ -324,6 +332,37 @@ int main(){
             }
             if(event.goal)log_message("ORIGINAL_GOAL_REACHED demo-1 preview only");
           }
+          if(hazards_ready && !hazards.game_over()){
+            const bool attacking=level.rolling()||
+                (!level.grounded() && level.velocity_y()>40.f);
+            const int rings=entities_ready?entities.collected():0;
+            const auto damage=hazards.tick(step,level.player_x(),level.player_y(),
+                                            level.velocity_y(),attacking,rings);
+            if(damage.killed){
+              char line[100];
+              std::snprintf(line,sizeof(line),"ENEMY_DEFEATED total=%d score=%d",
+                           hazards.defeated(),hazards.score());
+              log_message(line);
+            }
+            if(damage.hit){
+              if(entities_ready && rings>0){
+                const int lost=entities.lose_rings();
+                char line[100];
+                std::snprintf(line,sizeof(line),"PLAYER_HIT_RING_LOSS count=%d",lost);
+                log_message(line);
+                level.hit_recoil(damage.source_x);
+              }else{
+                char line[100];
+                std::snprintf(line,sizeof(line),"PLAYER_LOST_LIFE remaining=%d",hazards.lives());
+                log_message(line);
+                if(!hazards.game_over()){
+                  level.reset();
+                  if(entities_ready)entities.reset();
+                  hazards.restart_level();
+                }else log_message("PLAYER_GAME_OVER press SQUARE to retry");
+              }
+            }
+          }
           if(jump&&was_grounded)log_message("LEVEL_JUMP");
           if(!was_grounded&&level.grounded())log_message("LEVEL_LANDED");
           accumulator-=step;++ticks;
@@ -343,6 +382,7 @@ int main(){
         if(level_ready){
           level_mode=true;level.reset();
           if(entities_ready)entities.reset();
+          if(hazards_ready)hazards.reset_game();
           accumulator=0.f;pending_jump=false;
           log_message("LEVEL_PREVIEW_START demo-1.lev, terrain slope-follow test; original gameplay engine not linked");
         }else{
@@ -358,9 +398,10 @@ int main(){
     if(level_mode && level_ready){
       level.draw(ui);
       if(entities_ready)entities.draw(ui,level.player_x(),level.player_y());
+      if(hazards_ready)hazards.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.3.1  -  SPIN DASH / ROLL / SURGE ANIMATIONS; original engine pending",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.4.0  -  ORIGINAL ENEMIES / SPIKES / LIVES; SurgeScript not linked",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"D-PAD MOVE  X JUMP  DOWN+X CHARGE  RELEASE DOWN DASH  SQUARE RESET  O BACK",73,1029,28,WHITE);
       char probe_line[180];
@@ -387,6 +428,18 @@ int main(){
                       entities.collected(),entities.complete()?"DEMO GOAL REACHED":"DEMO LEVEL");
         ui.rounded_rect({1240,116,620,62},12,C(0x092431,.90f));
         txt(ui,font,atlas,hud,1258,157,24,entities.complete()?GOLD:ACCENT);
+      }
+      if(hazards_ready){
+        char stat[120];
+        std::snprintf(stat,sizeof(stat),"LIVES %d     SCORE %d     ENEMIES %d",
+                      hazards.lives(),hazards.score(),hazards.defeated());
+        ui.rounded_rect({1132,273,726,65},12,C(0x092431,.90f));
+        txt(ui,font,atlas,stat,1150,316,23,GOLD);
+        if(hazards.game_over()){
+          ui.rounded_rect({500,368,920,275},22,C(0x071827,.97f));
+          txt(ui,font,atlas,"GAME OVER",960,478,69,GOLD,Align::center);
+          txt(ui,font,atlas,"SQUARE  RESTART     CIRCLE  MENU",960,558,26,WHITE,Align::center);
+        }
       }
     }else{
       draw(ui,font,atlas,preview,probes,root,detail,exiting);
