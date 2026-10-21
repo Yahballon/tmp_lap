@@ -128,7 +128,7 @@ void draw_chip(DrawList& d,const Texture& tex,float cx,float cy,float sz,unsigne
  else {d.circle(cx,cy,sz*.45f,C(fallback));d.ring(cx,cy,sz*.43f,5,C(0xffffff,.65f));}
 }
 void board(DrawList& d,const Font& f,unsigned atlas,const Game& g,const Controller& ctl,uint64_t now,const Texture& red,const Texture& yellow){
- const float player_size=84.f;
+ const float player_size=kDiscSize;
  for(int c=0;c<COLS;c++)for(int r=0;r<ROWS;r++){
   int p=g.at(c,r);if(!p)continue;
   if(ctl.last_drop_col==c&&ctl.last_drop_row==r&&now-ctl.drop_time<400000ULL)continue;
