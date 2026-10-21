@@ -1,39 +1,40 @@
-# ZQuest Classic PS5 v0.1.4 — Real .qst File Read Test
+# ZQuest Classic PS5 v0.1.5 — Native 8-Bit Video Test
 
-**Experimental native PS5 TESTBUILD · by YAHBALLON · PPSA99127**
+**Experimental TESTBUILD · by YAHBALLON · PPSA99127**
 
-**NOT PLAYABLE:** The original ZQuestClassic `zplayer` game loop is not
-integrated. This release adds a real native PS5 **quest-file I/O test**, not a
-quest parser, graphics engine, or game.
+**NOT PLAYABLE:** This release still does not link the upstream ZQuestClassic
+`zplayer` game loop. It adds a safe, optional PS5 GPU rendering diagnostic.
 
-## New in v0.1.4
+## New video test
 
-- **Cross (X)** now uses `sceKernelOpen` / `sceKernelRead` /
-  `sceKernelClose` to read the selected `.qst` file, starting from the
-  same kernel-backed quest browser that worked in v0.1.3.
-- Nonblocking incremental reading (32 KiB per frame); dynamic progress
-  against the detected file size.
-- Shows read success/failure, file header bytes and streaming CRC32; uses
-  bounded memory and never writes into the quest.
-- Logs `QUEST_READ_START`, `QUEST_READ_OK bytes=... crc32=...` or
-  `QUEST_READ_FAIL code=...` under
-  `/data/ZQuestClassic/logs/port.log`.
-- Host POSIX and mocked native-syscall regression tests for file reading
-  and known CRC32, plus PS5 native build and package validation.
+- **Triangle** toggles a clearly labeled original 256×224 moving pixel test
+  pattern in the right panel; pressing Circle first closes the video test.
+- Converts 8-bit indexed bitmaps with Allegro 6-bit RGB palette data to RGBA8,
+  respecting source row pitch and buffer limits.
+- Reuses a single GL_RGBA8 texture, updating with `glTexSubImage2D` and
+  nearest-neighbor pixel filtering through the PS5-DevBridge EGL renderer.
+- Native startup is unchanged: GPU palette test initializes lazily on
+  Triangle, so the existing quest browser remains usable if you never enable it.
+- Logs `PS5_INDEXED_VIDEO_BRIDGE_READY` or
+  `PS5_INDEXED_VIDEO_BRIDGE_FAILED`, plus `VIDEO_TEST_ON/OFF`
+  under `/data/ZQuestClassic/logs/port.log`.
 
-## Test on your PS5
+## Unchanged working functions
 
-Leave your two files where they already work:
+- Directory listing via kernel-based getdents under
+  `/data/ZQuestClassic/quests`.
+- **X** sequentially reads selected .qst with progress + CRC32 for
+  `the_deep.qst` and `255example.qst`.
+- Square rescans; Options shows folder-access diagnostics.
 
-```text
-/data/ZQuestClassic/quests/255example.qst
-/data/ZQuestClassic/quests/the_deep.qst
-```
+## Testing
 
-Open the app, select a quest, and press **X**. A native read test should
-complete and display `READ SUCCESS`. If the app cannot read the bytes,
-send us the log containing `QUEST_READ_FAIL`.
+Install v0.1.5 from TESTBUILDS, press Triangle, and check that the
+animated palette pattern appears and keeps moving without artifacts.
+Press Triangle again to return to the library, then test X on your quests.
+If video fails or the app crashes, send the log. Real PS5 GPU behavior
+has not been validated on hardware yet.
 
-**READ SUCCESS does not mean the quest is format-valid or playable.**
-This is an explicit diagnostic milestone while porting the real GPLv3
-ZQuest Classic engine from ZQuestClassic/ZQuestClassic.
+**No Nintendo artwork, commercial quests or proprietary game assets are included.**
+Upstream `zplayer`, Allegro-Legacy, script interpreter, sound, saves and
+real gameplay still require full native engine integration.

@@ -94,7 +94,6 @@ jobs:
           s=s.replace(needle,needle+'\n  logging(zcps5_upstream_engine_smoke());'+'\n  logging(zcps5_upstream_zasm_smoke());',1)
           p.write_text(s)
           PY
-          python3 homebrew/zquestclassic-ps5/engine/inject_video_probe.py app/src/main.cpp
           python3 homebrew/zquestclassic-ps5/assets/generate_assets.py app
           python3 - <<'PY'
           import json
@@ -163,7 +162,7 @@ jobs:
           assert b"UPSTREAM_ZASM_TABLE_NATIVE_SMOKE" in native, "Upstream ZASM table not linked"
           assert b"PS5_INDEXED_VIDEO_BRIDGE_READY" in native, "GPU indexed image bridge not linked"
           assert b"8-BIT PALETTE VIDEO TEST (NOT GAMEPLAY)" in native, "Test pattern overlay absent"
-          assert b"v0.1.4" in native
+          assert b"v0.1.5" in native
           assert b"SCAN_BACKEND=libkernel-getdents-v0.1.4" in native
           print("PASS: upstream RNG + ZASM code and PS5 palette/OpenGL bridge linked in PS5 ELF")
           print("NOTE: zplayer and actual gameplay are NOT ported by this smoke test")

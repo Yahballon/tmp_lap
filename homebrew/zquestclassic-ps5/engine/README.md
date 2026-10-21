@@ -49,8 +49,9 @@ compile the upstream source **unmodified**. No gameplay opcodes are replaced.
 
 **This does not run scripts:** zplayer, the ZASM interpreter, its VM state,
 Allegro, the original graphics/audio path and quest logic remain unported.
-The production TESTBUILDS `PPSA99127.zip` remains v0.1.4 as a native
-file-read diagnostic; the engine bringup ZIP is an isolated CI artifact.
+The production TESTBUILDS `PPSA99127.zip` is v0.1.5 with an optional
+Triangle-triggered video diagnostic but remains **non-playable**. The
+engine bringup ZIP with upstream ZASM is a separate CI artifact.
 
 ## Paletted PS5 video bridge milestone
 
