@@ -4,8 +4,8 @@
 #include "compat.h"
 
 #include <cerrno>
-#include <sys/sysctl.h>
 #include <sys/types.h>
+#include <sys/sysctl.h>
 
 extern "C" int getentropy(void *buffer, size_t count) {
     if (count > 256 || (count != 0 && buffer == nullptr)) {
