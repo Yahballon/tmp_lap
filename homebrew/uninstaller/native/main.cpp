@@ -110,7 +110,7 @@ bool startScan(){
 struct RemovalStatus {
  std::mutex mutex;
  bool active=false,done=false,success=false;
- std::string message;
+ std::string message,title;
 };
 RemovalStatus removal;
 struct RemovalRequest {
@@ -128,6 +128,8 @@ void* removeWorker(void* arg){
   removal.active=false;removal.done=true;
   removal.success=result.accepted;
   removal.message=result.detail;
+  removal.title=(job->item.kind==uninstaller::Kind::Installed&&result.accepted)
+      ?job->item.id:std::string();
  }
  delete job;
  return nullptr;
@@ -136,6 +138,7 @@ bool runRemoval(const uninstaller::Item& item,const std::string& source){
  {std::lock_guard<std::mutex> guard(removal.mutex);
   if(removal.active)return false;
   removal.active=true;removal.done=false;removal.success=false;
+  removal.title.clear();
   removal.message="Uninstalling title and matching USB source...";
  }
  pthread_t thread{};
@@ -229,7 +232,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  }
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    X / Square: Uninstall    Triangle: Refresh    Circle: Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.13",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.14",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>125?msg.substr(0,122)+"...":msg;
@@ -298,23 +301,25 @@ int main(){
  // unimplemented libc entry until supported console telemetry is confirmed.
  uninstaller::diag::write("STORAGE","statvfs skipped: PS5 support unverified");
  int tab=0,selected=0,offset=0;bool confirm=false,shadowConfirm=false;
- std::string shadowSource;bool shadowDoneHandled=false;
+ std::string shadowSource,pendingVerify;bool shadowDoneHandled=false;
  unsigned frames=0;
  bool firstFrame=true;
  unsigned prev=0;std::string notice;
  uninstaller::diag::write("BOOT","initialization finished; first frame pending");
  for(;;){
   bool sourceBusy=false,sourceDone=false,sourceSuccess=false;
-  int sourcePercent=0;std::string sourceMessage;
+  int sourcePercent=0;std::string sourceMessage,sourceTitle;
   {std::lock_guard<std::mutex> lock(removal.mutex);
     sourceBusy=removal.active;sourceDone=removal.done;
     sourceSuccess=removal.success;sourceMessage=removal.message;
+    sourceTitle=removal.title;
   }
   if(sourceDone&&!shadowDoneHandled){
     shadowDoneHandled=true;
     notice=sourceMessage;
     uninstaller::diag::write("UNIFIED_RESULT",sourceMessage.c_str());
-    if(sourceSuccess&&!scanBusy.load())startScan();
+    if(sourceSuccess&&!scanBusy.load()&&startScan())
+      pendingVerify=sourceTitle;
   }
   if(sourceBusy)shadowDoneHandled=false;
   ScanFinish* fresh=nullptr;
@@ -325,6 +330,17 @@ int main(){
     items=std::move(fresh->items);
     selected=offset=0;
     notice=items.empty()?fresh->message:"";
+    if(!pendingVerify.empty()){
+      bool found=false;
+      for(const auto& check:items)
+        if(check.kind==uninstaller::Kind::Installed && check.id==pendingVerify)
+          {found=true;break;}
+      uninstaller::diag::write(found?"REMOVE_VERIFY_PRESENT":"REMOVE_VERIFY_ABSENT",
+                               pendingVerify.c_str());
+      notice=found?"PS5 accepted uninstall but title remains in library; check SOURCE_DIAG":
+        "Title absent after rescan; verify it stays gone after ShadowMount refresh";
+      pendingVerify.clear();
+    }
     log("Async scan found "+std::to_string(items.size())+" titles");
     delete fresh;
   }
