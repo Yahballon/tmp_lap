@@ -1,12 +1,12 @@
 # PS5 MicroPython
 
-**Native PS5 Homebrew · by YAHBALLON · v0.2.0 · PPSA99791**
+**Native PS5 Homebrew · by YAHBALLON · v0.2.1 · PPSA99791**
 
 ![Original launcher icon](assets/icon.svg)
 
 A real, embedded [MicroPython](https://github.com/micropython/micropython) interpreter for jailbroken PS5 consoles, with a controller-operated Python script editor, script library and on-screen console output.
 
-**Testing:** A user-provided PS5 photo confirmed the v0.1.0 Fibonacci demo. The v0.2.0 editor requires a new console test. CI compilation and ZIP verification are not equivalent to a hardware test.
+**Testing:** A user-provided PS5 photo confirmed the v0.1.0 Fibonacci demo. The v0.2.1 editor requires a new console test. CI compilation and ZIP verification are not equivalent to a hardware test.
 
 ## Features
 
@@ -16,6 +16,8 @@ A real, embedded [MicroPython](https://github.com/micropython/micropython) inter
 - Built-in examples open as editable **copies**; installed read-only demo assets are never overwritten.
 - Atomic replacement when saving existing scripts: write a temporary file before rename; confirm before discarding unsaved edits.
 - Script-file limit of 64 KiB; persistent user storage, interpreter error output and runtime log.
+- Improved script discovery using direct readability checks instead of rejecting files solely on `stat()` metadata.
+- Live scanner status on the console-output screen and detailed diagnostics in `/data/PS5MicroPython/logs/scan.log`.
 - Script location is shown within the script library UI for FTP/file-manager transfer.
 
 ## Controls
@@ -55,6 +57,8 @@ Scripts may also be transferred by FTP or a compatible file manager. Press **Tri
 
 Runtime logs: `/data/PS5MicroPython/logs/runtime.log`.
 
+Scanner diagnostics: `/data/PS5MicroPython/logs/scan.log`. The app shows `SCAN: N local` when it finds user scripts; `SCAN ERROR: folder inaccessible (errno N)` when its sandbox cannot open the directory. Empty files and files exceeding 64 KiB are counted but not listed. If a Python file is absent after an upload, press Triangle, then check the scanner status; **a successful upload via another file manager does not guarantee this native title has the same filesystem permissions**.
+
 ## Install
 
 Download a validated `PPSA99791.zip` from [GitHub Releases](https://github.com/Yahballon/tmp_lap/releases), not a GitHub source archive. Extract the title folder into `/data/homebrew/` and register it using your compatible homebrew loader. Preserve your `/data/PS5MicroPython/` directory across updates.
@@ -67,7 +71,7 @@ See [Build PS5 MicroPython](../../.github/workflows/build-ps5-micropython.yml). 
 
 This is an embedded, minimal MicroPython configuration rather than CPython. No pip, Unix extensions, native package management or live REPL. The controller keyboard is simple, not Sony's system keyboard, and new scripts use numbered filenames. Running scripts blocks the renderer until execution completes; infinite loops can hang the title. Only run trusted code.
 
-**SCREENSHOT: v0.2.0 PS5 hardware capture pending.** A previous user-provided v0.1.0 PS5 image demonstrates Fibonacci, not this editor revision.
+**SCREENSHOT: v0.2.1 PS5 hardware capture pending.** A previous user-provided v0.1.0 PS5 image demonstrates Fibonacci, not this editor revision.
 
 ## License / credits
 

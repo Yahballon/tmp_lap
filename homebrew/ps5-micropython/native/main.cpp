@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 MicroPython by YAHBALLON v0.2.0
+// PS5 MicroPython by YAHBALLON v0.2.1
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "port/micropython_embed.h"
 #include "editor.hpp"
+#include "scripts_scan.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -22,6 +23,7 @@ alignas(16) char heap[256*1024];
 std::string capture;
 struct Script {std::string name,path;bool builtin;};
 std::vector<Script> library;
+std::string scanStatus="SCAN: not started";
 enum class Page {list,editor,confirm_discard};
 Page page=Page::list;
 pyedit::Buffer editor;
@@ -50,22 +52,23 @@ void reload() {
  library.clear();
  for(const char* n:{"hello.py","fibonacci.py","collections.py"})
   library.push_back({n,std::string("/app0/assets/scripts/")+n,true});
- if(DIR* d=opendir(kScripts)){
-  while(dirent* e=readdir(d)){
-   if(library.size()>=67)break;
-   std::string name=e->d_name;
-   if(!validName(name))continue;
-   std::string path=std::string(kScripts)+"/"+name;
-   struct stat st{};
-   if(stat(path.c_str(),&st)==0 && S_ISREG(st.st_mode) &&
-      st.st_size>0 && st.st_size<=static_cast<off_t>(kMaxSource))
-    library.push_back({"USER  "+name,path,false});
-  }
-  closedir(d);
- }
+ const auto result=pyscan::scan(kScripts);
+ for(const auto& file:result.files)
+  library.push_back({"USER  "+file.name,file.path,false});
  if(library.size()>3)
   std::sort(library.begin()+3,library.end(),
    [](const Script& a,const Script& b){return a.name<b.name;});
+ scanStatus=result.status();
+ // Store scan diagnostics as well as exposing them permanently in the UI.
+ if(FILE* log=std::fopen("/data/PS5MicroPython/logs/scan.log","ab")){
+  std::fprintf(log,"%s | folder=%s | visited=%u | candidates=%u"
+      " | accepted=%zu | empty=%u | oversized=%u | unreadable=%u"
+      " | unsafe=%u | dir_errno=%d | file_errno=%d\n",
+      scanStatus.c_str(),kScripts,result.seen,result.candidates,
+      result.files.size(),result.empty,result.oversize,result.unreadable,
+      result.unsafe,result.directory_errno,result.last_file_errno);
+  std::fclose(log);
+ }
 }
 void logOutput(const std::string& name){
  if(FILE* f=fopen("/data/PS5MicroPython/logs/runtime.log","ab")){
@@ -75,9 +78,9 @@ void logOutput(const std::string& name){
 }
 void run(const Script& script,void* stack){
  capture=">>> Running "+script.name+"\n";
- std::string code=readFile(script.path,kMaxSource);
+ std::string code=pyscan::read_script(script.path,kMaxSource);
  if(code.empty()&&script.builtin)
-  code=readFile(std::string("/data/homebrew/PPSA99791/assets/scripts/")+script.name,kMaxSource);
+  code=pyscan::read_script(std::string("/data/homebrew/PPSA99791/assets/scripts/")+script.name,kMaxSource);
  if(code.empty()){
   capture+="Could not read Python script (max 64 KiB).\n";logOutput(script.name);return;
  }
@@ -115,9 +118,9 @@ void start_new() {
  keyboardIndex=0;keyboardPage=0;
 }
 void start_edit(const Script& s) {
- auto code=readFile(s.path,kMaxSource);
+ auto code=pyscan::read_script(s.path,kMaxSource);
  if(code.empty()&&s.builtin)
-  code=readFile(std::string("/data/homebrew/PPSA99791/assets/scripts/")+s.name,kMaxSource);
+  code=pyscan::read_script(std::string("/data/homebrew/PPSA99791/assets/scripts/")+s.name,kMaxSource);
  if(code.empty()){capture="\nCould not load script for editing.\n";return;}
  if(s.builtin) {
   editorName=pyedit::unique_filename(kScripts,"demo");
@@ -148,7 +151,7 @@ bool save_editor() {
   if(!library[i].builtin && library[i].path==std::string(kScripts)+"/"+editorName){
    capture="\nSaved "+editorName+" - press X to run it.\n";return true;
   }
- capture="\nSaved "+editorName+" in /data/PS5MicroPython/scripts/.\n";
+ capture="\nSaved "+editorName+" but not listed yet. "+scanStatus+"\n";
  return true;
 }
 }
@@ -196,7 +199,7 @@ int main(){
    if((nav&hui::pad_bits::kDown)&&selected+1<int(library.size()))++selected;
    if(pressed&hui::pad_bits::kTriangle){
     reload();selected=std::min(selected,std::max(0,int(library.size())-1));
-    capture+="\nRefreshed script list.\n";
+    capture+="\n"+scanStatus+"\n";
    }
    if(pressed&hui::pad_bits::kSquare){
     if(!library.empty())start_edit(library[size_t(selected)]);
@@ -252,7 +255,7 @@ int main(){
   ui.rounded_rect({48,45,1824,103},18,Color::rgb(0x101d34));
   ui.rounded_rect({70,68,9,57},4,cyan);
   ui.text(font,atlas,"PS5 MicroPython",103,116,47,fg);
-  ui.text(font,atlas,"by YAHBALLON   v0.2.0",1838,109,23,mute,Align::right);
+  ui.text(font,atlas,"by YAHBALLON   v0.2.1",1838,109,23,mute,Align::right);
   if(page==Page::list){
   ui.bordered_rect({48,171,610,811},19,Color::rgb(0x0c172b),2,edge);
   ui.bordered_rect({679,171,1193,811},19,Color::rgb(0x07101e),2,edge);
@@ -260,6 +263,8 @@ int main(){
   ui.text(font,atlas,"CONSOLE OUTPUT",721,228,26,cyan);
   ui.text(font,atlas,"MicroPython Embed   |   256 KB heap",1833,229,18,mute,Align::right);
   ui.line(84,251,627,251,2,edge);ui.line(721,251,1830,251,2,edge);
+  ui.text(font,atlas,scanStatus,721,276,18,
+          scanStatus.rfind("SCAN ERROR:",0)==0?Color::rgb(0xffb66b):mute);
   int first=std::max(0,selected-(kVisibleScripts-1));
   for(int i=first;i<int(library.size())&&i<first+kVisibleScripts;i++){
    int y=274+(i-first)*53;bool active=(i==selected);
@@ -278,13 +283,13 @@ int main(){
   ui.text(font,atlas,"Place your .py files here:",105,821,20,fg);
   ui.text(font,atlas,"/data/PS5MicroPython/scripts/",105,857,20,cyan);
   ui.text(font,atlas,"Transfer via FTP or a file manager.",105,895,18,mute);
-  ui.text(font,atlas,"Press TRIANGLE to refresh the list.",105,930,18,mute);
+  ui.text(font,atlas,"TRIANGLE refresh  |  Scan info on right",105,930,18,mute);
   auto lines=getLines(capture);
-  const int visible=24, last=std::max(0,int(lines.size())-visible);
+  const int visible=23, last=std::max(0,int(lines.size())-visible);
   scroll=std::min(scroll,last);
   int start=std::max(0,last-scroll);
   for(int i=0;i<visible&&start+i<int(lines.size());i++)
-   ui.text(font,atlas,lines[size_t(start+i)],722,290.f+i*27.2f,20,fg);
+   ui.text(font,atlas,lines[size_t(start+i)],722,317.f+i*27.2f,20,fg);
   ui.rounded_rect({48,996,1824,61},13,Color::rgb(0x101d34));
   ui.text(font,atlas,
    "D-PAD Select     X Run     SQUARE Edit     OPTIONS New     TRIANGLE Reload     L1/R1 Scroll     O Exit",
