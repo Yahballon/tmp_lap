@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "00217ebc157bc81c65913cb08e8b808dd180774b28899135b88d64416aff9775",
+  "version": "98081b3e3db8ef213b933c0707a8c18e4943b6cb41cbaaf9ebfb7ec7bc5db910",
   "repository": "Yahballon/tmp_lap",
   "app_count": 19,
   "apps": [
@@ -242,14 +242,14 @@
       "name": "Uninstaller",
       "slug": "uninstaller",
       "title_id": "PPSA99986",
-      "version": "0.1.3",
-      "tag": "uninstaller-v0.1.3",
+      "version": "0.1.4",
+      "tag": "uninstaller-v0.1.4",
       "zip_name": "PPSA99986.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/uninstaller-v0.1.3/PPSA99986.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/uninstaller-v0.1.3",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/uninstaller-v0.1.4/PPSA99986.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/uninstaller-v0.1.4",
       "source": "homebrew/uninstaller",
-      "size_bytes": 6072943,
-      "published_at": "2026-10-21T07:00:52Z"
+      "size_bytes": 6107066,
+      "published_at": "2026-10-21T07:19:23Z"
     }
   ]
 }
