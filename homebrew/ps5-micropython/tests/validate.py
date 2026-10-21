@@ -7,7 +7,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 meta = json.loads((root / "app.json").read_text())
 assert meta["titleId"] == "PPSA99791"
-assert meta["version"] == "0.2.1"
+assert meta["version"] == "0.2.2"
 assert meta["contentVersion"] == "01.000.005"
 assert meta["releaseTag"] == "ps5-micropython-v0.2.2"
 assert re.fullmatch(r"UP[0-9]{4}-PPSA[0-9]{5}_00-[A-Z0-9]{16}", meta["contentId"])
