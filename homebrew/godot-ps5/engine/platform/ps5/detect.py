@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT
+"""Experimental Godot 4.7.2 static engine target for PS5 homebrew."""
 import os
 from pathlib import Path
 from methods import print_error
@@ -18,18 +19,19 @@ def get_flags():
     return {
         "arch": "x86_64", "target": "template_debug",
         "vulkan": False, "opengl3": False, "d3d12": False,
-        "metal": False, "builtin_pcre2_with_jit": False,
+        "metal": False, "accesskit": False, "sdl": False,
+        "builtin_pcre2_with_jit": False,
         "supported": ["library"],
     }
 
 def configure(env):
     validate_arch(env["arch"], get_name(), ["x86_64"])
     if env["library_type"] != "static_library":
-        print_error("PS5: the first milestone supports static_library only.")
+        print_error("PS5: static library required in the first milestone")
         raise SystemExit(2)
     sdk = Path(os.environ["PS5_PAYLOAD_SDK"]).resolve()
     if not (sdk / "target/include/c++/v1").is_dir():
-        print_error("PS5: missing target libc++ headers.")
+        print_error("PS5: missing target libc++ headers")
         raise SystemExit(2)
     env["CC"] = os.environ.get("PS5_CLANG", "clang-18")
     env["CXX"] = env["CC"]
@@ -44,5 +46,6 @@ def configure(env):
         "-fno-stack-protector", "-fno-plt", "-femulated-tls",
         "-fno-omit-frame-pointer", "-fno-exceptions", "-fno-rtti",
     ])
-    env.Append(CPPDEFINES=["PS5_ENABLED", "UNIX_ENABLED", ("_FILE_OFFSET_BITS",64)])
+    env.Append(CPPDEFINES=["PS5_ENABLED", "UNIX_ENABLED",
+                           "GODOT_PS5_NATIVE_IO", ("_FILE_OFFSET_BITS", 64)])
     env.Append(CPPPATH=["#platform/ps5"])
