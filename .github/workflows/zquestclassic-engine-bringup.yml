@@ -153,8 +153,8 @@ jobs:
           native=Path("app/dist/PPSA99127/eboot.bin").read_bytes()
           assert b"UPSTREAM_RNG_NATIVE_SMOKE" in native, "Upstream RNG object not linked"
           assert b"UPSTREAM_ZASM_TABLE_NATIVE_SMOKE" in native, "Upstream ZASM table not linked"
-          assert b"v0.1.3" in native
-          assert b"SCAN_BACKEND=libkernel-getdents-v0.1.3" in native
+          assert b"v0.1.4" in native
+          assert b"SCAN_BACKEND=libkernel-getdents-v0.1.4" in native
           print("PASS: exact upstream core RNG and ZASM command table linked in PS5 ELF")
           print("NOTE: zplayer and actual gameplay are NOT ported by this smoke test")
           PY
