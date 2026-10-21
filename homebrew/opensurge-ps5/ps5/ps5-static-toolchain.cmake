@@ -1,0 +1,18 @@
+# C-only PS5 ABI cross-toolchain used by original SurgeScript/PhysicsFS sources.
+# Reuses Yahballon/PS5-DevBridge verified wrapper. NOT a linkable game SDK.
+cmake_minimum_required(VERSION 3.20)
+set(CMAKE_SYSTEM_NAME FreeBSD)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
+if("$ENV{PS5_CC}" STREQUAL "" OR "$ENV{PS5_PAYLOAD_SDK}" STREQUAL "")
+  message(FATAL_ERROR "PS5_CC and PS5_PAYLOAD_SDK must be set")
+endif()
+set(CMAKE_C_COMPILER "$ENV{PS5_CC}" CACHE FILEPATH "PS5 compiler wrapper")
+set(CMAKE_C_COMPILER_TARGET x86_64-sie-ps5)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_AR llvm-ar-18 CACHE FILEPATH "PS5 native object archive tool")
+set(CMAKE_RANLIB llvm-ranlib-18 CACHE FILEPATH "PS5 native ranlib")
+set(CMAKE_FIND_ROOT_PATH "$ENV{PS5_PAYLOAD_SDK}/target")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)

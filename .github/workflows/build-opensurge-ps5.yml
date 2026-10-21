@@ -1,0 +1,91 @@
+name: Open Surge PS5 - original engine validation (not playable)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/opensurge-ps5/**'
+      - '.github/workflows/build-opensurge-ps5.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/opensurge-ps5/**'
+      - '.github/workflows/build-opensurge-ps5.yml'
+permissions:
+  contents: read
+jobs:
+  original-engine-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install required host compilers and full game libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git cmake ninja-build gcc g++ pkg-config python3 \
+            liballegro5-dev liballegro-image5-dev liballegro-audio5-dev liballegro-acodec5-dev liballegro-dialog5-dev liballegro-physfs5-dev liballegro-ttf5-dev libphysfs-dev libgl1-mesa-dev \
+            libfreetype-dev libpng-dev libjpeg-dev libvorbis-dev libogg-dev libopus-dev
+      - name: Verify immutable upstream specification and patch isolation
+        run: |
+          python3 -m unittest discover -s homebrew/opensurge-ps5/tests -p 'test_*.py' -v
+          python3 -m json.tool homebrew/opensurge-ps5/app.json >/dev/null
+          python3 -m json.tool homebrew/opensurge-ps5/upstream.lock.json >/dev/null
+      - name: Compile the real complete Open Surge source on host
+        env:
+          BUILD_JOBS: '4'
+        run: |
+          bash homebrew/opensurge-ps5/scripts/build-host.sh
+      - name: Stage and verify original Open Surge game assets
+        run: |
+          python3 homebrew/opensurge-ps5/scripts/stage-game-data.py \
+            homebrew/opensurge-ps5/.work/opensurge \
+            homebrew/opensurge-ps5/.work/ps5-staging
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          folder=Path("homebrew/opensurge-ps5/.work/ps5-staging")
+          data=json.loads((folder/"game-data-manifest.json").read_text())
+          assert data["file_count"] > 100, "missing most of the original game data"
+          assert data["total_bytes"] > 1024*1024, "original media files absent"
+          for f in data["files"]:
+              assert (folder/"game"/f["path"]).is_file(),f["path"]
+          assert (folder/"game"/"LICENSE").is_file()
+          assert (folder/"game"/"surge.cfg").is_file()
+          print("PASS full original game media staged and verified; NOT runnable on PS5")
+          PY
+      - name: Native PS5 deliverable status
+        run: |
+          echo "HOST ENGINE COMPILED - PS5 cross-compile NOT RUN"
+          echo "No verified Allegro 5 PS5 backend, eboot.bin, installer or hardware test yet."
+          test ! -d homebrew/opensurge-ps5/dist
+
+  ps5-native-libraries:
+    # Experimental Allegro-era dependency job. Off by default; use manual workflow_dispatch only.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 Clang and source prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 cmake ninja-build git make wget unzip tar python3 pkg-config ca-certificates
+      - name: Install pinned PS5 SDK and reuse native compiler wrapper
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/ps5-devbridge
+          cp -a /tmp/ps5-devbridge/templates/simple-calc /tmp/ps5-toolchain
+          BUILD_JOBS=4 bash /tmp/ps5-toolchain/tools/setup-native-dependencies.sh
+      - name: Compile real SurgeScript and PhysicsFS C runtime for PS5 ABI
+        env:
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          PS5_DEVBRIDGE_TEMPLATE_ROOT: /tmp/ps5-toolchain
+        run: bash homebrew/opensurge-ps5/scripts/build-ps5-libs.sh
+      - name: Verify binary archives and original headers
+        run: python3 homebrew/opensurge-ps5/scripts/validate-ps5-libs.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opensurge-ps5-native-C-libs-not-playable
+          path: homebrew/opensurge-ps5/.work/ps5-port-prefix/
+          if-no-files-found: error
