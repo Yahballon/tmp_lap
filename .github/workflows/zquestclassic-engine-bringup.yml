@@ -71,6 +71,7 @@ jobs:
           cp homebrew/zquestclassic-ps5/engine/upstream_rng_ps5.cpp app/src/upstream_rng_ps5.cpp
           mkdir -p app/src/components/zasm
           cp /tmp/zc-upstream/src/components/zasm/{table.cpp,table.h,defines.h} app/src/components/zasm/
+          python3 homebrew/zquestclassic-ps5/engine/prepare_zasm_for_ps5.py app/src/components/zasm/table.cpp
           cp /tmp/zc-upstream/src/base/{general.h,ints.h,zfix.h} app/src/base/
           cp -a /usr/include/fmt /usr/include/nlohmann app/src/
           cp homebrew/zquestclassic-ps5/engine/upstream_zasm_ps5.cpp app/src/
