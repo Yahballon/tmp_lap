@@ -27,11 +27,12 @@ def patch(contents: str) -> str:
     next_func = contents.find("return meminfo;", end)
     if func == -1 or next_func == -1 or end > next_func:
         raise ValueError("libkvm block not in expected get_memory_info() function")
-    contents = contents.replace(
+    # Apply the positional edit BEFORE changing the earlier #include text.
+    # Otherwise offsets shift and truncate the wrong bytes.
+    contents = contents[:begin] + "#if !defined(PS5_ENABLED)\n" + contents[begin:end] + "#endif // !PS5_ENABLED: no libkvm in PS5 homebrew\n" + contents[end:]
+    return contents.replace(
         HEADER, "#if defined(__FreeBSD__) && !defined(PS5_ENABLED)\n#include <kvm.h>\n#endif", 1
     )
-    contents = contents[:begin] + "#if !defined(PS5_ENABLED)\n" + contents[begin:end] + "#endif // !PS5_ENABLED: no libkvm in PS5 homebrew\n" + contents[end:]
-    return contents
 
 def main() -> None:
     if len(sys.argv) != 2:
