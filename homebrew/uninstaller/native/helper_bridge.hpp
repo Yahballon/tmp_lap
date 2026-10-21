@@ -56,7 +56,9 @@ inline Result parse(const std::string& raw,ScanLog report=nullptr){
            mount[8]>='0'&&mount[8]<='7');
       if(code==0&&known&&total>0&&free<=total&&
          total<=70ull*1024*1024*1024*1024&&
-         (mount!="/user"||total>=128ull*1024*1024*1024)){
+         (mount=="/user"?total>=128ull*1024*1024*1024:
+          mount.rfind("/mnt/ext",0)==0?total>=8ull*1024*1024*1024:
+          total>=128ull*1024*1024)){
          out.volumes.push_back({mount,(std::uint64_t)total,(std::uint64_t)free});
          if(report)report("ELFLDR_STORAGE",
              (mount+" total="+std::to_string(total)+" free="+std::to_string(free)).c_str());
