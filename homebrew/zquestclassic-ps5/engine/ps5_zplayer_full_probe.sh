@@ -30,7 +30,7 @@ test -f "${PS5_OPENGL_PREFIX:?}/lib/libPS5OpenGL.a"
 test -f "$PS5_OPENGL_PREFIX/include/GL/glcorearb.h"
 platform="$work/ps5-platform"
 test "$(git -C "$platform" rev-parse HEAD)" = "b5efad528e0ac1b8289f39d72a0e890ff68ff0a6"
-export ZC_PS5_PLATFORM_ARCHIVE="$platform/platform/build/ps5/libps5platform.a"
+export ZC_PS5_PLATFORM_ARCHIVE="$platform/platform/build/ps5/libzcps5locale.a"
 test -s "$ZC_PS5_PLATFORM_ARCHIVE"
 # The payload SDK imports system libraries as .so stubs, unlike Linux
 # libm/libpthread. Verify real stubs before running the link.
