@@ -79,6 +79,7 @@ public:
     bool ready() const{return ready_;}
     const std::string& error() const{return error_;}
     int collected() const{return rings_;}
+    int lose_rings(){const int lost=rings_;rings_=0;return lost;}
     bool complete() const{return completed_;}
     size_t count() const{return objects_.size();}
     size_t visible() const{return visible_;}

@@ -1,6 +1,6 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.3.1 transparency + mask-collision test · PPSA99358**
+**by YAHBALLON · v0.4.0 transparency + mask-collision test · PPSA99358**
 
 **Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
@@ -20,7 +20,7 @@ It does **not** run SurgeScript gameplay scripts, the original Allegro game loop
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.3.1**. The release tag is `opensurge-ps5-v0.3.1` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.4.0**. The release tag is `opensurge-ps5-v0.4.0` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
@@ -64,7 +64,7 @@ Hardware v0.2.3 logs showed **59.6 FPS with no terrain block** through x=1346 bu
 If the test still jumps without CROSS, capture `PAD_CROSS_EDGE raw=...` messages to identify hardware-reported input. This remains a native level preview and does not run original SurgeScript gameplay.
 
 
-## v0.3.1 - Original demo entity subset
+## v0.4.0 - Original demo entity subset
 
 Based on the PS5-tested v0.2.4 native input and rendering stack.
 
@@ -75,7 +75,7 @@ Original images and sprites are loaded from the same pinned Open Surge upstream 
 SurgeScript execution, enemy AI, full damage physics, sound, full stages, checkpoints, and save states are still missing. This is an experimental native compatibility subset, not a complete Open Surge engine port.
 
 
-## v0.3.1 - Original Surge movement and animation subset
+## v0.4.0 - Original Surge movement and animation subset
 
 Based on the player's successful firmware 5.10 test of v0.3.0; measured 59.5–59.6 FPS, original 124 collectible entities and spring mechanics confirmed.
 
@@ -86,3 +86,9 @@ Maps genuine frames from pinned Open Surge `sprites/players/surge.spr`: idle 0; 
 Fixes spring rapid retrigger from the uploaded v0.3.0 console log at x≈2928: a spring must be left and its cooldown elapsed before firing again.
 
 Tests native C++ spins/charges/rolls and the real upstream data; all old collision and PS5 input smoke tests remain. Enemies, sound, authentic sensor physics, all level transitions and save games remain incomplete.
+
+## v0.4.0 — Original enemies, hazards and damage (native compatibility subset)
+
+After console confirmation of stable 60fps movement, animated rings, springs and the Spin Dash, this native release adds the original demo's **5 Mosquitos, 1 Wolfey, 1 Lady Bugsy, 6 Spikes** with their original PNG sprites and level coordinates. Approximate enemy behavior is derived from the pinned 0.6.1.3 SurgeScripts: Mosquitos fly left at 60 px/s, Wolfey patrols at 80, Lady Bugsy walks at 30 and fires simple 60 px/s projectiles, and spikes hurt on contact. Rolling or landing on an enemy defeats it and awards 100 points. Player hits trigger 1.6 seconds of invulnerability; a hit with collectibles loses them (scattered rings not yet implemented); otherwise the player loses one of three lives and respawns, with game over at zero. Square restarts all lives and enemy states; Circle returns to the main menu. PS5 verified pad-state logic remains unchanged.
+
+**Not full original Open Surge:** native enemy physics and bullets are simplified; full SurgeScript gameplay VM, authentic obstacle-aware enemy walking/AI, dynamic layers/tubes/bridge interactions, sound/music, item effects, damage-ring scattering, original stage transitions and savegames remain unavailable. Upstream attribution and original assets preserved.

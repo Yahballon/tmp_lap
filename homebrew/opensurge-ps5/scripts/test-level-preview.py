@@ -76,6 +76,21 @@ assert "MOVE_SPINDASH_RELEASE" in main_moves
 assert "sprite_frame()" in native_moves
 entities_cpp=(Path(__file__).resolve().parents[1]/"native"/"level_entities.hpp").read_text()
 assert "spring_armed" in entities_cpp and "spring_cooldown" in entities_cpp
+hazards=(root/"hazards.tsv").read_text().splitlines()
+hazard_kinds=[row.split("\t")[0] for row in hazards]
+assert len(hazards)==13
+assert hazard_kinds.count("mosquito")==5
+assert hazard_kinds.count("wolfey")==1
+assert hazard_kinds.count("bugsy")==1
+assert hazard_kinds.count("spikes")==6
+for name in ("mosquito","wolfey","bugsy","spikes"):
+    w,h=map(int,(root/(name+".txt")).read_text().split())
+    assert 32<=w<=4096 and 32<=h<=4096
+    assert (root/(name+".rgba")).stat().st_size==w*h*4
+combat=(Path(__file__).resolve().parents[1]/"native"/"level_hazards.hpp").read_text()
+assert "bool game_over()" in combat and "void restart_level()" in combat
+assert "float invulnerability()" in combat
+assert "ENEMY_DEFEATED" in main_cpp and "PLAYER_HIT_RING_LOSS" in main_cpp
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")
