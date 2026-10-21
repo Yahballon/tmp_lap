@@ -87,6 +87,15 @@ static int homebrew_ok(const char* path){
   struct stat st;
   return lstat(path,&st)==0&&S_ISDIR(st.st_mode);
 }
+static int progress_fd=-1;
+static void progress_ping(unsigned count,int applying){
+  if(progress_fd>=0 && count>0 && count%512==0){
+    char text[98];
+    snprintf(text,sizeof text,"UREM2_STAGE %s_%u\n",
+             applying?"removing_files":"checking_files",count);
+    send(progress_fd,text,strlen(text),0);
+  }
+}
 // Validate the *entire* tree before any deletion. Refuse symlinks and
 // special nodes to avoid unexpected traversal. Bounded 15000 entries.
 static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
@@ -96,6 +105,7 @@ static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
   if(S_ISLNK(st.st_mode))return EPERM;
   if(S_ISREG(st.st_mode)){
     (*count)++;
+    progress_ping(*count,apply);
     if(st.st_nlink!=1)return EPERM;
     if(!apply)return 0;
     return unlink(path)==0?0:errno;
@@ -116,6 +126,7 @@ static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
   closedir(dir);
   if(error)return error;
   (*count)++;
+  progress_ping(*count,apply);
   if(!apply)return 0;
   return rmdir(path)==0?0:errno;
 }
@@ -227,8 +238,10 @@ static int remove_game_source(const char* src,const char* id,int client){
   report_stage(client,"source_delete");
   unsigned inspected=0,removed=0;
   // Pre-flight whole renamed folder; aborts on symlinks and special files.
+  progress_fd=client;
   int err=tree_walk(staged,0,0,&inspected);
   if(err==0)err=tree_walk(staged,1,0,&removed);
+  progress_fd=-1;
   if(err!=0){
     char error[900];
     snprintf(error,sizeof error,"UREM2_STAGED %s\n",staged);
