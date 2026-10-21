@@ -27,6 +27,7 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_native_mock_test.cpp -o /tmp/godot-ps5-native-mock
           /tmp/godot-ps5-native-mock
           python3 homebrew/godot-ps5/tests/test_static_bundle.py
+          python3 homebrew/godot-ps5/tests/test_native_link_stage.py
       - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
         run: |
           set -euo pipefail
@@ -79,9 +80,40 @@ jobs:
           # The original upload of bin/*.a only had a 21 KB platform shim.
           python3 homebrew/godot-ps5/scripts/package_static_engine.py \
             /tmp/godot /tmp/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip
+      - name: Attempt native PS5 eboot link against ACTUAL Godot engine
+        id: godot_link
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-link-app
+          python3 homebrew/godot-ps5/scripts/stage_native_link.py \
+            --godot /tmp/godot \
+            --app /tmp/godot-link-app \
+            --entry homebrew/godot-ps5/native/engine_smoke_main.cpp
+          (
+            cd /tmp/godot-link-app
+            env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+              make USE_CCACHE=0 BUILD_JOBS=4 app
+          ) 2>&1 | tee /tmp/godot-ps5-native-link.log
+          test -s /tmp/godot-link-app/dist/PPSA99843/eboot.bin
+          echo "GODOT_ENGINE_EBOOT_LINK_SUCCESS" | tee -a /tmp/godot-ps5-native-link.log
+      - name: Upload PS5 linker diagnostics for unresolved symbols
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-ps5-native-link-logs
+          path: /tmp/godot-ps5-native-link.log
+          if-no-files-found: warn
       - name: Archive FULL engine static libraries (NOT a PS5 app)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: godot-ps5-complete-static-archives-NOT-PLAYABLE
           path: /tmp/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip
           if-no-files-found: error
+      - name: Require real Godot native linker success
+        if: steps.godot_link.outcome == 'failure'
+        run: |
+          echo "Godot cross-compiled, but native PS5 eboot link has unresolved errors." >&2
+          echo "Inspect godot-ps5-native-link-logs artifact; do not publish a fake gameplay release." >&2
+          exit 1
