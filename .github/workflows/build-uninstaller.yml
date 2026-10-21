@@ -42,6 +42,11 @@ jobs:
           assert 'uninstaller::scan(scanLog)' in main
           assert 'uninstaller::storage()' not in main
           assert 'FIRST_FRAME' in main
+          assert 'startScan()' in main
+          assert 'scanBusy.load()' in main
+          assert 'Scanning games, apps and USB...' in main
+          assert 'pthread_create' in main
+          assert 'thread' not in Path('homebrew/uninstaller/helper/unscan.c').read_text().split('int main(void)')[0]
           inventory=Path('homebrew/uninstaller/native/inventory.hpp').read_text()
           assert '/data/etaHEN/games' in inventory
           assert '/mnt/ext' in inventory
@@ -171,7 +176,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.6-PPSA99986
+          name: Uninstaller-v0.1.7-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -179,8 +184,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.6 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.7 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.6 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.6" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.7 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.7" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
