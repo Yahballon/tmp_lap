@@ -70,8 +70,8 @@ source=proc.read_text()
 site='if (s != 0) ERR_EXIT("Failed posix_spawnp", (process_manager*)0, 0);'
 assert source.count(site)==1,"Original process_killer error handling changed"
 assert "process_killer launch_process(" in source
-fix='''if (s != 0) {
-        zprint2("[PROCESS_LAUNCH: '%s' ERROR %d]: %s\\\\n",
+fix=r'''if (s != 0) {
+        zprint2("[PROCESS_LAUNCH: '%s' ERROR %d]: %s\n",
                 file.c_str(), s, "Failed posix_spawnp");
         return process_killer();
     }'''
