@@ -117,8 +117,8 @@ std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
   stbi_image_free(pixels);return texture;
 }
 
-void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,const uninstaller::Storage& disk,
- const std::map<std::string,std::uint32_t>& icons,const std::string& driveName,int activeDrive,int driveCount,
+void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,
+ const std::map<std::string,std::uint32_t>& icons,
  bool scanning,unsigned frame,const std::string& phase){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
@@ -128,7 +128,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  txt(d,f,a,"Clean Storage.  More Space.  A Smoother Console.",1190,83,19,muted);
  time_t now=time(nullptr);tm* t=localtime(&now);char b[20]="--:--";if(t)strftime(b,sizeof b,"%H:%M",t);
  txt(d,f,a,b,1880,82,29,white,Align::right);
- panel(d,30,145,682,863);panel(d,723,145,615,863);panel(d,1349,145,541,863);
+ panel(d,30,145,682,863);panel(d,723,145,1167,863);
  const char* cats[]={"All","Games","Homebrew","USB PKGs"};
  for(int i=0;i<4;i++){float x=43+i*165;panel(d,x,160,160,52,i==tab);txt(d,f,a,std::string(cats[i])+" ("+std::to_string(count(items,i))+")",x+80,194,17,white,Align::center);}
  for(int i=offset;i<count(items,tab)&&i<offset+11;i++){
@@ -147,64 +147,55 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  }
  if(count(items,tab)==0)txt(d,f,a,"No accessible titles found",100,300,22,muted);
  const auto* item=nth(items,tab,selected);
- panel(d,740,163,579,273);
- if(item && icons.count(item->path) && icons.at(item->path))
-   d.image(icons.at(item->path),{904,169,255,260},kFullUv,white,14);
- else trash(d,988,237,1.75f);
+ // Single wide detail panel: console storage telemetry panel is intentionally removed.
+ panel(d,1431,196,422,411);
+ if(item&&icons.count(item->path)&&icons.at(item->path))
+   d.image(icons.at(item->path),{1491,253,302,300},kFullUv,white,14);
+ else trash(d,1585,301,2.0f);
+ txt(d,f,a,"SELECTED TITLE",760,218,18,color(0x48bafa));
  if(item){
-  txt(d,f,a,item->name.size()>34?item->name.substr(0,31)+"...":item->name,755,480,27);
-  txt(d,f,a,item->kind==uninstaller::Kind::UsbPackage?"External PKG archive":item->kind==uninstaller::Kind::Homebrew?"Homebrew folder":"Game / installed title (read-only)",755,518,19,muted);
-  d.line(758,552,1298,552,1,color(0x36587b));
-  txt(d,f,a,"Title ID",761,591,20,muted);txt(d,f,a,item->id.empty()?"Not available":item->id,1290,591,20,white,Align::right);
-  txt(d,f,a,"Version",761,630,20,muted);txt(d,f,a,item->version.empty()?"Unknown":item->version,1290,630,20,white,Align::right);
-  txt(d,f,a,"Install Size",761,670,20,muted);txt(d,f,a,item->sizeKnown?uninstaller::bytes(item->size):"Not measured",1290,670,20,white,Align::right);
-  txt(d,f,a,"Location",761,707,20,muted);
-  std::string path=item->root; if(path.size()>30)path=path.substr(0,28)+"...";
-  txt(d,f,a,path,1290,707,17,white,Align::right);
-  d.bordered_rect({750,747,562,90},14,color(0x880c25),3,color(0xff4366));
+  std::string title=item->name.size()>35?item->name.substr(0,32)+"...":item->name;
+  txt(d,f,a,title,760,272,31,white);
+  txt(d,f,a,item->kind==uninstaller::Kind::UsbPackage?"External PKG archive":
+    item->kind==uninstaller::Kind::Homebrew?"Homebrew folder":
+    "Game / installed title",760,312,20,muted);
+  d.line(760,355,1397,355,1,color(0x36587b));
+  txt(d,f,a,"Title ID",765,411,21,muted);
+  txt(d,f,a,item->id.empty()?"Not available":item->id,1381,411,21,white,Align::right);
+  txt(d,f,a,"Version",765,468,21,muted);
+  txt(d,f,a,item->version.empty()?"Unknown":item->version,1381,468,21,white,Align::right);
+  txt(d,f,a,"Install Size",765,525,21,muted);
+  txt(d,f,a,item->sizeKnown?uninstaller::bytes(item->size):"Not measured",1381,525,21,white,Align::right);
+  txt(d,f,a,"Location",765,582,21,muted);
+  std::string path=item->root;
+  if(path.size()>35)path=path.substr(0,32)+"...";
+  txt(d,f,a,path,1381,582,19,white,Align::right);
+  d.line(760,655,1840,655,1,color(0x36587b));
+  d.bordered_rect({760,715,1081,102},14,color(0x880c25),3,color(0xff4366));
   txt(d,f,a,uninstaller::actions::eligible(*item)?
      (item->kind==uninstaller::Kind::UsbPackage?"Delete USB PKG":
       item->kind==uninstaller::Kind::Homebrew?"Delete Homebrew":"Uninstall")
-     :"Read-only title",1031,806,30,white,Align::center);
-  txt(d,f,a,"Save data stays untouched",770,880,20,muted);
-  txt(d,f,a,"No system directory is deleted directly",770,926,16,muted);
- }else txt(d,f,a,"Select an application",1025,514,26,muted,Align::center);
- txt(d,f,a,"Console Storage",1400,202,27);
- txt(d,f,a,driveCount>0?driveName+" ("+std::to_string(activeDrive+1)+"/"+
-    std::to_string(driveCount)+")   L2/R2":"No reliable volume data",1400,258,17,muted);
- d.line(1379,227,1860,227,1,color(0x46759e));
- if(disk.available&&disk.total){
-  unsigned used=(unsigned)(100*(1.0-(double)disk.free/disk.total));
-  d.ring(1618,399,104,25,color(0x243c5c));
-  d.arc(1618,399,104,25,0.0f,6.2831853f*used/100.0f,color(0x128fff),false);
-  txt(d,f,a,std::to_string(used)+"%",1618,411,52,white,Align::center);
-  txt(d,f,a,"Used",1618,451,20,muted,Align::center);
-  txt(d,f,a,"Total: "+uninstaller::bytes(disk.total),1403,538,22);
-  txt(d,f,a,"Used: "+uninstaller::bytes(disk.total-disk.free),1403,585,22);
-  txt(d,f,a,"Free: "+uninstaller::bytes(disk.free),1403,631,22);
+     :"Read-only title",1300,781,32,white,Align::center);
+  txt(d,f,a,"Save data stays untouched",770,894,21,muted);
+  txt(d,f,a,"Installed titles are removed through the PS5 installer service",770,938,18,muted);
  }else{
-  txt(d,f,a,"Unavailable",1618,414,35,muted,Align::center);
-  txt(d,f,a,"No trusted storage telemetry",1618,480,18,muted,Align::center);
+  txt(d,f,a,"Select a game, application or USB package",770,692,27,muted);
  }
- panel(d,1381,691,478,118);
- txt(d,f,a,"Space to be freed (estimated)",1410,734,20,color(0xff8a9c));
- txt(d,f,a,item&&item->sizeKnown?uninstaller::bytes(item->size):"Unknown",1410,787,37,color(0xff5572));
- trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
- txt(d,f,a,"D-pad Select    L1/R1 Categories    L2/R2 Storage    X Details    Square Delete    Triangle Refresh    Circle Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.9",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"D-pad Select    L1/R1 Categories    X Select    Square Uninstall    Triangle Refresh    Circle Back",45,1063,17,muted);
+ txt(d,f,a,"by YAHBALLON   v0.1.10",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
-   const std::string brief=msg.size()>104?msg.substr(0,101)+"...":msg;
+   const std::string brief=msg.size()>125?msg.substr(0,122)+"...":msg;
    txt(d,f,a,brief,745,991,16,color(0x99bad9));
  }
  if(scanning){
-  panel(d,750,837,560,136);
-  txt(d,f,a,"Scanning games, apps and USB...",768,873,21,white);
-  txt(d,f,a,phase,768,912,16,muted);
-  d.rounded_rect({769,931,521,16},7,color(0x1a3958));
+  panel(d,1055,828,560,142);
+  txt(d,f,a,"Scanning games, apps and USB...",1077,866,21,white);
+  txt(d,f,a,phase,1077,903,16,muted);
+  d.rounded_rect({1077,927,511,17},7,color(0x1a3958));
   const float offset=(float)(frame%135)/135.0f;
-  d.rounded_rect({772+offset*390,934,125,10},5,color(0x2aaaff));
+  d.rounded_rect({1080+offset*377,930,125,11},5,color(0x2aaaff));
  }
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
@@ -242,20 +233,6 @@ int main(){
  hui::ps5::Pad pad;pad.open();
  uninstaller::diag::write("PAD","open returned");
  std::vector<uninstaller::Item> items;
- uninstaller::Storage disk{};
- std::vector<uninstaller::bridge::Volume> volumes;
- int selectedDrive=0;
- std::string driveName="Internal SSD";
- auto useDrive=[&](){
-   disk={};driveName="Internal SSD";
-   if(volumes.empty())return;
-   if(selectedDrive>=(int)volumes.size())selectedDrive=0;
-   const auto& v=volumes[selectedDrive];
-   disk.total=v.total;disk.free=v.free;disk.available=true;
-   driveName=v.path=="/user"?"Internal SSD":
-      v.path.rfind("/mnt/ext",0)==0?"Extended storage "+v.path:
-      "USB storage "+v.path;
- };
  std::map<std::string,std::uint32_t> iconTextures;
  unsigned iconEpoch=0;
  // PS5 statvfs is not proven safe with this runtime; avoid the possible
@@ -273,8 +250,7 @@ int main(){
   }
   if(fresh){
     items=std::move(fresh->items);
-    volumes=std::move(fresh->volumes);
-    selectedDrive=0;useDrive();selected=offset=0;
+    selected=offset=0;
     notice=items.empty()?fresh->message:"";
     log("Async scan found "+std::to_string(items.size())+" titles");
     delete fresh;
@@ -292,12 +268,6 @@ int main(){
   if(!confirm){
     if(pressed&hui::pad_bits::kL1){tab=(tab+3)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kR1){tab=(tab+1)%4;selected=offset=0;}
-    if(pressed&hui::pad_bits::kL2){
-      if(!volumes.empty()){selectedDrive=(selectedDrive+(int)volumes.size()-1)%volumes.size();useDrive();}
-    }
-    if(pressed&hui::pad_bits::kR2){
-      if(!volumes.empty()){selectedDrive=(selectedDrive+1)%volumes.size();useDrive();}
-    }
     if(pressed&hui::pad_bits::kLeft){tab=(tab+3)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kRight){tab=(tab+1)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kUp){if(selected>0)--selected;if(selected<offset)offset=selected;}
@@ -373,7 +343,7 @@ int main(){
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw begin");
   std::string phase;
   {std::lock_guard<std::mutex> guard(scanMutex);phase=scanStep;}
-  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,disk,iconTextures,driveName,selectedDrive,(int)volumes.size(),scanBusy.load(),frames++,phase);
+  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,iconTextures,scanBusy.load(),frames++,phase);
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw done");
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();
