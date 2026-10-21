@@ -28,6 +28,14 @@ test -x "$PS5_PAYLOAD_SDK/bin/prospero-lld"
 export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
 test -f "${PS5_OPENGL_PREFIX:?}/lib/libPS5OpenGL.a"
 test -f "$PS5_OPENGL_PREFIX/include/GL/glcorearb.h"
+# The payload SDK imports system libraries as .so stubs, unlike Linux
+# libm/libpthread. Verify real stubs before running the link.
+for module in libSceSystemService.so libScePad.so libSceUserService.so; do
+  test -f "$PS5_PAYLOAD_SDK/target/lib/$module" || {
+    echo "MISSING_REAL_PS5_IMPORT $module" >&2
+    exit 33
+  }
+done
 test -d "$PS5_PAYLOAD_SDK/target/lib"
 find "$PS5_PAYLOAD_SDK/target/lib" -maxdepth 1 -name 'libSce*.so' -printf '[zcps5] SDK module: %f\n' | head -n 12 || true
 echo "Original zplayer: c44dde7d0146da78bf8b541af457d5ff4e67a830" >> "$report"
@@ -46,6 +54,8 @@ timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   "-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG" \
   "-DCMAKE_C_FLAGS=-DZC_PS5_LIBC_NO_STRERROR_S=1 -DZC_PS5_NO_GLU_HEADER=1" \
   "-DCMAKE_CXX_FLAGS=-fexceptions -frtti" \
+  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib" \
+  "-DZC_PS5_LIBC_LINK_PROBE=ON" \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
   -DFETCHCONTENT_SOURCE_DIR_SDL2="$sdl" \
   -DSDL2_INCLUDE_DIR="$sdl/include" \
