@@ -20,5 +20,14 @@ new_condition="if(OPENGL_FOUND AND (OPENGL_GLU_FOUND OR ZC_PS5_NO_GLU_PROBE))"
 assert text.count(condition)==1,"Pinned Allegro OpenGL guard changed"
 assert 'message(FATAL_ERROR "SDL support currently requires OpenGL or OpenGL ES support.")' in text
 assert 'if(OPENGL_opengl_LIBRARY)' in text
-path.write_text(text.replace(condition,new_condition,1))
-print("Probe-only Allegro CMake accepts actual PS5 OpenGL without GLU; no API stubs")
+text=text.replace(condition,new_condition,1)
+start_marker="install(\n  TARGETS ${ALLEGRO_TARGETS}\n  EXPORT ${PKG_TARGETS_NAME}\n)"
+end_marker="#-----------------------------------------------------------------------------#"
+assert text.count(start_marker)==1,"Allegro install/export block changed"
+start=text.index(start_marker)
+end=text.index(end_marker,start)
+assert "export(EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
+assert "install(\n  EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
+text=text[:start]+"# PS5 probe: omit desktop package exports for SDL2-static.\n"+text[end:]
+path.write_text(text)
+print("Probe-only Allegro CMake accepts PS5 OpenGL without GLU, no desktop exports; no API stubs")
