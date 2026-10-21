@@ -70,6 +70,11 @@ int main(){
  assert(scan.roots[0].found==3);
  assert(!scan.roots[1].opened);
  assert(scan.files.size()==3);
+ assert(scan.filenames_seen.size()>=4);
+ bool saw_link=false;
+ for(const auto& name:scan.filenames_seen)
+  if(name==dir+"/shortcut.py")saw_link=true;
+ assert(saw_link);
  assert(scan.status().find("SCAN 3 files; roots 1/2")!=std::string::npos);
  assert(read_script(path,kMaxScriptBytes)=="print('Kernel loader works!')\n");
  assert(read_script(dir+"/empty.py",kMaxScriptBytes).empty());

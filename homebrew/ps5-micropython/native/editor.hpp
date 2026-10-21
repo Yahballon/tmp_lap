@@ -12,6 +12,17 @@
 #include <utility>
 #include <vector>
 
+// On native PS5 use libkernel for writes, just as the script reader does.
+// POSIX lstat/open/write/rename is still retained for host regression tests.
+#if defined(PS5_MICROPYTHON_NATIVE_STORAGE)
+extern "C" int sceKernelOpen(const char*,int,int);
+extern "C" long sceKernelWrite(int,const void*,std::size_t);
+extern "C" int sceKernelFsync(int);
+extern "C" int sceKernelClose(int);
+extern "C" int sceKernelRename(const char*,const char*);
+extern "C" int sceKernelUnlink(const char*);
+#endif
+
 namespace pyedit {
 constexpr std::size_t kMaxBytes=64*1024;
 
@@ -112,10 +123,54 @@ inline const char* save_message(SaveResult v) {
 
 // Writes a temp file in the same directory, then atomically renames it.
 // On failures the destination stays untouched. User scripts only.
-inline SaveResult save_script(const std::string& dir,const std::string& name,const std::string& code){
+inline SaveResult save_script(const std::string& dir,const std::string& name,
+                              const std::string& code,int* raw_error=nullptr) {
+ if(raw_error)*raw_error=0;
  if(!valid_filename(name))return SaveResult::invalid_name;
- if(code.empty()||code.size()>kMaxBytes||code.find('\0')!=std::string::npos)return SaveResult::invalid_code;
- std::string dest=dir+"/"+name;
+ if(code.empty()||code.size()>kMaxBytes||code.find('\0')!=std::string::npos)
+  return SaveResult::invalid_code;
+ const std::string dest=dir+"/"+name;
+#if defined(PS5_MICROPYTHON_NATIVE_STORAGE)
+ // The PS5 big-app libc lstat() can reject ordinary, already-readable files.
+ // Do not use it as a file-type or existence gate. Existing files are edited
+ // only after being selected from the getdents scanner (which rejects symlinks).
+ // The secure temporary file is always in the same vetted script directory.
+ // O_EXCL ensures an old/stale temporary file is NEVER truncated.
+ for(int attempt=0;attempt<16;attempt++){
+  const std::string tmp=dir+"/."+name+".saving."+std::to_string(attempt);
+  const int fd=sceKernelOpen(tmp.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0644);
+  if(fd<0){
+   if(raw_error)*raw_error=fd;
+   continue;
+  }
+  size_t written=0;
+  long write_error=0;
+  while(written<code.size()){
+   const long n=sceKernelWrite(fd,code.data()+written,code.size()-written);
+   if(n<=0||size_t(n)>code.size()-written){
+    write_error=n;break;
+   }
+   written+=size_t(n);
+  }
+  const int fsync_error=written==code.size()?sceKernelFsync(fd):0;
+  const int close_error=sceKernelClose(fd);
+  if(written!=code.size()||fsync_error<0||close_error<0){
+   if(raw_error)*raw_error=int(write_error<0?write_error:
+                                fsync_error<0?fsync_error:
+                                close_error<0?close_error:-1);
+   sceKernelUnlink(tmp.c_str());
+   return SaveResult::write_failed;
+  }
+  const int renamed=sceKernelRename(tmp.c_str(),dest.c_str());
+  if(renamed!=0){
+   if(raw_error)*raw_error=renamed;
+   sceKernelUnlink(tmp.c_str());
+   return SaveResult::rename_failed;
+  }
+  return SaveResult::ok;
+ }
+ return SaveResult::temp_failed;
+#else
  struct stat st{};
  if(lstat(dest.c_str(),&st)==0){
   if(!S_ISREG(st.st_mode))return SaveResult::unsafe_target;
@@ -125,23 +180,29 @@ inline SaveResult save_script(const std::string& dir,const std::string& name,con
   tmp=dest+".tmp."+std::to_string(i);
   fd=open(tmp.c_str(),O_WRONLY|O_CREAT|O_EXCL,0600);
   if(fd>=0)break;
-  if(errno!=EEXIST)return SaveResult::temp_failed;
+  if(errno!=EEXIST){
+   if(raw_error)*raw_error=errno;
+   return SaveResult::temp_failed;
+  }
  }
  if(fd<0)return SaveResult::temp_failed;
- std::size_t written=0;
+ size_t written=0;
  while(written<code.size()){
   const auto n=write(fd,code.data()+written,code.size()-written);
   if(n<=0)break;
-  written+=static_cast<std::size_t>(n);
+  written+=size_t(n);
  }
  const int closed=close(fd);
  if(written!=code.size()||closed!=0){
+  if(raw_error)*raw_error=errno;
   unlink(tmp.c_str());return SaveResult::write_failed;
  }
  if(rename(tmp.c_str(),dest.c_str())!=0){
+  if(raw_error)*raw_error=errno;
   unlink(tmp.c_str());return SaveResult::rename_failed;
  }
  return SaveResult::ok;
+#endif
 }
 
 // On-screen keyboard: 10 columns, 5 rows, 3 pages (lower/upper/symbols).
