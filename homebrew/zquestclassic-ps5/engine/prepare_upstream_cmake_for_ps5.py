@@ -58,3 +58,22 @@ assert "// also, it's not implemented" in source
 assert "Mix_" not in source
 source=source.replace("#include <SDL2/SDL_mixer.h>","/* PS5 probe: unused SDL_mixer include removed; MIDI unsupported */",1)
 midi.write_text(source)
+
+
+# Clang's PS5 libc defines NULL as nullptr, while upstream macro ERR_EXIT
+# returns NULL from launch_process(), whose return type is process_killer.
+# Fix only this incorrect return-site, preserving spawn-error logging and
+# the defined empty process_killer state (pid=0). Do not change macro calls
+# used by pointer-returning functions elsewhere.
+proc=a.cmake_root/"src/base/process_management.cpp"
+source=proc.read_text()
+site='if (s != 0) ERR_EXIT("Failed posix_spawnp", (process_manager*)0, 0);'
+assert source.count(site)==1,"Original process_killer error handling changed"
+assert "process_killer launch_process(" in source
+fix='''if (s != 0) {
+        zprint2("[PROCESS_LAUNCH: '%s' ERROR %d]: %s\\\\n",
+                file.c_str(), s, "Failed posix_spawnp");
+        return process_killer();
+    }'''
+source=source.replace(site,fix,1)
+proc.write_text(source)
