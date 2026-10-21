@@ -42,4 +42,18 @@ assert "strerror_r(userdata->errnum" in source
 assert "strerror_s(userdata->errmsg" in source
 source=source.replace(guard,"#if defined(ALLEGRO_HAVE_STRERROR_S) && !defined(ZC_PS5_LIBC_NO_STRERROR_S)",1)
 stdio.write_text(source)
-print("PS5 Allegro: OpenGL test, no desktop exports, optional native libc strerror_r fallback; no API stubs")
+
+# The pinned extensions.c includes GLU unconditionally for desktop OpenGL,
+# but uses no GLU functions (only commented-out diagnostic gluGetString).
+# PS5 core OpenGL has no GLU header. Skip this unused header in PS5 build,
+# without inventing a GLU implementation.
+ext=args.allegro_root/"src/opengl/extensions.c"
+ext_source=ext.read_text()
+glu_guard="#elif !defined ALLEGRO_CFG_OPENGLES"
+assert ext_source.count(glu_guard)==1,"Upstream GLU preprocessor guard changed"
+assert ext_source.count("#include <GL/glu.h>")==1
+assert "gluGetString(GLU_VERSION);" in ext_source  # commented-out upstream use
+ext_source=ext_source.replace(glu_guard,
+    "#elif !defined ALLEGRO_CFG_OPENGLES && !defined(ZC_PS5_NO_GLU_HEADER)",1)
+ext.write_text(ext_source)
+print("PS5 Allegro: bypass unused GLU header and missing strerror_s, no desktop exports; no shims")
