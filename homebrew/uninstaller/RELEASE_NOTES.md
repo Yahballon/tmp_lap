@@ -1,14 +1,9 @@
-# Uninstaller v0.1.10 — Console Storage box removed
+# Uninstaller v0.1.11 — unified game + ShadowMount USB source deletion
 
-- Completely removed the Console Storage panel, disk usage ring, fake volume capacities and L2/R2 storage selector from the UI.
-- Replaced three columns with a two-column layout: game/homebrew list on the left and a spacious detail panel with large title artwork, metadata, and uninstall control on the right.
-- Preserved game uninstall, USB homebrew deletion, USB PKG deletion, progress indicator, logos, and logging. No changes to the privileged helpers or the title removal API.
-
-## ShadowMountPlus 1.7 source removal
-
-- Fix persistent game duplicates that reappear after native uninstall when ShadowMountPlus still discovers the original backing source.
-- For the specific user-tested title **PPSA21564**, pressing **X** opens a separate physical-source removal confirmation, including the path returned by the official ShadowMountPlus game info API.
-- Confirmation submits `POST /api/v1/games/delete` with the title ID and `confirm: true`, only after verifying the source mapping, version capability and unchanged source path. The ShadowMount background worker performs protected deletion; UI polls job status and shows progress. No direct recursive deletion is performed by Uninstaller.
-- **Square** continues to invoke the existing PS5 native title uninstall. If the library tile remains after the source has been deleted, Square can remove the remaining registration.
-- Requires ShadowMountPlus **1.7** with its localhost API enabled (typically port 10101). On older versions, only an error message appears; source files are not touched.
-- Deleting a game source is permanent and can remove many GB. Choose the exact item and confirm the displayed path before proceeding.
+- Fix ShadowMount re-mounting games whose backing source persists in `/mnt/usbN/<TITLEID>-app`, including the reported `/mnt/usb0/PPSA21564-app`.
+- One button: select a game and press X or Square, see one confirmation including the detected physical USB folder, press X to remove the registered title and matching USB source automatically.
+- Uses the proven authenticated one-shot ELF helper with a read-only preflight mode. It only recognizes exact matching top-level `<TITLEID>-app` folders on USB 0–7 with game markers and consistent ShadowMount tracker; conflicting duplicate candidates are rejected.
+- Move source to hidden same-volume quarantine before recursive verification and deletion so it won't be mounted again during cleanup. Logs leftover quarantine path on failure instead of claiming success. Refuses symlinks/special files and bounded traversal.
+- Run deletion on a worker thread so the UI stays responsive; installed title cleanup and source deletion return separate outcome states.
+- Keep existing native uninstall, USB PKG removal, USB homebrew, logos, scan progress and safe save-data behavior.
+- Hardware results on firmware 5.10 must still be verified using a disposable USB-backed game.

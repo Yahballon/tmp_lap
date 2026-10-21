@@ -35,6 +35,12 @@ int main(){
   assert(ok.accepted&&ok.verified&&ok.code==0);
   auto accepted=actions::parseResponse("UREM2_RESULT "+t+" 00000000 1\n",t,Kind::Installed);
   assert(accepted.accepted&&!accepted.verified);
+  auto probed=actions::parseResponse("UREM2_SOURCE /mnt/usb0/PPSA21564-app\\nUREM2_RESULT "+t+" 00000000 3\\n",t,Kind::Installed);
+  assert(probed.code==0 && !probed.accepted && !probed.verified);
+  auto complete=actions::parseResponse("UREM2_RESULT "+t+" 00000000 2\\n",t,Kind::Installed);
+  assert(complete.accepted&&complete.verified);
+  auto partial=actions::parseResponse("UREM2_RESULT "+t+" 00000000 4\\n",t,Kind::Installed);
+  assert(partial.accepted&&partial.verified);
   auto wrong=actions::parseResponse("UREM2_RESULT bad 00000000 2\n",t,Kind::UsbPackage);
   assert(!wrong.accepted);
   Item dump;dump.remote=true;dump.kind=Kind::Installed;

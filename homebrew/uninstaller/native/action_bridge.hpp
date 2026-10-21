@@ -16,6 +16,7 @@ struct Result {
   bool launched=false,accepted=false,verified=false;
   int code=-1;
   std::string detail;
+  std::string source;
 };
 inline bool safeUsbPath(const std::string& s){
   if(s.size()<18||s.size()>690||s.rfind("/mnt/usb",0)!=0 ||
@@ -68,14 +69,19 @@ inline Result parseResponse(const std::string& reply,const std::string& token,Ki
     result.detail="Malformed removal reply";return result;
   }
   result.code=(int)code;
-  result.accepted=(code==0&&(state==1||state==2));
-  result.verified=(code==0&&state==2&&kind!=Kind::Installed);
+  result.accepted=(code==0&&(state==1||state==2||state==4));
+  result.verified=(code==0&&(state==2||state==4));
   if(code!=0){
     char codeText[24];std::snprintf(codeText,sizeof codeText,"%08X",code);
     result.detail="Native remove failed: 0x"+std::string(codeText);
   }else if(result.verified){
-    result.detail=kind==Kind::Homebrew?"USB homebrew folder removed":
-                  "USB PKG file deleted (installed game unaffected)";
+    result.detail=kind==Kind::Installed?
+       (state==4?"ShadowMount source deleted; registration cleanup pending":
+                 "Game source deleted and PS5 uninstall requested"):
+       kind==Kind::Homebrew?"USB homebrew folder removed":
+                 "USB PKG file deleted (installed game unaffected)";
+  }else if(state==3&&code==0){
+    result.detail="ShadowMount USB source scan completed";
   }else if(result.accepted){
     result.detail="PS5 accepted uninstall; rescan to verify actual removal";
   }else{
@@ -83,8 +89,10 @@ inline Result parseResponse(const std::string& reply,const std::string& token,Ki
   }
   return result;
 }
+enum class Mode { Normal, ProbeGame, UninstallAll };
 inline Result execute(const Item& item,ScanLog report=nullptr,
-                      const char* elf="/app0/unremove.elf"){
+                      const char* elf="/app0/unremove.elf",
+                      Mode mode=Mode::Normal,const std::string& expectedSource=""){
   Result result;
   if(!item.remote || !eligible(item)){
     result.detail="Removal source not supported by native helper";return result;
@@ -156,9 +164,15 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
     close(action);close(fd);
     result.detail="Removal helper listening socket not reachable";return result;
   }
-  const std::string kind=item.kind==Kind::Installed?"TITLE":
-                          item.kind==Kind::Homebrew?"USBHOME":"USBPKG";
-  const std::string target=item.kind==Kind::Installed?item.id:item.path;
+  const std::string kind=item.kind==Kind::Installed?
+     (mode==Mode::ProbeGame?"TITLEPROBE":mode==Mode::UninstallAll?"TITLEAUTO":"TITLE"):
+     item.kind==Kind::Homebrew?"USBHOME":"USBPKG";
+  const std::string target=item.kind==Kind::Installed?
+     (mode==Mode::UninstallAll?item.id+"|"+expectedSource:item.id):item.path;
+  if(target.find('\n')!=std::string::npos || target.find('\r')!=std::string::npos ||
+     target.size()>690){
+     close(action);close(fd);result.detail="Unsafe removal target";return result;
+  }
   const std::string command="ACT "+token+" "+kind+" "+target+"\n";
   if(!sendAll(action,command.data(),command.size())){
     close(action);close(fd);result.detail="Removal request transmission failed";
@@ -186,6 +200,25 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
   close(action);close(fd);
   result=parseResponse(reply,token,item.kind);
   result.launched=true;
+  const auto p=reply.find("UREM2_SOURCE ");
+  if(p!=std::string::npos){
+    const auto end=reply.find('\n',p);
+    if(end!=std::string::npos && end-p<740){
+      result.source=reply.substr(p+sizeof("UREM2_SOURCE ")-1,
+                     end-p-(sizeof("UREM2_SOURCE ")-1));
+      if(result.source=="-")result.source.clear();
+      if(report)report("SHADOWMOUNT_SOURCE",
+                       result.source.empty()?"none":result.source.c_str());
+    }
+  }
+  const auto partial=reply.find("UREM2_STAGED ");
+  if(partial!=std::string::npos && !result.accepted){
+    const auto end=reply.find('\n',partial);
+    if(end!=std::string::npos)
+      result.detail+="; quarantined files at "+reply.substr(
+        partial+sizeof("UREM2_STAGED ")-1,
+        end-partial-(sizeof("UREM2_STAGED ")-1));
+  }
   if(!result.accepted&&result.code==-1&&!lastStage.empty())
     result.detail="Title uninstall ended during "+lastStage+" (native helper may have stopped)";
   if(report)report("REMOVE_RESULT",result.detail.c_str());

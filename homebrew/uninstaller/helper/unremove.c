@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Uninstaller v0.1.9: single-use local action broker for existing elfldr.
+// Uninstaller v0.1.11: single-use local action broker for existing elfldr.
 // NO shared writable request folder, NO arbitrary paths or system-dir unlink.
 // The helper prints a random capability only to its elfldr stdout connection,
 // then accepts one confirmed operation over 127.0.0.1:9176 for <=15 seconds.
@@ -87,15 +87,25 @@ static int homebrew_ok(const char* path){
   struct stat st;
   return lstat(path,&st)==0&&S_ISDIR(st.st_mode);
 }
+static int progress_fd=-1;
+static void progress_ping(unsigned count,int applying){
+  if(progress_fd>=0 && count>0 && count%512==0){
+    char text[98];
+    snprintf(text,sizeof text,"UREM2_STAGE %s_%u\n",
+             applying?"removing_files":"checking_files",count);
+    send(progress_fd,text,strlen(text),0);
+  }
+}
 // Validate the *entire* tree before any deletion. Refuse symlinks and
 // special nodes to avoid unexpected traversal. Bounded 15000 entries.
 static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
-  if(depth>20||*count>=15000)return E2BIG;
+  if(depth>64||*count>=500000)return E2BIG;
   struct stat st;
   if(lstat(path,&st))return errno;
   if(S_ISLNK(st.st_mode))return EPERM;
   if(S_ISREG(st.st_mode)){
     (*count)++;
+    progress_ping(*count,apply);
     if(st.st_nlink!=1)return EPERM;
     if(!apply)return 0;
     return unlink(path)==0?0:errno;
@@ -116,6 +126,7 @@ static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
   closedir(dir);
   if(error)return error;
   (*count)++;
+  progress_ping(*count,apply);
   if(!apply)return 0;
   return rmdir(path)==0?0:errno;
 }
@@ -125,8 +136,160 @@ static void report_stage(int client,const char* phase){
   send(client,msg,strlen(msg),0);
   printf("UREM2_STAGE %s\n",phase);
 }
+
+// ShadowMount's raw USB source folders are not registered PKG installs.
+// Only top-level /mnt/usbN/<title_id>-app folders may be considered, and
+// only when their contents look like a game. Never delete app.db or mount
+// directories under /user/app or /system_ex/app.
+static int source_syntax(const char* path,const char* title){
+  char expected[100];
+  if(!title_ok(title)||!safe_path(path))return 0;
+  if(path[9]!='/'||strchr(path+10,'/'))return 0;
+  if(snprintf(expected,sizeof expected,"%s-app",title)>= (int)sizeof expected)
+    return 0;
+  return !strcmp(path+10,expected);
+}
+static int marker_exists(const char* base,const char* tail){
+  char file[960];struct stat st;
+  if(snprintf(file,sizeof file,"%s/%s",base,tail)>=(int)sizeof file)
+    return 0;
+  return lstat(file,&st)==0 && S_ISREG(st.st_mode) && st.st_nlink==1;
+}
+static int title_tracker_matches(const char* path,const char* id){
+  char tracker[128];snprintf(tracker,sizeof tracker,"/user/app/%s/mount.lnk",id);
+  int fd=open(tracker,O_RDONLY|O_NOFOLLOW);
+  if(fd<0)return errno==ENOENT?1:0; // source not registered / no tracker
+  char line[960]={0};ssize_t n=read(fd,line,sizeof line-1);
+  close(fd);
+  if(n<=0)return 0;
+  line[n]=0;
+  size_t len=strcspn(line,"\r\n");
+  line[len]=0;
+  size_t p=strlen(path);
+  // ShadowMount may store an app contents subdirectory instead of base.
+  return !strcmp(line,path) || (strncmp(line,path,p)==0 && line[p]=='/');
+}
+static int source_ok(const char* path,const char* title){
+  if(!source_syntax(path,title))return 0;
+  struct stat st;
+  if(lstat(path,&st)||!S_ISDIR(st.st_mode))return 0;
+  if(!title_tracker_matches(path,title))return 0;
+  if(marker_exists(path,"eboot.bin")||
+     marker_exists(path,"sce_sys/param.json")||
+     marker_exists(path,"sce_sys/param.sfo")||
+     marker_exists(path,"contents/eboot.bin")||
+     marker_exists(path,"contents/sce_sys/param.json"))return 1;
+  return 0;
+}
+static int detect_source(const char* title,char out[700]){
+  out[0]=0;
+  if(!title_ok(title))return EINVAL;
+  unsigned found=0;
+  for(unsigned i=0;i<8;i++){
+    char candidate[700];
+    snprintf(candidate,sizeof candidate,"/mnt/usb%u/%s-app",i,title);
+    if(source_ok(candidate,title)){
+      if(++found>1){out[0]=0;return EEXIST;}
+      strcpy(out,candidate);
+    }
+  }
+  return 0;
+}
+static int do_system_uninstall(const char* title,int client){
+  if(!installed(title))return ENOENT;
+  report_stage(client,"appinst_initialize");
+  int rc=sceAppInstUtilInitialize();
+  if(rc!=0){report_stage(client,"appinst_init_rejected");return rc;}
+  report_stage(client,"installer_authid");
+  uint64_t saved=kernel_get_ucred_authid(-1);
+  kernel_set_ucred_authid(-1,AUTHID_INSTALLER);
+  if(kernel_get_ucred_authid(-1)!=AUTHID_INSTALLER){
+    report_stage(client,"installer_authid_rejected");
+    kernel_set_ucred_authid(-1,saved);
+    return EPERM;
+  }
+  report_stage(client,"appinst_uninstall");
+  rc=sceAppInstUtilAppUnInstall(title);
+  report_stage(client,"appinst_uninstall_returned");
+  kernel_set_ucred_authid(-1,saved);
+  return rc;
+}
+static void send_source(int client,const char* source){
+  char payload[850];
+  snprintf(payload,sizeof payload,"UREM2_SOURCE %s\n",source&&source[0]?source:"-");
+  send(client,payload,strlen(payload),0);
+}
+static int remove_game_source(const char* src,const char* id,int client){
+  if(!source_ok(src,id))return EPERM;
+  char staged[850];
+  // Remove from ShadowMount's scan roots atomically before recursive
+  // cleanup so it cannot immediately re-add a half-removed game.
+  char nonce[33];
+  if(!strong_random(nonce))return EIO;
+  char prefix[32];
+  memcpy(prefix,nonce,12);prefix[12]=0;
+  if(snprintf(staged,sizeof staged,"%.*s/.uninstaller-%s-%s",
+       9,src,id,prefix)>= (int)sizeof staged)return ENAMETOOLONG;
+  // /mnt/usb0 is length 9; /mnt/usb1 etc are the only allowed roots.
+  struct stat exists;
+  if(lstat(staged,&exists)==0)return EEXIST;
+  report_stage(client,"source_quarantine");
+  if(rename(src,staged)!=0)return errno;
+  report_stage(client,"source_delete");
+  unsigned inspected=0,removed=0;
+  // Pre-flight whole renamed folder; aborts on symlinks and special files.
+  progress_fd=client;
+  int err=tree_walk(staged,0,0,&inspected);
+  if(err==0)err=tree_walk(staged,1,0,&removed);
+  progress_fd=-1;
+  if(err!=0){
+    char error[900];
+    snprintf(error,sizeof error,"UREM2_STAGED %s\n",staged);
+    send(client,error,strlen(error),0);
+    return err; // remains hidden for manual recovery, never claim success
+  }
+  return 0;
+}
+
 static void perform(const char* kind,const char* target,unsigned* code,unsigned* state,int client){
   *code=EINVAL;*state=0;
+  if(!strcmp(kind,"TITLEPROBE")||!strcmp(kind,"TITLEAUTO")){
+    report_stage(client,"source_inspect");
+    char id[16]={0}, expected[700]={0}, source[700]={0};
+    const char* split=strchr(target,'|');
+    if(split){
+      size_t n=(size_t)(split-target);
+      if(n>=sizeof id){*code=EINVAL;return;}
+      memcpy(id,target,n);id[n]=0;
+      snprintf(expected,sizeof expected,"%s",split+1);
+    }else snprintf(id,sizeof id,"%s",target);
+    if(!title_ok(id)){*code=EINVAL;return;}
+    int detected=detect_source(id,source);
+    if(detected){*code=(unsigned)detected;return;}
+    if(!strcmp(kind,"TITLEPROBE")){
+      send_source(client,source);
+      *code=0;*state=3;return;
+    }
+    // A source path selected in the UI must remain identical on disk.
+    if(strcmp(expected,source)) { *code=ESTALE;return; }
+    if(source[0])send_source(client,source);
+    // Try normal PS5 registration removal; ShadowMount-only sources can
+    // outlive this API, so a failed/missing registered entry is not fatal
+    // to removing a separately confirmed backing folder.
+    int native=ENOENT;
+    if(installed(id))native=do_system_uninstall(id,client);
+    if(source[0]){
+      int sourceError=remove_game_source(source,id,client);
+      *code=(unsigned)sourceError;
+      *state=sourceError==0?(native==0?2:4):0;
+      if(sourceError==0 && native!=0)
+        report_stage(client,"source_deleted_title_cleanup_pending");
+      return;
+    }
+    *code=(unsigned)native;
+    *state=native==0?1:0;
+    return;
+  }
   if(!strcmp(kind,"TITLE")){
     report_stage(client,"title_validate");
     if(!title_ok(target)||!installed(target)){
