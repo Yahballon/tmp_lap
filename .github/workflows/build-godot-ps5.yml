@@ -26,6 +26,7 @@ jobs:
           /tmp/godot-ps5-test
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_native_mock_test.cpp -o /tmp/godot-ps5-native-mock
           /tmp/godot-ps5-native-mock
+          python3 homebrew/godot-ps5/tests/test_static_bundle.py
       - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
         run: |
           set -euo pipefail
@@ -74,10 +75,13 @@ jobs:
         run: |
           set -euo pipefail
           bash homebrew/godot-ps5/scripts/build-engine.sh
-          find /tmp/godot/bin -name '*godot_ps5*.a' -type f -size +0c -print | grep .
-      - name: Archive experimental static engines (NOT playable)
+          # SCons emits separate core/main/scene/servers/GDScript .a libs.
+          # The original upload of bin/*.a only had a 21 KB platform shim.
+          python3 homebrew/godot-ps5/scripts/package_static_engine.py \
+            /tmp/godot /tmp/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip
+      - name: Archive FULL engine static libraries (NOT a PS5 app)
         uses: actions/upload-artifact@v4
         with:
-          name: godot-ps5-crosscompile-static-NOT-PLAYABLE
-          path: /tmp/godot/bin/*.a
+          name: godot-ps5-complete-static-archives-NOT-PLAYABLE
+          path: /tmp/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip
           if-no-files-found: error

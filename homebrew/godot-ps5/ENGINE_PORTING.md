@@ -32,3 +32,28 @@ No PS5 native app is linked, no Title ID, no real renderer or audio, no console 
 - `PTHREAD_NO_RENAME` disables optional POSIX thread naming because the PS5 SDK lacks the expected `pthread_setname_np` signature.
 - `compat.cpp` defines `getentropy()` using FreeBSD `sysctl(CTL_KERN,KERN_ARND)`. It returns an explicit error if secure kernel randomness is unavailable; no predictable PRNG fallback.
 - `compat.h` is pre-included by the Godot PS5 platform C/C++ compiler settings so upstream Unix code can compile unchanged. This is not evidence of the shim working in a PS5 app sandbox; native testing and link import validation are pending.
+
+
+## First full upstream PS5 cross-compile (verified)
+
+The PR build at [GitHub Actions run 39638963254](https://github.com/Yahballon/tmp_lap/actions/runs/39638963254)
+successfully cross-compiled **58** static archive components for the target
+`x86_64-sie-ps5` using Godot 4.7.2 on CI. This **does not mean gameplay works**.
+A packaging defect only uploaded the small `bin/libgodot_ps5.*.a` shim.
+The new `scripts/package_static_engine.py` gathers the whole SCons
+`bin/obj` tree (including core, scene, servers, main, drivers and GDScript),
+adds SHA-256 verification and a response file for a future native link,
+and rejects missing or corrupt component archives.
+
+The package remains **a toolchain artifact**, not a console-installable ZIP.
+A complete link into DevBridge's `eboot.bin`, PS5 runtime initialization,
+and the actual `GODOT_PS5_SMOKE_READY` PS5 log remain outstanding.
+
+## Hardware confirmation from Godot PS5 Probe v0.1.0
+
+Console diagnostic `PPSA99842` showed `smoke.pck` under
+`/mnt/usb0/godot/smoke.pck`, and the console log reported
+`PCK_READ_OK` after a DualSense X press. This validates standalone
+header discovery with PS5 libkernel I/O and the diagnostic renderer.
+It **does not** mean `FileAccessUnix`, `DirAccessUnix`, GDScript or
+other runtime components have been exercised on console.
