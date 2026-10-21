@@ -1,0 +1,33 @@
+name: ZQuest PS5 Native C++ Runtime Inventory
+on:
+  push:
+    paths:
+      - '.github/workflows/zquestclassic-native-libcxx-inventory.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-runtime:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect pinned PS5 SDK C++ runtime libraries
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang-18 wget unzip make
+          git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          bash app/tools/setup-native-dependencies.sh
+          sdk="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          echo '=== Full native C++ archives ==='
+          find "$sdk" -type f \( -name 'libc++.a' -o -name 'libc++abi.a' -o -name 'libunwind.a' -o -name 'libstdc++.a' \) -print
+          echo '=== C++ shared runtime ==='
+          find "$sdk" -type f \( -name '*c++*.so' -o -name '*unwind*.so' \) -print
+          echo '=== C++ runtime cross toolchain ==='
+          find "$sdk" -path '*/toolchain/*' -type f | head -n 30 || true
+          if find "$sdk" -type f -name 'libc++.a' -print -quit | grep -q .; then
+            echo SDK_LIBCXX_ALREADY_PRESENT
+          else
+            echo SDK_LIBCXX_NOT_PREBUILT_BUILD_OFFICIAL_LLVM_RUNTIMES
+          fi
