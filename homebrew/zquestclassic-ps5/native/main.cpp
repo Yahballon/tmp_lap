@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ZQuest Classic PS5 - native quest-library prototype, NOT the upstream game engine.
+// Do not ship a PS5 binary which silently falls back to sandbox-blocked libc opendir.
+#define ZCPS5_NATIVE_SCAN 1
+#if ZCPS5_NATIVE_SCAN != 1
+#error "ZQuest PS5 native kernel scanner must be enabled"
+#endif
 #include "quest_index.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -40,7 +45,7 @@ void logging(const char* text) {
   mkdir(kDataDir, 0755);
   mkdir(kLogDir, 0755);
   if (FILE* f = fopen("/data/ZQuestClassic/logs/port.log", "ab")) {
-    fprintf(f, "[ZQuest PS5 0.1.1] %s\n", text);
+    fprintf(f, "[ZQuest PS5 0.1.2] %s\n", text);
     fclose(f);
   }
 }
@@ -87,7 +92,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
   scenery(d);
   txt(d, f, atlas, "ZQUEST CLASSIC", 88, 116, 69, kWhite);
   txt(d, f, atlas, "PS5 PORT FOUNDATION  /  by YAHBALLON", 91, 161, 22, kMint);
-  txt(d, f, atlas, "v0.1.1", 1832, 112, 26, kDim, Align::right);
+  txt(d, f, atlas, "v0.1.2", 1832, 112, 26, kDim, Align::right);
   d.line(88, 191, 1832, 191, 2, color(0x2c6760));
   box(d, 78, 234, 1080, 692);
   txt(d, f, atlas, "QUEST LIBRARY", 110, 307, 32, kWhite);
@@ -158,6 +163,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
 
 int main() {
   logging("BOOT native quest library");
+  logging("SCAN_BACKEND=libkernel-getdents-v0.1.2");
   hui::ps5::Display display;
   if (!display.open()) hui::sys::park();
   Renderer renderer;

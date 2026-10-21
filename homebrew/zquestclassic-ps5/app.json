@@ -1,10 +1,10 @@
 {
   "name": "ZQuest Classic PS5",
   "slug": "zquestclassic-ps5",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "titleId": "PPSA99127",
   "contentId": "UP9000-PPSA99127_00-ZQUESTCLASSICPS5",
-  "contentVersion": "01.000.002",
+  "contentVersion": "01.000.003",
   "developer": "YAHBALLON",
   "upstream": "ZQuestClassic/ZQuestClassic",
   "upstreamCommit": "c44dde7d0146da78bf8b541af457d5ff4e67a830",
