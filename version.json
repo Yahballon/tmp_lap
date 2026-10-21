@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "0207beea6cc29ae7572ef70aa0718165a88fa339ce11edd0b52f1f6d51db2270",
+  "version": "6df4141e105ee2f4065849e92cf546f541918d66bbaeea564027827702c8a0f4",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 20,
+  "app_count": 21,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -159,6 +159,19 @@
       "source": "homebrew/ps5-system-info",
       "size_bytes": 6064978,
       "published_at": "2026-10-15T09:58:11Z"
+    },
+    {
+      "name": "PS5 MicroPython",
+      "slug": "ps5-micropython",
+      "title_id": "PPSA99791",
+      "version": "0.1.0",
+      "tag": "ps5-micropython-v0.1.0",
+      "zip_name": "PPSA99791.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-micropython-v0.1.0/PPSA99791.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-micropython-v0.1.0",
+      "source": "homebrew/ps5-micropython",
+      "size_bytes": 6163115,
+      "published_at": "2026-10-21T08:04:31Z"
     },
     {
       "name": "Bible Reader",
