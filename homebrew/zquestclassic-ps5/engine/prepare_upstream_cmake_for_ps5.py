@@ -32,4 +32,15 @@ packaging="add_subdirectory(packaging)"
 assert text.count(packaging)==1,"Upstream packaging entry changed"
 text=text.replace(packaging,'if(NOT ZC_PS5_TARGET_ONLY_PROBE)\n  add_subdirectory(packaging)\nendif()',1)
 cmake.write_text(text.replace(old,new,1))
+
+# Allegro-Legacy bitmap extension lookup uses Windows stricmp; the PS5 SDK
+# provides the POSIX strcasecmp in strings.h instead, with same semantics.
+bmp=a.cmake_root/"third_party/allegro_legacy/src/readbmp.c"
+src=bmp.read_text()
+assert src.count("stricmp(")==2,"Pinned Allegro legacy bitmap logic changed"
+assert '#include <string.h>' in src and '#include <strings.h>' not in src
+src=src.replace('#include <string.h>','#include <string.h>\n#include <strings.h>',1)
+src=src.replace("stricmp(","strcasecmp(")
+bmp.write_text(src)
+
 print("PS5 staging: portable UUID, no desktop PulseAudio assertion, no desktop installer; PS5 runtime audio still missing")
