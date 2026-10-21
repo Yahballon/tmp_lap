@@ -1,11 +1,14 @@
-# Open Surge PS5 v0.2.2 — Movement and performance fixes
+# Open Surge PS5 v0.2.3 — right-only collision and slope fix
 
-After the user's real firmware 5.10 v0.2.1 video showed correct terrain but sluggish controls:
-- Build a 128-world-unit spatial cell index for original solid/cloud collision bricks instead of checking all 1,323 tiles per player-probe pixel.
-- Run physics and input through fixed 120 Hz simulation steps even if rendering takes longer.
-- Pace display frames with the remainder of 16.67 ms; remove the unconditional 16 ms wait after GPU swap.
-- Tune walking acceleration, friction and jumps, keeping the original art, sprite UVs, masks and source game files.
-- Display measured FPS and VX; record PERF sampling in /data/OpenSurge/legacy-port.log every ~5 seconds.
-- CI: host smoke test of the exact native class with original demo level data, plus a signed PS5 ZIP validation.
+Real PS5 video and runtime logs show a stable **59.6 FPS** in v0.2.2, but game movement still pauses even when the user holds only RIGHT: VX drops to 0 at x~723/900 with repeated LAND events.
 
-This remains a native preview and is not the original Open Surge/SurgeScript game engine. The user must still verify v0.2.2 movement and frame pacing on PS5 hardware.
+## Fixes
+- Fix the root cause: follow the **original pixel-mask ground surface** when walking, BEFORE classifying the terrain as a wall.
+- Track the floor using three foot sensors; smooth uphill/downhill traversal, bounded climb/drop distance per fixed 120Hz step.
+- Don't continuously lose and regain grounded status across harmless mask-height transitions.
+- Preserve proper body collisions on walls, jump/ceiling checks and original map tile rendering.
+- Safely auto-respawn from bottomless demo gaps rather than tracking the character for several seconds through blank sky.
+- Periodic PERF log now includes blocked and respawn counters; additional TERRAIN_BLOCK and LEVEL_AUTO_RESPAWN diagnostics.
+- CI runs 900 consecutive native C++ frames with **RIGHT held and no jump**, asserting player reaches world x>1000 in the original demo.
+
+Still an experimental level/physics preview, not original SurgeScript gameplay or engine. PS5 hardware re-test required.

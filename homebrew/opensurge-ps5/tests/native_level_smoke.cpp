@@ -33,6 +33,21 @@ int main(int argc,char**argv) {
     if(moved<30.f || !std::isfinite(level.player_y())){
         std::fprintf(stderr,"MOTION STALLED OR INVALID\n");return 6;
     }
+    // Regression based on the PS5 2026-10-21 recording: user held RIGHT only,
+    // FPS remained 59.6 but Surge repeatedly stopped at x ~723 and x ~900.
+    // This longer no-jump run has to cross the slope and reach the map edge.
+    float farthest=level.player_x();
+    for(int i=0;i<900;++i){
+        level.update(1.f/120.f,1,false);
+        farthest=std::max(farthest,level.player_x());
+        if(!std::isfinite(level.player_x())||!std::isfinite(level.player_y()))return 9;
+    }
+    std::printf("RIGHT_ONLY max_x=%.1f (target>1000), blocked=%u auto_respawns=%u\n",
+                farthest,level.collision_blocks(),level.auto_respawns());
+    if(farthest<1000.f){
+        std::fprintf(stderr,"FAIL right-only held: character stuck at terrain slope or ledge\n");
+        return 10;
+    }
     // Can always recover from terrain/physics state through reset.
     level.reset();
     if(std::abs(level.player_x()-start)>0.01f){
