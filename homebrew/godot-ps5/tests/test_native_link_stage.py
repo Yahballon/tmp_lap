@@ -20,8 +20,8 @@ with tempfile.TemporaryDirectory() as d:
     entry.write_text('extern "C" int godot_ps5_run_pack(const char*);')
     (app/"sce_sys/param.json").write_text(json.dumps({"localizedParameters":{"en-US":{}}}))
     (app/"tools/build.sh").write_text(
-      'link_inputs=("$build/obj/app_crt.o" "$build/obj/app_cpp_runtime.o" "\${objects[@]}")\n'
-      'for archive in "\${archives[@]}"; do\n'
+      'link_inputs=("$build/obj/app_crt.o" "$build/obj/app_cpp_runtime.o" "${objects[@]}")\n'
+      'for archive in "${archives[@]}"; do\n'
       '    link_inputs+=("$root/$archive")\n'
       'done\n')
     files=[]
