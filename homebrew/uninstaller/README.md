@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.3 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.4 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, detail pane, storage capacity when available, full DualSense menu controls, and confirmation dialog.
 
@@ -37,7 +37,7 @@ The supplied screenshot is a visual reference, not a real PS5 capture. Native bu
 
 GPL-3.0-or-later, matching PS5-DevBridge homebrew UI. Developer: YAHBALLON.
 
-**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.3 (PPSA99986) or later.
+**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.4 (PPSA99986) or later.
 
 ## Crash diagnostics in v0.1.2
 
@@ -54,3 +54,14 @@ The previous v0.1.2 scanner only accepted exact PPSA/CUSA top-level folders and 
 The OS's system SQLite app.db is only probed for path existence; it is NOT parsed or modified. Consequently, native PS5/PS4 titles that cannot be traversed from the app sandbox may still be invisible. A future privileged, read-only inventory helper would be needed in that situation.
 
 Game dump folders and system-installed titles are shown as read-only, never recursively deleted. Homebrew deletion continues to require an exact top-level title folder under an allowlisted root with an eligible ID; the app itself is protected. USB package deletion still requires explicit confirmation.
+
+## v0.1.4 – LauncherX-style elfldr inventory bridge
+
+The PS5 console logs showed EPERM (errno 1) at /data/homebrew, /mnt/usb0 and the system app database. The sandboxed graphical app could not enumerate these roots. The separately proven Payload LauncherX uses a bundled, read-only USB scanner ELF sent to a **pre-existing elfldr at localhost:9021**. Uninstaller now follows this architecture.
+
+- `helper/unscan.c` is a standalone **read-only** ELF: bounded filesystem enumeration and metadata reporting, no delete/install/write/mount commands. Outputs binary-length-prefixed inventory records over elfldr's stdout.
+- `native/helper_bridge.hpp` sends the ELF bytes to localhost:9021, validates the returned protocol, merges discovered titles into the UI and logs per-root access results.
+- Helper-derived records are flagged **remote=true**. Every such record is **non-removable**, including USB PKG archives. This is an inventory/discovery release only. A separate, carefully reviewed privileged uninstall protocol would be required later.
+- Root status is logged in `/data/Uninstaller/uninstaller.log` as `ELFLDR_ROOT`, plus `ELFLDR_FOUND`, `ELFLDR_ERROR` and `ELFLDR_RESULT`.
+- The UI still works without elfldr; it displays the reason if the local service is missing. An active elfldr does not itself guarantee access to the installed game database.
+- Requires a **compatible trusted elfldr already running** on 127.0.0.1:9021, like LauncherX; do not connect it to untrusted remote payload services.

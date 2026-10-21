@@ -1,8 +1,7 @@
-# Uninstaller v0.1.3 - find installed games and homebrew
+# Uninstaller v0.1.4 – native PS5 sandbox bridge
 
-- Fix false empty list: recognize LAPY/FAKE titles, -app/-app0 game folders, metadata-only entries, nested homebrew/games.
-- Add USB0-USB7 and external drive ext0-ext3 scanning, data/etaHEN/games and alternate game roots.
-- Log folder accessibility (root errors and errno), inspected children and per-root discovered entry counts under /data/Uninstaller/uninstaller.log.
-- Probe app.db path read-only for future helper diagnosis; do not parse or modify system DB.
-- System games and game dump folders remain non-removable; preserve game saves.
-- This change requires console testing. Inaccessible roots cannot be listed without extra console permissions.
+- Compare against Yahballon/PS5_Payload_LauncherX USB scanner and reuse its proven architecture: a separate read-only scanner ELF submitted to an already running PS5 elfldr on localhost TCP 9021.
+- Find homebrew, visible game folders, external USB PKG archives through a bounded metadata-only helper, merge real results into tabs.
+- Show missing elfldr / access errors in /data/Uninstaller/uninstaller.log. Correct log prefix to v0.1.4.
+- Privileged/remote inventory records are **READ ONLY**. Installed game and PS5 PKG uninstall remains disabled. Save data is untouched.
+- Built/tested in GitHub CI; console execution still requires hardware validation.
