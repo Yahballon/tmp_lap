@@ -178,47 +178,43 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
     close(action);close(fd);result.detail="Removal request transmission failed";
     return result;
   }
-  std::string reply,lastStage;
-  size_t parsed=0;
-  while(reply.size()<4096){
+  // Stream and discard progress lines as they arrive. Previously this
+  // connection stopped at 4096 total bytes, aborting large USB deletions.
+  std::string pending,lastStage,resultLine,staged;
+  bool completed=false;
+  while(true){
     const ssize_t n=recv(action,buffer,sizeof buffer,0);
     if(n<=0)break;
-    reply.append(buffer,(size_t)n);
-    while(true){
-      const size_t nl=reply.find('\n',parsed);
-      if(nl==std::string::npos)break;
-      const std::string line=reply.substr(parsed,nl-parsed);
-      parsed=nl+1;
+    pending.append(buffer,(size_t)n);
+    if(pending.size()>8192){result.detail="Oversized removal response";break;}
+    size_t nl;
+    while((nl=pending.find('\n'))!=std::string::npos){
+      const std::string line=pending.substr(0,nl);
+      pending.erase(0,nl+1);
       if(line.rfind("UREM2_STAGE ",0)==0){
-        lastStage=line.substr(sizeof("UREM2_STAGE ")-1);
+        lastStage=line.substr(12);
         if(report)report("REMOVE_STAGE",lastStage.c_str());
+      }else if(line.rfind("UREM2_PROGRESS ",0)==0){
+        if(report)report("REMOVE_PROGRESS",line.c_str()+15);
+      }else if(line.rfind("UREM2_SOURCE ",0)==0){
+        result.source=line.substr(13);
+        if(result.source=="-")result.source.clear();
+        if(report)report("SHADOWMOUNT_SOURCE",
+             result.source.empty()?"none":result.source.c_str());
+      }else if(line.rfind("UREM2_STAGED ",0)==0){
+        staged=line.substr(13);
+      }else if(line.rfind("UREM2_RESULT ",0)==0){
+        resultLine=line+"\n";completed=true;break;
       }
     }
-    const size_t marker=reply.find("UREM2_RESULT "+token+" ");
-    if(marker!=std::string::npos&&reply.find('\n',marker)!=std::string::npos)break;
+    if(completed)break;
   }
   close(action);close(fd);
-  result=parseResponse(reply,token,item.kind);
+  if(!resultLine.empty())result=parseResponse(resultLine,token,item.kind);
+  else if(result.detail.empty())result.detail="No authenticated removal result";
   result.launched=true;
-  const auto p=reply.find("UREM2_SOURCE ");
-  if(p!=std::string::npos){
-    const auto end=reply.find('\n',p);
-    if(end!=std::string::npos && end-p<740){
-      result.source=reply.substr(p+sizeof("UREM2_SOURCE ")-1,
-                     end-p-(sizeof("UREM2_SOURCE ")-1));
-      if(result.source=="-")result.source.clear();
-      if(report)report("SHADOWMOUNT_SOURCE",
-                       result.source.empty()?"none":result.source.c_str());
-    }
-  }
-  const auto partial=reply.find("UREM2_STAGED ");
-  if(partial!=std::string::npos && !result.accepted){
-    const auto end=reply.find('\n',partial);
-    if(end!=std::string::npos)
-      result.detail+="; quarantined files at "+reply.substr(
-        partial+sizeof("UREM2_STAGED ")-1,
-        end-partial-(sizeof("UREM2_STAGED ")-1));
-  }
+  if(!staged.empty()&&!result.accepted)
+    result.detail+="; quarantined files at "+staged;
   if(!result.accepted&&result.code==-1&&!lastStage.empty())
     result.detail="Title uninstall ended during "+lastStage+" (native helper may have stopped)";
   if(report)report("REMOVE_RESULT",result.detail.c_str());
