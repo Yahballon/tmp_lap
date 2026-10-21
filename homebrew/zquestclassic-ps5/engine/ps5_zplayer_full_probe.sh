@@ -66,10 +66,11 @@ if ((status != 0)); then
 fi
 echo "[zcps5] Attempting original zplayer CMake target"
 set +e
-timeout 480 cmake --build "$build" --target zplayer --parallel 3 >"$work/compile.log" 2>&1
+timeout 480 cmake --build "$build" --target zplayer --parallel 3 -- -k 8 >"$work/compile.log" 2>&1
 status=$?
 set -e
 echo "zplayer build code: $status" >> "$report"
+grep -E '^FAILED:|(^|[[:space:]])(fatal )?error:|undefined reference|ninja: build stopped' "$work/compile.log" | head -n 80 >>"$report" || true
 tail -n 65 "$work/compile.log" || true
 if ((status != 0)); then
   echo "BLOCKED: original zplayer cannot yet compile/link (see compile.log)" >> "$report"
