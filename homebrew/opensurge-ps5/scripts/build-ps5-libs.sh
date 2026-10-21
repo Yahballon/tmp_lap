@@ -34,7 +34,7 @@ cmake --install "$work/build-surgescript-ps5"
 
 cmake -S "$work/physfs" -B "$work/build-physfs-ps5" \
   -DCMAKE_TOOLCHAIN_FILE="$toolchain" -DCMAKE_INSTALL_PREFIX="$prefix" \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-DPHYSFS_NO_CDROM_SUPPORT=1" \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_FLAGS="-DPHYSFS_NO_CDROM_SUPPORT=1" \
   -DPHYSFS_BUILD_SHARED=OFF -DPHYSFS_BUILD_STATIC=ON \
   -DPHYSFS_BUILD_TEST=OFF -DPHYSFS_BUILD_DOCS=OFF -DPHYSFS_INSTALL=ON
 cmake --build "$work/build-physfs-ps5" --parallel "${BUILD_JOBS:-4}" --target physfs-static
