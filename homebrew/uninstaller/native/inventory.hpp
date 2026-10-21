@@ -21,6 +21,7 @@ struct Item {
   std::uint64_t size=0;
   bool sizeKnown=false;
   bool remote=false; // Read-only entries obtained through the trusted local ELF helper.
+  int remoteIndex=-1; // Enumeration ordinal, never a client-provided filesystem path.
 };
 struct Storage {std::uint64_t total=0,free=0;bool available=false;};
 using ScanLog=void(*)(const char* phase,const char* detail);

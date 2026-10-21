@@ -44,6 +44,11 @@ jobs:
           assert '/data/etaHEN/games' in inventory
           assert '/mnt/ext' in inventory
           assert 'bridge::scan' in main
+          assert 'decode_icon' in main
+          assert 'd.arc(' in main
+          assert 'ELFLDR_STORAGE' in Path('homebrew/uninstaller/native/helper_bridge.hpp').read_text()
+          assert 'fetch_icon' in Path('homebrew/uninstaller/native/helper_bridge.hpp').read_text()
+          assert 'serve_icons();' in Path('homebrew/uninstaller/helper/unscan.c').read_text()
           assert 'bridge::merge' in main
           assert 'if(a.remote)return false' in inventory
           assert 'SCAN_ROOT_ERROR' in inventory
@@ -79,6 +84,12 @@ jobs:
           d['localizedParameters']['en-US']['titleName']=m['name']
           f.write_text(json.dumps(d,indent=2)+'\n')
           PY
+      - name: Prepare pinned PNG decoder
+        run: |
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h \
+            -o app/src/stb_image.h
+          test -s app/src/stb_image.h
       - name: Use verified OpenGL SDK 1.0.2 mirror
         run: |
           python3 - <<'PY'
@@ -149,7 +160,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.4-PPSA99986
+          name: Uninstaller-v0.1.5-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -157,8 +168,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.4 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.5 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.4 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.4" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.5 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.5" --notes-file homebrew/uninstaller/RELEASE_NOTES.md

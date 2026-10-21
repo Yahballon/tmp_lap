@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "inventory.hpp"
 #include "helper_bridge.hpp"
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_NO_FAILURE_STRINGS
+#include "stb_image.h"
+#include <map>
+#include <mutex>
+#include <atomic>
+#include <pthread.h>
 #include "logger.hpp"
 #include "crash_report.hpp"
 #include "gfx/renderer.hpp"
@@ -34,7 +42,42 @@ void scanLog(const char* phase,const char* path){
     else scanRootsMissing++;
   }
 }
-void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,const uninstaller::Storage& disk){
+
+// Icons are transferred on demand. Network traffic runs on a worker thread;
+// OpenGL texture uploads happen ONLY on the renderer thread.
+struct IconJob {int id=-1;std::string path,bytes;unsigned epoch=0;bool ok=false;};
+std::mutex iconMutex;
+std::atomic<bool> iconBusy{false};
+bool iconReady=false;
+IconJob iconResult;
+void* icon_worker(void* ptr){
+  IconJob* job=(IconJob*)ptr;
+  job->ok=uninstaller::bridge::fetch_icon(job->id,job->bytes);
+  {std::lock_guard<std::mutex> lock(iconMutex);iconResult=std::move(*job);iconReady=true;}
+  delete job;iconBusy=false;return nullptr;
+}
+bool queue_icon(const uninstaller::Item& item,unsigned epoch){
+  if(item.remoteIndex<0||iconBusy.exchange(true))return false;
+  IconJob* job=new IconJob;job->id=item.remoteIndex;job->path=item.path;job->epoch=epoch;
+  pthread_t thread{};
+  if(pthread_create(&thread,nullptr,icon_worker,job)!=0){
+    delete job;iconBusy=false;return false;
+  }
+  pthread_detach(thread);return true;
+}
+std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
+  if(png.empty()||png.size()>3*1024*1024)return 0;
+  int w=0,h=0,ch=0;
+  stbi_uc* pixels=stbi_load_from_memory((const stbi_uc*)png.data(),(int)png.size(),&w,&h,&ch,4);
+  if(!pixels)return 0;
+  std::uint32_t texture=0;
+  if(w>=32&&h>=32&&w<=1024&&h<=1024)
+     texture=renderer.batch().create_texture(w,h,pixels);
+  stbi_image_free(pixels);return texture;
+}
+
+void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,const uninstaller::Storage& disk,
+ const std::map<std::string,std::uint32_t>& icons,const std::string& driveName,int activeDrive,int driveCount){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
  d.gradient_rect({1250,0,670,1050},0,color(0x051b3c,.55f),color(0x210515,.55f));
@@ -50,7 +93,11 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
    auto* it=nth(items,tab,i);if(!it)continue;float y=233+(i-offset)*68;
    panel(d,44,y,653,65,i==selected);
    d.rounded_rect({58,y+10,47,44},8,color(it->kind==uninstaller::Kind::UsbPackage?0x543046:0x094482));
-   txt(d,f,a,it->kind==uninstaller::Kind::UsbPackage?"P":it->kind==uninstaller::Kind::Installed?"G":"H",81,y+40,21,white,Align::center);
+   const auto tex=icons.find(it->path);
+   if(tex!=icons.end()&&tex->second)
+     d.image(tex->second,{58,y+10,47,44},kFullUv,white,8);
+   else
+     txt(d,f,a,it->kind==uninstaller::Kind::UsbPackage?"P":it->kind==uninstaller::Kind::Installed?"G":"H",81,y+40,21,white,Align::center);
    std::string name=it->name.size()>37?it->name.substr(0,34)+"...":it->name;
    txt(d,f,a,name,124,y+29,20);
    txt(d,f,a,it->remote?"Read-only via elfldr":it->kind==uninstaller::Kind::UsbPackage?"USB PKG file":it->kind==uninstaller::Kind::Homebrew?"Homebrew app":"Installed game / app",124,y+53,16,muted);
@@ -58,7 +105,10 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  }
  if(count(items,tab)==0)txt(d,f,a,"No accessible titles found",100,300,22,muted);
  const auto* item=nth(items,tab,selected);
- panel(d,740,163,579,273);trash(d,988,237,1.75f);
+ panel(d,740,163,579,273);
+ if(item && icons.count(item->path) && icons.at(item->path))
+   d.image(icons.at(item->path),{904,169,255,260},kFullUv,white,14);
+ else trash(d,988,237,1.75f);
  if(item){
   txt(d,f,a,item->name.size()>34?item->name.substr(0,31)+"...":item->name,755,480,27);
   txt(d,f,a,item->kind==uninstaller::Kind::UsbPackage?"External PKG archive":item->kind==uninstaller::Kind::Homebrew?"Homebrew folder":"Game / installed title (read-only)",755,518,19,muted);
@@ -75,25 +125,29 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   txt(d,f,a,"No system directory is deleted directly",770,926,16,muted);
  }else txt(d,f,a,"Select an application",1025,514,26,muted,Align::center);
  txt(d,f,a,"Console Storage",1400,202,27);
+ txt(d,f,a,driveCount>0?driveName+" ("+std::to_string(activeDrive+1)+"/"+
+    std::to_string(driveCount)+")   L2/R2":"No reliable volume data",1400,258,17,muted);
  d.line(1379,227,1860,227,1,color(0x46759e));
  if(disk.available&&disk.total){
   unsigned used=(unsigned)(100*(1.0-(double)disk.free/disk.total));
-  txt(d,f,a,std::to_string(used)+"%",1618,405,58,white,Align::center);
-  txt(d,f,a,"Used",1618,450,20,muted,Align::center);
+  d.ring(1618,399,104,25,color(0x243c5c));
+  d.arc(1618,399,104,25,0.0f,6.2831853f*used/100.0f,color(0x128fff),false);
+  txt(d,f,a,std::to_string(used)+"%",1618,411,52,white,Align::center);
+  txt(d,f,a,"Used",1618,451,20,muted,Align::center);
   txt(d,f,a,"Total: "+uninstaller::bytes(disk.total),1403,538,22);
   txt(d,f,a,"Used: "+uninstaller::bytes(disk.total-disk.free),1403,585,22);
   txt(d,f,a,"Free: "+uninstaller::bytes(disk.free),1403,631,22);
  }else{
   txt(d,f,a,"Unavailable",1618,414,35,muted,Align::center);
-  txt(d,f,a,"Storage API unavailable",1618,480,18,muted,Align::center);
+  txt(d,f,a,"No trusted storage telemetry",1618,480,18,muted,Align::center);
  }
  panel(d,1381,691,478,118);
  txt(d,f,a,"Space to be freed (estimated)",1410,734,20,color(0xff8a9c));
  txt(d,f,a,item&&item->sizeKnown?uninstaller::bytes(item->size):"Unknown",1410,787,37,color(0xff5572));
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
- txt(d,f,a,"D-pad Select     L1/R1 Categories     X Details     Square Delete     Triangle Refresh     Circle Back",45,1063,18,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.4",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"D-pad Select    L1/R1 Categories    L2/R2 Storage    X Details    Square Delete    Triangle Refresh    Circle Back",45,1063,17,muted);
+ txt(d,f,a,"by YAHBALLON   v0.1.5",1887,1063,18,muted,Align::right);
  if(!msg.empty()){d.rounded_rect({370,944,1170,69},13,color(0x102844));txt(d,f,a,msg.size()>115?msg.substr(0,110)+"...":msg,958,989,19,white,Align::center);}
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
@@ -130,6 +184,21 @@ int main(){
  uninstaller::diag::write("PAD","open returned");
  std::vector<uninstaller::Item> items;
  uninstaller::Storage disk{};
+ std::vector<uninstaller::bridge::Volume> volumes;
+ int selectedDrive=0;
+ std::string driveName="Internal SSD";
+ auto useDrive=[&](){
+   disk={};driveName="Internal SSD";
+   if(volumes.empty())return;
+   if(selectedDrive>=(int)volumes.size())selectedDrive=0;
+   const auto& v=volumes[selectedDrive];
+   disk.total=v.total;disk.free=v.free;disk.available=true;
+   driveName=v.path=="/user"?"Internal SSD":
+      v.path.rfind("/mnt/ext",0)==0?"Extended storage "+v.path:
+      "USB storage "+v.path;
+ };
+ std::map<std::string,std::uint32_t> iconTextures;
+ unsigned iconEpoch=0;
  // PS5 statvfs is not proven safe with this runtime; avoid the possible
  // unimplemented libc entry until supported console telemetry is confirmed.
  uninstaller::diag::write("STORAGE","statvfs skipped: PS5 support unverified");
@@ -146,21 +215,31 @@ int main(){
     pressed|=buttons&~prev;prev=buttons;
   }
   if(!connected)prev=0;
-  if(pressed&hui::pad_bits::kCircle){if(confirm)confirm=false;else{pad.close();renderer.release();display.close();hui::sys::quit();}}
+  if(pressed&hui::pad_bits::kCircle){if(confirm)confirm=false;else{uninstaller::bridge::stop_icons();for(const auto& entry:iconTextures)if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}pad.close();renderer.release();display.close();hui::sys::quit();}}
   if(!confirm){
     if(pressed&hui::pad_bits::kL1){tab=(tab+3)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kR1){tab=(tab+1)%4;selected=offset=0;}
+    if(pressed&hui::pad_bits::kL2){
+      if(!volumes.empty()){selectedDrive=(selectedDrive+(int)volumes.size()-1)%volumes.size();useDrive();}
+    }
+    if(pressed&hui::pad_bits::kR2){
+      if(!volumes.empty()){selectedDrive=(selectedDrive+1)%volumes.size();useDrive();}
+    }
     if(pressed&hui::pad_bits::kLeft){tab=(tab+3)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kRight){tab=(tab+1)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kUp){if(selected>0)--selected;if(selected<offset)offset=selected;}
     if(pressed&hui::pad_bits::kDown){if(selected+1<count(items,tab))++selected;if(selected>=offset+11)offset=selected-10;}
     if(pressed&hui::pad_bits::kTriangle){
       uninstaller::diag::write("REFRESH","requested");
+      uninstaller::bridge::stop_icons();
       scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
       items=uninstaller::scan(scanLog);
       uninstaller::diag::write("ELFLDR","refresh: launching bundled read-only scanner");
       const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
       uninstaller::bridge::merge(items,helper);
+      volumes=helper.volumes;selectedDrive=0;useDrive();
+      for(const auto& t:iconTextures)if(t.second){GLuint tex=t.second;glDeleteTextures(1,&tex);}
+      iconTextures.clear();++iconEpoch;
       selected=offset=0;
       notice="Entries: "+std::to_string(items.size())+". "+helper.message;
       uninstaller::diag::write("REFRESH","done");
@@ -177,14 +256,37 @@ int main(){
       else{
         uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
         const int result=uninstaller::removeFiles(*x);
-        if(result==0){notice="Selected files removed. Save data not modified.";log("Removed: "+x->path);items=uninstaller::scan(scanLog);const auto r=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);uninstaller::bridge::merge(items,r);selected=offset=0;}
+        if(result==0){uninstaller::bridge::stop_icons();notice="Selected files removed. Save data not modified.";log("Removed: "+x->path);items=uninstaller::scan(scanLog);const auto r=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);uninstaller::bridge::merge(items,r);volumes=r.volumes;selectedDrive=0;useDrive();selected=offset=0;}
         else{notice="Remove failed: error "+std::to_string(result);log("Remove failed: "+x->path+" error "+std::to_string(result));}
       }
     }
     confirm=false;
   }
+
+  // Complete at most one image decode per frame.
+  {
+    IconJob finished;bool ready=false;
+    {std::lock_guard<std::mutex> lock(iconMutex);
+      if(iconReady){finished=std::move(iconResult);iconReady=false;ready=true;}
+    }
+    if(ready&&finished.epoch==iconEpoch)
+      iconTextures[finished.path]=finished.ok?decode_icon(renderer,finished.bytes):0;
+  }
+  if(!iconBusy.load()){
+    const auto* current=nth(items,tab,selected);
+    if(current&&current->remoteIndex>=0&&!iconTextures.count(current->path))
+      queue_icon(*current,iconEpoch);
+    else{
+      for(int row=offset;row<count(items,tab)&&row<offset+11;row++){
+        const auto* candidate=nth(items,tab,row);
+        if(candidate&&candidate->remoteIndex>=0&&!iconTextures.count(candidate->path)){
+          queue_icon(*candidate,iconEpoch);break;
+        }
+      }
+    }
+  }
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw begin");
-  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,disk);
+  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,disk,iconTextures,driveName,selectedDrive,(int)volumes.size());
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw done");
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();
@@ -195,8 +297,10 @@ int main(){
     scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
     items=uninstaller::scan(scanLog);
     uninstaller::diag::write("ELFLDR","starting read-only inventory helper via 127.0.0.1:9021");
+    uninstaller::bridge::stop_icons();
     const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
     uninstaller::bridge::merge(items,helper);
+    volumes=helper.volumes;selectedDrive=0;useDrive();
     uninstaller::diag::write("ELFLDR",(std::string("helper entries=")+std::to_string(helper.items.size())).c_str());
     log("Discovered "+std::to_string(items.size())+" entries; readable roots="+
       std::to_string(scanRootsReadable)+" inaccessible="+

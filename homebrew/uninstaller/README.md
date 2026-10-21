@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.4 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.5 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, detail pane, storage capacity when available, full DualSense menu controls, and confirmation dialog.
 
@@ -37,7 +37,7 @@ The supplied screenshot is a visual reference, not a real PS5 capture. Native bu
 
 GPL-3.0-or-later, matching PS5-DevBridge homebrew UI. Developer: YAHBALLON.
 
-**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.4 (PPSA99986) or later.
+**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.5 (PPSA99986) or later.
 
 ## Crash diagnostics in v0.1.2
 
@@ -65,3 +65,12 @@ The PS5 console logs showed EPERM (errno 1) at /data/homebrew, /mnt/usb0 and the
 - Root status is logged in `/data/Uninstaller/uninstaller.log` as `ELFLDR_ROOT`, plus `ELFLDR_FOUND`, `ELFLDR_ERROR` and `ELFLDR_RESULT`.
 - The UI still works without elfldr; it displays the reason if the local service is missing. An active elfldr does not itself guarantee access to the installed game database.
 - Requires a **compatible trusted elfldr already running** on 127.0.0.1:9021, like LauncherX; do not connect it to untrusted remote payload services.
+
+## v0.1.5 – real console storage and game/app icons
+
+- Native **Console Storage** uses filesystem capacity measured by the trusted ELF loader's read-only `statfs` on `/user` and mounted external volumes, NOT the unprivileged title's unreliable `statvfs` implementation. Values that are missing or implausible are displayed as Unavailable. L2/R2 cycles measured volumes.
+- Restores the blue storage usage ring, actual used/total/free figures and storage-selection label.
+- Display real `sce_sys/icon0.png` logos in the left game/homebrew list and the selected item's detail panel. Fallbacks try `/user/appmeta/<title_id>/icon0.png` and `/system_data/priv/appmeta/<title_id>/icon0.png` including their external variations. Unsupported icons use G/H/P placeholders.
+- `unscan.elf` now runs a temporary localhost read-only icon server on port 9175; the title requests only an enumerated item's numeric ordinal, never arbitrary file paths. Logos are fetched lazily in a worker, decoded in the OpenGL render thread and held in a small in-memory texture cache. No icons are downloaded from the Internet or saved on disk.
+- Logs `ELFLDR_STORAGE` and `ELFLDR_STORAGE_ERROR` under `/data/Uninstaller/uninstaller.log`.
+- This update intentionally **does not enable uninstall of system-registered titles**. It also does not remotely delete USB files; visible remote entries remain read-only. Further safe privileged removal integration requires separate testing/confirmation.
