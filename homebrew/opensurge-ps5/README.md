@@ -1,58 +1,41 @@
-# Open Surge PS5 · engine port
+# Open Surge PS5 — return to original PS5 homebrew build system
 
-**Open Surge / Surge the Rabbit on native PS5 · by YAHBALLON · 0.1.0 (engineering bootstrap)**
+**by YAHBALLON · v0.1.1 native diagnostic · PPSA99358**
 
-Based on the complete [Open Surge Engine](https://github.com/alemart/opensurge), **not a rewritten or simulated platformer**. Upstream uses the [SurgeScript](https://github.com/alemart/surgescript) virtual machine, Allegro 5 graphics, input and audio, plus PhysicsFS asset mounting.
+**Status: game is NOT playable.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
-> **Current status — NOT PLAYABLE ON PS5.** No native PS5 `eboot.bin`, install ZIP, release, game UI screenshot or AI-generated PS5 icon is claimed. This project currently pins the upstream game engine, tests its Linux build, adds a PS5-target static C dependency build for SurgeScript + PhysicsFS, and an isolated PS5 entrypoint. The complete PS5 Allegro/SDL runtime and packaging must still be ported and tested.
+- [Native legacy PS5 diagnostic workflow](../../.github/workflows/build-opensurge-legacy-ps5.yml) — builds a correctly signed/installable-format PS5 homebrew test app, not the upstream game.
+- [Original Open Surge engine host verification](../../.github/workflows/build-opensurge-ps5.yml) — source compatibility check; experimental native C library job retained for research, not the default console packaging path.
 
-## Full-port goal
+## What the native PS5 test actually does
 
-Preserve the original gameplay, levels, sprites, sound effects, music, title screen, SurgeScript game logic, settings, level editor/MOD support where console-friendly, and save data. A simple launcher, static UI or graphics test is **not** an acceptable final replacement.
+1. Boots a genuine native PS5 OpenGL + DualSense application with the old DevBridge system.
+2. Stages **all 682 original Open Surge game files** (count observed in CI for v0.6.1.3; authoritative file count is calculated from SHA-256 manifest during each build), including quests, level data, music, fonts, scripts, sprites and license files.
+3. Displays the genuine game's image and tests opening and reading representative engine asset files **from the PS5 app mount**.
+4. Logs results to **/data/OpenSurge/legacy-port.log** so actual console behavior can be verified.
+5. D-pad-independent controls: **Cross** retry file I/O, **Triangle / Options** diagnostics, **Circle** exit confirmation.
 
-## Contents
+It does **not** run SurgeScript gameplay scripts, physics, the original Allegro game loop or level simulation yet. Native app boot is only an infrastructure milestone; it is not a full game port.
 
-| Path | Purpose |
-| --- | --- |
-| `scripts/stage-game-data.py` | Stage all original engine assets, levels, scripts, music and licenses with SHA256 manifest |\n| `upstream.lock.json` | Immutable upstream revision mapping |
-| `scripts/fetch-upstream.sh` | Reproducible source checkout with SHA checks |
-| `scripts/build-host.sh` | Build the original complete game engine on Linux |
-| `ps5/ps5_launcher.h` | PS5 native launch arguments and persistent data path |
-| `scripts/patch-ps5.py` | Carefully integrate PS5 entrypoint without deleting engine gameplay |
-| `scripts/build-ps5-libs.sh` | Cross-compile original VM and PhysicsFS for the PS5 ABI |\n| `ps5/ps5-static-toolchain.cmake` | Use PS5-DevBridge target compiler for C-only libraries |\n| `scripts/validate-ps5-libs.py` | Check native static objects and headers |\n| `scripts/build-ps5.sh` | Fail-closed cross-build entrypoint requiring real PS5 Allegro/SurgeScript/PhysicsFS ports |
-| `PORTING.md` | Technical blockers, bridge path and console acceptance tests |
+## How to test the native build
 
-## Host validation (Linux)
+Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This test artifact is *not* a TESTBUILDS game release and is not intended as a playable game.
 
-Install prerequisites, for example on Ubuntu 24.04:
+Place the PPSA99358 folder under /data/homebrew/ using a compatible homebrew loader, then inspect **/data/OpenSurge/legacy-port.log** for **ASSET_READ_OK** markers. This is an experiment; firmware 5.10 compatibility and console rendering remain to be verified.
 
-```sh
-sudo apt-get update
-sudo apt-get install -y cmake ninja-build git gcc g++ \
-    liballegro5-dev libphysfs-dev libgl1-mesa-dev \
-    libfreetype-dev libpng-dev libjpeg-dev libvorbis-dev \
-    libogg-dev libopus-dev
-python3 -m unittest discover -s tests -p 'test_*.py' -v
-bash scripts/build-host.sh
-```
+## Engineering paths
 
-After the host build, run `python3 scripts/stage-game-data.py .work/opensurge .work/ps5-staging` to stage all original levels, music, gameplay scripts, sprites, fonts and licenses under `game/` for future console packaging. This deliberately does not manufacture an `eboot.bin`.\n\nThe host build compiles the **original, unmodified** Open Surge engine and its pinned SurgeScript VM. It does **not** establish PS5 functionality.
+| Directory / file | Description |
+|---|---|
+| native/main.cpp | Native DevBridge OpenGL and pad diagnostics, original game content read test |
+| scripts/prepare-legacy-assets.py | Bundle the complete original game files and preview asset |
+| scripts/validate-legacy-package.py | Reject malformed native packages |
+| scripts/stage-game-data.py | Verifiably stage all licensed original Open Surge assets |
+| upstream.lock.json | Pin upstream GPL engine and dependencies |
+| ps5/ | Experimental earlier Allegro engine cross-compile research, not the active native test |
 
-The native cross-build entrypoint `scripts/build-ps5.sh` requires a verified PS5 toolchain and library prefix. It will fail rather than manufacture a non-working `PPSA99358.zip`.
+## Goal
 
-## Planned PS5 paths
+A **full port** must eventually reproduce all game logic, physics, characters, original assets, sound, menu and save behavior through a proven PS5 renderer and input/audio implementation. The current native diagnostic is a reproducible first step, not evidence this goal is achieved.
 
-- App: `/data/homebrew/PPSA99358/`
-- Game assets: `/data/homebrew/PPSA99358/game/`
-- Persistent data: `/data/OpenSurge/` (must be verified on hardware)
-- Planned identity: `PPSA99358`; proposed only, **not** Sony-assigned or globally reserved
-
-DualSense target mapping: D-pad/left stick move, Cross jump/confirm, Circle back, Options pause. Not tested or integrated into a PS5 build yet.
-
-## Release / compatibility
-
-There is **no playable PS5 package**. Firmware 5.10 support has **not been tested**. This repository intentionally does not publish a fake test build. See [PORTING.md](PORTING.md) for the remaining native work.
-
-## Credits / license
-
-Open Surge © Alexandre Martins and contributors — GPLv3; SurgeScript by Alexandre Martins and contributors; Allegro and PhysicsFS by their respective authors. Source-port integration © 2026 YAHBALLON — GPL-3.0-or-later. Respect all transitive dependencies and artwork license files when packaging a playable build.
+Original game by Alexandre Martins and the Open Surge contributors under GPLv3. Keep their full license metadata and attribution with any distributed game resources. See [PORTING.md](PORTING.md).
