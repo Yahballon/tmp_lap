@@ -25,6 +25,8 @@ test -f "${PS5_DEVBRIDGE_TOOL:?}"
 echo "Original zplayer: c44dde7d0146da78bf8b541af457d5ff4e67a830" >> "$report"
 echo "SDL2 PS5 fork: ee4c47dc0d617b3bc8f35108f9956baf228a1322" >> "$report"
 echo "Attempt original zplayer with ALLEGRO_SDL=ON and JIT_BACKEND=none" >> "$report"
+python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_upstream_cmake_for_ps5.py" "$upstream"
+echo "PS5 adaptations: portable stduuid; WANT_NFD=OFF" >> "$report"
 echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
@@ -32,7 +34,7 @@ timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
   -DFETCHCONTENT_SOURCE_DIR_SDL2="$sdl" \
   -DALLEGRO_SDL=ON \
-  -DWANT_NATIVE_DIALOG=OFF \
+  -DWANT_NFD=OFF \
   -DCOPY_RESOURCES=OFF \
   -DJIT_BACKEND=none >"$log" 2>&1
 status=$?
