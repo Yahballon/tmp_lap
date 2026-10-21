@@ -26,3 +26,9 @@ This script may fail in SDK/toolchain API incompatibilities until fixed through 
 
 ## Current limitations
 No PS5 native app is linked, no Title ID, no real renderer or audio, no console runtime/screenshot, and no public gameplay release. GDExtension, C#, 3D Vulkan and per-game compatibility not claimed.
+
+## PS5 POSIX compile compatibility
+
+- `PTHREAD_NO_RENAME` disables optional POSIX thread naming because the PS5 SDK lacks the expected `pthread_setname_np` signature.
+- `compat.cpp` defines `getentropy()` using FreeBSD `sysctl(CTL_KERN,KERN_ARND)`. It returns an explicit error if secure kernel randomness is unavailable; no predictable PRNG fallback.
+- `compat.h` is pre-included by the Godot PS5 platform C/C++ compiler settings so upstream Unix code can compile unchanged. This is not evidence of the shim working in a PS5 app sandbox; native testing and link import validation are pending.

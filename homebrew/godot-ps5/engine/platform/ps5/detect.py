@@ -48,6 +48,7 @@ def configure(env):
     ])
     # PS5 toolchain defaults to RTTI-off; Godot 4 uses typeid in its core.
     env.Append(CXXFLAGS=["-frtti"])
-    env.Append(CPPDEFINES=["PS5_ENABLED", "UNIX_ENABLED",
+    env.Append(CCFLAGS=["-include", str(Path("platform/ps5/compat.h").resolve())])
+    env.Append(CPPDEFINES=["PTHREAD_NO_RENAME", "PS5_ENABLED", "UNIX_ENABLED",
                            "GODOT_PS5_NATIVE_IO", ("_FILE_OFFSET_BITS", 64)])
     env.Append(CPPPATH=["#platform/ps5"])
