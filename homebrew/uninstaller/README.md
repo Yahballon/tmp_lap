@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.15 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.16 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, expanded selected-title detail pane, full DualSense menu controls, and confirmation dialog.
 
@@ -157,3 +157,13 @@ The confirmed action requests `/api/v1/games/delete`, shows the returned job pro
 The original classic two-pass source deletion and native AppInstUtil are retained for titles not managed by ShadowMountPlus, including ordinary PKG installations or when the compatible API is unavailable. The UI does not bypass ShadowMountPlus safety restrictions: a managed source that is active, shared, missing, denied or whose deletion job fails **will not** be deleted through the raw fallback. Save data is never targeted.
 
 Use `/data/Uninstaller/uninstaller.log` to inspect `SHADOWMOUNT_PREFLIGHT`, `SHADOWMOUNT_DELETE_PROGRESS`, `SHADOWMOUNT_DELETE_FAILED`, `SHADOWMOUNT_BLOCKED`, `SHADOWMOUNT_FALLBACK`, `UNIFIED_RESULT` and `REMOVE_VERIFY_*`. First console test should use an expendable game folder/image.
+
+## v0.1.16 — Deferred managed ShadowMount deletion after app exit
+
+The native Uninstaller itself is a `PPSA99986` PS5 application and may appear as a game in ShadowMountPlus's lifecycle monitoring. On the PS5 this could make `/api/v1/games/delete` fail with `game_active: a game is active or awaiting exit` even for another source.
+
+For a verified ShadowMount folder/image the standard **X or Square → inspect physical source → X to confirm** sequence now sends an authenticated one-time `SHADOWDEFER` request to a separate elfldr ELF (same proven helper communication mechanism as v0.1.8+). The native app **closes automatically** after the helper acknowledges the request. The helper begins only after a short exit grace period, revalidates the exact previously confirmed title/source mapping, and lets ShadowMountPlus itself perform protected unmount + deletion. It retries supported busy states for a bounded period, never kills a running game, and never falls back to raw unlink after any managed-source refusal. A job may take a long time if the underlying storage is slow.
+
+To see the result, start Uninstaller again and read its previous deferred-job message, or inspect `/data/Uninstaller/deferred-shadow.log`. Look for `DEFER_QUEUED`, `DEFER_SOURCE_REMOVED` and `DEFER_SOURCE_DONE_TITLE_RECHECK`, or a specific `DEFER_FAIL`/`DEFER_UNCERTAIN` message. A queued job is **not** proof of deletion; only a completed matching ShadowMount job indicates the source was removed. If the native PS5 title registration still appears, rescan the library after ShadowMount finishes reconciliation. Save data is not deleted.
+
+The existing native AppInstUtil, USB PKG and homebrew deletion, and the proven classic two-pass `tree_walk` / `unlink` / `rmdir` fallback remain unchanged. **First test only on an expendable game**: the payload's survival after UI exit still requires real PS5 5.10 validation. Do not launch another game while the deferred job is running.
