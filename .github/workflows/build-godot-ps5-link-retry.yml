@@ -67,6 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 homebrew/godot-ps5/tests/test_native_link_stage.py
+          python3 homebrew/godot-ps5/tests/test_resolve_weak_tls.py
           grep -Fq 'A-Za-z0-9_.+-' /tmp/godot-link-app/tools/build.sh
           test -f /tmp/godot-link-app/godot-libs/runtime/libc++.a
           test -f /tmp/godot-link-app/godot-libs/runtime/libc++abi.a
@@ -75,11 +76,25 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          (
+          if (
             cd /tmp/godot-link-app
             env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
               make USE_CCACHE=0 BUILD_JOBS=4 app
-          ) 2>&1 | tee /tmp/godot-link-retry.log
+          ) 2>&1 | tee /tmp/godot-link-retry.log; then
+            echo "Initial native link and PS5 SELF conversion succeeded"
+          else
+            test -s /tmp/godot-link-app/build/llvm-pie.elf
+            # The loader rejects undefined WEAK C++ TLS-init hooks that ELF
+            # normally resolves to null. Only patch those precise weak hooks.
+            python3 homebrew/godot-ps5/scripts/resolve_weak_tls.py \
+              --elf /tmp/godot-link-app/build/llvm-pie.elf \
+              --build-sh /tmp/godot-link-app/tools/build.sh | tee -a /tmp/godot-link-retry.log
+            (
+              cd /tmp/godot-link-app
+              env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+                make USE_CCACHE=0 BUILD_JOBS=4 app
+            ) 2>&1 | tee -a /tmp/godot-link-retry.log
+          fi
           test -s /tmp/godot-link-app/dist/PPSA99843/eboot.bin
           echo GODOT_ENGINE_EBOOT_LINK_SUCCESS
       - name: Verify signed engine smoke package
