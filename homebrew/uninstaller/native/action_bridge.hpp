@@ -197,13 +197,13 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
   }
   // Stream and discard progress lines as they arrive. Previously this
   // connection stopped at 4096 total bytes, aborting large USB deletions.
-  std::string pending,lastStage,resultLine,staged;
+  std::string pending,lastStage,resultLine,staged,parsedSource;
   bool completed=false;
   while(true){
     const ssize_t n=recv(action,buffer,sizeof buffer,0);
     if(n<=0)break;
     pending.append(buffer,(size_t)n);
-    if(pending.size()>8192){result.detail="Oversized removal response";break;}
+    if(pending.size()>32768){result.detail="Oversized removal response";break;}
     size_t nl;
     while((nl=pending.find('\n'))!=std::string::npos){
       const std::string line=pending.substr(0,nl);
@@ -214,10 +214,10 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
       }else if(line.rfind("UREM2_PROGRESS ",0)==0){
         if(report)report("REMOVE_PROGRESS",line.c_str()+15);
       }else if(line.rfind("UREM2_SOURCE ",0)==0){
-        result.source=line.substr(13);
-        if(result.source=="-")result.source.clear();
+        parsedSource=line.substr(13);
+        if(parsedSource=="-")parsedSource.clear();
         if(report)report("SHADOWMOUNT_SOURCE",
-             result.source.empty()?"none":result.source.c_str());
+             parsedSource.empty()?"none":parsedSource.c_str());
       }else if(line.rfind("UREM2_STAGED ",0)==0){
         staged=line.substr(13);
       }else if(line.rfind("UREM2_RESULT ",0)==0){
@@ -229,6 +229,7 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
   close(action);close(fd);
   if(!resultLine.empty())result=parseResponse(resultLine,token,item.kind);
   else if(result.detail.empty())result.detail="No authenticated removal result";
+  result.source=parsedSource; // preserve the preflight source across result parsing
   result.launched=true;
   if(!staged.empty()&&!result.accepted)
     result.detail+="; quarantined files at "+staged;
