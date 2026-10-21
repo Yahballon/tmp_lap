@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Read-only filesystem discovery with narrowly scoped file deletion safeguards.
 #pragma once
 #include <algorithm>
 #include <cerrno>
@@ -11,123 +12,219 @@
 #include <sys/statvfs.h>
 #include <unistd.h>
 #include <vector>
+
 namespace uninstaller {
 enum class Kind { Installed, Homebrew, UsbPackage };
 struct Item {
   std::string name, id, version, path, icon, root;
-  Kind kind = Kind::Homebrew;
+  Kind kind=Kind::Homebrew;
   std::uint64_t size=0;
   bool sizeKnown=false;
 };
 struct Storage {std::uint64_t total=0,free=0;bool available=false;};
+using ScanLog=void(*)(const char* phase,const char* detail);
+
 inline bool validTitleId(const std::string& id) {
   if(id.size()!=9)return false;
-  if(id.compare(0,4,"PPSA") && id.compare(0,4,"CUSA"))return false;
+  const std::string p=id.substr(0,4);
+  if(p!="PPSA"&&p!="CUSA"&&p!="LAPY"&&p!="FAKE")return false;
   for(size_t i=4;i<9;i++)if(id[i]<'0'||id[i]>'9')return false;
   return true;
 }
-inline bool normalName(const std::string& name) {
-  return !name.empty()&&name!="."&&name!=".."&&name.find('/')==std::string::npos
-      &&name.find('\\')==std::string::npos&&name.size()<230;
+inline bool normalName(const std::string& name){
+  return !name.empty()&&name!="."&&name!=".."&&name.size()<230
+   &&name.find('/')==std::string::npos&&name.find('\\')==std::string::npos;
 }
-inline bool regular(const std::string& path) {
-  struct stat s{};return lstat(path.c_str(),&s)==0 && S_ISREG(s.st_mode);
+inline std::string titleIdFromFolder(const std::string& folder){
+  if(folder.size()>=9){
+    const std::string prefix=folder.substr(0,9);
+    if(validTitleId(prefix) && (folder.size()==9 || folder[9]=='-' || folder[9]=='_' || folder[9]==' '))return prefix;
+  }
+  return {};
 }
-inline bool directory(const std::string& path) {
-  struct stat s{};return lstat(path.c_str(),&s)==0 && S_ISDIR(s.st_mode);
+inline bool regular(const std::string& p){
+  struct stat s{};return lstat(p.c_str(),&s)==0&&S_ISREG(s.st_mode);
 }
-inline std::string readSmall(const std::string& path) {
-  FILE* f=std::fopen(path.c_str(),"rb");if(!f)return {};
-  char b[8193];size_t n=std::fread(b,1,8192,f);std::fclose(f);b[n]='\0';return std::string(b,n);
+inline bool directory(const std::string& p){
+  struct stat s{};return lstat(p.c_str(),&s)==0&&S_ISDIR(s.st_mode);
 }
-inline std::string field(const std::string& data,const char* key) {
+inline std::string readSmall(const std::string& path){
+  FILE* f=fopen(path.c_str(),"rb");if(!f)return {};
+  char b[8193];size_t n=fread(b,1,sizeof(b)-1,f);fclose(f);b[n]=0;return {b,n};
+}
+inline std::string field(const std::string& data,const char* key){
   const std::string k=std::string("\"")+key+"\"";
   size_t at=data.find(k);if(at==std::string::npos)return {};
   at=data.find(':',at+k.size());if(at==std::string::npos)return {};
   at=data.find('"',at+1);if(at==std::string::npos)return {};
-  std::string out;bool escape=false;
-  for(size_t p=at+1;p<data.size()&&out.size()<95;p++){
-    const unsigned char c=(unsigned char)data[p];
-    if(!escape&&c=='"')break;
-    if(!escape&&c=='\\'){escape=true;continue;}
+  std::string out;bool esc=false;
+  for(size_t i=at+1;i<data.size()&&out.size()<95;i++){
+    const unsigned char c=(unsigned char)data[i];
+    if(!esc && c=='"')break;
+    if(!esc && c=='\\'){esc=true;continue;}
     if(c>=32)out+=(char)c;
-    escape=false;
+    esc=false;
   }
   return out;
 }
-inline bool endsPkg(const std::string& n) {
-  return n.size()>4 && (n.substr(n.size()-4)==".pkg"||n.substr(n.size()-4)==".PKG");
+inline bool endsPkg(const std::string& n){
+  return n.size()>4&&(n.substr(n.size()-4)==".pkg"||n.substr(n.size()-4)==".PKG");
 }
-inline void addFolders(std::vector<Item>& out,const std::string& root,Kind kind) {
-  DIR* d=opendir(root.c_str());if(!d)return;
-  struct dirent* e;
-  while((e=readdir(d)) && out.size()<750){
-    const std::string id=e->d_name;
-    if(!validTitleId(id))continue;
-    const std::string path=root+"/"+id;
-    if(!directory(path))continue;
-    const std::string param=path+"/sce_sys/param.json";
-    const bool hasExecutable=regular(path+"/eboot.bin");
-    if(!hasExecutable && !regular(param))continue;
-    const std::string info=readSmall(param);
-    Item a;a.id=id;a.path=path;a.root=root;a.kind=kind;
-    a.name=field(info,"titleName");if(a.name.empty())a.name=id;
-    a.version=field(info,"contentVersion");
-    if(regular(path+"/sce_sys/icon0.png"))a.icon=path+"/sce_sys/icon0.png";
-    out.push_back(std::move(a));
-  }
-  closedir(d);
+inline void report(ScanLog log,const char* phase,const std::string& data){
+  if(log)log(phase,data.c_str());
 }
-inline void scanPkgs(std::vector<Item>& out,const std::string& root,unsigned depth=0) {
-  if(depth>2||out.size()>=750)return;
-  DIR* d=opendir(root.c_str());if(!d)return;
-  struct dirent* e;
-  while((e=readdir(d)) && out.size()<750){
-    std::string name=e->d_name;
-    if(!normalName(name)||name[0]=='.')continue;
-    const std::string path=root+"/"+name;
-    struct stat st{};if(lstat(path.c_str(),&st)!=0)continue;
-    if(S_ISLNK(st.st_mode))continue;
-    if(S_ISDIR(st.st_mode)){
-      if(depth<2 && name!="homebrew" && name!="system_data" && name!="user")
-        scanPkgs(out,path,depth+1);
-      continue;
+inline void reportNumber(ScanLog log,const char* phase,const std::string& root,
+                         unsigned visited,unsigned found,int code=0){
+  if(!log)return;
+  char buffer[244];
+  std::snprintf(buffer,sizeof(buffer),"%s visited=%u found=%u errno=%d",
+                root.c_str(),visited,found,code);
+  log(phase,buffer);
+}
+inline bool looksLikeGameDump(const std::string& name){
+  const size_t n=name.size();
+  return (n>=4 && name.substr(n-4)=="-app")
+      || (n>=5 && name.substr(n-5)=="-app0");
+}
+inline void folderToItem(std::vector<Item>& out,const std::string& root,
+                        const std::string& path,const std::string& folder,
+                        Kind rootKind,ScanLog log){
+  const std::string metaPath=path+"/sce_sys/param.json";
+  const bool elf=regular(path+"/eboot.bin");
+  const bool json=regular(metaPath);
+  const bool sfo=regular(path+"/sce_sys/param.sfo");
+  if(!elf&&!json&&!sfo)return;
+  const std::string metadata=json?readSmall(metaPath):std::string();
+  Item entry;entry.root=root;entry.path=path;
+  entry.id=field(metadata,"titleId");
+  if(!validTitleId(entry.id))entry.id=titleIdFromFolder(folder);
+  entry.name=field(metadata,"titleName");
+  if(entry.name.empty())entry.name=folder;
+  entry.version=field(metadata,"contentVersion");
+  entry.kind=(rootKind==Kind::Installed||looksLikeGameDump(folder))
+      ?Kind::Installed:Kind::Homebrew;
+  if(regular(path+"/sce_sys/icon0.png"))entry.icon=path+"/sce_sys/icon0.png";
+  // Title directories belonging to the app manager or games are never trusted
+  // as removable merely because they have a recognizable Title ID.
+  out.push_back(std::move(entry));
+  if(log&&out.size()<=65)report(log,"SCAN_FOUND",path);
+}
+// Bounded two-level scan: handles homebrew folders, etaHEN game folders and
+// category/subfolder structures. All traversals use lstat; symlinks skipped.
+inline void scanFolders(std::vector<Item>& out,const std::string& root,
+                        Kind kind,ScanLog log=nullptr,unsigned maxDepth=2){
+  if(out.size()>=750)return;
+  report(log,"SCAN_ROOT_BEGIN",root);
+  DIR* top=opendir(root.c_str());
+  if(!top){reportNumber(log,"SCAN_ROOT_ERROR",root,0,0,errno);return;}
+  closedir(top);
+  struct Pending{std::string path;unsigned depth;};
+  std::vector<Pending> stack{{root,0}};
+  unsigned visited=0,found=0;int lastError=0;
+  while(!stack.empty()&&visited<3500&&out.size()<750){
+    const Pending node=std::move(stack.back());stack.pop_back();
+    DIR* d=opendir(node.path.c_str());
+    if(!d){lastError=errno;reportNumber(log,"SCAN_SUBDIR_ERROR",node.path,visited,found,lastError);continue;}
+    errno=0;struct dirent* e;
+    while((e=readdir(d))!=nullptr&&visited<3500&&out.size()<750){
+      const std::string name=e->d_name;
+      if(!normalName(name)||name[0]=='.')continue;
+      ++visited;
+      const std::string path=node.path+"/"+name;
+      struct stat st{};if(lstat(path.c_str(),&st)!=0)continue;
+      if(!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode))continue;
+      const size_t before=out.size();
+      folderToItem(out,root,path,name,kind,log);
+      if(out.size()!=before){++found;continue;} // Never enumerate an app's content tree.
+      if(node.depth<maxDepth&&stack.size()<1300 &&
+         name!="sce_sys"&&name!="sce_module"&&name!="system_data" &&
+         name!="user"&&name!="patch"&&name!="addcont"&&name!="trophy"){
+        stack.push_back({path,node.depth+1});
+      }
     }
-    if(!S_ISREG(st.st_mode)||!endsPkg(name))continue;
-    Item a;a.name=name;a.path=path;a.root=root;a.kind=Kind::UsbPackage;
-    a.size=(std::uint64_t)st.st_size;a.sizeKnown=true;out.push_back(std::move(a));
+    if(errno!=0)lastError=errno;
+    closedir(d);
   }
-  closedir(d);
+  reportNumber(log,"SCAN_ROOT_DONE",root,visited,found,lastError);
 }
-using ScanLog = void(*)(const char* phase,const char* path);
-inline std::vector<Item> scan(ScanLog report=nullptr) {
-  std::vector<Item> out;
-  auto step=[&](const char* type,const char* path){if(report)report(type,path);};
-  step("SCAN_FOLDER","/data/homebrew");
-  addFolders(out,"/data/homebrew",Kind::Homebrew);
-  step("SCAN_FOLDER","/user/app");
-  addFolders(out,"/user/app",Kind::Installed);
-  step("SCAN_FOLDER","/system_ex/app");
-  addFolders(out,"/system_ex/app",Kind::Installed);
-  for(int i=0;i<4;i++){
-    const std::string usb="/mnt/usb"+std::to_string(i);
-    step("SCAN_FOLDER",(usb+"/homebrew").c_str());
-    addFolders(out,usb+"/homebrew",Kind::Homebrew);
-    step("SCAN_PKG",usb.c_str());
-    scanPkgs(out,usb);
+inline void scanPkgs(std::vector<Item>& out,const std::string& root,
+                     ScanLog log=nullptr,unsigned maxDepth=2){
+  report(log,"PKG_ROOT_BEGIN",root);
+  DIR* t=opendir(root.c_str());
+  if(!t){reportNumber(log,"PKG_ROOT_ERROR",root,0,0,errno);return;}
+  closedir(t);
+  struct Pending{std::string path;unsigned depth;};
+  std::vector<Pending> stack{{root,0}};
+  unsigned seen=0,found=0;int lastError=0;
+  while(!stack.empty()&&seen<3500&&out.size()<750){
+    const Pending node=std::move(stack.back());stack.pop_back();
+    DIR* d=opendir(node.path.c_str());
+    if(!d){lastError=errno;continue;}
+    errno=0;struct dirent* e;
+    while((e=readdir(d))!=nullptr && seen<3500 && out.size()<750){
+      const std::string name=e->d_name;
+      if(!normalName(name)||name[0]=='.')continue;
+      ++seen;
+      const std::string path=node.path+"/"+name;
+      struct stat st{};if(lstat(path.c_str(),&st)!=0||S_ISLNK(st.st_mode))continue;
+      if(S_ISREG(st.st_mode)&&endsPkg(name)){
+        Item item;item.kind=Kind::UsbPackage;item.name=name;
+        item.root=root;item.path=path;item.size=(std::uint64_t)st.st_size;
+        item.sizeKnown=true;out.push_back(std::move(item));++found;
+        if(log && found<=32)report(log,"PKG_FOUND",path);
+      }else if(S_ISDIR(st.st_mode)&&node.depth<maxDepth&&stack.size()<1300 &&
+               name!="homebrew"&&name!="user"&&name!="system_data"&&name!="etaHEN"){
+        stack.push_back({path,node.depth+1});
+      }
+    }
+    if(errno!=0)lastError=errno;
+    closedir(d);
   }
-  // Favor separately managed installed applications over any duplicate app registrations.
+  reportNumber(log,"PKG_ROOT_DONE",root,seen,found,lastError);
+}
+inline std::vector<Item> scan(ScanLog log=nullptr){
+  std::vector<Item> out;
+  // Read-only system database probe (never modify or parse protected app.db).
+  struct stat database{};
+  const char* dbPath="/system_data/priv/mms/app.db";
+  if(lstat(dbPath,&database)==0)
+    report(log,"APP_DB_PATH","present (not parsed; access may require privileged helper)");
+  else
+    reportNumber(log,"APP_DB_PATH_ERROR",dbPath,0,0,errno);
+  // Read-only scan of installed title directories. Access is firmware/payload dependent.
+  scanFolders(out,"/user/app",Kind::Installed,log,0);
+  scanFolders(out,"/system_ex/app",Kind::Installed,log,0);
+  scanFolders(out,"/data/homebrew",Kind::Homebrew,log,2);
+  scanFolders(out,"/data/etaHEN/games",Kind::Installed,log,2);
+  scanFolders(out,"/user/data/etaHEN/games",Kind::Installed,log,2);
+  scanFolders(out,"/data/games",Kind::Installed,log,1);
+  for(int i=0;i<8;i++){
+    const std::string base="/mnt/usb"+std::to_string(i);
+    scanFolders(out,base+"/homebrew",Kind::Homebrew,log,2);
+    scanFolders(out,base+"/etaHEN/games",Kind::Installed,log,2);
+    scanPkgs(out,base,log,2);
+  }
+  for(int i=0;i<4;i++){
+    const std::string base="/mnt/ext"+std::to_string(i);
+    scanFolders(out,base+"/homebrew",Kind::Homebrew,log,2);
+    scanFolders(out,base+"/etaHEN/games",Kind::Installed,log,2);
+    scanFolders(out,base+"/user/app",Kind::Installed,log,0);
+    scanPkgs(out,base,log,2);
+  }
   std::sort(out.begin(),out.end(),[](const Item& a,const Item& b){
     if(a.kind!=b.kind)return (int)a.kind<(int)b.kind;
-    return a.name<b.name;
+    if(a.name!=b.name)return a.name<b.name;
+    return a.path<b.path;
   });
   out.erase(std::unique(out.begin(),out.end(),[](const Item& a,const Item& b){
     return a.path==b.path;
   }),out.end());
-  step("SCAN_SORTED","complete");
+  reportNumber(log,"SCAN_COMPLETE","all roots",0,(unsigned)out.size());
+  // We intentionally do not parse or modify the system SQLite app.db.
+  // If no files are visible, root failures tell whether sandboxing is involved.
   return out;
 }
-inline Storage storage(const std::string& path="/data") {
+inline Storage storage(const std::string& path="/data"){
   Storage s;struct statvfs v{};
   if(statvfs(path.c_str(),&v)==0&&v.f_frsize&&v.f_blocks){
     s.total=(std::uint64_t)v.f_blocks*v.f_frsize;
@@ -136,51 +233,48 @@ inline Storage storage(const std::string& path="/data") {
   }
   return s;
 }
-inline std::string bytes(std::uint64_t n) {
-  double v=(double)n;int i=0;
-  static const char* units[]={"B","KB","MB","GB","TB"};
+inline std::string bytes(std::uint64_t n){
+  double v=(double)n;int i=0;const char* unit[]={"B","KB","MB","GB","TB"};
   while(v>=1024&&i<4){v/=1024;++i;}
-  char b[40];std::snprintf(b,sizeof(b),"%.1f %s",v,units[i]);
-  return b;
+  char b[40];std::snprintf(b,sizeof(b),"%.1f %s",v,unit[i]);return b;
 }
-// No symlink, mount or path traversal is ever followed when removing user content.
-inline bool isAllowedRemoval(const Item& a) {
-  if(a.kind==Kind::Installed)return false; // must use AppInst API, not unlink().
-  if(a.kind==Kind::UsbPackage) {
+// File deletion is limited to specifically authorized top-level homebrew
+// installations and USB PKG archives, never system game mountpoints.
+inline bool isAllowedRemoval(const Item& a){
+  if(a.kind==Kind::Installed)return false;
+  if(a.kind==Kind::UsbPackage){
     if(a.path.rfind("/mnt/usb",0)!=0||a.path.size()<15)return false;
-    return endsPkg(a.path)&&normalName(a.path.substr(a.path.rfind('/')+1))
-       &&regular(a.path);
+    const size_t slash=a.path.rfind('/');
+    if(slash==std::string::npos)return false;
+    const std::string name=a.path.substr(slash+1);
+    return endsPkg(name)&&normalName(name)&&regular(a.path);
   }
-  if(!validTitleId(a.id))return false;
-  if(a.path=="/data/homebrew/"+a.id && a.root=="/data/homebrew")return directory(a.path);
-  for(int i=0;i<4;i++){
-    const std::string parent="/mnt/usb"+std::to_string(i)+"/homebrew";
-    if(a.root==parent && a.path==parent+"/"+a.id)return directory(a.path);
+  if(!validTitleId(a.id)||a.id=="PPSA99986")return false;
+  if(a.root=="/data/homebrew"&&a.path==a.root+"/"+a.id)
+    return directory(a.path);
+  for(int i=0;i<8;i++){
+    const std::string base="/mnt/usb"+std::to_string(i)+"/homebrew";
+    if(a.root==base&&a.path==base+"/"+a.id)return directory(a.path);
   }
   return false;
 }
-inline bool clearTree(const std::string& path,unsigned level=0) {
+inline bool clearTree(const std::string& path,unsigned level=0){
   if(level>20)return false;
   struct stat st{};if(lstat(path.c_str(),&st)!=0)return false;
   if(!S_ISDIR(st.st_mode))return unlink(path.c_str())==0;
   DIR* d=opendir(path.c_str());if(!d)return false;
   bool ok=true;struct dirent* e;
   while((e=readdir(d))){
-    const std::string child=e->d_name;if(child=="."||child=="..")continue;
+    const std::string child=e->d_name;
+    if(child=="."||child=="..")continue;
     if(!normalName(child)||!clearTree(path+"/"+child,level+1)){ok=false;break;}
   }
-  closedir(d);
-  if(ok)ok=rmdir(path.c_str())==0;
-  return ok;
+  closedir(d);if(ok)ok=rmdir(path.c_str())==0;return ok;
 }
-inline int removeFiles(const Item& a) {
+inline int removeFiles(const Item& a){
   if(!isAllowedRemoval(a))return EPERM;
   if(a.kind==Kind::UsbPackage)return unlink(a.path.c_str())==0?0:errno;
   return clearTree(a.path)?0:(errno?errno:EIO);
 }
-inline std::uint64_t shallowSize(const Item& a) {
-  if(a.sizeKnown)return a.size;
-  // Folder scans may contain many GB; don't block the renderer or invent totals.
-  return 0;
-}
+inline std::uint64_t shallowSize(const Item& a){return a.sizeKnown?a.size:0;}
 }

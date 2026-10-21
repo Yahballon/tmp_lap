@@ -1,9 +1,8 @@
-# Uninstaller v0.1.2 — crash instrumentation
+# Uninstaller v0.1.3 - find installed games and homebrew
 
-- Persist early-start diagnostic log at `/data/Uninstaller/uninstaller.log`.
-- Add best-effort native signal crash report at `/data/Uninstaller/crash.log`.
-- Render the first frame before filesystem scans and log the last scanned root.
-- Avoid unverified PS5 `statvfs` calls suspected in the startup crash; capacity is shown as unavailable.
-- Keep PPSA99986 and preserve game save data. Installed game uninstall remains disabled until verified.
-
-Crash fix is not claimed hardware-verified until tested on a jailbroken console.
+- Fix false empty list: recognize LAPY/FAKE titles, -app/-app0 game folders, metadata-only entries, nested homebrew/games.
+- Add USB0-USB7 and external drive ext0-ext3 scanning, data/etaHEN/games and alternate game roots.
+- Log folder accessibility (root errors and errno), inspected children and per-root discovered entry counts under /data/Uninstaller/uninstaller.log.
+- Probe app.db path read-only for future helper diagnosis; do not parse or modify system DB.
+- System games and game dump folders remain non-removable; preserve game saves.
+- This change requires console testing. Inaccessible roots cannot be listed without extra console permissions.
