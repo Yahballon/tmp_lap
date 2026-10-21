@@ -19,5 +19,9 @@ new='set(UUID_SYSTEM_GENERATOR OFF CACHE INTERNAL "")'
 assert text.count(old)==1,"Upstream UUID configuration changed; re-evaluate"
 assert 'target_link_libraries(zplayer PRIVATE stduuid)' in text
 assert 'FetchContent_MakeAvailable(stduuid)' in text
+pulse='if(NOT EMSCRIPTEN AND LINUX AND NOT "pulseaudio.c" IN_LIST ALLEGRO_AUDIO_SOURCES)'
+assert text.count(pulse)==1,"Pinned upstream PulseAudio CI guard changed"
+pulse_probe='if(NOT EMSCRIPTEN AND LINUX AND NOT ZC_PS5_AUDIO_DRIVER_PROBE AND NOT "pulseaudio.c" IN_LIST ALLEGRO_AUDIO_SOURCES)'
+text=text.replace(pulse,pulse_probe,1)
 cmake.write_text(text.replace(old,new,1))
-print("PS5 staging: stduuid portable generator, no libuuid dependency")
+print("PS5 staging: portable UUID, no Linux PulseAudio CI requirement; actual PS5 audio backend still missing")
