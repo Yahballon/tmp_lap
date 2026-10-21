@@ -1,0 +1,83 @@
+name: Validate Godot PS5 Engine Foundation
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/godot-ps5/**'
+      - '.github/workflows/build-godot-ps5.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/godot-ps5/**'
+      - '.github/workflows/build-godot-ps5.yml'
+permissions:
+  contents: read
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate platform overlay and PCK screening
+        run: |
+          set -euo pipefail
+          python3 -m py_compile homebrew/godot-ps5/engine/platform/ps5/detect.py
+          python3 homebrew/godot-ps5/scripts/check_overlay.py
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_locator_test.cpp -o /tmp/godot-ps5-test
+          /tmp/godot-ps5-test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_native_mock_test.cpp -o /tmp/godot-ps5-native-mock
+          /tmp/godot-ps5-native-mock
+      - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot-linux.zip
+          mkdir -p /tmp/godot-linux
+          unzip -q /tmp/godot-linux.zip -d /tmp/godot-linux
+          godot=/tmp/godot-linux/Godot_v4.7.2-stable_linux.x86_64
+          chmod +x "$godot"
+          "$godot" --headless --path homebrew/godot-ps5/samples/script-smoke \
+            --script res://make_pack.gd | tee /tmp/godot-pack-log.txt
+          grep -Fq GODOT_PS5_PCK_WRITTEN /tmp/godot-pack-log.txt
+          test -s homebrew/godot-ps5/samples/script-smoke/smoke.pck
+          "$godot" --headless --main-pack homebrew/godot-ps5/samples/script-smoke/smoke.pck \
+            --quit-after 60 | tee /tmp/godot-run-log.txt
+          grep -Fq GODOT_PS5_SMOKE_READY /tmp/godot-run-log.txt
+      - name: Upload genuine Godot 4 GDScript fixture (NOT a PS5 executable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-4-gdscript-smoke-pck-NOT-PS5
+          path: homebrew/godot-ps5/samples/script-smoke/smoke.pck
+          if-no-files-found: error
+
+  engine-cross-compile:
+    runs-on: ubuntu-24.04
+    needs: host-tests
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot SCons + PS5 toolchain prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 scons \
+            git make pkg-config python3 unzip wget ca-certificates
+      - name: Clone pinned Godot 4.7.2 and DevBridge
+        run: |
+          git clone --depth=1 --branch 4.7.2-stable https://github.com/godotengine/godot.git /tmp/godot
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+      - name: Set up pinned open PS5 payload SDK
+        run: bash /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+      - name: Cross-compile real upstream Godot source
+        env:
+          GODOT_SOURCE: /tmp/godot
+          PS5_PAYLOAD_SDK: /tmp/devbridge/templates/simple-calc/.deps/native/ps5-payload-sdk
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+        run: |
+          set -euo pipefail
+          bash homebrew/godot-ps5/scripts/build-engine.sh
+          find /tmp/godot/bin -name '*godot_ps5*.a' -type f -size +0c -print | grep .
+      - name: Archive experimental static engines (NOT playable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-ps5-crosscompile-static-NOT-PLAYABLE
+          path: /tmp/godot/bin/*.a
+          if-no-files-found: error

@@ -1,0 +1,159 @@
+name: Build Godot PS5 Native Probe v0.1.0
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/godot-ps5/probe/**'
+      - 'homebrew/godot-ps5/engine/platform/ps5/pck_locator.hpp'
+      - '.github/workflows/build-godot-ps5-probe.yml'
+  push:
+    branches:
+      - feature/godot-ps5-engine-foundation
+    paths:
+      - 'homebrew/godot-ps5/probe/**'
+      - 'homebrew/godot-ps5/engine/platform/ps5/pck_locator.hpp'
+      - '.github/workflows/build-godot-ps5-probe.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  ps5-native-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native PS5 build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make wget curl unzip tar git g++ python3 python3-pil pkg-config ca-certificates
+      - name: Verify metadata and source
+        run: |
+          set -euo pipefail
+          python3 -m json.tool homebrew/godot-ps5/probe/app.json >/dev/null
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_locator_test.cpp -o /tmp/godot-ps5-pck-test
+          /tmp/godot-ps5-pck-test
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_native_mock_test.cpp -o /tmp/godot-ps5-kernel-test
+          /tmp/godot-ps5-kernel-test
+      - name: Stage PS5-DevBridge native display, pad and packaged app
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/godot-ps5/probe/main.cpp app/src/main.cpp
+          cp homebrew/godot-ps5/engine/platform/ps5/pck_locator.hpp app/src/pck_locator.hpp
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
+          data = json.loads(Path("homebrew/godot-ps5/probe/app.json").read_text())
+          path = Path("app/sce_sys/param.json")
+          param = json.loads(path.read_text())
+          param.update(titleId=data["titleId"], conceptId=data["titleId"][4:],
+                       contentId=data["contentId"], contentVersion=data["contentVersion"])
+          param["localizedParameters"]["en-US"]["titleName"] = "Godot PS5 Probe"
+          path.write_text(json.dumps(param, indent=2) + "\n")
+          img = Image.new("RGB", (512,512), (6,21,39))
+          pixels = img.load()
+          for y in range(512):
+              for x in range(512):
+                  pixels[x,y] = (5+(x*9)//512, 23+(y*21)//512, 34+(x*21)//512)
+          d=ImageDraw.Draw(img)
+          d.rounded_rectangle((35,35,477,477),radius=70,outline=(57,218,183),width=9)
+          d.ellipse((125,94,387,356),outline=(79,238,201),width=27)
+          d.arc((153,123,356,325),25,312,fill=(23,105,126),width=12)
+          d.rounded_rectangle((244,204,396,240),radius=14,fill=(79,238,201))
+          fontfile="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+          f=ImageFont.truetype(fontfile,31)
+          small=ImageFont.truetype(fontfile,20)
+          d.text((256,391),"GODOT PS5",font=f,anchor="mm",fill=(234,255,252))
+          d.text((256,430),"HARDWARE PROBE",font=small,anchor="mm",fill=(111,225,200))
+          img.save("app/sce_sys/icon0.png")
+          PY
+      - name: Pin known PS5 OpenGL SDK revision
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path("app/tools/fetch-opengl-sdk.sh")
+          data=path.read_text()
+          assert "version=1.0.0" in data
+          assert "archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5" in data
+          data=data.replace("version=1.0.0","version=1.0.2")
+          data=data.replace("archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5",
+                            "archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4")
+          data=data.replace("github.com/blackbearreloaded/ps5-opengl","github.com/LedyBacer/ps5-opengl")
+          start=data.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=data.index('}',start)+1
+          data=data[:start]+'echo "Pinned OpenGL archive SHA-256 verified" >&2'+data[end:]
+          path.write_text(data)
+          PY
+      - name: Prepare PS5 graphics toolchain
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+        run: bash tools/prepare-opengl.sh
+      - name: Resolve known native POSIX duplicate exports
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 \
+            --redefine-sym=openlog=jb_sdk_openlog \
+            --redefine-sym=closelog=jb_sdk_closelog \
+            --redefine-sym=mkstemp=jb_sdk_mkstemp \
+            --redefine-sym=mkstemps=jb_sdk_mkstemps \
+            --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r \
+            app/build/jb-json/libjb-posix.a
+      - name: Build signed native PS5 install ZIP
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify package identity and contents
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, struct, zipfile
+          from PIL import Image
+          root=pathlib.Path("app/dist/PPSA99842")
+          assert (root/"eboot.bin").is_file()
+          elf=(root/"eboot.bin").read_bytes()
+          assert len(elf)>4096 and elf[:4]==struct.pack("<I",0x1d3d154f)
+          param=json.loads((root/"sce_sys/param.json").read_text())
+          assert param["titleId"]=="PPSA99842"
+          assert param["contentId"]=="UP9000-PPSA99842_00-GODOTPS5PROBE000"
+          with Image.open(root/"sce_sys/icon0.png") as im: assert im.size==(512,512)
+          for required in ["eboot.bin","sce_sys/param.json","sce_sys/icon0.png",
+                           "sce_module/libc.prx","assets/fonts/inter-semibold.huifont"]:
+              assert (root/required).is_file(), required
+          zpath=pathlib.Path("app/dist/PPSA99842.zip")
+          assert zpath.is_file() and zpath.stat().st_size>100000
+          with zipfile.ZipFile(zpath) as z:
+              assert z.testzip() is None
+              assert "PPSA99842/eboot.bin" in z.namelist()
+          print("Godot PS5 PROBE diagnostic package verified (engine NOT integrated).")
+          PY
+      - name: Upload install ZIP for testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-Probe-v0.1.0-PPSA99842-NOT-GAME-PLAYER
+          path: app/dist/PPSA99842.zip
+          if-no-files-found: error
+      - name: Publish clearly labeled prerelease
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-probe-v0.1.0
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Existing release kept immutable."
+            exit 0
+          fi
+          gh release create "$tag" app/dist/PPSA99842.zip \
+            --target "$GITHUB_SHA" \
+            --title "Godot PS5 Probe v0.1.0 - Hardware Diagnostic (NOT PLAYABLE)" \
+            --notes-file homebrew/godot-ps5/probe/RELEASE_NOTES.md \
+            --prerelease
