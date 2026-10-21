@@ -2,12 +2,12 @@
 
 **TESTBUILD · by YAHBALLON · PPSA99127**
 
-Fixes the configuration error found in the v0.1.1 console logs: `DIR_FAIL code=1` showed the POSIX fallback rather than a native PS5 kernel scan. The native PS5 Makefile expects `APP_DEFINITIONS=ZCPS5_NATIVE_SCAN=1` (without a leading `-D`).
+Fixes the configuration error found in v0.1.1 console logs: `DIR_FAIL code=1` showed the POSIX fallback rather than a native PS5 kernel scan. The compile-time scanner selection now lives in the app's own main translation unit and does not change graphics SDK build flags.
 
 Changes:
-- Correct compile definition forwarding to the PS5 toolchain.
-- Make production compilation fail if the native backend is not enabled.
-- Verify compiled Ninja flags and final ELF backend marker.
+- Enable the native filesystem scanner only in the app's main translation unit.
+- Reject any build without the native filesystem backend enabled.
+- Verify the source-level native scanner selection and final ELF backend marker.
 - Log `SCAN_BACKEND=libkernel-getdents-v0.1.2` at startup.
 - Preserve Title ID PPSA99127, save directories, existing icon and quest files.
 
