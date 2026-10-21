@@ -34,6 +34,11 @@ assert all(0<=int(row[1])<=int(row[1])+int(row[3])<=meta["atlas"][0]
            for row in defs)
 manifest=json.loads((app/"assets"/"game-data-manifest.json").read_text())
 assert manifest["file_count"]>100
+# Regression: DrawList.image UV Rect is x,y,width,height, never x0,y0,x1,y1.
+native=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
+assert "{u0,v0,u1-u0,v1-v0}" in native
+assert "facing_<0?u0-u1:u1-u0,v1-v0" in native
+assert "mask_pixel(b,local_x,local_y)" in native
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

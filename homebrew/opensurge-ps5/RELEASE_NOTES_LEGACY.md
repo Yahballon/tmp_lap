@@ -2,6 +2,7 @@
 
 Firmware 5.10 hardware preview test after the user's v0.2.0 screenshot revealed severe hot-pink rectangles, an invisible/unclear player and unreliable physics. This revision preserves the known-working PS5-DevBridge native OpenGL stack.
 
+- Fix the renderer's UV-rectangle convention. The original v0.2.0 code accidentally passed endpoint UVs where ps5-homebrew-ui expects (x,y,width,height); this caused severe stretched/repeated strips and incorrect Surge sprite sampling.
 - Convert Open Surge's original magenta color-key (`#FF00FF`) into real transparent RGBA; clear RGB on transparent pixels.
 - Verify that frame 0 of the original Surge spritesheet actually has visible nontransparent pixels.
 - Read the original `images/sunshine_mask.png` collision atlas and use its solid pixel coverage (not large flat bounding rectangles) for the native motion prototype.
