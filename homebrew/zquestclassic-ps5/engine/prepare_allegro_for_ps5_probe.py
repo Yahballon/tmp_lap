@@ -77,3 +77,17 @@ kb=kb.replace('#include "allegro5/allegro.h"',
               '#include <ctype.h>\n#include "allegro5/allegro.h"',1)
 keyboard.write_text(kb)
 print("PS5 Allegro: bypass unused GLU header and missing strerror_s, no desktop exports; no shims")
+
+# FindDUMB.cmake unconditionally appends desktop libm for non-MSVC targets.
+# PS5 native math is supplied by SDK imports, not a separate -lm library.
+# Keep the real DUMB decoder intact and remove only the extra link flag.
+dumb_find=args.allegro_root/"cmake/FindDUMB.cmake"
+dumb_cmake=dumb_find.read_text()
+needle="  if(NOT MSVC)\\n    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\\n  endif()"
+assert dumb_cmake.count(needle)==1,"Pinned Allegro FindDUMB math linkage changed"
+dumb_cmake=dumb_cmake.replace(
+    needle,
+    "  if(NOT MSVC AND NOT ZC_PS5_NO_DESKTOP_UNIX_LIBS)\\n"
+    "    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\\n"
+    "  endif()",1)
+dumb_find.write_text(dumb_cmake)
