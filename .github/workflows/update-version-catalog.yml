@@ -24,6 +24,8 @@ on:
     # workflows, so workflow_run completion is the reliable instant trigger.
     workflows:
       - Build PS5 Crypto Tracker
+      - Validate Godot PS5 Engine Foundation
+      - Godot PS5 Native Engine Link Retry
       - Build ZQuest Classic PS5 (Port Prototype)
       - Build Open Surge PS5 Legacy Native (non-playable test)
       - Build Starbound Sprint
