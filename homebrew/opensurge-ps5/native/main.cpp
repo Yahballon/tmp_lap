@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.3.0 - first original level entity interactions (native subset).
+// Open Surge PS5 v0.3.1 - native Spin Dash/roll animations and spring debounce.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
@@ -23,7 +23,7 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.3.0";
+constexpr const char* kVersion="0.3.1";
 constexpr const char* kTitle="OPEN SURGE PS5 - MOVEMENT FIX";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
@@ -33,7 +33,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native entity preview 0.3.0] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native moves preview 0.3.1] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -121,7 +121,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.3.0",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.3.1",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -289,7 +289,24 @@ int main(){
           const bool was_grounded=level.grounded();
           const bool jump=pending_jump;
           pending_jump=false;
-          level.update(step,dir,jump);
+          const bool was_charging=level.charging();
+          const bool was_rolling=level.rolling();
+          const unsigned releases_before=level.dash_releases();
+          level.update(step,dir,jump,
+                       (held&hui::pad_bits::kDown)!=0,
+                       (held&hui::pad_bits::kUp)!=0);
+          if(!was_charging && level.charging())
+             log_message("MOVE_SPINDASH_CHARGE started DOWN+X");
+          if(jump && was_charging && level.charging())
+             log_message("MOVE_SPINDASH_RECHARGE X");
+          if(level.dash_releases()!=releases_before){
+             char dash_log[132];
+             std::snprintf(dash_log,sizeof(dash_log),
+                           "MOVE_SPINDASH_RELEASE vx=%.1f",level.velocity_x());
+             log_message(dash_log);
+          }
+          if(!was_rolling && level.rolling() && !level.charging())
+             log_message("MOVE_ROLL_START");
           if(entities_ready){
             const auto event=entities.tick(step,level.player_x(),level.player_y(),
                                             level.velocity_y());
@@ -343,9 +360,9 @@ int main(){
       if(entities_ready)entities.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.3.0  -  original rings + springs + goal; SurgeScript integration pending",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.3.1  -  SPIN DASH / ROLL / SURGE ANIMATIONS; original engine pending",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
-      txt(ui,font,atlas,"STICK/D-PAD MOVE    X JUMP    SQUARE RESET    O BACK",73,1029,28,WHITE);
+      txt(ui,font,atlas,"D-PAD MOVE  X JUMP  DOWN+X CHARGE  RELEASE DOWN DASH  SQUARE RESET  O BACK",73,1029,28,WHITE);
       char probe_line[180];
       std::snprintf(probe_line,sizeof(probe_line),
           "SURGE (%.0f,%.0f) GROUND:%s VX:%+.0f FPS:%.0f",
@@ -353,6 +370,17 @@ int main(){
           level.velocity_x(),measured_fps);
       ui.rounded_rect({1230,30,630,67},10,C(0x092431,.87f));
       txt(ui,font,atlas,probe_line,1240,72,19,ACCENT);
+      if(level.charging()){
+        char charge_line[96];
+        std::snprintf(charge_line,sizeof(charge_line),
+          "SPIN DASH CHARGE  %d%%  |  RELEASE DOWN",
+          int(level.dash_charge()*100.f));
+        ui.rounded_rect({1208,198,656,64},12,C(0x103f3b,.92f));
+        txt(ui,font,atlas,charge_line,1225,240,21,GOLD);
+      }else if(level.rolling()){
+        ui.rounded_rect({1490,198,374,58},12,C(0x103f3b,.92f));
+        txt(ui,font,atlas,"ROLLING",1512,237,23,ACCENT);
+      }
       if(entities_ready){
         char hud[140];
         std::snprintf(hud,sizeof(hud),"COLLECTIBLES %03d     %s",

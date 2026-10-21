@@ -22,7 +22,7 @@ assert len(binary) > 4096
 assert binary[:4] == struct.pack("<I", 0x1D3D154F)
 for marker in (b"BOOT LEGACY PS5 NATIVE", b"ORIGINAL GAME DATA", b"GAME ROOT FOUND",
                b"Original gameplay engine: NOT LINKED", b"LEVEL_PREVIEW_UNAVAILABLE", b"LEVEL_PREVIEW_READY",
-               b"LEVEL_PREVIEW_START", b"ORIGINAL DEMO-1 LEVEL", b"v0.3.0", b"PAD_DIAG", b"PAD_CROSS_EDGE", b"PAD_SQUARE_EDGE", b"COLLECTIBLE_PICKUP", b"ORIGINAL_GOAL_REACHED", b"ORIGINAL_ENTITIES_READY", b"COLLISION_GRID", b"PERF fps=", b"TERRAIN_BLOCK"):
+               b"LEVEL_PREVIEW_START", b"ORIGINAL DEMO-1 LEVEL", b"v0.3.1", b"MOVE_SPINDASH_CHARGE", b"MOVE_SPINDASH_RELEASE", b"MOVE_ROLL_START", b"PAD_DIAG", b"PAD_CROSS_EDGE", b"PAD_SQUARE_EDGE", b"COLLECTIBLE_PICKUP", b"ORIGINAL_GOAL_REACHED", b"ORIGINAL_ENTITIES_READY", b"COLLISION_GRID", b"PERF fps=", b"TERRAIN_BLOCK"):
     assert marker in binary, f"Missing native diagnostic marker {marker!r}"
 required = [
     "eboot.bin", "sce_sys/param.json", "sce_sys/icon0.png", "sce_module/libc.prx",
@@ -50,4 +50,4 @@ with zipfile.ZipFile(app/"dist/PPSA99358.zip") as archive:
         assert (root/rel).is_file(), rel
         assert f"PPSA99358/{rel}" in archive.namelist(), rel
     assert len([x for x in archive.namelist() if x.startswith("PPSA99358/assets/game/")]) >= 100
-print("PASS: PS5 v0.3.0 original collectible/spring/goal in native signed package; not full game")
+print("PASS: PS5 v0.3.1 original player sprites, rolling, spin dash and entities; not full engine")

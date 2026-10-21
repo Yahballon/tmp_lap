@@ -66,6 +66,16 @@ for name in ("collectibles","springs","goal"):
     w,h=map(int,(root/(name+".txt")).read_text().split())
     assert 16<=w<=4096 and 16<=h<=4096
     assert (root/(name+".rgba")).stat().st_size==w*h*4
+native_moves=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
+main_moves=(Path(__file__).resolve().parents[1]/"native"/"main.cpp").read_text()
+assert "bool charging() const" in native_moves
+assert "bool rolling() const" in native_moves
+assert "480.f+240.f*charge_" in native_moves
+assert "DOWN+X" in main_moves
+assert "MOVE_SPINDASH_RELEASE" in main_moves
+assert "sprite_frame()" in native_moves
+entities_cpp=(Path(__file__).resolve().parents[1]/"native"/"level_entities.hpp").read_text()
+assert "spring_armed" in entities_cpp and "spring_cooldown" in entities_cpp
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")
