@@ -1,10 +1,10 @@
-# Uninstaller v0.1.8 — removal backend fix
+# Uninstaller v0.1.9 — Game uninstall fix and diagnostics
 
-The v0.1.7 PS5 log proves all removal attempts abort before dispatch because /data/Uninstaller/actions isn't private from the app sandbox.
+v0.1.8 USB homebrew and USB PKG deletion are confirmed on firmware 5.10, but installed games do not complete. The log shows REMOVE_HELPER ready followed by "No authenticated removal result" for PPSA21564, PPSA21567 and PPSA03639.
 
-- Replace blocked on-disk request folder with direct single-use authenticated localhost action broker. Upload via the same elfldr 9021 approach that made app discovery work; broker accepts one request via local port 9176 for up to 15 seconds.
-- Wire title uninstall through native AppInstUtil instead of deleting registered game folders. Confirm result codes and distinguish asynchronous acceptance from actual completed removal.
-- Permit opt-in USB PKG archive deletion, and one-folder-scoped USB homebrew removal with a bounded, prevalidated tree. Save data untouched.
-- Add failure reasons and REMOVE_* diagnostic logs.
-- No uncontrolled recursive deletion of installed games or protected paths.
-- The PS5 runtime removal result is not yet hardware-verified; test disposable files first.
+- Replace unverified dynamic installer resolution and wrong 3-argument signature with directly linked one-argument sceAppInstUtilAppUnInstall(titleId), matching Playden's PS5 payload.
+- Initialize AppInstUtil before adopting ShadowMountPlus installer authid.
+- Stream UREM2_STAGE diagnostics to foreground UI, which now reads all lines through UREM2_RESULT. Show the final reached stage if the native helper terminates.
+- Keep existing USB deletion and homebrew code paths, user confirmation and safeguards unchanged.
+- Never recursively delete /user/app titles manually. Do not delete saved games.
+- Game removal remains to be confirmed on actual PS5 hardware.

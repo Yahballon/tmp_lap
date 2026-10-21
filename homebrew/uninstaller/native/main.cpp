@@ -192,7 +192,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    L2/R2 Storage    X Details    Square Delete    Triangle Refresh    Circle Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.8",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.9",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>104?msg.substr(0,101)+"...":msg;
