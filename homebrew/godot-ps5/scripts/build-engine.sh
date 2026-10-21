@@ -8,6 +8,7 @@ test -d "$PS5_PAYLOAD_SDK/target/include/c++/v1"
 python3 "$root/scripts/check_overlay.py"
 mkdir -p "$GODOT_SOURCE/platform/ps5"
 cp -a "$root/engine/platform/ps5/." "$GODOT_SOURCE/platform/ps5/"
+python3 "$root/scripts/patch_ps5_kvm.py" "$GODOT_SOURCE"
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
