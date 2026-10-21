@@ -111,8 +111,9 @@ class ScanDirectory {
  private:
 #if defined(ZCPS5_NATIVE_SCAN)
   int fd_ = -1;
-  // libkernel getdents accepts a properly aligned data buffer.
-  alignas(16384) unsigned char data_[16384]{};
+  // Match the working PS5GBCX dirshim: 16-KiB alignment, 64-KiB buffer.
+  // The old 0x4000-byte allocation produced PS5 EINVAL (0x80020016).
+  alignas(0x4000) unsigned char data_[0x10000]{};
   size_t pos_ = 0;
   size_t used_ = 0;
 #else
