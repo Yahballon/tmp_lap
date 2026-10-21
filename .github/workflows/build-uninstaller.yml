@@ -28,6 +28,8 @@ jobs:
           /tmp/uninstaller-test
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/discovery_test.cpp -o /tmp/uninstaller-discovery-test
           /tmp/uninstaller-discovery-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/helper_bridge_test.cpp -o /tmp/uninstaller-bridge-test
+          /tmp/uninstaller-bridge-test
           python3 - <<'PY'
           from pathlib import Path
           main=Path('homebrew/uninstaller/native/main.cpp').read_text()
@@ -41,10 +43,14 @@ jobs:
           inventory=Path('homebrew/uninstaller/native/inventory.hpp').read_text()
           assert '/data/etaHEN/games' in inventory
           assert '/mnt/ext' in inventory
+          assert 'bridge::scan' in main
+          assert 'bridge::merge' in main
+          assert 'if(a.remote)return false' in inventory
           assert 'SCAN_ROOT_ERROR' in inventory
           assert 'APP_DB_PATH' in inventory
           print('Crash logging and deferred scan sanity checks: PASS')
           PY
+          gcc -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -fsyntax-only homebrew/uninstaller/helper/unscan.c
           python3 -m json.tool homebrew/uninstaller/app.json >/dev/null
           python3 - <<'PY'
           from pathlib import Path
@@ -104,13 +110,25 @@ jobs:
           mkdir -p app/build/jb-json
           cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
           llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Compile read-only filesystem helper ELF
+        run: |
+          make -C homebrew/uninstaller/helper \
+            PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          test -s homebrew/uninstaller/helper/unscan.elf
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('homebrew/uninstaller/helper/unscan.elf').read_bytes()
+          assert h[:6]==bytes([127,69,76,70,2,1])
+          print("Read-only scanner ELF64 verified")
+          PY
+          cp homebrew/uninstaller/helper/unscan.elf app/unscan.elf
       - name: Compile native PS5 application
         working-directory: app
         env:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 APP_ROOT_FILES=unscan.elf app
       - name: Verify package
         run: |
           python3 - <<'PY'
@@ -121,15 +139,17 @@ jobs:
           assert struct.unpack('<I',e[:4])[0]==0x1d3d154f
           assert json.loads((p/'sce_sys/param.json').read_text())['titleId']=='PPSA99986'
           assert (p/'sce_sys/icon0.png').stat().st_size>1000
+          assert (p/'unscan.elf').read_bytes()[:6]==bytes([127,69,76,70,2,1])
           assert b'/data/Uninstaller/uninstaller.log' in e
           assert b'/data/Uninstaller/crash.log' in e
           with zipfile.ZipFile('app/dist/PPSA99986.zip') as z:
             assert z.testzip() is None
             assert 'PPSA99986/eboot.bin' in z.namelist()
+            assert 'PPSA99986/unscan.elf' in z.namelist()
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.3-PPSA99986
+          name: Uninstaller-v0.1.4-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -137,8 +157,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.3 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.4 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.3 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.3" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.4 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.4" --notes-file homebrew/uninstaller/RELEASE_NOTES.md

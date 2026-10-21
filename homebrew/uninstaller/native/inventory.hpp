@@ -20,6 +20,7 @@ struct Item {
   Kind kind=Kind::Homebrew;
   std::uint64_t size=0;
   bool sizeKnown=false;
+  bool remote=false; // Read-only entries obtained through the trusted local ELF helper.
 };
 struct Storage {std::uint64_t total=0,free=0;bool available=false;};
 using ScanLog=void(*)(const char* phase,const char* detail);
@@ -241,6 +242,7 @@ inline std::string bytes(std::uint64_t n){
 // File deletion is limited to specifically authorized top-level homebrew
 // installations and USB PKG archives, never system game mountpoints.
 inline bool isAllowedRemoval(const Item& a){
+  if(a.remote)return false; // Never delete via sandbox-bypassing inventory results.
   if(a.kind==Kind::Installed)return false;
   if(a.kind==Kind::UsbPackage){
     if(a.path.rfind("/mnt/usb",0)!=0||a.path.size()<15)return false;

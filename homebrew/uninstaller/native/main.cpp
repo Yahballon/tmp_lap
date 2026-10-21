@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "inventory.hpp"
+#include "helper_bridge.hpp"
 #include "logger.hpp"
 #include "crash_report.hpp"
 #include "gfx/renderer.hpp"
@@ -52,7 +53,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
    txt(d,f,a,it->kind==uninstaller::Kind::UsbPackage?"P":it->kind==uninstaller::Kind::Installed?"G":"H",81,y+40,21,white,Align::center);
    std::string name=it->name.size()>37?it->name.substr(0,34)+"...":it->name;
    txt(d,f,a,name,124,y+29,20);
-   txt(d,f,a,it->kind==uninstaller::Kind::UsbPackage?"USB PKG file":it->kind==uninstaller::Kind::Homebrew?"Homebrew app":"Installed game / app",124,y+53,16,muted);
+   txt(d,f,a,it->remote?"Read-only via elfldr":it->kind==uninstaller::Kind::UsbPackage?"USB PKG file":it->kind==uninstaller::Kind::Homebrew?"Homebrew app":"Installed game / app",124,y+53,16,muted);
    txt(d,f,a,it->sizeKnown?uninstaller::bytes(it->size):"--",678,y+38,17,muted,Align::right);
  }
  if(count(items,tab)==0)txt(d,f,a,"No accessible titles found",100,300,22,muted);
@@ -69,7 +70,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   std::string path=item->root; if(path.size()>30)path=path.substr(0,28)+"...";
   txt(d,f,a,path,1290,707,17,white,Align::right);
   d.bordered_rect({750,747,562,90},14,color(0x880c25),3,color(0xff4366));
-  txt(d,f,a,item->kind==uninstaller::Kind::Installed?"Read-only title":"Remove files",1031,806,30,white,Align::center);
+  txt(d,f,a,item->remote||item->kind==uninstaller::Kind::Installed?"Read-only title":"Remove files",1031,806,30,white,Align::center);
   txt(d,f,a,"Save data stays untouched",770,880,20,muted);
   txt(d,f,a,"No system directory is deleted directly",770,926,16,muted);
  }else txt(d,f,a,"Select an application",1025,514,26,muted,Align::center);
@@ -92,7 +93,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select     L1/R1 Categories     X Details     Square Delete     Triangle Refresh     Circle Back",45,1063,18,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.3",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.4",1887,1063,18,muted,Align::right);
  if(!msg.empty()){d.rounded_rect({370,944,1170,69},13,color(0x102844));txt(d,f,a,msg.size()>115?msg.substr(0,110)+"...":msg,958,989,19,white,Align::center);}
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
@@ -157,18 +158,26 @@ int main(){
       uninstaller::diag::write("REFRESH","requested");
       scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
       items=uninstaller::scan(scanLog);
-      selected=offset=0;notice="Refreshed: "+std::to_string(items.size())+
-        " titles, "+std::to_string(scanRootsReadable)+" readable roots.";
+      uninstaller::diag::write("ELFLDR","refresh: launching bundled read-only scanner");
+      const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
+      uninstaller::bridge::merge(items,helper);
+      selected=offset=0;
+      notice="Entries: "+std::to_string(items.size())+". "+helper.message;
       uninstaller::diag::write("REFRESH","done");
     }
-    if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){const auto* x=nth(items,tab,selected);if(x)confirm=true;}
+    if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){
+      const auto* x=nth(items,tab,selected);
+      if(x&&x->remote)notice="Read-only helper result. No privileged delete is available.";
+      else if(x&&x->kind==uninstaller::Kind::Installed)notice="Installed title uninstall remains disabled.";
+      else if(x)confirm=true;
+    }
   }else if(pressed&hui::pad_bits::kCross){
     auto* x=nth(items,tab,selected);if(x){
-      if(x->kind==uninstaller::Kind::Installed){notice="Installed title uninstall requires privileged AppInstUtil integration; not enabled.";log("Installed uninstall blocked: "+x->id);}
+      if(x->remote||x->kind==uninstaller::Kind::Installed){notice="Read-only entry: system uninstall is not enabled.";log("Read-only uninstall blocked: "+x->id);}
       else{
         uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
         const int result=uninstaller::removeFiles(*x);
-        if(result==0){notice="Selected files removed. Save data not modified.";log("Removed: "+x->path);items=uninstaller::scan(scanLog);selected=offset=0;}
+        if(result==0){notice="Selected files removed. Save data not modified.";log("Removed: "+x->path);items=uninstaller::scan(scanLog);const auto r=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);uninstaller::bridge::merge(items,r);selected=offset=0;}
         else{notice="Remove failed: error "+std::to_string(result);log("Remove failed: "+x->path+" error "+std::to_string(result));}
       }
     }
@@ -185,17 +194,21 @@ int main(){
     uninstaller::diag::write("SCAN","begin after first frame");
     scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
     items=uninstaller::scan(scanLog);
-    log("Discovered "+std::to_string(items.size())+" entries; readable roots="+
+    uninstaller::diag::write("ELFLDR","starting read-only inventory helper via 127.0.0.1:9021");
+    const auto helper=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
+    uninstaller::bridge::merge(items,helper);
+    uninstaller::diag::write("ELFLDR","helper entries="+std::to_string(helper.items.size()).c_str());
+    log("Discovered "+std::to_string(items.size())+" entries; readable roots="+"
       std::to_string(scanRootsReadable)+" inaccessible="+
       std::to_string(scanRootsDenied)+" missing="+std::to_string(scanRootsMissing));
     uninstaller::diag::write("SCAN","completed");
     if(items.empty()){
       notice="0 titles. Readable roots: "+std::to_string(scanRootsReadable)+
        ", denied: "+std::to_string(scanRootsDenied)+
-       ". See /data/Uninstaller/uninstaller.log";
+       ". "+helper.message;
     }else{
       notice="Found "+std::to_string(items.size())+
-       " entries. Installed games are read-only.";
+       " entries. "+(helper.connected?"elfldr helper connected.":"Direct scan only.");
     }
   }
   hui::sys::sleep_us(16000);
