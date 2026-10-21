@@ -2,6 +2,7 @@
 #include "inventory.hpp"
 #include "helper_bridge.hpp"
 #include "action_bridge.hpp"
+#include "shadowmount_api.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_NO_FAILURE_STRINGS
@@ -106,6 +107,42 @@ bool startScan(){
  return true;
 }
 
+struct ShadowJobData {
+ std::mutex mutex;
+ bool active=false,done=false,success=false;
+ int percent=0;std::string message;
+};
+ShadowJobData shadowJob;
+void* shadowPoller(void* ptr){
+ const int job=*(int*)ptr;delete (int*)ptr;
+ for(int i=0;i<300;i++){
+  const auto state=uninstaller::shadow::status(job);
+  {std::lock_guard<std::mutex> lock(shadowJob.mutex);
+    shadowJob.percent=state.progress;shadowJob.message=state.label;
+    if(state.finished){shadowJob.active=false;shadowJob.done=true;
+      shadowJob.success=state.success;return nullptr;}
+  }
+  usleep(2000000);
+ }
+ {std::lock_guard<std::mutex> lock(shadowJob.mutex);
+  shadowJob.active=false;shadowJob.done=true;
+  shadowJob.message="ShadowMount job continues; check status through ShadowMount";
+ }
+ return nullptr;
+}
+void monitorShadowJob(int job){
+ {std::lock_guard<std::mutex> lock(shadowJob.mutex);
+   shadowJob.active=true;shadowJob.done=false;shadowJob.success=false;
+   shadowJob.percent=0;shadowJob.message="ShadowMount deletion queued";
+ }
+ pthread_t worker{};
+ int* number=new int(job);
+ if(pthread_create(&worker,nullptr,shadowPoller,number)!=0){
+   delete number;
+   std::lock_guard<std::mutex> lock(shadowJob.mutex);
+   shadowJob.active=false;shadowJob.message="Deletion queued; status polling unavailable";
+ }else pthread_detach(worker);
+}
 std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
   if(png.empty()||png.size()>3*1024*1024)return 0;
   int w=0,h=0,ch=0;
@@ -119,7 +156,8 @@ std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
 
 void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,
  const std::map<std::string,std::uint32_t>& icons,
- bool scanning,unsigned frame,const std::string& phase){
+ bool scanning,unsigned frame,const std::string& phase,
+ bool shadowConfirm,const std::string& shadowSource,bool shadowBusy,int shadowPercent,const std::string& shadowMessage){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
  d.gradient_rect({1250,0,670,1050},0,color(0x051b3c,.55f),color(0x210515,.55f));
@@ -176,13 +214,15 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
      (item->kind==uninstaller::Kind::UsbPackage?"Delete USB PKG":
       item->kind==uninstaller::Kind::Homebrew?"Delete Homebrew":"Uninstall")
      :"Read-only title",1300,781,32,white,Align::center);
+  if(item->kind==uninstaller::Kind::Installed&&item->id=="PPSA21564")
+    txt(d,f,a,"X: Delete ShadowMount source   |   Square: Uninstall tile",770,868,20,color(0xff8494));
   txt(d,f,a,"Save data stays untouched",770,894,21,muted);
   txt(d,f,a,"Installed titles are removed through the PS5 installer service",770,938,18,muted);
  }else{
   txt(d,f,a,"Select a game, application or USB package",770,692,27,muted);
  }
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
- txt(d,f,a,"D-pad Select    L1/R1 Categories    X Select    Square Uninstall    Triangle Refresh    Circle Back",45,1063,17,muted);
+ txt(d,f,a,"D-pad Select   L1/R1 Categories   X: ShadowMount source / Select   Square: Uninstall   Triangle: Refresh   Circle: Back",45,1063,17,muted);
  txt(d,f,a,"by YAHBALLON   v0.1.10",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
@@ -197,14 +237,27 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   const float offset=(float)(frame%135)/135.0f;
   d.rounded_rect({1080+offset*377,930,125,11},5,color(0x2aaaff));
  }
+ if(shadowBusy){
+  txt(d,f,a,shadowMessage,755,971,18,color(0xffb276));
+  d.rounded_rect({1430,984,398,12},5,color(0x263d58));
+  d.rounded_rect({1432,986,394.0f*shadowPercent/100.0f,8},4,color(0xff704d));
+ }
  if(confirm){
-  d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
-  txt(d,f,a,"CONFIRM REMOVAL",962,432,39,color(0xff607a),Align::center);
-  txt(d,f,a,item?item->name:"Unknown",962,496,25,white,Align::center);
-  txt(d,f,a,"X: Confirm selected removal     Circle: Cancel",962,581,25,white,Align::center);
-  txt(d,f,a,item&&item->kind==uninstaller::Kind::Installed?
-    "System uninstall; saves are not targeted. Verify Title ID.":
-    "This permanently deletes the selected USB files.",962,636,20,muted,Align::center);
+  d.bordered_rect({367,345,1190,345},20,color(0x05162b),3,color(0xff466a));
+  txt(d,f,a,shadowConfirm?"PERMANENT SHADOWMOUNT SOURCE DELETE":"CONFIRM REMOVAL",
+      962,398,36,color(0xff607a),Align::center);
+  txt(d,f,a,item?item->name:"Unknown",962,455,26,white,Align::center);
+  if(shadowConfirm){
+    const std::string source=shadowSource.size()>104?shadowSource.substr(0,101)+"...":shadowSource;
+    txt(d,f,a,source,962,511,19,white,Align::center);
+    txt(d,f,a,"X: Delete physical source permanently    Circle: Cancel",962,579,23,white,Align::center);
+    txt(d,f,a,"This destroys the actual game dump or image. Not just the tile.",962,632,19,color(0xff8494),Align::center);
+  }else{
+    txt(d,f,a,"X: Confirm selected removal     Circle: Cancel",962,567,25,white,Align::center);
+    txt(d,f,a,item&&item->kind==uninstaller::Kind::Installed?
+      "System uninstall; saves are not targeted. Verify Title ID.":
+      "This permanently deletes the selected USB files.",962,622,20,muted,Align::center);
+  }
  }
 }
 }
@@ -238,12 +291,27 @@ int main(){
  // PS5 statvfs is not proven safe with this runtime; avoid the possible
  // unimplemented libc entry until supported console telemetry is confirmed.
  uninstaller::diag::write("STORAGE","statvfs skipped: PS5 support unverified");
- int tab=0,selected=0,offset=0;bool confirm=false;
+ int tab=0,selected=0,offset=0;bool confirm=false,shadowConfirm=false;
+ std::string shadowSource;bool shadowDoneHandled=false;
  unsigned frames=0;
  bool firstFrame=true;
  unsigned prev=0;std::string notice;
  uninstaller::diag::write("BOOT","initialization finished; first frame pending");
  for(;;){
+  bool sourceBusy=false,sourceDone=false,sourceSuccess=false;
+  int sourcePercent=0;std::string sourceMessage;
+  {std::lock_guard<std::mutex> lock(shadowJob.mutex);
+    sourceBusy=shadowJob.active;sourceDone=shadowJob.done;
+    sourceSuccess=shadowJob.success;sourcePercent=shadowJob.percent;
+    sourceMessage=shadowJob.message;
+  }
+  if(sourceDone&&!shadowDoneHandled){
+    shadowDoneHandled=true;
+    notice=sourceMessage;
+    uninstaller::diag::write("SHADOWMOUNT_RESULT",sourceMessage.c_str());
+    if(sourceSuccess&&!scanBusy.load())startScan();
+  }
+  if(sourceBusy)shadowDoneHandled=false;
   ScanFinish* fresh=nullptr;
   {std::lock_guard<std::mutex> guard(scanMutex);
     fresh=scanReady;scanReady=nullptr;
@@ -264,7 +332,7 @@ int main(){
   }
   if(!connected)prev=0;
   if(scanBusy.load())pressed=0;
-  if(pressed&hui::pad_bits::kCircle){if(confirm)confirm=false;else{uninstaller::bridge::stop_icons();for(const auto& entry:iconTextures)if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}pad.close();renderer.release();display.close();hui::sys::quit();}}
+  if(pressed&hui::pad_bits::kCircle){if(confirm){confirm=false;shadowConfirm=false;}else{uninstaller::bridge::stop_icons();for(const auto& entry:iconTextures)if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}pad.close();renderer.release();display.close();hui::sys::quit();}}
   if(!confirm){
     if(pressed&hui::pad_bits::kL1){tab=(tab+3)%4;selected=offset=0;}
     if(pressed&hui::pad_bits::kR1){tab=(tab+1)%4;selected=offset=0;}
@@ -280,17 +348,41 @@ int main(){
       notice.clear();
       if(!startScan())notice="Cannot start scan";
     }
-    if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){
+    if(pressed&hui::pad_bits::kCross){
+      const auto* x=nth(items,tab,selected);
+      if(x&&x->id=="PPSA21564"&&x->kind==uninstaller::Kind::Installed){
+        if(sourceBusy)notice="ShadowMount deletion already in progress";
+        else{
+          const auto info=uninstaller::shadow::inspect(x->id);
+          uninstaller::diag::write("SHADOWMOUNT_INSPECT",
+             info.valid?info.path.c_str():info.error.c_str());
+          if(info.valid){shadowConfirm=true;shadowSource=info.path;confirm=true;}
+          else notice=info.error;
+        }
+      }else if(x&&uninstaller::actions::eligible(*x)){
+        shadowConfirm=false;confirm=true;
+      }else if(x)notice="This source cannot be safely removed";
+    }
+    if(pressed&hui::pad_bits::kSquare){
       const auto* x=nth(items,tab,selected);
       if(x&&uninstaller::actions::eligible(*x)){
-        confirm=true;
+        shadowConfirm=false;confirm=true;
         uninstaller::diag::write("REMOVE_CONFIRM",x->path.c_str());
-      }
-      else if(x)notice="This source cannot be safely removed by the current backend.";
+      }else if(x)notice="This source cannot be safely removed";
     }
   }else if(pressed&hui::pad_bits::kCross){
     const auto* x=nth(items,tab,selected);
-    if(x&&uninstaller::actions::eligible(*x)){
+    if(shadowConfirm){
+      if(x&&x->id=="PPSA21564"&&!sourceBusy){
+        uninstaller::diag::write("SHADOWMOUNT_DELETE_REQUEST",x->id.c_str());
+        const auto action=uninstaller::shadow::remove(x->id,shadowSource);
+        notice=action.message;
+        uninstaller::diag::write("SHADOWMOUNT_DELETE_RESULT",notice.c_str());
+        if(action.queued){monitorShadowJob(action.job);shadowDoneHandled=false;}
+        else if(action.absent)startScan();
+      }
+      shadowConfirm=false;shadowSource.clear();confirm=false;
+    }else if(x&&uninstaller::actions::eligible(*x)){
       uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
       const bool systemAction=x->remote;
       bool refresh=false;
@@ -343,7 +435,8 @@ int main(){
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw begin");
   std::string phase;
   {std::lock_guard<std::mutex> guard(scanMutex);phase=scanStep;}
-  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,iconTextures,scanBusy.load(),frames++,phase);
+  DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,iconTextures,scanBusy.load(),frames++,phase,
+     shadowConfirm,shadowSource,sourceBusy,sourcePercent,sourceMessage);
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw done");
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();
