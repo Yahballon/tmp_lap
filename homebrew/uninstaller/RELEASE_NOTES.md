@@ -1,7 +1,7 @@
-# Uninstaller v0.1.4 – native PS5 sandbox bridge
+# Uninstaller v0.1.5 – real Console Storage and logos
 
-- Compare against Yahballon/PS5_Payload_LauncherX USB scanner and reuse its proven architecture: a separate read-only scanner ELF submitted to an already running PS5 elfldr on localhost TCP 9021.
-- Find homebrew, visible game folders, external USB PKG archives through a bounded metadata-only helper, merge real results into tabs.
-- Show missing elfldr / access errors in /data/Uninstaller/uninstaller.log. Correct log prefix to v0.1.4.
-- Privileged/remote inventory records are **READ ONLY**. Installed game and PS5 PKG uninstall remains disabled. Save data is untouched.
-- Built/tested in GitHub CI; console execution still requires hardware validation.
+- Console Storage panel now shows available/used/total capacity and a blue usage ring when reliable values are measured in the privileged, read-only ELF helper; L2/R2 switches connected volumes.
+- PS5 games and Homebrew now load their actual logo PNGs from sce_sys/icon0.png or system appmeta locations using on-demand localhost port 9175, with memory cache and renderer thread decoding.
+- Keeps gameplay smooth by loading only currently visible logos on background worker. Missing logos show fallback icons.
+- Distinguishes inaccessible drive capacity from a measured value.
+- Existing registered titles and privileged inventory results stay **read-only**; this update does not uninstall installed games. Save data remains untouched.
