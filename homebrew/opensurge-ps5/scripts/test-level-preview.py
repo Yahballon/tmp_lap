@@ -50,6 +50,12 @@ assert "PERF fps=" in main_cpp
 assert "bool find_floor(" in native_cpp
 assert "TERRAIN_BLOCK" in main_cpp
 assert "auto_respawns()" in native_cpp
+pad_cpp=(Path(__file__).resolve().parents[1]/"native"/"pad_state.hpp").read_text()
+assert "if(count==0)" in pad_cpp
+assert "frame.held=held_" in pad_cpp
+assert "frame.pressed |= bits & ~held_" in pad_cpp
+assert "pad_state.update(samples.data(),count)" in main_cpp
+assert "PAD_DIAG" in main_cpp
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")
