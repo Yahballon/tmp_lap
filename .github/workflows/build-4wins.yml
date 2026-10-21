@@ -26,13 +26,27 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/4wins/tests/game_test.cpp -o /tmp/4wins-test
           /tmp/4wins-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/4wins/tests/controls_test.cpp -o /tmp/4wins-controls-test
+          /tmp/4wins-controls-test
           python3 -m json.tool homebrew/4wins/app.json >/dev/null
       - name: Stage native PS5 title
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
-          cp homebrew/4wins/native/main.cpp homebrew/4wins/native/game.hpp app/src/
+          # The requested Yahballon fork is the actual renderer, UI and input runtime.
+          git clone --depth=1 https://github.com/Yahballon/ps5-homebrew-ui.git /tmp/ps5-homebrew-ui
+          for part in gfx ui core audio platform; do
+            cp -a "/tmp/ps5-homebrew-ui/src/$part" app/src/
+          done
+          cp homebrew/4wins/native/main.cpp homebrew/4wins/native/game.hpp homebrew/4wins/native/controls.hpp app/src/
           python3 homebrew/4wins/assets/generate_assets.py app
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          assert Image.open('app/assets/scene_game.jpg').size == (1920,1080)
+          assert (Path('app/assets/red.rgba').stat().st_size) == 96*96*4
+          assert (Path('app/assets/yellow.rgba').stat().st_size) == 96*96*4
+          PY
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -95,7 +109,7 @@ jobs:
           assert meta['contentId']=='UP9000-PPSA99858_00-FOURWINSHOMEBREW'
           assert Image.open(root/'sce_sys/icon0.png').size==(512,512)
           paths=['eboot.bin','sce_sys/icon0.png','sce_sys/param.json','sce_module/libc.prx',
-                 'assets/scene_menu.jpg','assets/scene_game.jpg','assets/red.rgba','assets/yellow.rgba','assets/fonts/inter-semibold.huifont']
+                 'assets/scene_game.jpg','assets/red.rgba','assets/yellow.rgba','assets/fonts/inter-semibold.huifont']
           for p in paths: assert (root/p).is_file(),p
           with zipfile.ZipFile('app/dist/PPSA99858.zip') as z:
             assert z.testzip() is None
@@ -104,7 +118,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: 4WINS-v0.1.0-PPSA99858
+          name: 4WINS-v0.1.1-PPSA99858
           path: app/dist/PPSA99858.zip
           if-no-files-found: error
       - name: Publish verified 4 WINS TESTBUILDS release
@@ -112,8 +126,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view 4wins-v0.1.0 >/dev/null 2>&1; then
+          if gh release view 4wins-v0.1.1 >/dev/null 2>&1; then
             echo 'Release already exists. Not replacing immutable asset.'
             exit 1
           fi
-          gh release create 4wins-v0.1.0 app/dist/PPSA99858.zip --target "$GITHUB_SHA" --title '4 WINS by YAHBALLON v0.1.0' --notes-file homebrew/4wins/RELEASE_NOTES.md
+          gh release create 4wins-v0.1.1 app/dist/PPSA99858.zip --target "$GITHUB_SHA" --title '4 WINS by YAHBALLON v0.1.1' --notes-file homebrew/4wins/RELEASE_NOTES.md
