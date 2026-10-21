@@ -62,7 +62,7 @@ jobs:
           p["localizedParameters"]["en-US"]["titleName"]="PS5 MicroPython"
           path.write_text(json.dumps(p,indent=2)+"\n")
           PY
-          printf '%s\n' 'APP_INCLUDE_PATHS=src .deps/ps5-opengl/current/include src/third_party/micropython src/third_party/micropython/port' >>app/.env
+          printf '%s\n' 'APP_INCLUDE_PATHS=src .deps/ps5-opengl/current/include src/third_party/micropython src/third_party/micropython/port' 'APP_DEFINITIONS=GL_GLEXT_PROTOTYPES=1 gc_free=mp_gc_free' >>app/.env
       - name: Use working pinned PS5 OpenGL SDK archive
         run: |
           python3 - <<'PY'
