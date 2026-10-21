@@ -95,6 +95,26 @@ jobs:
           export PS5_DEVBRIDGE_TOOL="$GITHUB_WORKSPACE/app/tooling/prospero-clang18"
           export PS5_OPENGL_PREFIX="$GITHUB_WORKSPACE/app/.deps/ps5-opengl/current"
           bash homebrew/zquestclassic-ps5/engine/ps5_zplayer_full_probe.sh
+      - name: Verify linked original zplayer ELF
+        if: success()
+        run: |
+          set -euo pipefail
+          binary="$RUNNER_TEMP/zcps5-full-zplayer/build/zplayer"
+          test -s "$binary"
+          file "$binary"
+          llvm-readelf-18 -h "$binary" | tee "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
+          grep -q 'Machine:.*Advanced Micro Devices X86-64' "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
+          echo 'LINKED_REAL_ZPLAYER_ELF=YES (still not verified runnable or packaged as PS5 FSELF)'
+      - name: Save original PS5 zplayer link artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-Original-ZPlayer-PS5-Linked-ELF-NOT-PLAYABLE-OR-INSTALLABLE
+          path: |
+            ${{ runner.temp }}/zcps5-full-zplayer/build/zplayer
+            ${{ runner.temp }}/zcps5-full-zplayer/zplayer-elf-header.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/results.txt
+          if-no-files-found: error
       - name: Export complete real-engine compiler diagnostics
         if: always()
         uses: actions/upload-artifact@v4
