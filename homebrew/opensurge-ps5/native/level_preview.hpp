@@ -127,7 +127,23 @@ public:
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
         for(int k=0;k<32 && body_hits(x_,y_);++k)y_-=1.0f;
-        for(int k=0;k<48 && !has_foot_support(x_,y_);++k)y_+=1.0f;
+        // Level spawn is authored close to a CLOUD tile's masked surface,
+        // which may be halfway through its 128px source rectangle.
+        if(!has_foot_support(x_,y_)){
+            const float spawn_y=y_;
+            for(int k=1;k<=96;++k){
+                if(has_foot_support(x_,spawn_y-float(k))){
+                    y_=spawn_y-float(k);break;
+                }
+            }
+            if(!has_foot_support(x_,y_)){
+                for(int k=1;k<=64;++k){
+                    if(has_foot_support(x_,spawn_y+float(k))){
+                        y_=spawn_y+float(k);break;
+                    }
+                }
+            }
+        }
         ground_=has_foot_support(x_,y_);
     }
     void update(float dt,int dir,bool jump){
@@ -244,9 +260,13 @@ private:
             for(const auto& b:placed_){
                 const auto& d=defs_[b.id];
                 if(!d.cloud||fx<float(b.x)||fx>=float(b.x+d.w)||
-                    feet<float(b.y)-1.5f||feet>float(b.y)+2.5f)continue;
-                // Passable cloud platform is only solid on its upper edge.
-                if(mask_pixel(b,int(fx-b.x),0))return true;
+                    feet<float(b.y)-1.5f||feet>=float(b.y+d.h))continue;
+                // Original CLOUD surfaces may lie inside the brick atlas,
+                // not at the bounding rectangle's y=0. Respect the actual
+                // Open Surge mask pixel at the player's foot.
+                const int local_x=int(fx-float(b.x));
+                const int local_y=std::max(0,int(feet-float(b.y)+1.f));
+                if(mask_pixel(b,local_x,local_y))return true;
             }
         }
         return false;
