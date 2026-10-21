@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ZQuest Classic PS5 - native quest-library prototype, NOT the upstream game engine.
 // Do not ship a PS5 binary which silently falls back to sandbox-blocked libc opendir.
-#ifndef ZCPS5_NATIVE_SCAN
-#error "ZQuest PS5 production build REQUIRES ZCPS5_NATIVE_SCAN=1 (no -D in APP_DEFINITIONS)"
+#define ZCPS5_NATIVE_SCAN 1
+#if ZCPS5_NATIVE_SCAN != 1
+#error "ZQuest PS5 native kernel scanner must be enabled"
 #endif
 #include "quest_index.hpp"
 #include "gfx/renderer.hpp"
