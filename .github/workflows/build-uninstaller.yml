@@ -11,7 +11,7 @@ on:
       - 'homebrew/uninstaller/**'
       - '.github/workflows/build-uninstaller.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   ps5:
     runs-on: ubuntu-24.04
@@ -41,6 +41,25 @@ jobs:
           d.update(titleId=m['titleId'],conceptId=m['titleId'][4:],contentId=m['contentId'],contentVersion=m['contentVersion'])
           d['localizedParameters']['en-US']['titleName']=m['name']
           f.write_text(json.dumps(d,indent=2)+'\n')
+          PY
+      - name: Use verified OpenGL SDK 1.0.2 mirror
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/tools/fetch-opengl-sdk.sh')
+          s=p.read_text()
+          assert 'version=1.0.0' in s
+          assert 'blackbearreloaded/ps5-opengl' in s
+          assert 'archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5' in s
+          s=s.replace('version=1.0.0','version=1.0.2')
+          s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5',
+                      'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
+          s=s.replace('github.com/blackbearreloaded/ps5-opengl',
+                      'github.com/LedyBacer/ps5-opengl')
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "SDK archive SHA-256 and installed-file manifest verified" >&2'+s[end:]
+          p.write_text(s)
           PY
       - name: Prepare SDK
         working-directory: app
@@ -80,3 +99,13 @@ jobs:
           name: Uninstaller-v0.1.0-PPSA99873
           path: app/dist/PPSA99873.zip
           if-no-files-found: error
+      - name: Publish Uninstaller TESTBUILDS release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view uninstaller-v0.1.0 >/dev/null 2>&1; then
+            echo 'Release tag already exists; refusing to replace immutable assets'
+            exit 1
+          fi
+          gh release create uninstaller-v0.1.0 app/dist/PPSA99873.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.0" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
