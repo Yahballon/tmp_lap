@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 MicroPython by YAHBALLON v0.1.1
+// PS5 MicroPython by YAHBALLON v0.2.0
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "port/micropython_embed.h"
+#include "editor.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -21,6 +22,12 @@ alignas(16) char heap[256*1024];
 std::string capture;
 struct Script {std::string name,path;bool builtin;};
 std::vector<Script> library;
+enum class Page {list,editor,confirm_discard};
+Page page=Page::list;
+pyedit::Buffer editor;
+std::string editorName, editorMessage;
+bool editorNew=false;
+int keyboardIndex=0, keyboardPage=0;
 std::string readFile(const std::string& path,size_t limit) {
  FILE* f=fopen(path.c_str(),"rb"); if(!f)return {};
  if(fseek(f,0,SEEK_END)){fclose(f);return {};}
@@ -99,6 +106,51 @@ std::vector<std::string> getLines(const std::string& s) {
 std::string shortName(const std::string& s){
  return s.size()>32?s.substr(0,29)+"...":s;
 }
+void start_new() {
+ editorName=pyedit::unique_filename(kScripts);
+ if(editorName.empty()){capture="\nToo many filenames; cannot create another script.\n";return;}
+ editor.reset("# New MicroPython script\nprint('Hello from PS5!')\n");
+ editor.dirty=true;editorNew=true;page=Page::editor;
+ editorMessage="New script: press OPTIONS to save";
+ keyboardIndex=0;keyboardPage=0;
+}
+void start_edit(const Script& s) {
+ auto code=readFile(s.path,kMaxSource);
+ if(code.empty()&&s.builtin)
+  code=readFile(std::string("/data/homebrew/PPSA99791/assets/scripts/")+s.name,kMaxSource);
+ if(code.empty()){capture="\nCould not load script for editing.\n";return;}
+ if(s.builtin) {
+  editorName=pyedit::unique_filename(kScripts,"demo");
+  if(editorName.empty()){capture="\nNo available filename for demo copy.\n";return;}
+ }else{
+  editorName=s.path.substr(std::string(kScripts).size()+1);
+  if(!pyedit::valid_filename(editorName)){capture="\nUnsafe filename.\n";return;}
+ }
+ editor.reset(code);editorNew=s.builtin;
+ page=Page::editor;keyboardIndex=0;keyboardPage=0;
+ editorMessage=s.builtin?"Bundled demo: save writes a NEW user copy.":"Editing existing user file.";
+}
+bool save_editor() {
+ if(editorNew){
+  struct stat st{};
+  if(stat((std::string(kScripts)+"/"+editorName).c_str(),&st)==0){
+   editorName=pyedit::unique_filename(kScripts);
+   if(editorName.empty()){editorMessage="No free script filename.";return false;}
+  }
+ }
+ const auto result=pyedit::save_script(kScripts,editorName,editor.code);
+ editorMessage=pyedit::save_message(result);
+ if(result!=pyedit::SaveResult::ok)return false;
+ editor.dirty=false;
+ page=Page::list;
+ reload();
+ for(size_t i=0;i<library.size();i++)
+  if(!library[i].builtin && library[i].path==std::string(kScripts)+"/"+editorName){
+   capture="\nSaved "+editorName+" - press X to run it.\n";return true;
+  }
+ capture="\nSaved "+editorName+" in /data/PS5MicroPython/scripts/.\n";
+ return true;
+}
 }
 extern "C" void ps5_mp_console_write(const char* bytes,size_t len){
  if(!bytes)return;
@@ -128,37 +180,79 @@ int main(){
    connected=true;keys=samples[i].buttons;
    if(samples[i].left_y<64)keys|=hui::pad_bits::kUp;
    if(samples[i].left_y>192)keys|=hui::pad_bits::kDown;
+   if(samples[i].left_x<64)keys|=hui::pad_bits::kLeft;
+   if(samples[i].left_x>192)keys|=hui::pad_bits::kRight;
    pressed|=keys&~previous;previous=keys;
   }
   if(!connected)previous=0;
   auto now=static_cast<unsigned long long>(hui::sys::monotonic_us());
-  unsigned dirs=keys&(hui::pad_bits::kUp|hui::pad_bits::kDown);
+  unsigned dirs=keys&(hui::pad_bits::kUp|hui::pad_bits::kDown|hui::pad_bits::kLeft|hui::pad_bits::kRight);
   unsigned nav=pressed&dirs;
   if(nav)repeatAt=now+320000;
   else if(dirs&&now>=repeatAt){nav=dirs;repeatAt=now+120000;}
   else if(!dirs)repeatAt=0;
-  if((nav&hui::pad_bits::kUp)&&selected>0)--selected;
-  if((nav&hui::pad_bits::kDown)&&selected+1<int(library.size()))++selected;
-  if(pressed&hui::pad_bits::kTriangle){
-   reload();selected=std::min(selected,std::max(0,int(library.size())-1));
-   capture+="\nRefreshed script list.\n";
-  }
-  if(pressed&hui::pad_bits::kSquare){capture.clear();scroll=0;}
-  if(pressed&hui::pad_bits::kCross){
-   if(!library.empty())run(library[size_t(selected)],&stack_anchor);
-   scroll=0;
-  }
-  if(pressed&hui::pad_bits::kL1)scroll=std::max(0,scroll-8);
-  if(pressed&hui::pad_bits::kR1)scroll+=8;
-  if(pressed&hui::pad_bits::kCircle){
-   pad.close();renderer.release();display.close();hui::sys::quit();
+  if(page==Page::list){
+   if((nav&hui::pad_bits::kUp)&&selected>0)--selected;
+   if((nav&hui::pad_bits::kDown)&&selected+1<int(library.size()))++selected;
+   if(pressed&hui::pad_bits::kTriangle){
+    reload();selected=std::min(selected,std::max(0,int(library.size())-1));
+    capture+="\nRefreshed script list.\n";
+   }
+   if(pressed&hui::pad_bits::kSquare){
+    if(!library.empty())start_edit(library[size_t(selected)]);
+   }
+   if(pressed&hui::pad_bits::kOptions)start_new();
+   if(pressed&hui::pad_bits::kCross){
+    if(!library.empty())run(library[size_t(selected)],&stack_anchor);
+    scroll=0;
+   }
+   if(pressed&hui::pad_bits::kL1)scroll=std::max(0,scroll-8);
+   if(pressed&hui::pad_bits::kR1)scroll+=8;
+   if(pressed&hui::pad_bits::kCircle){
+    pad.close();renderer.release();display.close();hui::sys::quit();
+   }
+  }else if(page==Page::editor){
+   if(nav&hui::pad_bits::kUp)keyboardIndex=(keyboardIndex+40)%50;
+   if(nav&hui::pad_bits::kDown)keyboardIndex=(keyboardIndex+10)%50;
+   if(nav&hui::pad_bits::kLeft)keyboardIndex=(keyboardIndex/10)*10+(keyboardIndex%10+9)%10;
+   if(nav&hui::pad_bits::kRight)keyboardIndex=(keyboardIndex/10)*10+(keyboardIndex%10+1)%10;
+   if(pressed&hui::pad_bits::kR2)keyboardPage=(keyboardPage+1)%3;
+   if(pressed&hui::pad_bits::kL1)editor.left();
+   if(pressed&hui::pad_bits::kR1)editor.right();
+   if(pressed&hui::pad_bits::kL3)editor.vertical(-1);
+   if(pressed&hui::pad_bits::kR3)editor.vertical(1);
+   if(pressed&hui::pad_bits::kL2 && !editor.insert("    "))
+    editorMessage="Script size limit (64 KiB)";
+   if(pressed&hui::pad_bits::kCross){
+    char c=pyedit::character(keyboardPage,keyboardIndex);
+    if(!editor.insert(c=='\t'?std::string("    "):std::string(1,c)))
+     editorMessage="Script size limit (64 KiB)";
+    else editorMessage="Unsaved changes";
+   }
+   if(pressed&hui::pad_bits::kSquare)editor.backspace();
+   if(pressed&hui::pad_bits::kTriangle){
+    if(!editor.insert("\n"))editorMessage="Script size limit (64 KiB)";
+   }
+   if(pressed&hui::pad_bits::kOptions){
+    if(save_editor()){
+     for(size_t i=0;i<library.size();i++)
+      if(library[i].path==std::string(kScripts)+"/"+editorName)selected=int(i);
+    }
+   }
+   if(pressed&hui::pad_bits::kCircle){
+    page=editor.dirty?Page::confirm_discard:Page::list;
+   }
+  }else if(page==Page::confirm_discard){
+   if(pressed&hui::pad_bits::kCross)page=Page::list;
+   else if(pressed&hui::pad_bits::kCircle)page=Page::editor;
   }
   DrawList ui;
   ui.gradient_rect({0,0,1920,1080},0,Color::rgb(0x0b1427),Color::rgb(0x040710));
   ui.rounded_rect({48,45,1824,103},18,Color::rgb(0x101d34));
   ui.rounded_rect({70,68,9,57},4,cyan);
   ui.text(font,atlas,"PS5 MicroPython",103,116,47,fg);
-  ui.text(font,atlas,"by YAHBALLON   v0.1.1",1838,109,23,mute,Align::right);
+  ui.text(font,atlas,"by YAHBALLON   v0.2.0",1838,109,23,mute,Align::right);
+  if(page==Page::list){
   ui.bordered_rect({48,171,610,811},19,Color::rgb(0x0c172b),2,edge);
   ui.bordered_rect({679,171,1193,811},19,Color::rgb(0x07101e),2,edge);
   ui.text(font,atlas,"PYTHON SCRIPTS",84,228,26,cyan);
@@ -192,8 +286,58 @@ int main(){
    ui.text(font,atlas,lines[size_t(start+i)],722,290.f+i*27.2f,20,fg);
   ui.rounded_rect({48,996,1824,61},13,Color::rgb(0x101d34));
   ui.text(font,atlas,
-   "D-PAD  Select     X  Run     TRIANGLE  Reload     SQUARE  Clear     L1/R1  Scroll     O  Exit",
+   "D-PAD Select     X Run     SQUARE Edit     OPTIONS New     TRIANGLE Reload     L1/R1 Scroll     O Exit",
    960,1035,19,mute,Align::center);
+  }else{
+   ui.bordered_rect({48,171,1159,811},19,Color::rgb(0x0c172b),2,edge);
+   ui.bordered_rect({1225,171,647,811},19,Color::rgb(0x07101e),2,edge);
+   ui.text(font,atlas,"PYTHON CODE EDITOR",81,222,28,cyan);
+   ui.text(font,atlas,editorName,1177,224,22,fg,Align::right);
+   ui.text(font,atlas,editor.dirty?"UNSAVED":"SAVED",81,258,18,
+           editor.dirty?Color::rgb(0xffc164):Color::rgb(0x55edb3));
+   ui.line(80,276,1171,276,2,edge);
+   auto codeLines=editor.display_lines();
+   const int visible=21;
+   const int cursorLine=int(editor.line());
+   const int firstLine=std::max(0,cursorLine-visible+2);
+   for(int i=firstLine;i<int(codeLines.size())&&i<firstLine+visible;i++){
+    float y=316.f+(i-firstLine)*29.f;
+    const bool active=i==cursorLine;
+    if(active)ui.rounded_rect({78,y-23,1098,31},5,Color::rgb(0x152d4a));
+    char lineNo[12];std::snprintf(lineNo,sizeof(lineNo),"%3d",i+1);
+    ui.text(font,atlas,lineNo,91,y,19,mute);
+    ui.text(font,atlas,codeLines[size_t(i)],162,y,20,active?cyan:fg);
+   }
+   ui.text(font,atlas,"ON-SCREEN KEYBOARD",1252,223,26,cyan);
+   ui.text(font,atlas,keyboardPage==0?"lowercase":keyboardPage==1?"UPPERCASE":"symbols",
+           1837,223,20,mute,Align::right);
+   ui.line(1250,246,1840,246,2,edge);
+   for(int k=0;k<50;k++){
+    const float x=1257.f+(k%10)*58.7f;
+    const float y=282.f+(k/10)*67.f;
+    const bool selectedKey=k==keyboardIndex;
+    ui.bordered_rect({x,y,52,57},9,selectedKey?Color::rgb(0x195078):Color::rgb(0x142440),
+      selectedKey?2.f:1.f,selectedKey?cyan:edge);
+    const char key=pyedit::character(keyboardPage,k);
+    const std::string label=key==' '?"SP":key=='\t'?"TAB":std::string(1,key);
+    ui.text(font,atlas,label,x+26,y+37,key==' '?18:23,fg,Align::center);
+   }
+   ui.rounded_rect({1253,653,577,276},15,Color::rgb(0x112039));
+   ui.text(font,atlas,"X  Insert key      SQUARE  Backspace",1275,697,21,fg);
+   ui.text(font,atlas,"TRIANGLE  New line   L2  4 spaces",1275,740,20,fg);
+   ui.text(font,atlas,"L1/R1  Move caret  L3/R3  Line",1275,783,20,fg);
+   ui.text(font,atlas,"R2  Keyboard page   OPTIONS  Save",1275,826,20,fg);
+   ui.text(font,atlas,"CIRCLE  Back / discard",1275,869,20,mute);
+   ui.text(font,atlas,shortName(editorMessage),1280,955,19,cyan);
+   ui.rounded_rect({48,996,1824,61},13,Color::rgb(0x101d34));
+   ui.text(font,atlas,"D-PAD Keyboard   X Type   SQUARE Delete   TRIANGLE Enter   OPTIONS Save   O Back",
+            960,1035,20,mute,Align::center);
+   if(page==Page::confirm_discard){
+    ui.bordered_rect({578,378,785,280},20,Color::rgb(0x142443),4,Color::rgb(0xffc064));
+    ui.text(font,atlas,"DISCARD UNSAVED CHANGES?",971,465,30,fg,Align::center);
+    ui.text(font,atlas,"X  Discard     O  Keep editing",971,540,25,cyan,Align::center);
+   }
+  }
   renderer.begin();renderer.draw(ui);
   renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);

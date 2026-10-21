@@ -1,89 +1,73 @@
-<p align="center"><img src="assets/icon.svg" width="160" alt="PS5 MicroPython launcher concept"></p>
-
 # PS5 MicroPython
 
-**Native PS5 Homebrew · by YAHBALLON · v0.1.1**
+**Native PS5 Homebrew · by YAHBALLON · v0.2.0 · PPSA99791**
 
-Run small Python scripts from a PS5 homebrew application using the
-official [MicroPython](https://github.com/micropython/micropython)
-C embedding port. The interpreter executes inside the PS5 app; a native
-TV-friendly OpenGL interface shows output, logs and uncaught exceptions.
+![Original launcher icon](assets/icon.svg)
 
-The launcher logo is an original vector/procedurally rendered design,
-not an AI-generated graphic.
+A real, embedded [MicroPython](https://github.com/micropython/micropython) interpreter for jailbroken PS5 consoles, with a controller-operated Python script editor, script library and on-screen console output.
 
-**Status:** The native v0.1.0 build was successfully run on a user's PS5: a supplied console screenshot shows `fibonacci.py` completing with the expected output. The new v0.1.1 interface still requires a hardware check. [GitHub Releases](https://github.com/Yahballon/tmp_lap/releases) provides verified installable ZIPs.
+**Testing:** A user-provided PS5 photo confirmed the v0.1.0 Fibonacci demo. The v0.2.0 editor requires a new console test. CI compilation and ZIP verification are not equivalent to a hardware test.
 
 ## Features
 
-- Real MicroPython VM, bytecode compiler and garbage collection.
-- Three packaged Python demonstrations: Hello, Fibonacci and Collections.
-- Local custom Python scripts from the writable scripts directory.
-- Direct TV output of print statements and Python exceptions.
-- Script list refresh, console scroll, clear and diagnostic log.
-- Persistent in-app directory instructions below the script list, including transfer and reload guidance; long script lists remain scrollable.
-- Input limits: 64 KiB scripts, 256 KiB interpreter heap and 24 KiB output.
+- Run the bundled Hello, Fibonacci and Collections scripts on the native MicroPython VM.
+- Create, edit and save your own Python scripts **directly on PS5** using an on-screen keyboard.
+- Keyboard includes lowercase, uppercase and symbol pages; insert newlines, four-space indentation and reposition the text caret.
+- Built-in examples open as editable **copies**; installed read-only demo assets are never overwritten.
+- Atomic replacement when saving existing scripts: write a temporary file before rename; confirm before discarding unsaved edits.
+- Script-file limit of 64 KiB; persistent user storage, interpreter error output and runtime log.
+- Script location is shown within the script library UI for FTP/file-manager transfer.
 
 ## Controls
 
-| Controller | Action |
-| --- | --- |
-| D-pad / left stick Up/Down | Select a script |
-| Cross | Run the highlighted Python file |
-| Triangle | Refresh the list of scripts |
-| Square | Clear the console |
-| L1 / R1 | Scroll console output |
-| Circle | Quit |
+| Context | Button | Action |
+| --- | --- | --- |
+| Library | D-pad / Left stick | Select file |
+| Library | Cross | Run selected script |
+| Library | Square | Edit selected script (demo = new copy) |
+| Library | Options | New Python script |
+| Library | Triangle | Rescan folder |
+| Library | L1 / R1 | Scroll console log |
+| Library | Circle | Exit app |
+| Editor | D-pad / Left stick | Choose on-screen keyboard character |
+| Editor | Cross | Insert character |
+| Editor | Square | Delete character before caret |
+| Editor | Triangle | Newline |
+| Editor | L2 | Insert four spaces |
+| Editor | R2 | Cycle lowercase / uppercase / symbols |
+| Editor | L1 / R1 | Move caret left / right |
+| Editor | L3 / R3 | Move caret up / down a code line |
+| Editor | Options | Save and return to script library |
+| Editor | Circle | Back; confirm if unsaved changes would be lost |
 
-## Install and run
+## Saving scripts
 
-Use the verified PS5 MicroPython `PPSA99791.zip` from [GitHub Releases](https://github.com/Yahballon/tmp_lap/releases), not a GitHub source archive.
-Install the complete PPSA99791 folder under /data/homebrew/ using your
-existing compatible PS5 homebrew registration method.
+Create a script by pressing **Options** in the library. New files get available automatic names, such as `script_001.py`, `script_002.py`, etc. Press **Options** from the editor to save. To edit an existing saved script, highlight it and press **Square**.
 
-The **bottom-left area of the app** now displays the custom script folder at all times.
-Copy a UTF-8 file such as hello_custom.py to:
+Scripts are stored under:
 
-    /data/PS5MicroPython/scripts/hello_custom.py
+```text
+/data/PS5MicroPython/scripts/
+```
 
-Transfer it over FTP or with a compatible PS5 file manager. Press Triangle to rescan and Cross to execute it. The application creates
-the data and scripts directories on launch; previous scripts are preserved.
-Log file:
+Scripts may also be transferred by FTP or a compatible file manager. Press **Triangle** in the library to reload the list. The data folder is created on launch; no saved user scripts are deleted by this update.
 
-    /data/PS5MicroPython/logs/runtime.log
+Runtime logs: `/data/PS5MicroPython/logs/runtime.log`.
 
-Only run Python files you trust; this is a script host, not a security sandbox.
+## Install
 
-## How the port works
+Download a validated `PPSA99791.zip` from [GitHub Releases](https://github.com/Yahballon/tmp_lap/releases), not a GitHub source archive. Extract the title folder into `/data/homebrew/` and register it using your compatible homebrew loader. Preserve your `/data/PS5MicroPython/` directory across updates.
 
-The [GitHub Actions workflow](../../.github/workflows/build-ps5-micropython.yml)
-uses the PS5-DevBridge simple-calc native app template and checks out the
-MicroPython upstream v1.26.1 release. The official ports/embed generator
-creates self-contained C source files. Those files are compiled into the
-native PS5 executable, and the embed port's stdout routine is replaced by
-our console-output shim. All three sample scripts are bundled as app assets.
-The upstream MIT license is included in the resulting install folder.
+## Build
 
-No PC Python service, SSH daemon, network request or Python installation is
-needed at runtime.
+See [Build PS5 MicroPython](../../.github/workflows/build-ps5-micropython.yml). The workflow pins MicroPython v1.26.1, generates its C embedding port, stages the PS5-DevBridge OpenGL runtime, compiles the native app, runs host editor tests and checks the final PS5 ZIP before making a release.
 
-## Limitations
+## Known limitations
 
-This is a minimal MicroPython build, not the full CPython interpreter.
-Unix extensions, sockets, pip, arbitrary native extensions, a REPL and a
-built-in Python editor are not part of v0.1.1.
+This is an embedded, minimal MicroPython configuration rather than CPython. No pip, Unix extensions, native package management or live REPL. The controller keyboard is simple, not Sony's system keyboard, and new scripts use numbered filenames. Running scripts blocks the renderer until execution completes; infinite loops can hang the title. Only run trusted code.
 
-**Important:** running scripts blocks the current UI thread until they
-complete. An infinite loop may require restarting the app. Script execution
-is memory-bounded but is not isolated against deliberate abuse.
+**SCREENSHOT: v0.2.0 PS5 hardware capture pending.** A previous user-provided v0.1.0 PS5 image demonstrates Fibonacci, not this editor revision.
 
-A user-provided image demonstrates a successful Fibonacci script on a real PS5 with v0.1.0; this does not verify all Python features or all PS5 firmware versions. A hardware capture of the v0.1.1 UI is still pending.
+## License / credits
 
-## Credits and licensing
-
-Homebrew app and original procedural art: **YAHBALLON**.
-App source: GPL-3.0-or-later.
-MicroPython: Damien P. George and contributors, MIT License.
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-**Screenshot:** User provided a real PS5 capture of the v0.1.0 Fibonacci demo; the screenshot has not been committed to this repository. v0.1.1 screenshot pending.
+App/UI by **YAHBALLON**, GPL-3.0-or-later. MicroPython © Damien P. George and contributors, MIT. See [Third-party notices](THIRD_PARTY_NOTICES.md). Artwork is original and not AI generated.
