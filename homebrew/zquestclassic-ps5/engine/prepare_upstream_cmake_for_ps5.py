@@ -31,6 +31,12 @@ text=text.replace(shared,'set(SHARED OFF CACHE BOOL "" FORCE)',1)
 packaging="add_subdirectory(packaging)"
 assert text.count(packaging)==1,"Upstream packaging entry changed"
 text=text.replace(packaging,'if(NOT ZC_PS5_TARGET_ONLY_PROBE)\n  add_subdirectory(packaging)\nendif()',1)
+# Keep every vendored C/C++ dependency static for the single-ELF PS5 build.
+# In particular libgme.so cannot be linked as a standalone shared object
+# against the PS5 SDK's unbundled libc and libc++ runtime.
+shared_default="if(EMSCRIPTEN)\n\tset(BUILD_SHARED_LIBS OFF)\nelse()\n\tset(BUILD_SHARED_LIBS ON)\nendif()"
+assert text.count(shared_default)==1,"Upstream library linkage policy changed"
+text=text.replace(shared_default,"if(EMSCRIPTEN OR ZC_PS5_TARGET_ONLY_PROBE)\n\tset(BUILD_SHARED_LIBS OFF)\nelse()\n\tset(BUILD_SHARED_LIBS ON)\nendif()",1)
 cmake.write_text(text.replace(old,new,1))
 
 # Three Allegro-Legacy file format registries use Windows stricmp().
@@ -98,3 +104,39 @@ assert '#include <cstring>' in source and '#include <strings.h>' not in source
 source=source.replace('#include <cstring>','#include <cstring>\n#include <strings.h>',1)
 source=source.replace('stricmp(ext, tok)','strcasecmp(ext, tok)',1)
 chooser.write_text(source)
+
+
+# Cross-compile actual zplayer script VM's case-insensitive comparisons.
+# ZScript behavior remains ASCII/POSIX casefolding like legacy stricmp.
+ffscript=a.cmake_root/"src/zc/ffscript.cpp"
+source=ffscript.read_text()
+assert source.count("stricmp(strA.c_str(), strB.c_str())")==3
+assert '#include <string>' in source and '#include <strings.h>' not in source
+source=source.replace('#include <string>','#include <string>\n#include <strings.h>',1)
+source=source.replace('stricmp(strA.c_str(), strB.c_str())',
+                      'strcasecmp(strA.c_str(), strB.c_str())')
+ffscript.write_text(source)
+
+# ZQuest's message intro spaces comparison also uses legacy Windows stricmp.
+messages=a.cmake_root/"src/zc/message_string.cpp"
+source=messages.read_text()
+assert source.count("stricmp(")==1
+assert '#include "zc/message_string.h"' in source
+source=source.replace('#include "zc/message_string.h"',
+                      '#include <strings.h>\n#include "zc/message_string.h"',1)
+source=source.replace("stricmp(","strcasecmp(",1)
+messages.write_text(source)
+
+# Portable UUID generation for replay metadata: the original system generator
+# requires libuuid, which the PS5 SDK does not supply. The upstream stduuid
+# fork supports uuid_random_generator driven by standard mt19937. Do not stub
+# UUIDs or reuse a fixed ID. PS5 random_device runtime needs hardware testing.
+zelda=a.cmake_root/"src/zc/zelda.cpp"
+source=zelda.read_text()
+assert source.count("uuids::uuid_system_generator{}()")==2
+assert '#include <random>' not in source
+assert '#include <memory>' in source
+source=source.replace('#include <memory>','#include <memory>\n#include <random>',1)
+source=source.replace('auto uuid = uuids::uuid_system_generator{}();',
+    'std::mt19937 rng(std::random_device{}());\n\t\t\tauto uuid = uuids::uuid_random_generator{rng}();')
+zelda.write_text(source)
