@@ -34,6 +34,17 @@ def stage(godot, app, entry, builtins_override=None):
         dest.parent.mkdir(parents=True,exist_ok=True)
         dest.symlink_to(source)
         libraries.append(dest.relative_to(app).as_posix())
+    # SDK libc++/libc++abi static objects contain LLVM dependent-library
+    # references to "pthread". On PS5 pthread symbols are provided by the
+    # system/runtime libraries, not a standalone libpthread.a file. Supply
+    # a named EMPTY archive for dependency discovery; it implements nothing.
+    # Undefined pthread symbols must still resolve normally or the link fails.
+    sdk_pthread = runtime/"libpthread.a"
+    compat_pthread = app/"godot-libs/runtime/libpthread.a"
+    if sdk_pthread.is_file():
+        compat_pthread.symlink_to(sdk_pthread)
+    else:
+        compat_pthread.write_bytes(b"!<arch>\\n")
     # Builtins are compiler-version dependent, so use Clang's actual
     # resource directory rather than assuming an SDK-specific location.
     import shutil as _shutil
@@ -53,6 +64,9 @@ def stage(godot, app, entry, builtins_override=None):
     prefix = 'link_inputs=("$build/obj/app_crt.o" "$build/obj/app_cpp_runtime.o" "${objects[@]}")'
     suffix = '    link_inputs+=("$root/$archive")'
     assert source.count(prefix) == 1 and source.count(suffix) == 1
+    # Resolve LLVM !dependent-library "pthread" embedded in libc++ objects.
+    # The archive is only a linker alias, not a pthread implementation.
+    source = source.replace(prefix, prefix+'\\nlink_inputs+=("-L$root/godot-libs/runtime")', 1)
     source = source.replace(prefix,prefix+'\nlink_inputs+=("--start-group")',1)
     source = source.replace(suffix+'\ndone',suffix+'\ndone\nlink_inputs+=("--end-group")',1)
     # DevBridge's original whitelist disallows '+' in static archive names.
