@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "0f7c3e497d36271b852bc0be643072a8adec6c59a707409a8f5abb37c6560a74",
+  "version": "15cc472158f8935fbdabcf48db4ef5558bbcc1c50640baee130bd71efa2696e3",
   "repository": "Yahballon/tmp_lap",
   "app_count": 21,
   "apps": [
@@ -8,14 +8,14 @@
       "name": "ZQuest Classic PS5",
       "slug": "zquestclassic-ps5",
       "title_id": "PPSA99127",
-      "version": "0.1.0",
-      "tag": "zquestclassic-ps5-v0.1.0",
+      "version": "0.1.1",
+      "tag": "zquestclassic-ps5-v0.1.1",
       "zip_name": "PPSA99127.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/zquestclassic-ps5-v0.1.0/PPSA99127.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/zquestclassic-ps5-v0.1.1/PPSA99127.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.1",
       "source": "homebrew/zquestclassic-ps5",
-      "size_bytes": 6057820,
-      "published_at": "2026-10-21T07:58:33Z"
+      "size_bytes": 6059750,
+      "published_at": "2026-10-21T08:18:47Z"
     },
     {
       "name": "NESYX",
