@@ -305,7 +305,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   if(item->kind==uninstaller::Kind::Installed)
     txt(d,f,a,"X / Square: Uninstall game and associated USB source",770,868,20,color(0xff8494));
   txt(d,f,a,"Save data stays untouched",770,894,21,muted);
-  txt(d,f,a,"Installed titles are removed through the PS5 installer service",770,938,18,muted);
+  txt(d,f,a,"ShadowMount-managed source first; native title cleanup afterward",770,938,18,muted);
  }else{
   txt(d,f,a,"Select a game, application or USB package",770,692,27,muted);
  }
@@ -341,7 +341,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
     const std::string source=shadowSource.size()>104?shadowSource.substr(0,101)+"...":shadowSource;
     txt(d,f,a,source,962,511,19,white,Align::center);
     txt(d,f,a,"X: Confirm complete game removal    Circle: Cancel",962,579,23,white,Align::center);
-    txt(d,f,a,"Permanently deletes the matching USB source. Saves not targeted.",962,632,19,color(0xff8494),Align::center);
+    txt(d,f,a,"Permanently deletes verified game files or image. Saves untouched.",962,632,19,color(0xff8494),Align::center);
   }else{
     txt(d,f,a,"X: Confirm selected removal     Circle: Cancel",962,567,25,white,Align::center);
     txt(d,f,a,item&&item->kind==uninstaller::Kind::Installed?
