@@ -60,6 +60,8 @@ jobs:
           test ! -d homebrew/opensurge-ps5/dist
 
   ps5-native-libraries:
+    # Experimental Allegro-era dependency job. Off by default; use manual workflow_dispatch only.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
