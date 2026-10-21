@@ -205,3 +205,30 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
 endif()
 '''
 root_cmake.write_text(root_text)
+
+
+# Real PS5 locale code from the pinned Mihawk platform SDK (GPLv3).
+# This is a real C-locale implementation, not an invented PS5 shim.
+runtime=a.cmake_root/"CMakeLists.txt"
+cmake_text=runtime.read_text()
+compat=r"""
+if(ZC_PS5_TARGET_ONLY_PROBE)
+  set(_ps5_platform "$ENV{ZC_PS5_PLATFORM_ARCHIVE}")
+  if(NOT EXISTS "@@{_ps5_platform}")
+    message(FATAL_ERROR "Missing genuine PS5 libc compatibility archive")
+  endif()
+  target_link_options(zplayer PRIVATE
+      "-Wl,--undefined=ps5_strtoll_l"
+      "-Wl,--undefined=ps5_strtod_l")
+  foreach(_name IN ITEMS
+      strtoll_l strtof_l strtod_l strtold_l
+      sscanf_l snprintf_l asprintf_l __runes_for_locale)
+    target_link_options(zplayer PRIVATE
+        "-Wl,--defsym,@@{_name}=ps5_@@{_name}")
+  endforeach()
+  target_link_libraries(zplayer PRIVATE "@@{_ps5_platform}")
+  message(STATUS "Native PS5 libc locale implementation used by original zplayer")
+endif()
+""".replace("@@{",chr(36)+chr(123))
+assert 'target_link_libraries(zplayer PRIVATE core zcsound' in cmake_text
+runtime.write_text(cmake_text+compat)
