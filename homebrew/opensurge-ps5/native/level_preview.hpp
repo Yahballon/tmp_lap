@@ -206,8 +206,10 @@ public:
             const float left=(worldx-camx)*scale,top=(worldy-camy)*scale;
             const float u0=float(def.sx)/atlasw_,v0=float(def.sy)/atlash_;
             const float u1=float(def.sx+def.w)/atlasw_,v1=float(def.sy+def.h)/atlash_;
+            // ps5-homebrew-ui Rect UV is (x,y,width,height), NOT
+            // (u0,v0,u1,v1). Passing end-points caused texture bleeding.
             ui.image(atlas_,{left,top,float(def.w)*scale,float(def.h)*scale},
-                     {u0,v0,u1,v1},white);
+                     {u0,v0,u1-u0,v1-v0},white);
             if(++visible_>=1200)break;
         }
         int frame=0;
@@ -225,7 +227,8 @@ public:
             ui.rounded_rect({hx+43,hy+94,42,24},12,
                             Color::rgb(0x003344,0.35f));
             ui.image(hero_,{hx,hy,128,128},
-                     {facing_<0?u1:u0,v0,facing_<0?u0:u1,v1},white);
+                     {facing_<0?u1:u0,v0,
+                      facing_<0?u0-u1:u1-u0,v1-v0},white);
         }
     }
 private:
