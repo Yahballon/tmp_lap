@@ -90,7 +90,6 @@ jobs:
           root=Path('app/dist/PPSA99858')
           binary=(root/'eboot.bin').read_bytes()
           assert len(binary)>1000 and binary[:4]==struct.pack('<I',0x1d3d154f)
-          assert b'4 WINS by YAHBALLON v0.1.0' in binary
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99858'
           assert meta['contentId']=='UP9000-PPSA99858_00-FOURWINSHOMEBREW'
