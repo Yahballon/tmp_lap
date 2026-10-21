@@ -43,6 +43,6 @@ for filename, expected in (("readbmp.c",2),("readfont.c",1),("readsmp.c",2)):
         f"Upstream {filename} casefold implementation changed"
     )
     assert "#include <string.h>" in src and "#include <strings.h>" not in src
-    src=src.replace("#include <string.h>","#include <string.h>\\n#include <strings.h>",1)
+    src=src.replace("#include <string.h>","#include <string.h>\n#include <strings.h>",1)
     src=src.replace("stricmp(","strcasecmp(")
     srcpath.write_text(src)
