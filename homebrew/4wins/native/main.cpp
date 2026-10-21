@@ -246,7 +246,7 @@ int main(){
    .confirm=frame.is_pressed(hui::Action::confirm),.back=frame.is_pressed(hui::Action::back),
    .triangle=frame.is_pressed(hui::Action::north),.options=frame.is_pressed(hui::Action::menu),
    .l1=frame.is_pressed(hui::Action::page_prev),.r1=frame.is_pressed(hui::Action::page_next)};
-  const auto old_screen=g.screen,old_moves=g.moves;
+  const auto old_screen=g.screen;\n  const int old_moves=g.moves;
   if(ctl.handle(g,in,now)){
    save(g);log("Exit requested");pad.close();
    if(scene.id)glDeleteTextures(1,&scene.id);
