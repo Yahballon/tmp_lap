@@ -35,7 +35,7 @@ jobs:
           cp -a /tmp/devbridge/templates/simple-calc ./app
           # The requested Yahballon fork is the actual renderer, UI and input runtime.
           git clone --depth=1 https://github.com/Yahballon/ps5-homebrew-ui.git /tmp/ps5-homebrew-ui
-          for part in gfx ui core audio platform; do
+          for part in gfx ui core audio platform third_party; do
             cp -a "/tmp/ps5-homebrew-ui/src/$part" app/src/
           done
           cp homebrew/4wins/native/main.cpp homebrew/4wins/native/game.hpp homebrew/4wins/native/controls.hpp app/src/
