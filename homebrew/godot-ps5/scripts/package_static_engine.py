@@ -62,6 +62,7 @@ def bundle(build_root: Path, output: Path, min_archives: int = 50):
         "total_bytes": sum(i["size_bytes"] for i in infos),
         "archives": infos,
     }
+    (root / "godot-ps5-full-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     # The file paths are relative to the *extracted package's root*.
     # Pass the response file to a linker from that directory and supply
     # PS5-DevBridge's CRT, imports and system SDK libs separately.
