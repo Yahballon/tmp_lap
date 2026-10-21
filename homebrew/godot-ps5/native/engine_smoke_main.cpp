@@ -15,7 +15,8 @@ int main() {
     if(out) setvbuf(stdout,nullptr,_IONBF,0);
     if(err) setvbuf(stderr,nullptr,_IONBF,0);
     log_message("NATIVE_GODOT_ENTRY_START");
-    const int result=godot_ps5_run_pack(nullptr);
+    log_message("PACK=/app0/assets/godot/smoke.pck");
+    const int result=godot_ps5_run_pack("/app0/assets/godot/smoke.pck");
     char msg[96]{};
     snprintf(msg,sizeof(msg),"NATIVE_GODOT_RETURN=%d",result);
     log_message(msg);
