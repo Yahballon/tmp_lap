@@ -33,6 +33,7 @@ on:
       - Build PS5 PSTUBE
       - Build PS5 Audiobook Reader
       - Build PS5 System Info
+      - Build PS5 MicroPython
       - Build PS5 Uninstaller
       - Build Drink Roulette PS5
       - Build Snake PS5
