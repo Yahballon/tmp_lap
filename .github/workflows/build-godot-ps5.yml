@@ -28,6 +28,7 @@ jobs:
           /tmp/godot-ps5-native-mock
           python3 homebrew/godot-ps5/tests/test_static_bundle.py
           python3 homebrew/godot-ps5/tests/test_native_link_stage.py
+          python3 homebrew/godot-ps5/tests/test_patch_ps5_kvm.py
       - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
         run: |
           set -euo pipefail
