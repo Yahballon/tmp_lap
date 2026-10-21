@@ -23,6 +23,11 @@ pulse='if(NOT EMSCRIPTEN AND LINUX AND NOT "pulseaudio.c" IN_LIST ALLEGRO_AUDIO_
 assert text.count(pulse)==1,"Pinned upstream PulseAudio CI guard changed"
 pulse_probe='if(NOT EMSCRIPTEN AND LINUX AND NOT ZC_PS5_AUDIO_DRIVER_PROBE AND NOT "pulseaudio.c" IN_LIST ALLEGRO_AUDIO_SOURCES)'
 text=text.replace(pulse,pulse_probe,1)
+# PS5 native app is linked into one ELF; Allegro shared .so packages do
+# not match the PS5-DevBridge FSELF distribution contract.
+shared='set(SHARED ON CACHE BOOL "" FORCE)'
+assert text.count(shared)==1,"Pinned upstream Allegro shared setting changed"
+text=text.replace(shared,'set(SHARED OFF CACHE BOOL "" FORCE)',1)
 packaging="add_subdirectory(packaging)"
 assert text.count(packaging)==1,"Upstream packaging entry changed"
 text=text.replace(packaging,'if(NOT ZC_PS5_TARGET_ONLY_PROBE)\n  add_subdirectory(packaging)\nendif()',1)
