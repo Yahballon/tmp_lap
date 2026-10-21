@@ -46,3 +46,15 @@ for filename, expected in (("readbmp.c",2),("readfont.c",1),("readsmp.c",2)):
     src=src.replace("#include <string.h>","#include <string.h>\n#include <strings.h>",1)
     src=src.replace("stricmp(","strcasecmp(")
     srcpath.write_text(src)
+
+# Upstream SDL MIDI device implementation is explicitly an unimplemented
+# no-output fallback. It includes SDL_mixer.h but never uses Mix_* APIs.
+# Omit only its unused include so the missing SDK header doesn't block
+# unrelated original zplayer compilation. MIDI remains NOT IMPLEMENTED.
+midi=a.cmake_root/"third_party/allegro_legacy/src/a5/midia5/sdl/sdl_midi.c"
+source=midi.read_text()
+assert source.count("#include <SDL2/SDL_mixer.h>")==1
+assert "// also, it's not implemented" in source
+assert "Mix_" not in source
+source=source.replace("#include <SDL2/SDL_mixer.h>","/* PS5 probe: unused SDL_mixer include removed; MIDI unsupported */",1)
+midi.write_text(source)
