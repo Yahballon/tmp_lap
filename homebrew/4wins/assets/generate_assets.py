@@ -25,7 +25,7 @@ with Image.open(src) as image:
     # Live interactive UI will fully cover these neutral matte areas.
     from PIL import ImageDraw
     matte=ImageDraw.Draw(image)
-    matte.rounded_rectangle((49,299,477,814),radius=20,fill=(4,11,32))
+    matte.rounded_rectangle((49,299,477,706),radius=20,fill=(4,11,32))
     matte.rounded_rectangle((484,875,944,1029),radius=22,fill=(5,9,22))
     matte.rounded_rectangle((982,875,1444,1029),radius=22,fill=(5,9,22))
     image.save(out/'assets/scene_game.jpg',quality=94,optimize=True,subsampling=0)
