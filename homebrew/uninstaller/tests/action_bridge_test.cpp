@@ -41,6 +41,13 @@ int main(){
   assert(complete.accepted&&complete.verified);
   auto partial=actions::parseResponse("UREM2_RESULT "+t+" 00000000 4\\n",t,Kind::Installed);
   assert(partial.accepted&&partial.verified);
+  const auto deferred=actions::parseResponse(
+      "UREM2_RESULT "+t+" 00000000 5\n",t,Kind::Installed);
+  assert(deferred.accepted && !deferred.verified && deferred.code==0);
+  assert(deferred.detail.find("scheduled")!=std::string::npos);
+  const auto deferRejected=actions::parseResponse(
+      "UREM2_RESULT "+t+" 00000001 0\n",t,Kind::Installed);
+  assert(!deferRejected.accepted);
   auto wrong=actions::parseResponse("UREM2_RESULT bad 00000000 2\n",t,Kind::UsbPackage);
   assert(!wrong.accepted);
   Item dump;dump.remote=true;dump.kind=Kind::Installed;

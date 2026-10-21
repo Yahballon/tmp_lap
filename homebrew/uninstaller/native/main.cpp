@@ -305,13 +305,13 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   if(item->kind==uninstaller::Kind::Installed)
     txt(d,f,a,"X / Square: Uninstall game and associated USB source",770,868,20,color(0xff8494));
   txt(d,f,a,"Save data stays untouched",770,894,21,muted);
-  txt(d,f,a,"ShadowMount-managed source first; native title cleanup afterward",770,938,18,muted);
+  txt(d,f,a,"Managed source: app exits, then ShadowMount removes it safely",770,938,18,muted);
  }else{
   txt(d,f,a,"Select a game, application or USB package",770,692,27,muted);
  }
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    X / Square: Uninstall    Triangle: Refresh    Circle: Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.15",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.16",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>125?msg.substr(0,122)+"...":msg;
@@ -386,6 +386,18 @@ int main(){
  unsigned frames=0;
  bool firstFrame=true;
  unsigned prev=0;std::string notice;
+ const std::string previous=read("/data/Uninstaller/deferred-shadow.log");
+ if(!previous.empty()){
+   size_t end=previous.find_last_not_of("\r\n");
+   if(end!=std::string::npos){
+     size_t start=previous.rfind('\n',end);
+     std::string last=previous.substr(start==std::string::npos?0:start+1,
+                            end-(start==std::string::npos?0:start+1)+1);
+     if(last.size()>150)last=last.substr(0,147)+"...";
+     notice="Previous deferred job: "+last;
+     uninstaller::diag::write("DEFER_PREVIOUS",last.c_str());
+   }
+ }
  uninstaller::diag::write("BOOT","initialization finished; first frame pending");
  for(;;){
   bool sourceBusy=false,sourceDone=false,sourceSuccess=false;
@@ -410,7 +422,8 @@ int main(){
   if(fresh){
     items=std::move(fresh->items);
     selected=offset=0;
-    notice=items.empty()?fresh->message:"";
+    if(items.empty())notice=fresh->message;
+    else if(notice.rfind("Previous deferred job:",0)!=0)notice.clear();
     if(!pendingVerify.empty()){
       bool found=false;
       for(const auto& check:items)
@@ -491,7 +504,26 @@ int main(){
       uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
       if(x->remote){
         uninstaller::bridge::stop_icons();
-        if(runRemoval(*x,shadowSource,shadowMethod)){
+        if(shadowMethod&&x->kind==uninstaller::Kind::Installed){
+          // The authenticated elfldr helper stays alive independently.
+          // The native PPSA app must exit before ShadowMount will allow
+          // managed source deletion. Do not run this API inside our UI.
+          uninstaller::diag::write("DEFER_HANDOFF",x->id.c_str());
+          const auto handoff=uninstaller::actions::execute(
+             *x,scanLog,"/app0/unremove.elf",
+             uninstaller::actions::Mode::DeferShadow,shadowSource);
+          if(handoff.accepted){
+            uninstaller::diag::write("DEFER_ACK","helper accepted; exiting foreground");
+            for(const auto& entry:iconTextures)
+              if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}
+            iconTextures.clear();
+            pad.close();renderer.release();display.close();
+            hui::sys::quit();
+          }else{
+            notice="Deferred remove NOT started: "+handoff.detail;
+            uninstaller::diag::write("DEFER_FAILED",handoff.detail.c_str());
+          }
+        }else if(runRemoval(*x,shadowSource,false)){
           notice="Removing selected title and any verified USB source...";
           shadowDoneHandled=false;
         }else notice="Cannot launch removal worker";

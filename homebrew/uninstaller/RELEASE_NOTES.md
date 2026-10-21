@@ -1,9 +1,10 @@
-# Uninstaller v0.1.15 — ShadowMount-first removal
+# Uninstaller v0.1.16 — ShadowMount deferred exit fix
 
-- The same X/Square confirmation now prefers the official ShadowMountPlus 1.7 deletion API for verified managed game folders and backing images.
-- Reads and confirms the physical source path and management status before issuing `/api/v1/games/delete`.
-- Tracks the asynchronous job through `/api/v1/games/storage/status`; validates job ID, operation, title ID and source path on every response, and displays actual progress.
-- On confirmed source deletion, asks PS5 AppInstUtil to clean up the remaining title registration, followed by inventory rescan.
-- Preserves the v0.1.14 classic validated `tree_walk`/unlink/rmdir fallback for titles not managed by ShadowMount or if its compatible API is unavailable.
-- Refuses unsafe bypass when ShadowMount recognizes a source but denies access; no raw source delete after API failure or uncertain job status.
-- No changes to USB PKG, homebrew or save-data behavior. Hardware verification of the new ShadowMount route is still required.
+- Fix the ShadowMount `game_active` / `awaiting exit` refusal seen on PS5 5.10: the Uninstaller itself runs as an active PPSA native app and can prevent ShadowMount from releasing another game source.
+- Keep the existing single X/Square game selection and path confirmation. On a ShadowMount-managed game the app now uploads an authenticated one-shot `SHADOWDEFER` command to its **independent elfldr payload**, receives an **acknowledgment only**, then requests a clean native PS5 title exit with `hui::sys::quit()`.
+- Once the GUI has exited, the privileged payload waits briefly then rechecks the title, source type, source availability, manage permission and **exact previously confirmed physical path** through the official ShadowMountPlus localhost API. It waits for safe release (bounded `game_active`, `runtime_prepared`, `storage_busy`, etc.), never kills games and never deletes any managed source using raw filesystem calls.
+- When the service accepts a `/api/v1/games/delete` job, the payload monitors its ID, title, physical source, operation, completion and errors through `/api/v1/games/storage/status`. The helper does not resubmit an uncertain job; it reports uncertain status instead.
+- Once source deletion has completed successfully, the helper requests normal PS5 AppInstUtil title cleanup; native uninstall acceptance is *not* a verified absence in the library.
+- Journal on console: `/data/Uninstaller/deferred-shadow.log` and `/data/Uninstaller/uninstaller.log`, with `DEFER_START`, `DEFER_WAIT`, `DEFER_QUEUED`, `DEFER_PROGRESS`, `DEFER_SOURCE_REMOVED`, `DEFER_NATIVE_ACCEPTED`, `DEFER_FAIL`, `DEFER_UNCERTAIN`. Next app boot reports the last deferred result.
+- Non-ShadowMount and regular native title uninstalls, USB PKG, USB Homebrew and the proven classic tree_walk/unlink/rmdir path are unchanged. Saves are untouched.
+- Hardware verification is still required, especially that the standalone elfldr payload survives app exit. Test first on an expendable game. The UI should exit after confirmation; inspect the journal after restarting Uninstaller. If the journal contains `DEFER_START` but no final result, the detached payload may have stopped or the API may remain busy.
