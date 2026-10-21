@@ -22,7 +22,17 @@ bool visible(const uninstaller::Item& a,int tab){return tab==0||(tab==1&&a.kind=
 int count(const std::vector<uninstaller::Item>& v,int tab){int n=0;for(const auto& a:v)if(visible(a,tab))++n;return n;}
 const uninstaller::Item* nth(const std::vector<uninstaller::Item>& v,int tab,int n){for(const auto& a:v)if(visible(a,tab)&&n--==0)return &a;return nullptr;}
 void log(const std::string& s){uninstaller::diag::write("EVENT",s.c_str());}
-void scanLog(const char* phase,const char* path){uninstaller::diag::write(phase,path);}
+int scanRootsReadable=0,scanRootsMissing=0,scanRootsDenied=0;
+void scanLog(const char* phase,const char* path){
+  uninstaller::diag::write(phase,path);
+  const std::string s=path?path:"";
+  if(std::strcmp(phase,"SCAN_ROOT_DONE")==0||std::strcmp(phase,"PKG_ROOT_DONE")==0)
+    scanRootsReadable++;
+  else if(std::strcmp(phase,"SCAN_ROOT_ERROR")==0||std::strcmp(phase,"PKG_ROOT_ERROR")==0){
+    if(s.find("errno=13")!=std::string::npos)scanRootsDenied++;
+    else scanRootsMissing++;
+  }
+}
 void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,const uninstaller::Storage& disk){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
@@ -50,7 +60,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  panel(d,740,163,579,273);trash(d,988,237,1.75f);
  if(item){
   txt(d,f,a,item->name.size()>34?item->name.substr(0,31)+"...":item->name,755,480,27);
-  txt(d,f,a,item->kind==uninstaller::Kind::UsbPackage?"USB package file":item->kind==uninstaller::Kind::Homebrew?"Homebrew application":"Installed application",755,518,19,muted);
+  txt(d,f,a,item->kind==uninstaller::Kind::UsbPackage?"External PKG archive":item->kind==uninstaller::Kind::Homebrew?"Homebrew folder":"Game / installed title (read-only)",755,518,19,muted);
   d.line(758,552,1298,552,1,color(0x36587b));
   txt(d,f,a,"Title ID",761,591,20,muted);txt(d,f,a,item->id.empty()?"Not available":item->id,1290,591,20,white,Align::right);
   txt(d,f,a,"Version",761,630,20,muted);txt(d,f,a,item->version.empty()?"Unknown":item->version,1290,630,20,white,Align::right);
@@ -59,7 +69,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   std::string path=item->root; if(path.size()>30)path=path.substr(0,28)+"...";
   txt(d,f,a,path,1290,707,17,white,Align::right);
   d.bordered_rect({750,747,562,90},14,color(0x880c25),3,color(0xff4366));
-  txt(d,f,a,item->kind==uninstaller::Kind::Installed?"Uninstall":"Remove files",1031,806,30,white,Align::center);
+  txt(d,f,a,item->kind==uninstaller::Kind::Installed?"Read-only title":"Remove files",1031,806,30,white,Align::center);
   txt(d,f,a,"Save data stays untouched",770,880,20,muted);
   txt(d,f,a,"No system directory is deleted directly",770,926,16,muted);
  }else txt(d,f,a,"Select an application",1025,514,26,muted,Align::center);
@@ -82,7 +92,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select     L1/R1 Categories     X Details     Square Delete     Triangle Refresh     Circle Back",45,1063,18,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.2",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.3",1887,1063,18,muted,Align::right);
  if(!msg.empty()){d.rounded_rect({370,944,1170,69},13,color(0x102844));txt(d,f,a,msg.size()>115?msg.substr(0,110)+"...":msg,958,989,19,white,Align::center);}
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
@@ -145,8 +155,10 @@ int main(){
     if(pressed&hui::pad_bits::kDown){if(selected+1<count(items,tab))++selected;if(selected>=offset+11)offset=selected-10;}
     if(pressed&hui::pad_bits::kTriangle){
       uninstaller::diag::write("REFRESH","requested");
+      scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
       items=uninstaller::scan(scanLog);
-      selected=offset=0;notice="Refreshed.";
+      selected=offset=0;notice="Refreshed: "+std::to_string(items.size())+
+        " titles, "+std::to_string(scanRootsReadable)+" readable roots.";
       uninstaller::diag::write("REFRESH","done");
     }
     if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){const auto* x=nth(items,tab,selected);if(x)confirm=true;}
@@ -171,10 +183,20 @@ int main(){
     firstFrame=false;
     uninstaller::diag::write("FIRST_FRAME","present ok");
     uninstaller::diag::write("SCAN","begin after first frame");
+    scanRootsReadable=scanRootsMissing=scanRootsDenied=0;
     items=uninstaller::scan(scanLog);
-    log("Discovered "+std::to_string(items.size())+" entries");
+    log("Discovered "+std::to_string(items.size())+" entries; readable roots="+
+      std::to_string(scanRootsReadable)+" inaccessible="+
+      std::to_string(scanRootsDenied)+" missing="+std::to_string(scanRootsMissing));
     uninstaller::diag::write("SCAN","completed");
-    notice="Scan complete. Installed title deletion remains disabled.";
+    if(items.empty()){
+      notice="0 titles. Readable roots: "+std::to_string(scanRootsReadable)+
+       ", denied: "+std::to_string(scanRootsDenied)+
+       ". See /data/Uninstaller/uninstaller.log";
+    }else{
+      notice="Found "+std::to_string(items.size())+
+       " entries. Installed games are read-only.";
+    }
   }
   hui::sys::sleep_us(16000);
  }

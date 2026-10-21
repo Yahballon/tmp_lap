@@ -26,6 +26,8 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/inventory_test.cpp -o /tmp/uninstaller-test
           /tmp/uninstaller-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/uninstaller/tests/discovery_test.cpp -o /tmp/uninstaller-discovery-test
+          /tmp/uninstaller-discovery-test
           python3 - <<'PY'
           from pathlib import Path
           main=Path('homebrew/uninstaller/native/main.cpp').read_text()
@@ -36,6 +38,11 @@ jobs:
           assert 'uninstaller::scan(scanLog)' in main
           assert 'uninstaller::storage()' not in main
           assert 'FIRST_FRAME' in main
+          inventory=Path('homebrew/uninstaller/native/inventory.hpp').read_text()
+          assert '/data/etaHEN/games' in inventory
+          assert '/mnt/ext' in inventory
+          assert 'SCAN_ROOT_ERROR' in inventory
+          assert 'APP_DB_PATH' in inventory
           print('Crash logging and deferred scan sanity checks: PASS')
           PY
           python3 -m json.tool homebrew/uninstaller/app.json >/dev/null
@@ -122,7 +129,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.2-PPSA99986
+          name: Uninstaller-v0.1.3-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -130,8 +137,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.2 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.3 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.2 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.2" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.3 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.3" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
