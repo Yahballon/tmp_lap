@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.14 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.15 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, expanded selected-title detail pane, full DualSense menu controls, and confirmation dialog.
 
@@ -147,3 +147,13 @@ PS5 firmware 5.10 log shows that `PPSA11386`, `PPSA99794`, `PPSA03639`, and `PPS
 - Saves remain untouched. If shadow-mount files are found outside the safe formats, diagnostic information is returned without deleting arbitrary paths.
 
 If deletion still fails, please share the latest `SOURCE_DIAG`, `UNIFIED_PREFLIGHT`, `REMOVE_STAGE`, `REMOVE_VERIFY_*` and `UNIFIED_RESULT` lines from `/data/Uninstaller/uninstaller.log`. A console-side re-mount after reboot must be checked separately.
+
+## v0.1.15 — ShadowMountPlus primary deletion
+
+Select a game and press **X or Square**, review the physical source path in the confirmation dialog, then confirm with **X**. If the installed game has a managed folder/image source in ShadowMountPlus 1.7, Uninstaller verifies its `title_id`, `source_type`, `source_available`, `can_manage_source` and full physical path via the local API on port 10101. The new JSON parser does not truncate long source paths.
+
+The confirmed action requests `/api/v1/games/delete`, shows the returned job progress from `/api/v1/games/storage/status`, and verifies that the job identity matches the original title and source. **Only after source deletion completes**, it requests native PS5 title uninstallation and rescans the app inventory. An accepted native uninstall request is not proof that the entry has disappeared.
+
+The original classic two-pass source deletion and native AppInstUtil are retained for titles not managed by ShadowMountPlus, including ordinary PKG installations or when the compatible API is unavailable. The UI does not bypass ShadowMountPlus safety restrictions: a managed source that is active, shared, missing, denied or whose deletion job fails **will not** be deleted through the raw fallback. Save data is never targeted.
+
+Use `/data/Uninstaller/uninstaller.log` to inspect `SHADOWMOUNT_PREFLIGHT`, `SHADOWMOUNT_DELETE_PROGRESS`, `SHADOWMOUNT_DELETE_FAILED`, `SHADOWMOUNT_BLOCKED`, `SHADOWMOUNT_FALLBACK`, `UNIFIED_RESULT` and `REMOVE_VERIFY_*`. First console test should use an expendable game folder/image.

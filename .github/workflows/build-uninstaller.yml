@@ -97,6 +97,17 @@ jobs:
           assert 'while(reply.size()<4096)' not in action
           assert 'REMOVE_VERIFY_PRESENT' in main
           assert 'REMOVE_VERIFY_ABSENT' in main
+          assert 'shadow::inspect' in main
+          assert 'shadow::remove' in main
+          assert 'shadow::status' in main
+          assert 'SHADOWMOUNT_BLOCKED' in main
+          assert 'SHADOWMOUNT_DELETE_PROGRESS' in main
+          assert 'shadowMethod' in main
+          assert 'parseJob' in shadow
+          assert 'allowedSourcePath' in shadow
+          assert 'sourceKnown' in shadow
+          assert 'job_id' in shadow
+          assert 'tree_walk(staged,1,0,&removed)' in helper
           assert 'turbo_delete_quarantine' not in helper
           assert 'UREM2_PROGRESS' not in helper
           assert 'REMOVE_PROGRESS' not in action
@@ -227,7 +238,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.14-PPSA99986
+          name: Uninstaller-v0.1.15-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -235,8 +246,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.14 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.15 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.14 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.14" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.15 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.15" --notes-file homebrew/uninstaller/RELEASE_NOTES.md

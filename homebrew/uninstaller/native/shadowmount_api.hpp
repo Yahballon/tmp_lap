@@ -82,34 +82,95 @@ inline Reply post(const char* route,const std::string& json){
   }
   return r;
 }
+// apiAvailable means the ShadowMount service/capability was reachable;
+ // sourceKnown prevents bypassing its safety refusal with raw unlink.
 struct Source {
-  bool valid=false;
+  bool valid=false,apiAvailable=false,sourceKnown=false;
   std::string title,path,type,error;
 };
+inline std::string jsonString(const std::string& body,const char* key,size_t limit=900){
+  const std::string needle=std::string("\"")+key+"\"";
+  size_t pos=body.find(needle);
+  if(pos==std::string::npos)return {};
+  pos=body.find(':',pos+needle.size());if(pos==std::string::npos)return {};
+  pos=body.find_first_not_of(" \t\r\n",pos+1);
+  if(pos==std::string::npos||body[pos]!='"')return {};
+  std::string value;
+  bool escaped=false;
+  for(size_t i=pos+1;i<body.size();i++){
+    const char c=body[i];
+    if(escaped){
+      if(c!='"'&&c!='\\'&&c!='/')return {};
+      value+=c;escaped=false;
+    }else if(c=='\\'){escaped=true;}
+    else if(c=='"')return value;
+    else if((unsigned char)c<32)return {};
+    else value+=c;
+    if(value.size()>limit)return {};
+  }
+  return {};
+}
+inline bool allowedSourcePath(const std::string& path){
+  if(path.size()<17||path.size()>900||path.find("//")!=std::string::npos ||
+      path.find("/../")!=std::string::npos||path.find("/./")!=std::string::npos ||
+      path.back()=='/'||path.find('\\')!=std::string::npos)return false;
+  for(unsigned char c:path)if(c<32||c==127)return false;
+  // ShadowMount's own source policy remains authoritative; these are
+  // additional hard exclusions for system files and mount targets.
+  bool approved=path.rfind("/mnt/usb",0)==0||
+                path.rfind("/mnt/ext",0)==0||
+                path.rfind("/data/",0)==0;
+  if(!approved||path.rfind("/user/",0)==0||
+     path.rfind("/system",0)==0)return false;
+  // Reject path traversal even if the last component is .. or .
+  size_t segmentStart=1;
+  unsigned segments=0;
+  while(segmentStart<path.size()){
+    const size_t end=path.find('/',segmentStart);
+    const std::string segment=path.substr(segmentStart,
+        end==std::string::npos?std::string::npos:end-segmentStart);
+    if(segment.empty()||segment=="."||segment=="..")return false;
+    segments++;
+    if(end==std::string::npos)break;
+    segmentStart=end+1;
+  }
+  return segments>=3;
+}
 inline Source parseSource(const std::string& body,const std::string& requested){
   Source s;
-  s.title=field(body,"title_id");
-  s.path=field(body,"path");
-  s.type=field(body,"source_type");
+  s.apiAvailable=true;
+  s.title=jsonString(body,"title_id",20);
+  s.path=jsonString(body,"path");
+  s.type=jsonString(body,"source_type",16);
   if(number(body,"status")!=0){s.error="Game info returned an error";return s;}
   if(s.title!=requested || !validId(requested)){
     s.error="ShadowMount title ID mismatch";return s;
   }
-  if(!flag(body,"can_manage_source") || !flag(body,"source_available") ||
-     (s.type!="folder"&&s.type!="image") || s.path.empty()||
-     s.path[0]!='/' || s.path.size()>900){
-    s.error="No deletable ShadowMount source exists for this title";return s;
+  if(s.type=="pkg"){s.error="Installed PKG: use native AppInstUtil";return s;}
+  s.sourceKnown=(s.type=="folder"||s.type=="image");
+  if(!s.sourceKnown){s.error="Unknown ShadowMount source type";return s;}
+  if(!flag(body,"can_manage_source")||!flag(body,"source_available")){
+    s.error="ShadowMount forbids deleting this source (busy, shared or missing)";
+    return s;
+  }
+  if(!allowedSourcePath(s.path)){
+    s.error="ShadowMount source path is outside approved data/USB storage";
+    return s;
   }
   s.valid=true;return s;
 }
 inline Source inspect(const std::string& title){
-  if(!validId(title))return {false,"","","","Invalid title ID"};
+  Source s;
+  if(!validId(title)){s.error="Invalid title ID";return s;}
   Reply v=post("/api/v1/version","{}");
   if(v.http!=200||number(v.body,"status")!=0||
-     v.body.find("\"delete_game_source\"")==std::string::npos)
-    return {false,"","","","ShadowMountPlus 1.7 with delete_game_source API required"};
+     v.body.find("\"delete_game_source\"")==std::string::npos){
+    s.error="ShadowMountPlus 1.7 delete API not available";return s;
+  }
+  s.apiAvailable=true;
   Reply info=post("/api/v1/games/info",std::string("{\"title_id\":\"")+title+"\"}");
-  if(info.http!=200)return {false,"","","",info.error};
+  if(info.http==404){s.error="Title not present in ShadowMount library";return s;}
+  if(info.http!=200){s.error=info.error; s.sourceKnown=true;return s;}
   return parseSource(info.body,title);
 }
 struct DeleteResult{
@@ -139,28 +200,42 @@ inline DeleteResult remove(const std::string& title,const std::string& expected)
   return out;
 }
 struct Job{
-  bool finished=false,success=false;
+  bool finished=false,success=false,error=false;
   int progress=0;
   std::string label;
 };
-inline Job status(int job){
+inline Job parseJob(const std::string& body,int expectedJob,
+                    const std::string& expectedTitle,
+                    const std::string& expectedSource){
   Job result;
-  if(job<=0){result.finished=true;result.label="Invalid ShadowMount job";return result;}
+  if(number(body,"status")!=0 ||
+     number(body,"job_id")!=expectedJob ||
+     jsonString(body,"title_id",20)!=expectedTitle ||
+     jsonString(body,"source")!=expectedSource ||
+     jsonString(body,"operation",15)!="delete"){
+    result.error=true;result.label="Unexpected ShadowMount job identity";return result;
+  }
+  const std::string state=jsonString(body,"state",20);
+  result.progress=number(body,"progress_percent",0);
+  if(result.progress>100)result.progress=100;
+  result.finished=state=="completed"||state=="failed"||state=="cancelled";
+  result.success=state=="completed"&&number(body,"result_status",1)==0;
+  result.error=state=="failed"||state=="cancelled" ||
+               (state=="completed"&&!result.success);
+  result.label=result.success?"ShadowMount source deletion completed":
+    result.error?"ShadowMount delete "+state+": "+jsonString(body,"result_error",100):
+    "ShadowMount: "+state+" "+std::to_string(result.progress)+"%";
+  return result;
+}
+inline Job status(int job,const std::string& title,const std::string& source){
+  Job result;
+  if(job<=0){result.error=true;result.label="Invalid ShadowMount job";return result;}
   Reply r=post("/api/v1/games/storage/status",
      std::string("{\"job_id\":")+std::to_string(job)+"}");
   if(r.http!=200||number(r.body,"status")!=0){
     result.label=r.error.empty()?"ShadowMount status temporarily unavailable":r.error;
     return result;
   }
-  const std::string state=field(r.body,"state");
-  result.progress=number(r.body,"progress_percent",0);
-  if(result.progress>100)result.progress=100;
-  result.finished=(state=="completed"||state=="failed"||state=="cancelled");
-  result.success=state=="completed"&&number(r.body,"result_status",1)==0;
-  result.label=result.success?"ShadowMount source deleted; library rescan pending":
-    state=="failed"?"ShadowMount delete failed: "+field(r.body,"result_error"):
-    state=="cancelled"?"ShadowMount source delete cancelled":
-    "ShadowMount source: "+state+" "+std::to_string(result.progress)+"%";
-  return result;
+  return parseJob(r.body,job,title,source);
 }
 } // namespace uninstaller::shadow
