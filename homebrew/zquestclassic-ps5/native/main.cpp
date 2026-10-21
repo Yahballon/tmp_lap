@@ -40,7 +40,7 @@ void logging(const char* text) {
   mkdir(kDataDir, 0755);
   mkdir(kLogDir, 0755);
   if (FILE* f = fopen("/data/ZQuestClassic/logs/port.log", "ab")) {
-    fprintf(f, "[ZQuest PS5 0.1.0] %s\n", text);
+    fprintf(f, "[ZQuest PS5 0.1.1] %s\n", text);
     fclose(f);
   }
 }
@@ -87,7 +87,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
   scenery(d);
   txt(d, f, atlas, "ZQUEST CLASSIC", 88, 116, 69, kWhite);
   txt(d, f, atlas, "PS5 PORT FOUNDATION  /  by YAHBALLON", 91, 161, 22, kMint);
-  txt(d, f, atlas, "v0.1.0", 1832, 112, 26, kDim, Align::right);
+  txt(d, f, atlas, "v0.1.1", 1832, 112, 26, kDim, Align::right);
   d.line(88, 191, 1832, 191, 2, color(0x2c6760));
   box(d, 78, 234, 1080, 692);
   txt(d, f, atlas, "QUEST LIBRARY", 110, 307, 32, kWhite);
@@ -98,8 +98,14 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
 
   const auto& items = scan.quests();
   if (items.empty()) {
-    txt(d, f, atlas, scan.done() ? "No .qst files found" : "Looking for quests...",
-        123, 432, 36, kWhite);
+    const std::string message = !scan.done() ? "Looking for quests..." :
+        scan.opened() == 0 ? "Quest folders inaccessible" : "No .qst files found";
+    txt(d, f, atlas, message, 123, 432, 36,
+        scan.opened() == 0 && scan.done() ? kGold : kWhite);
+    if (scan.done() && scan.opened() == 0) {
+      txt(d, f, atlas, "OPTIONS shows scan errors; view port.log for details",
+          124, 699, 19, kGold);
+    }
     txt(d, f, atlas, "Copy legally obtained .qst quests to:", 124, 497, 23, kDim);
     txt(d, f, atlas, "/data/ZQuestClassic/quests", 124, 541, 25, kMint);
     txt(d, f, atlas, "or USB: /mnt/usb0/ZQuestClassic/quests", 124, 581, 23, kMint);
@@ -112,7 +118,7 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
       box(d, 112, y, 1005, 59, active);
       txt(d, f, atlas, active ? ">" : "+", 138, y + 39, 27, active ? kGold : kMint);
       txt(d, f, atlas, ellipsis(items[i].name, 37), 188, y + 40, 25, kWhite);
-      txt(d, f, atlas, human_size(items[i].bytes), 1089, y + 40, 20, kDim,
+      txt(d, f, atlas, items[i].size_known ? human_size(items[i].bytes) : "size unknown", 1089, y + 40, 20, kDim,
           Align::right);
     }
   }
@@ -120,17 +126,22 @@ void render_screen(DrawList& d, const Font& f, unsigned atlas,
   txt(d, f, atlas, "ADVENTURE AWAITS", 1230, 317, 30, kMint);
   if (status) {
     txt(d, f, atlas, "PORTING STATUS", 1230, 798, 29, kWhite);
-    txt(d, f, atlas, "Native UI + quest discovery: implemented", 1230, 845, 18, kMint);
-    txt(d, f, atlas, "Allegro + zplayer engine: pending", 1230, 881, 19, kGold);
+    txt(d, f, atlas, "Kernel getdents quest scanner v0.1.1", 1230, 759, 19, kMint);
+    txt(d, f, atlas, "Folders opened: " + std::to_string(scan.opened()), 1230, 801, 18);
+    txt(d, f, atlas, "Errors: " + std::to_string(scan.failed()), 1230, 836, 18,
+        scan.failed() ? kGold : kMint);
+    if (scan.failed())
+      txt(d, f, atlas, ellipsis(scan.first_error(), 49), 1230, 869, 16, kGold);
+    txt(d, f, atlas, "Gameplay engine: pending", 1230, 898, 19, kGold);
   } else if (info && !items.empty()) {
     const auto& q = items[std::min(selected, items.size() - 1)];
     txt(d, f, atlas, "SELECTED QUEST", 1230, 783, 23, kMint);
     txt(d, f, atlas, ellipsis(q.name, 29), 1230, 823, 27, kWhite);
-    txt(d, f, atlas, human_size(q.bytes), 1230, 861, 20, kDim);
+    txt(d, f, atlas, q.size_known ? human_size(q.bytes) : "File size unavailable", 1230, 861, 20, kDim);
     txt(d, f, atlas, "Preview only; engine integration pending", 1230, 895, 18, kGold);
   } else {
     txt(d, f, atlas, "NATIVE PS5 FRONTEND", 1230, 786, 25, kWhite);
-    txt(d, f, atlas, "Quest discovery is working.", 1230, 834, 21, kMint);
+    txt(d, f, atlas, "Folders opened: " + std::to_string(scan.opened()), 1230, 834, 21, kMint);
     txt(d, f, atlas, "Gameplay is NOT implemented yet.", 1230, 878, 21, kGold);
   }
   txt(d, f, atlas, "D-PAD  Select    X  Details    SQUARE  Rescan    OPTIONS  Port status    O  Exit",
@@ -164,6 +175,7 @@ int main() {
   pad.open();
 
   QuestIndex scan;
+  scan.set_log(logging);
   const std::vector<std::string> roots = {
       "/data/ZQuestClassic/quests", "/data/homebrew/PPSA99127/quests",
       "/mnt/usb0/ZQuestClassic/quests", "/mnt/usb1/ZQuestClassic/quests",
