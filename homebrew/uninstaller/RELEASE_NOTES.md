@@ -1,10 +1,14 @@
-# Uninstaller v0.1.16 — ShadowMount deferred exit fix
+# Uninstaller v0.1.17 — Stay-open background ShadowMount deletion
 
-- Fix the ShadowMount `game_active` / `awaiting exit` refusal seen on PS5 5.10: the Uninstaller itself runs as an active PPSA native app and can prevent ShadowMount from releasing another game source.
-- Keep the existing single X/Square game selection and path confirmation. On a ShadowMount-managed game the app now uploads an authenticated one-shot `SHADOWDEFER` command to its **independent elfldr payload**, receives an **acknowledgment only**, then requests a clean native PS5 title exit with `hui::sys::quit()`.
-- Once the GUI has exited, the privileged payload waits briefly then rechecks the title, source type, source availability, manage permission and **exact previously confirmed physical path** through the official ShadowMountPlus localhost API. It waits for safe release (bounded `game_active`, `runtime_prepared`, `storage_busy`, etc.), never kills games and never deletes any managed source using raw filesystem calls.
-- When the service accepts a `/api/v1/games/delete` job, the payload monitors its ID, title, physical source, operation, completion and errors through `/api/v1/games/storage/status`. The helper does not resubmit an uncertain job; it reports uncertain status instead.
-- Once source deletion has completed successfully, the helper requests normal PS5 AppInstUtil title cleanup; native uninstall acceptance is *not* a verified absence in the library.
-- Journal on console: `/data/Uninstaller/deferred-shadow.log` and `/data/Uninstaller/uninstaller.log`, with `DEFER_START`, `DEFER_WAIT`, `DEFER_QUEUED`, `DEFER_PROGRESS`, `DEFER_SOURCE_REMOVED`, `DEFER_NATIVE_ACCEPTED`, `DEFER_FAIL`, `DEFER_UNCERTAIN`. Next app boot reports the last deferred result.
-- Non-ShadowMount and regular native title uninstalls, USB PKG, USB Homebrew and the proven classic tree_walk/unlink/rmdir path are unchanged. Saves are untouched.
-- Hardware verification is still required, especially that the standalone elfldr payload survives app exit. Test first on an expendable game. The UI should exit after confirmation; inspect the journal after restarting Uninstaller. If the journal contains `DEFER_START` but no final result, the detached payload may have stopped or the API may remain busy.
+Hardware confirmed that v0.1.16 works by shutting down the Uninstaller native PS5 title before a separate elfldr payload safely calls the ShadowMountPlus API. The user requested the app to remain open.
+
+**New flow:** Confirm a managed ShadowMount game in the Uninstaller, then **press the PS button to go to PS Home without closing Uninstaller**. The PS5 runs Uninstaller in the background; the already authenticated, independent ELF helper continues the protected ShadowMount API deletion. The native app remains installed and running rather than calling the system exit function automatically. Return to Uninstaller to view the latest result.
+
+- Preserve the proven v0.1.16 authenticated one-shot helper, physical source identity validation, bounded busy retries, official delete job status checks, original native title cleanup and append-only journal.
+- Keep foreground UI active after helper acknowledgment and show a clear "BACKGROUND UNINSTALL" status screen instructing the player to navigate to PS Home (not close the app).
+- When the native UI runs, it periodically reads `/data/Uninstaller/deferred-shadow.log` for `DEFER_START`, `DEFER_WAIT`, `DEFER_QUEUED`, `DEFER_PROGRESS`, `DEFER_SOURCE_REMOVED`, `DEFER_SOURCE_DONE_TITLE_RECHECK`, `DEFER_FAIL` and `DEFER_UNCERTAIN`. Show real job percentage when supplied; rescan the installed-title list after logged successful source cleanup.
+- While the deferred operation is underway, new destructive input is blocked; Circle remains a manual fallback to exit the native UI, letting the helper continue like v0.1.16.
+- ShadowMountPlus source code allows background PPSA games after a confirmed AppFocus change; **firmware 5.10 behavior still requires hardware validation**. Deletion may remain blocked if going to PS Home does not clear focus. Do not bypass ShadowMount protection or claim a completed deletion from helper acknowledgment.
+- No changes to the existing USB PKG, USB Homebrew or classic two-pass removal routines; savegames remain untouched.
+
+Important: the PS5 Home screen and control center may have different focus semantics; prefer fully switching to the Home screen instead of only opening the quick control center. Do not open another game during deletion. If busy persists, press Circle in Uninstaller to close the app; the helper can then finish through the v0.1.16 behavior.

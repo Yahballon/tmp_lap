@@ -107,6 +107,19 @@ jobs:
           assert 'DEFER_ACK' in main
           assert 'hui::sys::quit()' in main
           assert 'deferred-shadow.log' in main
+          assert 'deferredPending' in main
+          assert 'deferredStatus' in main
+          assert 'DEFER_FINISHED_IN_APP' in main
+          assert 'DEFER_FAILED_IN_APP' in main
+          assert 'BACKGROUND UNINSTALL' in main
+          assert 'Press the PS button and go to Home' in main
+          assert 'deferredPending?deferredStatus:sourceMessage' in main
+          assert 'if(deferredPending)pressed&=hui::pad_bits::kCircle' in main
+          assert 'helper accepted; waiting for PS Home focus' in main
+          assert 'helper accepted; exiting foreground' not in main
+          assert 'if(handoff.accepted)' in main
+          assert 'hui::sys::quit();' in main # manual Circle exit still supported
+
           assert 'SHADOWDEFER' in action
           assert 'state==5' in action
           assert 'SHADOWDEFER' in helper
@@ -258,7 +271,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.16-PPSA99986
+          name: Uninstaller-v0.1.17-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -266,8 +279,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.16 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.17 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.16 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.16" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.17 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.17" --notes-file homebrew/uninstaller/RELEASE_NOTES.md

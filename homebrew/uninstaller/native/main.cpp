@@ -19,6 +19,7 @@
 #include "platform/ps5/system.hpp"
 #include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <sys/stat.h>
 #include <ctime>
 #include <string>
@@ -245,7 +246,7 @@ std::uint32_t decode_icon(hui::gfx::Renderer& renderer,const std::string& png){
 void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::Item>& items,int tab,int selected,int offset,bool confirm,const std::string& msg,
  const std::map<std::string,std::uint32_t>& icons,
  bool scanning,unsigned frame,const std::string& phase,
- bool shadowConfirm,const std::string& shadowSource,bool shadowBusy,int shadowPercent,const std::string& shadowMessage){
+ bool shadowConfirm,const std::string& shadowSource,bool shadowBusy,int shadowPercent,const std::string& shadowMessage,bool deferredInApp){
  const Color white=color(0xf1f8ff),muted=color(0x9eb7d7);
  d.gradient_rect({0,0,1920,1080},0,color(0x061a31),color(0x020512));
  d.gradient_rect({1250,0,670,1050},0,color(0x051b3c,.55f),color(0x210515,.55f));
@@ -305,15 +306,15 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   if(item->kind==uninstaller::Kind::Installed)
     txt(d,f,a,"X / Square: Uninstall game and associated USB source",770,868,20,color(0xff8494));
   txt(d,f,a,"Save data stays untouched",770,894,21,muted);
-  txt(d,f,a,"Managed source: app exits, then ShadowMount removes it safely",770,938,18,muted);
+  txt(d,f,a,"Managed source: PS Home lets ShadowMount delete in background",770,938,18,muted);
  }else{
   txt(d,f,a,"Select a game, application or USB package",770,692,27,muted);
  }
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    X / Square: Uninstall    Triangle: Refresh    Circle: Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.16",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.17",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
- if(!msg.empty()&&msg!="ok"){
+ if(!deferredInApp&&!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>125?msg.substr(0,122)+"...":msg;
    txt(d,f,a,brief,745,991,16,color(0x99bad9));
  }
@@ -325,12 +326,27 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   const float offset=(float)(frame%135)/135.0f;
   d.rounded_rect({1080+offset*377,930,125,11},5,color(0x2aaaff));
  }
- if(shadowBusy){
+ if(shadowBusy&&!deferredInApp){
   txt(d,f,a,shadowMessage,755,971,18,color(0xffb276));
   d.rounded_rect({1430,984,398,12},5,color(0x263d58));
   if(shadowPercent>=0)
     d.rounded_rect({1432,986,394.0f*shadowPercent/100.0f,8},4,color(0xff704d));
   else d.rounded_rect({1432+(frame%110)*2.5f,986,114,8},4,color(0xff704d));
+ }
+ if(deferredInApp){
+  // The UI deliberately remains open, but loss of foreground focus is
+  // required before ShadowMount will accept a protected deletion job.
+  d.bordered_rect({695,344,1100,435},22,color(0x03101e),3,color(0x35b8ff));
+  txt(d,f,a,"BACKGROUND UNINSTALL",1245,417,37,white,Align::center);
+  txt(d,f,a,"Press the PS button and go to Home",1245,491,30,color(0x46ceff),Align::center);
+  txt(d,f,a,"Do NOT close Uninstaller. Return later to view progress.",1245,536,21,muted,Align::center);
+  const std::string status=shadowMessage.size()>85?shadowMessage.substr(0,82)+"...":shadowMessage;
+  txt(d,f,a,status,1245,610,23,white,Align::center);
+  d.rounded_rect({833,653,820,22},9,color(0x1c3854));
+  if(shadowPercent>=0)
+    d.rounded_rect({836,656,814.0f*shadowPercent/100.0f,16},7,color(0x2bd0ac));
+  else d.rounded_rect({844+(frame%135)*4.7f,657,150,14},7,color(0x37a5ff));
+  txt(d,f,a,"Circle: close Uninstaller instead | Saves are untouched",1245,722,18,muted,Align::center);
  }
  if(confirm){
   d.bordered_rect({367,345,1190,345},20,color(0x05162b),3,color(0xff466a));
@@ -386,6 +402,10 @@ int main(){
  unsigned frames=0;
  bool firstFrame=true;
  unsigned prev=0;std::string notice;
+ bool deferredPending=false;
+ std::string deferredTitle,deferredStatus;
+ int deferredPercent=-1;
+ size_t journalOffset=0;
  const std::string previous=read("/data/Uninstaller/deferred-shadow.log");
  if(!previous.empty()){
    size_t end=previous.find_last_not_of("\r\n");
@@ -415,6 +435,60 @@ int main(){
       pendingVerify=sourceTitle;
   }
   if(sourceBusy)shadowDoneHandled=false;
+  // The standalone payload is unaffected when the native app loses focus.
+  // Poll its append-only journal only while our own GUI is running, without
+  // touching ShadowMount's protected source or resubmitting any deletion.
+  if(deferredPending && frames%75==0){
+    const std::string journal=read("/data/Uninstaller/deferred-shadow.log");
+    if(journal.size()<journalOffset)journalOffset=0;
+    if(journal.size()>journalOffset){
+      const std::string updates=journal.substr(journalOffset);
+      const size_t lastNewline=updates.find_last_of('\n');
+      if(lastNewline!=std::string::npos){
+        journalOffset+=lastNewline+1;
+        std::string lines=updates.substr(0,lastNewline+1);
+        size_t p=0;
+        while(p<lines.size()){
+          size_t end=lines.find('\n',p);
+          if(end==std::string::npos)break;
+          const std::string line=lines.substr(p,end-p);
+          p=end+1;
+          if(line.find(" DEFER_WAIT ")!=std::string::npos)
+            deferredStatus="Switch to PS Home, keep Uninstaller open; waiting for game release";
+          else if(line.find(" DEFER_START ")!=std::string::npos)
+            deferredStatus="Helper running. Press PS to Home WITHOUT closing Uninstaller";
+          else if(line.find(" DEFER_QUEUED ")!=std::string::npos)
+            deferredStatus="ShadowMount deletion accepted; working in background";
+          else if(line.find(" DEFER_PROGRESS ")!=std::string::npos){
+            const size_t lastPercent=line.find_last_of('%');
+            if(lastPercent!=std::string::npos){
+              const size_t space=line.rfind(' ',lastPercent);
+              if(space!=std::string::npos){
+                int n=std::atoi(line.c_str()+space+1);
+                if(n>=0&&n<=100)deferredPercent=n;
+              }
+            }
+            deferredStatus="ShadowMount deleting source ("+
+                std::to_string(deferredPercent<0?0:deferredPercent)+"%)";
+          }else if(line.find(" DEFER_SOURCE_REMOVED ")!=std::string::npos)
+            deferredStatus="Source removed! Cleaning native title registration...";
+          else if(line.find(" DEFER_SOURCE_DONE_TITLE_RECHECK ")!=std::string::npos){
+            deferredPending=false;deferredPercent=100;
+            deferredStatus="Source deletion finished; checking title registration";
+            notice=deferredStatus;
+            uninstaller::diag::write("DEFER_FINISHED_IN_APP",deferredTitle.c_str());
+            if(!scanBusy.load()&&startScan())pendingVerify=deferredTitle;
+          }else if(line.find(" DEFER_FAIL ")!=std::string::npos||
+                   line.find(" DEFER_UNCERTAIN ")!=std::string::npos){
+            deferredPending=false;deferredPercent=-1;
+            deferredStatus="Deferred removal failed or unverified; see deferred-shadow.log";
+            notice=deferredStatus;
+            uninstaller::diag::write("DEFER_FAILED_IN_APP",line.c_str());
+          }
+        }
+      }
+    }
+  }
   ScanFinish* fresh=nullptr;
   {std::lock_guard<std::mutex> guard(scanMutex);
     fresh=scanReady;scanReady=nullptr;
@@ -423,7 +497,8 @@ int main(){
     items=std::move(fresh->items);
     selected=offset=0;
     if(items.empty())notice=fresh->message;
-    else if(notice.rfind("Previous deferred job:",0)!=0)notice.clear();
+    else if(!deferredPending&&
+            notice.rfind("Previous deferred job:",0)!=0)notice.clear();
     if(!pendingVerify.empty()){
       bool found=false;
       for(const auto& check:items)
@@ -447,6 +522,7 @@ int main(){
   }
   if(!connected)prev=0;
   if(scanBusy.load()||sourceBusy)pressed=0;
+  if(deferredPending)pressed&=hui::pad_bits::kCircle;
   if(pressed&hui::pad_bits::kCircle){if(confirm){confirm=false;shadowConfirm=false;shadowMethod=false;}else{uninstaller::bridge::stop_icons();for(const auto& entry:iconTextures)if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}pad.close();renderer.release();display.close();hui::sys::quit();}}
   if(!confirm){
     if(pressed&hui::pad_bits::kL1){tab=(tab+3)%4;selected=offset=0;}
@@ -513,12 +589,15 @@ int main(){
              *x,scanLog,"/app0/unremove.elf",
              uninstaller::actions::Mode::DeferShadow,shadowSource);
           if(handoff.accepted){
-            uninstaller::diag::write("DEFER_ACK","helper accepted; exiting foreground");
-            for(const auto& entry:iconTextures)
-              if(entry.second){GLuint texture=entry.second;glDeleteTextures(1,&texture);}
-            iconTextures.clear();
-            pad.close();renderer.release();display.close();
-            hui::sys::quit();
+            // Keep the native GUI alive. ShadowMountPlus allows background
+            // PPSA apps to yield runtime-mutation blocking when they lose
+            // AppFocus. Pressing PS/Home changes focus without an app exit.
+            journalOffset=read("/data/Uninstaller/deferred-shadow.log").size();
+            deferredPending=true;deferredTitle=x->id;
+            deferredPercent=-1;
+            deferredStatus="Press PS to Home WITHOUT closing Uninstaller";
+            notice="Press PS to Home; leave Uninstaller running in background";
+            uninstaller::diag::write("DEFER_ACK","helper accepted; waiting for PS Home focus");
           }else{
             notice="Deferred remove NOT started: "+handoff.detail;
             uninstaller::diag::write("DEFER_FAILED",handoff.detail.c_str());
@@ -562,7 +641,9 @@ int main(){
   std::string phase;
   {std::lock_guard<std::mutex> guard(scanMutex);phase=scanStep;}
   DrawList ui;render(ui,font,atlas,items,tab,selected,offset,confirm,notice,iconTextures,scanBusy.load(),frames++,phase,
-     shadowConfirm,shadowSource,sourceBusy,sourcePercent,sourceMessage);
+     shadowConfirm,shadowSource,sourceBusy||deferredPending,
+     deferredPending?deferredPercent:sourcePercent,
+     deferredPending?deferredStatus:sourceMessage,deferredPending);
   if(firstFrame)uninstaller::diag::write("FIRST_FRAME","draw done");
   renderer.begin();renderer.draw(ui);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();

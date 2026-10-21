@@ -308,7 +308,7 @@ static int remove_game_source(const char* src,const char* id,int client){
 static char g_defer_title[16],g_defer_source[700];
 static void defer_log(const char* event,const char* detail){
   char line[1060];
-  snprintf(line,sizeof line,"[Uninstaller v0.1.16] %s %s\n",event,detail?detail:"");
+  snprintf(line,sizeof line,"[Uninstaller v0.1.17] %s %s\n",event,detail?detail:"");
   // Detached work must not write to elfldr stdout after the GUI closes
   // the launch socket: SIGPIPE would abort an otherwise valid deletion.
   mkdir("/data/Uninstaller",0755);
@@ -451,9 +451,11 @@ static int defer_busy(const char* json){
 }
 static int defer_run(void){
   defer_log("DEFER_START",g_defer_title);
-  // The confirmation has already been acknowledged. The GUI will call
-  // sceSystemServiceLoadExec("exit") via hui::sys::quit(). Give it time to
-  // leave the foreground and let ShadowMount observe the exit.
+  // The confirmation has already been acknowledged. Our UI stays alive
+  // but must lose PS5 AppFocus (user switches to Home via the PS button).
+  // ShadowMountPlus permits background PPSA titles but blocks foreground
+  // game process mutations. If it remains foreground, safe busy retries
+  // eventually time out rather than bypassing the service's protections.
   sleep(4);
   char body[128];
   snprintf(body,sizeof body,"{\"title_id\":\"%s\",\"confirm\":true}",g_defer_title);
