@@ -14,7 +14,7 @@ Preserve the original gameplay, levels, sprites, sound effects, music, title scr
 
 | Path | Purpose |
 | --- | --- |
-| `upstream.lock.json` | Immutable upstream revision mapping |
+| `scripts/stage-game-data.py` | Stage all original engine assets, levels, scripts, music and licenses with SHA256 manifest |\n| `upstream.lock.json` | Immutable upstream revision mapping |
 | `scripts/fetch-upstream.sh` | Reproducible source checkout with SHA checks |
 | `scripts/build-host.sh` | Build the original complete game engine on Linux |
 | `ps5/ps5_launcher.h` | PS5 native launch arguments and persistent data path |
@@ -36,7 +36,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 bash scripts/build-host.sh
 ```
 
-The host build compiles the **original, unmodified** Open Surge engine and its pinned SurgeScript VM. It does **not** establish PS5 functionality.
+After the host build, run `python3 scripts/stage-game-data.py .work/opensurge .work/ps5-staging` to stage all original levels, music, gameplay scripts, sprites, fonts and licenses under `game/` for future console packaging. This deliberately does not manufacture an `eboot.bin`.\n\nThe host build compiles the **original, unmodified** Open Surge engine and its pinned SurgeScript VM. It does **not** establish PS5 functionality.
 
 The native cross-build entrypoint `scripts/build-ps5.sh` requires a verified PS5 toolchain and library prefix. It will fail rather than manufacture a non-working `PPSA99358.zip`.
 
