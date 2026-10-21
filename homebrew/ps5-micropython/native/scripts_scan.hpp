@@ -38,6 +38,7 @@ struct RootResult {
 };
 struct Report {
  std::vector<File> files;
+ std::vector<std::string> filenames_seen; // Include symlinks for safe NEW-name collision checks.
  std::vector<RootResult> roots;
  unsigned candidates=0,skipped=0,visited=0;
  std::string status() const {
@@ -84,8 +85,9 @@ inline void record(Report& output,RootResult& root,const Root& origin,
  ++root.entries;++output.visited;
  if(!valid_name(filename))return;
  ++output.candidates;
- if(!include_entry(type)||output.files.size()>=kMaxUserScripts){++output.skipped;return;}
  const auto path=origin.path+"/"+filename;
+ if(output.filenames_seen.size()<4096)output.filenames_seen.push_back(path);
+ if(!include_entry(type)||output.files.size()>=kMaxUserScripts){++output.skipped;return;}
  if(already_present(output,path))return;
  output.files.push_back({filename,path,origin.label});
  ++root.found;

@@ -1,12 +1,12 @@
 # PS5 MicroPython
 
-**Native PS5 Homebrew · by YAHBALLON · v0.2.2 · PPSA99791**
+**Native PS5 Homebrew · by YAHBALLON · v0.2.3 · PPSA99791**
 
 ![Original launcher icon](assets/icon.svg)
 
 A real, embedded [MicroPython](https://github.com/micropython/micropython) interpreter for jailbroken PS5 consoles, with a controller-operated Python script editor, script library and on-screen console output.
 
-**Testing:** A user-provided PS5 photo confirmed the v0.1.0 Fibonacci demo. The v0.2.2 editor requires a new console test. CI compilation and ZIP verification are not equivalent to a hardware test.
+**Testing:** A user-provided PS5 photo confirmed the v0.1.0 Fibonacci demo. The v0.2.3 editor requires a new console test. CI compilation and ZIP verification are not equivalent to a hardware test.
 
 ## Features
 
@@ -14,7 +14,7 @@ A real, embedded [MicroPython](https://github.com/micropython/micropython) inter
 - Create, edit and save your own Python scripts **directly on PS5** using an on-screen keyboard.
 - Keyboard includes lowercase, uppercase and symbol pages; insert newlines, four-space indentation and reposition the text caret.
 - Built-in examples open as editable **copies**; installed read-only demo assets are never overwritten.
-- Atomic replacement when saving existing scripts: write a temporary file before rename; confirm before discarding unsaved edits.
+- Native PS5 saving through `sceKernelOpen`, `sceKernelWrite`, `sceKernelFsync`, and `sceKernelRename`: write to a new temporary file before replacing an existing script; confirm before discarding unsaved edits. The previous libc `lstat`/`open` path could reject normal files as `Unsafe existing file`.
 - Script-file limit of 64 KiB; persistent user storage, interpreter error output and runtime log.
 - Native PS5 `sceKernelOpen` + aligned `sceKernelGetdents` directory scanning, adapted from the ZQuest Classic PS5 source. The previous libc `opendir()` was not reliable within PS5 BigApp sandboxes.
 - PS5 `sceKernelRead` source loading for user scripts; no POSIX `opendir()` or `stat()` required to list `.py` names.
@@ -47,7 +47,7 @@ A real, embedded [MicroPython](https://github.com/micropython/micropython) inter
 
 ## Saving scripts
 
-Create a script by pressing **Options** in the library. New files get available automatic names, such as `script_001.py`, `script_002.py`, etc. Press **Options** from the editor to save. To edit an existing saved script, highlight it and press **Square**.
+Create a script by pressing **Options** in the library. New files get available automatic names, such as `script_001.py`, `script_002.py`, etc. Press **Options** from the editor to save. To edit an existing saved script, highlight it and press **Square**. If saving fails, a short `SAVE OPEN`, `SAVE WRITE` or `SAVE RENAME` error including the kernel code appears in the editor. Your unsaved code stays on screen, and the previous file is kept when writing/renaming fails.
 
 Scripts are stored under:
 
@@ -57,7 +57,7 @@ Scripts are stored under:
 
 You can also put scripts on USB at `/mnt/usb0/PS5MicroPython/scripts/` or `/mnt/usb0/scripts/`, and similarly for USB1–USB7. USB scripts are listed with a `USB0`, `USB1`, etc. prefix. Running them reads directly from USB; editing a USB script creates a **copy** under `/data/PS5MicroPython/scripts/` rather than overwriting the USB file.
 
-Scripts may also be transferred by FTP or a compatible file manager. Press **Triangle** in the library to reload the list. The data folder is created on launch; no saved user scripts are deleted by this update.
+Scripts may also be transferred by FTP or a compatible file manager. Press **Triangle** in the library to reload the list. The data folder is created on launch; no saved user scripts are deleted by this update. New filenames are determined from the native scanner rather than libc metadata calls.
 
 Runtime logs: `/data/PS5MicroPython/logs/runtime.log`.
 
@@ -75,7 +75,7 @@ See [Build PS5 MicroPython](../../.github/workflows/build-ps5-micropython.yml). 
 
 This is an embedded, minimal MicroPython configuration rather than CPython. No pip, Unix extensions, native package management or live REPL. The controller keyboard is simple, not Sony's system keyboard, and new scripts use numbered filenames. Running scripts blocks the renderer until execution completes; infinite loops can hang the title. Only run trusted code.
 
-**SCREENSHOT: v0.2.2 PS5 hardware capture pending.** A previous user-provided v0.1.0 PS5 image demonstrates Fibonacci, not this editor revision.
+**SCREENSHOT: v0.2.3 PS5 hardware capture pending.** A previous user-provided v0.1.0 PS5 image demonstrates Fibonacci, not this editor revision.
 
 ## License / credits
 

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 MicroPython by YAHBALLON v0.2.2
+// PS5 MicroPython by YAHBALLON v0.2.3
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
 #include "platform/ps5/system.hpp"
 #include "port/micropython_embed.h"
+#define PS5_MICROPYTHON_NATIVE_STORAGE 1
 #include "editor.hpp"
 #define PS5_MICROPYTHON_NATIVE_SCAN 1
 #include "scripts_scan.hpp"
@@ -115,8 +116,30 @@ std::vector<std::string> getLines(const std::string& s) {
 std::string shortName(const std::string& s){
  return s.size()>32?s.substr(0,29)+"...":s;
 }
+// Match new filenames against the PS5-native getdents scan instead of lstat.
+// If the DATA directory cannot be scanned, do not risk overwriting any file.
+std::string next_filename(const char* prefix="script") {
+ const auto report=pyscan::scan_roots({{kScripts,"DATA"}});
+ if(report.roots.empty()||!report.roots[0].opened||
+    report.roots[0].read_code!=0||
+    report.files.size()>=pyscan::kMaxUserScripts||report.visited>=4096){
+  capture="\nCannot scan DATA script directory.\n";
+  return {};
+ }
+ for(int i=1;i<1000;i++){
+  char suffix[16];
+  std::snprintf(suffix,sizeof(suffix),"_%03d.py",i);
+  const std::string name=std::string(prefix)+suffix;
+  bool used=false;
+  // Includes symlinks and unreadable entries; avoid overwriting any of them.
+  for(const auto& filename:report.filenames_seen)
+   if(filename==std::string(kScripts)+"/"+name){used=true;break;}
+  if(!used)return name;
+ }
+ return {};
+}
 void start_new() {
- editorName=pyedit::unique_filename(kScripts);
+ editorName=next_filename();
  if(editorName.empty()){capture="\nToo many filenames; cannot create another script.\n";return;}
  editor.reset("# New MicroPython script\nprint('Hello from PS5!')\n");
  editor.dirty=true;editorNew=true;page=Page::editor;
@@ -130,7 +153,7 @@ void start_edit(const Script& s) {
   code=readFile(std::string("/data/homebrew/PPSA99791/assets/scripts/")+s.name,kMaxSource);
  if(code.empty()){capture="\nCould not load script for editing.\n";return;}
  if(s.builtin||s.path.rfind(std::string(kScripts)+"/",0)!=0) {
-  editorName=pyedit::unique_filename(kScripts,s.builtin?"demo":"usb");
+  editorName=next_filename(s.builtin?"demo":"usb");
   if(editorName.empty()){capture="\nNo available filename for demo copy.\n";return;}
  }else{
   editorName=s.path.substr(std::string(kScripts).size()+1);
@@ -142,14 +165,23 @@ void start_edit(const Script& s) {
 }
 bool save_editor() {
  if(editorNew){
-  struct stat st{};
-  if(stat((std::string(kScripts)+"/"+editorName).c_str(),&st)==0){
-   editorName=pyedit::unique_filename(kScripts);
-   if(editorName.empty()){editorMessage="No free script filename.";return false;}
-  }
+  // New/demo/USB scripts must never silently overwrite an older user file.
+  const char* prefix=editorName.rfind("demo_",0)==0?"demo":
+                     editorName.rfind("usb_",0)==0?"usb":"script";
+  const std::string fresh=next_filename(prefix);
+  if(fresh.empty()){editorMessage="DATA scan unavailable; not saved";return false;}
+  editorName=fresh;
  }
- const auto result=pyedit::save_script(kScripts,editorName,editor.code);
+ int kernel_error=0;
+ const auto result=pyedit::save_script(kScripts,editorName,editor.code,&kernel_error);
  editorMessage=pyedit::save_message(result);
+ if(result!=pyedit::SaveResult::ok){
+  const char* step=result==pyedit::SaveResult::temp_failed?"OPEN":
+                   result==pyedit::SaveResult::write_failed?"WRITE":
+                   result==pyedit::SaveResult::rename_failed?"RENAME":
+                   result==pyedit::SaveResult::unsafe_target?"UNSAFE":"INPUT";
+  editorMessage=std::string("SAVE ")+step+" "+std::to_string(kernel_error);
+ }
  if(result!=pyedit::SaveResult::ok)return false;
  editor.dirty=false;
  page=Page::list;
@@ -262,7 +294,7 @@ int main(){
   ui.rounded_rect({48,45,1824,103},18,Color::rgb(0x101d34));
   ui.rounded_rect({70,68,9,57},4,cyan);
   ui.text(font,atlas,"PS5 MicroPython",103,116,47,fg);
-  ui.text(font,atlas,"by YAHBALLON   v0.2.2",1838,109,23,mute,Align::right);
+  ui.text(font,atlas,"by YAHBALLON   v0.2.3",1838,109,23,mute,Align::right);
   if(page==Page::list){
   ui.bordered_rect({48,171,610,811},19,Color::rgb(0x0c172b),2,edge);
   ui.bordered_rect({679,171,1193,811},19,Color::rgb(0x07101e),2,edge);
