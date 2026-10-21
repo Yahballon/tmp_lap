@@ -50,7 +50,8 @@ inline std::string field(const std::string& data,const char* key) {
     const unsigned char c=(unsigned char)data[p];
     if(!escape&&c=='"')break;
     if(!escape&&c=='\\'){escape=true;continue;}
-    if(c>=32)out+=(char)c;escape=false;
+    if(c>=32)out+=(char)c;
+    escape=false;
   }
   return out;
 }
