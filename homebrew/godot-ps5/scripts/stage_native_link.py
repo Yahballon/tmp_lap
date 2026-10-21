@@ -80,6 +80,26 @@ def stage(godot, app, entry, builtins_override=None):
         raise ValueError("DevBridge static archive validation rule changed")
     source = source.replace(original_archive_rule, patched_archive_rule, 1)
     build.write_text(source)
+    # PS5-DevBridge's CRT references an optional weak jb_startup_mark() logger.
+    # The PS5 native converter rejects undefined imports not provided by the
+    # public SDK; this diagnostic callback is *not* an SDK export. Remove
+    # only the optional logger in this temporary engine-test CRT copy, never
+    # synthesize an unresolved PS5 import or change libc initialization.
+    import re
+    crt_file = app/"tooling/native/app_crt.cpp"
+    crt = crt_file.read_text()
+    declaration = '    void jb_startup_mark(const char*) __attribute__((weak));'
+    if crt.count(declaration) != 1:
+        raise ValueError("DevBridge optional CRT logger declaration changed")
+    call_pattern = r'if\s*\(\s*jb_startup_mark\s*\)\s*jb_startup_mark\("[^"\n]*"\);'
+    crt, removed = re.subn(call_pattern, "", crt)
+    if removed < 4 or "jb_startup_mark" not in declaration:
+        raise ValueError("DevBridge optional CRT logger calls changed")
+    crt = crt.replace(declaration, "", 1)
+    if "jb_startup_mark" in crt:
+        raise ValueError("PS5 CRT still contains non-SDK startup symbol")
+    crt_file.write_text(crt)
+    print("Excluded", removed, "optional jb_startup_mark diagnostics from PS5 CRT")
     target=app/"src/godot-smoke"
     target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(entry,target/"main.cpp")
