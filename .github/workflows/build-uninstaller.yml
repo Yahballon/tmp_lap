@@ -65,7 +65,7 @@ jobs:
           assert 'REMOVE_STAGE' in action
           assert 'UREM2_READY' in action and 'UREM2_RESULT' in action
           assert 'action folder is not private' not in action.lower()
-          assert 'REMOVE_HELPER' in main
+          assert 'UNIFIED_UNINSTALL' in main
 
           assert 'd.rounded_rect({370,944,1170,69}' not in main
           assert 'min_size' in Path('homebrew/uninstaller/helper/unscan.c').read_text()
