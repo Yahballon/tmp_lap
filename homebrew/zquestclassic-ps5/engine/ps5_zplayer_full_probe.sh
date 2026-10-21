@@ -39,6 +39,7 @@ set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   "-DCMAKE_C_FLAGS=-DZC_PS5_LIBC_NO_STRERROR_S=1 -DZC_PS5_NO_GLU_HEADER=1" \
+  "-DCMAKE_CXX_FLAGS=-fexceptions -frtti" \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
   -DFETCHCONTENT_SOURCE_DIR_SDL2="$sdl" \
   -DSDL2_INCLUDE_DIR="$sdl/include" \
