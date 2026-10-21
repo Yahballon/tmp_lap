@@ -17,6 +17,9 @@ with tempfile.TemporaryDirectory() as d:
     (app/"tools").mkdir(parents=True)
     (app/"sce_sys").mkdir()
     (app/"tooling/native").mkdir(parents=True)
+    (app/"tooling/native/sce_module_writer.cpp").write_text(
+        "const ProgramHeader text = {kProgramLoad, kFlagExecute, text.file_offset, 0, text_end, text_end, kPage};\n"
+    )
     (app/"tooling/native/app_crt.cpp").write_text(
         'extern "C" {\n'
         '    void jb_startup_mark(const char*) __attribute__((weak));\n'
@@ -62,6 +65,8 @@ with tempfile.TemporaryDirectory() as d:
     assert module.stage(gd,app,entry,builtins_override=builtins) is None
     crt=(app/"tooling/native/app_crt.cpp").read_text()
     assert "jb_startup_mark" not in crt
+    self_writer=(app/"tooling/native/sce_module_writer.cpp").read_text()
+    assert "{kProgramLoad, kFlagRead | kFlagExecute, text.file_offset, 0, text_end, text_end, kPage}" in self_writer
     assert "void smoke_crt()" in crt
     b=(app/"tools/build.sh").read_text()
     assert '--start-group' in b and '--end-group' in b
