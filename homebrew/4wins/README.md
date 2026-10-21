@@ -1,10 +1,10 @@
-# 4 WINS for PS5 — v0.1.1
+# 4 WINS for PS5 — v0.1.2
 
 ![4 WINS 7×6 neon board](assets/scene_game.jpg)
 
 An offline Connect Four game for jailbroken PS5 consoles. **by YAHBALLON**.
 
-## What's fixed in v0.1.1
+## What's fixed in v0.1.2
 - Restores the neon-lounge **photographic visual** from the supplied reference, with an empty board. No more low-detail generated room.
 - Proper focus states: all four home-menu buttons repaint over the original photograph rather than overlapping baked labels. Modal settings live to the **right of the board** instead of obscuring columns.
 - Navigation through **`Yahballon/ps5-homebrew-ui`** `InputTracker`: held D-pad and analog stick repeat reliably, short taps are not lost.
@@ -27,8 +27,14 @@ An offline Connect Four game for jailbroken PS5 consoles. **by YAHBALLON**.
 | Result | Up/down choose Rematch / Main Menu; X confirm, Circle return |
 
 ## Build
-Source: `homebrew/4wins` in `Yahballon/tmp_lap`. GitHub workflow builds using **Yahballon/ps5-homebrew-ui** OpenGL renderer, `ps5-payload-sdk`, the pinned PS5 OpenGL SDK, and PS5-DevBridge packaging. Every successful release produces `PPSA99858.zip` under tag `4wins-v0.1.1`, which is discovered automatically by TESTBUILDS `version.json`.
+Source: `homebrew/4wins` in `Yahballon/tmp_lap`. GitHub workflow builds using **Yahballon/ps5-homebrew-ui** OpenGL renderer, `ps5-payload-sdk`, the pinned PS5 OpenGL SDK, and PS5-DevBridge packaging. Every successful release produces `PPSA99858.zip` under tag `4wins-v0.1.2`, which is discovered automatically by TESTBUILDS `version.json`.
 
 Host tests: `g++ -std=c++20 -O2 -Wall -Wextra -Werror homebrew/4wins/tests/controls_test.cpp -o /tmp/test && /tmp/test`.
 
 > Console screenshot is the desired visual target; playability and rendering must be confirmed on actual PS5 hardware, not inferred solely from CI.
+
+## v0.1.2 UI fixes
+- Precisely centered live discs and falling animations in all 42 photographed holes.
+- Removed pre-rendered UI text from staged assets, plus full opaque masks preventing ghost controls.
+- Separated Home, game, paused/result and configuration screens so they never overlap.
+- Improved matching and symmetry of bottom player cards and preserved DualSense input.
