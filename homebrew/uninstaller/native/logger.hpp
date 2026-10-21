@@ -14,7 +14,7 @@ inline bool write(const char* phase,const char* detail=nullptr){
   if(!ensureDir())return false;
   FILE* f=std::fopen(kLog,"ab");
   if(!f)return false;
-  const int rc=std::fprintf(f,"[Uninstaller v0.1.12] %.80s%s%.240s\n",
+  const int rc=std::fprintf(f,"[Uninstaller v0.1.13] %.80s%s%.240s\n",
                           phase,detail?" ":"",detail?detail:"");
   const bool ok=(rc>=0&&std::fflush(f)==0);
   if(std::fclose(f)!=0)return false;

@@ -110,39 +110,9 @@ bool startScan(){
 struct RemovalStatus {
  std::mutex mutex;
  bool active=false,done=false,success=false;
- int percent=-1;
- unsigned long long checkMillis=0;
  std::string message;
 };
 RemovalStatus removal;
-void removalLog(const char* phase,const char* details){
- scanLog(phase,details);
- if(!phase||!details)return;
- if(std::strcmp(phase,"REMOVE_PROGRESS")==0){
-   const auto p=uninstaller::actions::parseProgress(details);
-   if(!p.valid)return;
-   std::lock_guard<std::mutex> guard(removal.mutex);
-   if(p.deleting){
-     const unsigned long long span=p.elapsedMs>removal.checkMillis?
-           p.elapsedMs-removal.checkMillis:1;
-     removal.percent=p.total?(int)(p.current*100ull/p.total):-1;
-     removal.message="Turbo Delete: "+std::to_string(p.current)+"/"+
-       std::to_string(p.total)+" entries | "+std::to_string(p.current*1000ull/span)+
-       "/s | "+std::to_string(span/1000)+"s";
-   }else{
-     if(p.total>0)removal.checkMillis=p.elapsedMs;
-     removal.message="Safety check: "+std::to_string(p.current)+
-         " entries verified ("+std::to_string(p.elapsedMs/1000)+"s)";
-     removal.percent=-1;
-   }
- }else if(std::strcmp(phase,"REMOVE_STAGE")==0){
-   std::lock_guard<std::mutex> guard(removal.mutex);
-   if(std::strcmp(details,"source_quarantine")==0)
-      removal.message="Game hidden from ShadowMount scan. Preparing cleanup...";
-   else if(std::strcmp(details,"source_delete")==0)
-      removal.message="Turbo Delete: checking game files...";
- }
-}
 struct RemovalRequest {
  uninstaller::Item item;
  std::string source;
@@ -153,7 +123,7 @@ void* removeWorker(void* arg){
  const auto mode=job->item.kind==uninstaller::Kind::Installed?
       uninstaller::actions::Mode::UninstallAll:uninstaller::actions::Mode::Normal;
  const auto result=uninstaller::actions::execute(
-     job->item,removalLog,"/app0/unremove.elf",mode,job->source);
+     job->item,scanLog,"/app0/unremove.elf",mode,job->source);
  {std::lock_guard<std::mutex> guard(removal.mutex);
   removal.active=false;removal.done=true;
   removal.success=result.accepted;
@@ -166,7 +136,6 @@ bool runRemoval(const uninstaller::Item& item,const std::string& source){
  {std::lock_guard<std::mutex> guard(removal.mutex);
   if(removal.active)return false;
   removal.active=true;removal.done=false;removal.success=false;
-  removal.percent=-1;removal.checkMillis=0;
   removal.message="Uninstalling title and matching USB source...";
  }
  pthread_t thread{};
@@ -260,7 +229,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  }
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    X / Square: Uninstall    Triangle: Refresh    Circle: Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.12",1887,1063,18,muted,Align::right);
+ txt(d,f,a,"by YAHBALLON   v0.1.13",1887,1063,18,muted,Align::right);
  // Status messages are intentionally unobtrusive: never cover the game list.
  if(!msg.empty()&&msg!="ok"){
    const std::string brief=msg.size()>125?msg.substr(0,122)+"...":msg;
@@ -277,10 +246,7 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  if(shadowBusy){
   txt(d,f,a,shadowMessage,755,971,18,color(0xffb276));
   d.rounded_rect({1430,984,398,12},5,color(0x263d58));
-  if(shadowPercent>=0)
-    d.rounded_rect({1432,986,394.0f*shadowPercent/100.0f,8},4,color(0xff704d));
-  else
-    d.rounded_rect({1432+(frame%110)*2.5f,986,114,8},4,color(0xff704d));
+  d.rounded_rect({1432+(frame%110)*2.5f,986,114,8},4,color(0xff704d));
  }
  if(confirm){
   d.bordered_rect({367,345,1190,345},20,color(0x05162b),3,color(0xff466a));
@@ -339,11 +305,10 @@ int main(){
  uninstaller::diag::write("BOOT","initialization finished; first frame pending");
  for(;;){
   bool sourceBusy=false,sourceDone=false,sourceSuccess=false;
-  int sourcePercent=-1;std::string sourceMessage;
+  int sourcePercent=0;std::string sourceMessage;
   {std::lock_guard<std::mutex> lock(removal.mutex);
     sourceBusy=removal.active;sourceDone=removal.done;
     sourceSuccess=removal.success;sourceMessage=removal.message;
-    sourcePercent=removal.percent;
   }
   if(sourceDone&&!shadowDoneHandled){
     shadowDoneHandled=true;
