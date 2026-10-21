@@ -23,7 +23,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             git cmake ninja-build gcc g++ pkg-config python3 \
-            liballegro5-dev libphysfs-dev libgl1-mesa-dev \
+            liballegro5-dev liballegro-image5-dev liballegro-audio5-dev liballegro-acodec5-dev liballegro-dialog5-dev liballegro-physfs5-dev liballegro-ttf5-dev libphysfs-dev libgl1-mesa-dev \
             libfreetype-dev libpng-dev libjpeg-dev libvorbis-dev libogg-dev libopus-dev
       - name: Verify immutable upstream specification and patch isolation
         run: |
@@ -40,3 +40,32 @@ jobs:
           echo "HOST ENGINE COMPILED - PS5 cross-compile NOT RUN"
           echo "No verified Allegro 5 PS5 backend, eboot.bin, installer or hardware test yet."
           test ! -d homebrew/opensurge-ps5/dist
+
+  ps5-native-libraries:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 Clang and source prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 cmake ninja-build git make wget unzip tar python3 pkg-config ca-certificates
+      - name: Install pinned PS5 SDK and reuse native compiler wrapper
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/ps5-devbridge
+          cp -a /tmp/ps5-devbridge/templates/simple-calc /tmp/ps5-toolchain
+          BUILD_JOBS=4 bash /tmp/ps5-toolchain/tools/setup-native-dependencies.sh
+      - name: Compile real SurgeScript and PhysicsFS C runtime for PS5 ABI
+        env:
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+          PS5_DEVBRIDGE_TEMPLATE_ROOT: /tmp/ps5-toolchain
+        run: bash homebrew/opensurge-ps5/scripts/build-ps5-libs.sh
+      - name: Verify binary archives and original headers
+        run: python3 homebrew/opensurge-ps5/scripts/validate-ps5-libs.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opensurge-ps5-native-C-libs-not-playable
+          path: homebrew/opensurge-ps5/.work/ps5-port-prefix/
+          if-no-files-found: error
