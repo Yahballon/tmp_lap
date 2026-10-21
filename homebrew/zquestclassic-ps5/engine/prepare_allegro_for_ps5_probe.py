@@ -56,4 +56,15 @@ assert "gluGetString(GLU_VERSION);" in ext_source  # commented-out upstream use
 ext_source=ext_source.replace(glu_guard,
     "#elif !defined ALLEGRO_CFG_OPENGLES && !defined(ZC_PS5_NO_GLU_HEADER)",1)
 ext.write_text(ext_source)
+
+# Clang C11 on the PS5 SDK correctly requires the tolower declaration.
+# Upstream SDL keyboard file uses tolower without including <ctype.h>.
+keyboard=args.allegro_root/"src/sdl/sdl_keyboard.c"
+kb=keyboard.read_text()
+assert 'tolower(#X[0])' in kb
+assert "#include <ctype.h>" not in kb
+assert kb.count('#include "allegro5/allegro.h"')==1
+kb=kb.replace('#include "allegro5/allegro.h"',
+              '#include <ctype.h>\n#include "allegro5/allegro.h"',1)
+keyboard.write_text(kb)
 print("PS5 Allegro: bypass unused GLU header and missing strerror_s, no desktop exports; no shims")
