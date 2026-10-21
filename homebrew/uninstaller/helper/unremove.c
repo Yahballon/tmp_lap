@@ -133,8 +133,8 @@ static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
 static void report_stage(int client,const char* phase){
   char msg[96];
   snprintf(msg,sizeof msg,"UREM2_STAGE %s\n",phase);
-  send(client,msg,strlen(msg),0);
-  printf("UREM2_STAGE %s\n",phase);
+  if(client>=0)send(client,msg,strlen(msg),0);
+  if(client>=0)printf("UREM2_STAGE %s\n",phase);
 }
 
 // ShadowMount's raw USB source folders are not registered PKG installs.
@@ -309,7 +309,8 @@ static char g_defer_title[16],g_defer_source[700];
 static void defer_log(const char* event,const char* detail){
   char line[1060];
   snprintf(line,sizeof line,"[Uninstaller v0.1.16] %s %s\n",event,detail?detail:"");
-  fputs(line,stdout);
+  // Detached work must not write to elfldr stdout after the GUI closes
+  // the launch socket: SIGPIPE would abort an otherwise valid deletion.
   mkdir("/data/Uninstaller",0755);
   const char* paths[]={"/data/Uninstaller/uninstaller.log",
                        "/data/Uninstaller/deferred-shadow.log"};
@@ -543,7 +544,7 @@ static int defer_run(void){
       defer_log("DEFER_NATIVE_PENDING",msg);
     }else defer_log("DEFER_NATIVE_ACCEPTED",g_defer_title);
   }
-  defer_log("DEFER_DONE",g_defer_title);
+  defer_log("DEFER_SOURCE_DONE_TITLE_RECHECK",g_defer_title);
   return 0;
 }
 
