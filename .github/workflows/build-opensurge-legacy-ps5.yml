@@ -49,6 +49,13 @@ jobs:
           python3 homebrew/opensurge-ps5/scripts/prepare-level-preview.py \
             homebrew/opensurge-ps5/.work/legacy-stage app
           python3 homebrew/opensurge-ps5/scripts/test-level-preview.py app
+      - name: Test actual native physics class against original level data
+        run: |
+          g++ -std=c++17 -O2 \
+            -I homebrew/opensurge-ps5/tests/mocks \
+            -I homebrew/opensurge-ps5/native \
+            homebrew/opensurge-ps5/tests/native_level_smoke.cpp -o /tmp/opensurge-movement-test
+          /tmp/opensurge-movement-test "$PWD/app/assets/game/"
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -119,7 +126,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.2.1
+          tag=opensurge-ps5-v0.2.2
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -130,7 +137,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.2.1 - Transparency/Collision Fix Preview" \
+            --title "Open Surge PS5 v0.2.2 - Movement/Performance Fix" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.2.1 - transparent original sprites + mask-based collision probe.
+// Open Surge PS5 v0.2.2 - indexed terrain collision + fixed-step motion preview.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -17,6 +18,7 @@ struct BrickDef {
     float z=.5f;
 };
 struct PlacedBrick {int id=0,x=0,y=0;};
+struct BrickCell {std::uint64_t key=0;std::uint32_t index=0;};
 
 class LevelPreview {
 public:
@@ -29,9 +31,11 @@ public:
     float player_y() const {return y_;}
     bool grounded() const {return ground_;}
     float velocity_y() const {return vy_;}
+    float velocity_x() const {return vx_;}
+    size_t indexed_cells() const {return cells_.size();}
 
     bool load(Renderer& renderer,const std::string& game_root) {
-        error_.clear(); placed_.clear(); atlas_=hero_=0;
+        error_.clear(); placed_.clear(); cells_.clear(); atlas_=hero_=0;
         if(game_root.size()<5 || game_root.substr(game_root.size()-5)!="game/") {
             error_="GAME ROOT INVALID";return false;
         }
@@ -95,6 +99,13 @@ public:
         if(static_cast<int>(placed_.size())!=count){
             error_="LEVEL BRICK COUNT";placed_.clear();return false;
         }
+        // Static cell index is built once, NEVER per frame.
+        // The previous collision code linearly checked all 1323 bricks for
+        // every foot/side pixel, causing severe stutter on the actual PS5.
+        if(!build_grid()){
+            error_="COLLISION CELL INDEX TOO LARGE";
+            return false;
+        }
         const auto bg=read(base+"sunshine.rgba",static_cast<size_t>(atlasw)*atlash*4u+1);
         const auto player=read(base+"surge.rgba",static_cast<size_t>(herow)*heroh*4u+1);
         if(bg.size()!=static_cast<size_t>(atlasw)*atlash*4u ||
@@ -146,36 +157,38 @@ public:
         }
         ground_=has_foot_support(x_,y_);
     }
+    // Fixed-step driver calls update at 120 Hz. No variable-per-frame slowdown.
     void update(float dt,int dir,bool jump){
         if(!ready())return;
-        dt=std::clamp(dt,0.0f,0.035f);
+        dt=std::clamp(dt,0.0f,1.f/60.f);
         dir=std::clamp(dir,-1,1);
         if(dir)facing_=dir;
-        // Non-original experimental movement; slope masks now govern ground.
-        const float target=dir*250.0f;
-        const float change=(ground_?1700.f:1000.f)*dt;
-        vx_+=std::clamp(target-vx_,-change,change);
-        if(jump&&ground_){vy_=-490.0f;ground_=false;}
-        vy_=std::min(700.0f,vy_+1150.0f*dt);
+        // Faster, predictable acceleration and friction (not original
+        // Open Surge physics): aim for a responsive first playable prototype.
+        const float speed=310.f;
+        const float target=float(dir)*speed;
+        const float accel=(ground_?(dir?2200.f:2600.f):1500.f)*dt;
+        vx_+=std::clamp(target-vx_,-accel,accel);
+        if(jump&&ground_){vy_=-505.f;ground_=false;}
+        vy_=std::min(720.f,vy_+1200.f*dt);
         const float dx=vx_*dt,dy=vy_*dt;
-        const int xsteps=std::max(1,int(std::ceil(std::abs(dx)/2.f)));
-        const float step=dx/xsteps;
+        const int xsteps=std::max(1,int(std::ceil(std::abs(dx)/3.f)));
+        const float step=dx/float(xsteps);
         for(int i=0;i<xsteps;++i){
             const float next=x_+step;
             if(!body_hits(next,y_)){x_=next;continue;}
             bool walked=false;
             if(ground_){
-                // Limited, pixel-mask-derived step-up for gentler slopes.
-                for(int rise=1;rise<=8;++rise){
-                    if(!body_hits(next,y_-rise)){
-                        x_=next;y_-=rise;walked=true;break;
+                for(int rise=1;rise<=7;++rise){
+                    if(!body_hits(next,y_-float(rise))){
+                        x_=next;y_-=float(rise);walked=true;break;
                     }
                 }
             }
             if(!walked){vx_=0;break;}
         }
-        const int ysteps=std::max(1,int(std::ceil(std::abs(dy)/2.f)));
-        const float ystep=dy/ysteps;
+        const int ysteps=std::max(1,int(std::ceil(std::abs(dy)/3.f)));
+        const float ystep=dy/float(ysteps);
         bool landed=false;
         for(int i=0;i<ysteps;++i){
             const float next=y_+ystep;
@@ -187,7 +200,7 @@ public:
             y_=next;
         }
         ground_=landed;
-        if(!ground_ && vy_>=0 && has_foot_support(x_,y_+1.5f)){
+        if(!ground_&&vy_>=0&&has_foot_support(x_,y_+1.5f)){
             ground_=true;vy_=0;
         }
         if(std::abs(y_-starty_)>3000.f)reset();
@@ -232,6 +245,44 @@ public:
         }
     }
 private:
+    static std::uint64_t key_for(int cx,int cy) {
+        return (std::uint64_t(std::uint32_t(cx))<<32) |
+               std::uint64_t(std::uint32_t(cy));
+    }
+    static int cell_coord(float n) {
+        return static_cast<int>(std::floor(n/128.f));
+    }
+    bool build_grid() {
+        cells_.clear();
+        // Original brick dimensions include 32x32 and 128x128 tiles. Index
+        // every 128-world-unit cell overlapped by a tile, not only its origin.
+        for(size_t i=0;i<placed_.size();++i) {
+            const auto& b=placed_[i];
+            const auto& d=defs_[b.id];
+            if(!d.solid&&!d.cloud)continue;
+            const int x0=cell_coord(float(b.x));
+            const int x1=cell_coord(float(b.x+d.w-1));
+            const int y0=cell_coord(float(b.y));
+            const int y1=cell_coord(float(b.y+d.h-1));
+            if((x1-x0+1)*(y1-y0+1)>256)return false;
+            for(int x=x0;x<=x1;++x)
+                for(int y=y0;y<=y1;++y)
+                    cells_.push_back({key_for(x,y),std::uint32_t(i)});
+            if(cells_.size()>200000)return false;
+        }
+        std::sort(cells_.begin(),cells_.end(),[](const BrickCell& a,const BrickCell& b){
+            return a.key<b.key || (a.key==b.key && a.index<b.index);
+        });
+        return !cells_.empty();
+    }
+    template<typename Fn> void candidates(float px,float py,Fn fn) const {
+        const auto key=key_for(cell_coord(px),cell_coord(py));
+        const auto it=std::lower_bound(cells_.begin(),cells_.end(),key,
+            [](const BrickCell& b,std::uint64_t wanted){return b.key<wanted;});
+        for(auto cur=it;cur!=cells_.end()&&cur->key==key;++cur){
+            fn(placed_[cur->index]);
+        }
+    }
     bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
         if(sx<0||sy<0||sx>=defs_[b.id].w||sy>=defs_[b.id].h)return false;
         const auto& d=defs_[b.id];
@@ -239,16 +290,17 @@ private:
         return offset<mask_.size()&&mask_[offset]!=0;
     }
     bool solid_at(float px,float py) const {
-        for(const auto& b:placed_){
+        bool hit=false;
+        candidates(px,py,[&](const PlacedBrick& b){
+            if(hit)return;
             const auto& d=defs_[b.id];
             if(!d.solid||px<float(b.x)||py<float(b.y)||
-                px>=float(b.x+d.w)||py>=float(b.y+d.h))continue;
-            if(mask_pixel(b,int(px-float(b.x)),int(py-float(b.y))))
-                return true;
-        }
-        return false;
+                px>=float(b.x+d.w)||py>=float(b.y+d.h))return;
+            hit=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
+        });
+        return hit;
     }
-    bool body_hits(float px,float feet) const{
+    bool body_hits(float px,float feet) const {
         for(const float yy:{feet-38.f,feet-22.f,feet-8.f}){
             if(solid_at(px-12.f,yy)||solid_at(px+12.f,yy))return true;
         }
@@ -260,17 +312,17 @@ private:
     bool has_foot_support(float px,float feet) const {
         for(float fx:{px-10.f,px,px+10.f}){
             if(solid_at(fx,feet+1.f))return true;
-            for(const auto& b:placed_){
+            bool found_cloud=false;
+            candidates(fx,feet,[&](const PlacedBrick& b){
+                if(found_cloud)return;
                 const auto& d=defs_[b.id];
                 if(!d.cloud||fx<float(b.x)||fx>=float(b.x+d.w)||
-                    feet<float(b.y)-1.5f||feet>=float(b.y+d.h))continue;
-                // Original CLOUD surfaces may lie inside the brick atlas,
-                // not at the bounding rectangle's y=0. Respect the actual
-                // Open Surge mask pixel at the player's foot.
-                const int local_x=int(fx-float(b.x));
-                const int local_y=std::max(0,int(feet-float(b.y)+1.f));
-                if(mask_pixel(b,local_x,local_y))return true;
-            }
+                    feet<float(b.y)-1.5f||feet>=float(b.y+d.h))return;
+                const int lx=int(fx-float(b.x));
+                const int ly=std::max(0,int(feet-float(b.y)+1.f));
+                found_cloud=mask_pixel(b,lx,ly);
+            });
+            if(found_cloud)return true;
         }
         return false;
     }
@@ -291,6 +343,7 @@ private:
     }
     BrickDef defs_[512]{};
     std::vector<PlacedBrick> placed_;
+    std::vector<BrickCell> cells_;
     std::vector<unsigned char> mask_;
     unsigned atlas_=0,hero_=0;
     int atlasw_=0,atlash_=0,herow_=0,heroh_=0;

@@ -38,7 +38,14 @@ assert manifest["file_count"]>100
 native=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
 assert "{u0,v0,u1-u0,v1-v0}" in native
 assert "facing_<0?u0-u1:u1-u0,v1-v0" in native
-assert "mask_pixel(b,local_x,local_y)" in native
+assert "mask_pixel(b,lx,ly)" in native
+native_cpp=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
+main_cpp=(Path(__file__).resolve().parents[1]/"native"/"main.cpp").read_text()
+assert "bool build_grid()" in native_cpp
+assert "std::lower_bound(cells_.begin()" in native_cpp
+assert "1.f/120.f" in main_cpp
+assert "frame_elapsed_us<16667u" in main_cpp
+assert "PERF fps=" in main_cpp
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

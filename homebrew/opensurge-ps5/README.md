@@ -1,6 +1,6 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.2.1 transparency + mask-collision test · PPSA99358**
+**by YAHBALLON · v0.2.2 transparency + mask-collision test · PPSA99358**
 
 **Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
@@ -20,7 +20,7 @@ It does **not** run SurgeScript gameplay scripts, the original Allegro game loop
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.2.1**. The release tag is `opensurge-ps5-v0.2.1` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.2.2**. The release tag is `opensurge-ps5-v0.2.2` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
@@ -46,3 +46,7 @@ Place the PPSA99358 folder under /data/homebrew/ using a compatible homebrew loa
 A **full port** must eventually reproduce all game logic, physics, characters, original assets, sound, menu and save behavior through a proven PS5 renderer and input/audio implementation. The current native diagnostic is a reproducible first step, not evidence this goal is achieved.
 
 Original game by Alexandre Martins and the Open Surge contributors under GPLv3. Keep their full license metadata and attribution with any distributed game resources. See [PORTING.md](PORTING.md).
+
+## v0.2.2 – movement and performance
+
+The user's real PS5 video confirms correct original artwork, but movement was choppy. This revision builds a spatial index for original collision masks, advances movement in fixed 120Hz physics steps and waits only the remainder of a 16.67ms frame instead of imposing another full 16ms delay after GPU present. Acceleration, friction and jump are improved within the native preview. The HUD reports measured FPS and horizontal velocity; /data/OpenSurge/legacy-port.log records PERF diagnostics roughly every five seconds. CI compiles and executes the exact native level class against original Open Surge data in a host smoke test. This remains a test preview, not complete SurgeScript/Open Surge gameplay.

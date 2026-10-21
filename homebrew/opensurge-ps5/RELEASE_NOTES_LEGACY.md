@@ -1,14 +1,11 @@
-# Open Surge PS5 v0.2.1 – Magenta transparency and collision preview fix
+# Open Surge PS5 v0.2.2 — Movement and performance fixes
 
-Firmware 5.10 hardware preview test after the user's v0.2.0 screenshot revealed severe hot-pink rectangles, an invisible/unclear player and unreliable physics. This revision preserves the known-working PS5-DevBridge native OpenGL stack.
+After the user's real firmware 5.10 v0.2.1 video showed correct terrain but sluggish controls:
+- Build a 128-world-unit spatial cell index for original solid/cloud collision bricks instead of checking all 1,323 tiles per player-probe pixel.
+- Run physics and input through fixed 120 Hz simulation steps even if rendering takes longer.
+- Pace display frames with the remainder of 16.67 ms; remove the unconditional 16 ms wait after GPU swap.
+- Tune walking acceleration, friction and jumps, keeping the original art, sprite UVs, masks and source game files.
+- Display measured FPS and VX; record PERF sampling in /data/OpenSurge/legacy-port.log every ~5 seconds.
+- CI: host smoke test of the exact native class with original demo level data, plus a signed PS5 ZIP validation.
 
-- Fix the renderer's UV-rectangle convention. The original v0.2.0 code accidentally passed endpoint UVs where ps5-homebrew-ui expects (x,y,width,height); this caused severe stretched/repeated strips and incorrect Surge sprite sampling.
-- Convert Open Surge's original magenta color-key (`#FF00FF`) into real transparent RGBA; clear RGB on transparent pixels.
-- Verify that frame 0 of the original Surge spritesheet actually has visible nontransparent pixels.
-- Read the original `images/sunshine_mask.png` collision atlas and use its solid pixel coverage (not large flat bounding rectangles) for the native motion prototype.
-- Detect floors, cloud platform tops, wall/ceiling hits and short step-ups. Add velocity-based movement and jump; bounded timestep.
-- Read only the latest DualSense packet when determining held buttons; prevent repeat resets from duplicate pad samples.
-- Show player coordinates, grounded flag, vertical speed and tiles rendered. Log spawn, jump, landing and reset events to `/data/OpenSurge/legacy-port.log`.
-- Keep all original level art, scripts and asset attribution.
-
-**Limitations:** This is NOT the original Open Surge physics system and does not execute gameplay SurgeScript, enemies, rings, audio, save games, dynamic obstacles or original level transitions. Verify transparency and whether the player is visible in the next PS5 screenshot. No console validation claimed until tested.
+This remains a native preview and is not the original Open Surge/SurgeScript game engine. The user must still verify v0.2.2 movement and frame pacing on PS5 hardware.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.2.1 - corrected masked terrain, character and pad diagnostic.
+// Open Surge PS5 v0.2.2 - indexed collision, steady 120Hz motion and frame pacing.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
@@ -21,8 +21,8 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.2.1";
-constexpr const char* kTitle="OPEN SURGE PS5 - COLLISION PREVIEW";
+constexpr const char* kVersion="0.2.2";
+constexpr const char* kTitle="OPEN SURGE PS5 - MOVEMENT FIX";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
 Color C(unsigned hex,float opacity=1.f){return Color::rgb(hex,opacity);}
@@ -31,7 +31,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native level preview 0.2.1] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native level preview 0.2.2] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -119,7 +119,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.2.1",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.2.2",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -180,11 +180,21 @@ int main(){
     std::snprintf(line,sizeof(line),"LEVEL_SPAWN x=%.1f y=%.1f grounded=%d bricks=%zu",
                   level.player_x(),level.player_y(),level.grounded()?1:0,level.count());
     log_message(line);
+    std::snprintf(line,sizeof(line),"COLLISION_GRID indexed_tiles=%zu cell_refs=%zu",
+                  level.count(),level.indexed_cells());
+    log_message(line);
   }
   bool detail=false,exiting=false,level_mode=false;
   uint64_t last_us=static_cast<uint64_t>(hui::sys::monotonic_us());
+  uint64_t fps_sample_us=last_us,perf_log_us=last_us;
+  unsigned fps_frames=0;
+  float measured_fps=0.f;
+  float accumulator=0.f;
+  bool pending_jump=false;
   uint32_t previous=0;
   for(;;){
+    // Record frame start so 16ms isn't added AFTER swap/present anymore.
+    const uint64_t frame_start_us=static_cast<uint64_t>(hui::sys::monotonic_us());
     std::array<hui::PadSample,64> samples{};
     const size_t count=pad.read(samples);
     uint32_t pressed=0,held=0;bool connected=false;
@@ -202,24 +212,51 @@ int main(){
     pressed=held & ~previous;
     previous=held;
     const uint64_t now=static_cast<uint64_t>(hui::sys::monotonic_us());
-    const float dt=std::clamp(float(now-last_us)/1000000.f,0.f,.040f);
+    const float dt=std::clamp(float(now-last_us)/1000000.f,0.f,.075f);
     last_us=now;
+    ++fps_frames;
+    if(now-fps_sample_us>=1000000u){
+      measured_fps=float(fps_frames)*1000000.f/float(now-fps_sample_us);
+      fps_frames=0;fps_sample_us=now;
+    }
+    if(level_mode && now-perf_log_us>=5000000u){
+      char line[160];
+      std::snprintf(line,sizeof(line),
+          "PERF fps=%.1f x=%.1f y=%.1f vx=%.1f vy=%.1f grounded=%d cells=%zu",
+          measured_fps,level.player_x(),level.player_y(),level.velocity_x(),
+          level.velocity_y(),level.grounded()?1:0,level.indexed_cells());
+      log_message(line);
+      perf_log_us=now;
+    }
     if(level_mode && !exiting){
-      if(pressed&hui::pad_bits::kCircle){level_mode=false;log_message("LEVEL_PREVIEW_EXIT");}
-      else{
+      if(pressed&hui::pad_bits::kCircle){
+        level_mode=false;accumulator=0.f;pending_jump=false;
+        log_message("LEVEL_PREVIEW_EXIT");
+      }else{
         const int dir=int((held&hui::pad_bits::kRight)!=0)-int((held&hui::pad_bits::kLeft)!=0);
-        const bool grounded_before=level.grounded();
-        const bool jumping=(pressed&hui::pad_bits::kCross)!=0;
-        level.update(dt,dir,jumping);
-        if(jumping&&grounded_before)log_message("LEVEL_JUMP");
-        if(!grounded_before&&level.grounded())log_message("LEVEL_LANDED");
+        if(pressed&hui::pad_bits::kCross)pending_jump=true;
         if(pressed&hui::pad_bits::kSquare){
-          level.reset();
+          level.reset();accumulator=0.f;pending_jump=false;
           char line[160];
           std::snprintf(line,sizeof(line),"LEVEL_RESET x=%.1f y=%.1f grounded=%d",
                         level.player_x(),level.player_y(),level.grounded()?1:0);
           log_message(line);
         }
+        // Consistent 120Hz integration independent of GPU/display frame rate.
+        // Keeps walking speed stable even if a frame takes 30-40ms.
+        constexpr float step=1.f/120.f;
+        accumulator=std::min(.075f,accumulator+dt);
+        int ticks=0;
+        while(accumulator>=step && ticks<9){
+          const bool was_grounded=level.grounded();
+          const bool jump=pending_jump;
+          pending_jump=false;
+          level.update(step,dir,jump);
+          if(jump&&was_grounded)log_message("LEVEL_JUMP");
+          if(!was_grounded&&level.grounded())log_message("LEVEL_LANDED");
+          accumulator-=step;++ticks;
+        }
+        if(ticks>=9)accumulator=0.f; // avoid spiral of death on a stalled GPU
       }
     }else if(exiting){
       if(pressed&hui::pad_bits::kCircle)exiting=false;
@@ -233,6 +270,7 @@ int main(){
       if(pressed&hui::pad_bits::kCross){
         if(level_ready){
           level_mode=true;level.reset();
+          accumulator=0.f;pending_jump=false;
           log_message("LEVEL_PREVIEW_START demo-1.lev, original masks and magenta alpha; still not full engine");
         }else{
           root=resolve_root();run_probes(probes,root);
@@ -248,14 +286,14 @@ int main(){
       level.draw(ui);
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.2.1  -  corrected alpha + original mask collision; NOT complete game engine",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.2.2  -  indexed collision + steady movement; NOT complete game engine",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"STICK/D-PAD MOVE    X JUMP    SQUARE RESET    O BACK",73,1029,28,WHITE);
       char probe_line[180];
       std::snprintf(probe_line,sizeof(probe_line),
-          "SURGE (%.0f, %.0f)  GROUND:%s  VY:%+.0f  VISIBLE TILES:%d",
+          "SURGE (%.0f,%.0f)  GROUND:%s  VX:%+.0f  FPS:%.0f",
           level.player_x(),level.player_y(),level.grounded()?"YES":"NO",
-          level.velocity_y(),level.visible());
+          level.velocity_x(),measured_fps);
       ui.rounded_rect({1230,30,630,67},10,C(0x092431,.87f));
       txt(ui,font,atlas,probe_line,1240,72,19,ACCENT);
     }else{
@@ -267,6 +305,10 @@ int main(){
     renderer.present(0,display.width(),display.height());
     display.swap();
     hui::sys::hide_splash_screen();
-    hui::sys::sleep_us(16000);
+    // Avoid double-throttling: the old unconditional 16ms pause happened
+    // AFTER the GPU present/swap and made movement sluggish (~30 FPS).
+    const uint64_t frame_elapsed_us=static_cast<uint64_t>(hui::sys::monotonic_us())-frame_start_us;
+    if(frame_elapsed_us<16667u)
+      hui::sys::sleep_us(16667u-frame_elapsed_us);
   }
 }
