@@ -1,14 +1,15 @@
-# PS5 MicroPython v0.1.0
+# PS5 MicroPython v0.1.1
 
-First native homebrew development build, not yet hardware-tested.
+Small quality-of-life update based on successful user testing on a PS5.
 
-- Official MicroPython C embedding core, parser, compiler and GC.
-- Native PS5 controller-operated script selection and output view.
-- Built-in Hello, Fibonacci and Collections Python examples.
-- Custom script scanning from the writable scripts directory.
-- Persistent execution logs and native launcher artwork.
+- Added a permanent bottom-left **ADD YOUR OWN SCRIPTS** help panel.
+- Shows the full `/data/PS5MicroPython/scripts/` folder on screen.
+- Explains transfer via FTP / file manager and Triangle to rescan.
+- Keeps long script lists navigable in an eight-row viewport without overlapping the help card.
+- Unchanged MicroPython v1.26.1 embed runtime, Python demos and existing user scripts.
 
-Known limitations: scripts execute on the UI thread (long or infinite
-scripts may freeze the interface); minimal MicroPython configuration, no
-CPython packages and no on-screen code editor. Hardware compatibility
-including firmware 5.10 remains unverified.
+Verified on host: GitHub Actions cross-build and package checks must pass before release.
+Previous v0.1.0 user-provided console image demonstrates Fibonacci successfully executed on PS5.
+v0.1.1 device verification remains pending.
+
+Limitations: no code editor, no full CPython library and Python execution is synchronous.
