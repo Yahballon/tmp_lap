@@ -89,6 +89,23 @@ inline Result parseResponse(const std::string& reply,const std::string& token,Ki
   }
   return result;
 }
+struct Progress {
+  bool valid=false;
+  bool deleting=false;
+  unsigned current=0,total=0;
+  unsigned long long elapsedMs=0;
+};
+inline Progress parseProgress(const char* value){
+  Progress p;
+  char stage[12]={0};
+  if(!value || std::sscanf(value,"%11s %u %u %llu",
+       stage,&p.current,&p.total,&p.elapsedMs)!=4)return p;
+  if(std::strcmp(stage,"CHECK")&&std::strcmp(stage,"DELETE"))return p;
+  if(p.current>500000||p.total>500000)return p;
+  if(p.total&&p.current>p.total)return p;
+  p.valid=true;p.deleting=std::strcmp(stage,"DELETE")==0;
+  return p;
+}
 enum class Mode { Normal, ProbeGame, UninstallAll };
 inline Result execute(const Item& item,ScanLog report=nullptr,
                       const char* elf="/app0/unremove.elf",
@@ -156,7 +173,7 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
   if(report)report("REMOVE_HELPER","ready, authenticated one-shot request");
   int action=socket(AF_INET,SOCK_STREAM,0);
   if(action<0){close(fd);result.detail="Cannot connect to removal helper";return result;}
-  struct timeval responseTimeout{20,0};
+  struct timeval responseTimeout{90,0};
   setsockopt(action,SOL_SOCKET,SO_SNDTIMEO,&responseTimeout,sizeof responseTimeout);
   setsockopt(action,SOL_SOCKET,SO_RCVTIMEO,&responseTimeout,sizeof responseTimeout);
   addr.sin_port=htons(9176);
@@ -178,47 +195,44 @@ inline Result execute(const Item& item,ScanLog report=nullptr,
     close(action);close(fd);result.detail="Removal request transmission failed";
     return result;
   }
-  std::string reply,lastStage;
-  size_t parsed=0;
-  while(reply.size()<4096){
+  // Stream and discard progress lines as they arrive. Previously this
+  // connection stopped at 4096 total bytes, aborting large USB deletions.
+  std::string pending,lastStage,resultLine,staged,parsedSource;
+  bool completed=false;
+  while(true){
     const ssize_t n=recv(action,buffer,sizeof buffer,0);
     if(n<=0)break;
-    reply.append(buffer,(size_t)n);
-    while(true){
-      const size_t nl=reply.find('\n',parsed);
-      if(nl==std::string::npos)break;
-      const std::string line=reply.substr(parsed,nl-parsed);
-      parsed=nl+1;
+    pending.append(buffer,(size_t)n);
+    if(pending.size()>32768){result.detail="Oversized removal response";break;}
+    size_t nl;
+    while((nl=pending.find('\n'))!=std::string::npos){
+      const std::string line=pending.substr(0,nl);
+      pending.erase(0,nl+1);
       if(line.rfind("UREM2_STAGE ",0)==0){
-        lastStage=line.substr(sizeof("UREM2_STAGE ")-1);
+        lastStage=line.substr(12);
         if(report)report("REMOVE_STAGE",lastStage.c_str());
+      }else if(line.rfind("UREM2_PROGRESS ",0)==0){
+        if(report)report("REMOVE_PROGRESS",line.c_str()+15);
+      }else if(line.rfind("UREM2_SOURCE ",0)==0){
+        parsedSource=line.substr(13);
+        if(parsedSource=="-")parsedSource.clear();
+        if(report)report("SHADOWMOUNT_SOURCE",
+             parsedSource.empty()?"none":parsedSource.c_str());
+      }else if(line.rfind("UREM2_STAGED ",0)==0){
+        staged=line.substr(13);
+      }else if(line.rfind("UREM2_RESULT ",0)==0){
+        resultLine=line+"\n";completed=true;break;
       }
     }
-    const size_t marker=reply.find("UREM2_RESULT "+token+" ");
-    if(marker!=std::string::npos&&reply.find('\n',marker)!=std::string::npos)break;
+    if(completed)break;
   }
   close(action);close(fd);
-  result=parseResponse(reply,token,item.kind);
+  if(!resultLine.empty())result=parseResponse(resultLine,token,item.kind);
+  else if(result.detail.empty())result.detail="No authenticated removal result";
+  result.source=parsedSource; // preserve the preflight source across result parsing
   result.launched=true;
-  const auto p=reply.find("UREM2_SOURCE ");
-  if(p!=std::string::npos){
-    const auto end=reply.find('\n',p);
-    if(end!=std::string::npos && end-p<740){
-      result.source=reply.substr(p+sizeof("UREM2_SOURCE ")-1,
-                     end-p-(sizeof("UREM2_SOURCE ")-1));
-      if(result.source=="-")result.source.clear();
-      if(report)report("SHADOWMOUNT_SOURCE",
-                       result.source.empty()?"none":result.source.c_str());
-    }
-  }
-  const auto partial=reply.find("UREM2_STAGED ");
-  if(partial!=std::string::npos && !result.accepted){
-    const auto end=reply.find('\n',partial);
-    if(end!=std::string::npos)
-      result.detail+="; quarantined files at "+reply.substr(
-        partial+sizeof("UREM2_STAGED ")-1,
-        end-partial-(sizeof("UREM2_STAGED ")-1));
-  }
+  if(!staged.empty()&&!result.accepted)
+    result.detail+="; quarantined files at "+staged;
   if(!result.accepted&&result.code==-1&&!lastStage.empty())
     result.detail="Title uninstall ended during "+lastStage+" (native helper may have stopped)";
   if(report)report("REMOVE_RESULT",result.detail.c_str());

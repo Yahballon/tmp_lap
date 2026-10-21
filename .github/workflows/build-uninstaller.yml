@@ -86,6 +86,14 @@ jobs:
           assert 'TITLEPROBE' in action and 'TITLEAUTO' in action
           assert 'TITLEPROBE' in helper and 'TITLEAUTO' in helper
           assert 'source_quarantine' in helper and 'source_delete' in helper
+          assert 'turbo_delete_quarantine(staged,&removed)' in helper
+          assert 'fstatat(' in helper and 'unlinkat(' in helper
+          assert 'AT_SYMLINK_NOFOLLOW' in helper and 'O_NOFOLLOW' in helper
+          assert 'UREM2_PROGRESS' in helper
+          assert 'parseProgress' in action
+          assert 'REMOVE_PROGRESS' in action
+          assert 'Turbo Delete:' in main
+
           assert '/mnt/usb%u/%s-app' in helper
           assert 'title_tracker_matches' in helper
           assert 'shadowPoller' not in main
@@ -212,7 +220,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.11-PPSA99986
+          name: Uninstaller-v0.1.12-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -220,8 +228,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.11 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.12 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.11 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.11" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.12 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.12" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
