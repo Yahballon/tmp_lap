@@ -76,10 +76,19 @@ jobs:
           assert '/api/v1/games/info' in shadow
           assert '/api/v1/games/delete' in shadow
           assert '"confirm":true' in shadow or r'"confirm":true' in shadow or r'\"confirm\":true' in shadow
-          assert 'SHADOWMOUNT_DELETE_REQUEST' in main
-          assert 'PPSA21564' in main
+          assert 'UNIFIED_PREFLIGHT' in main
+          assert 'UNIFIED_UNINSTALL' in main
+          assert 'Mode::ProbeGame' in main
+          assert 'Mode::UninstallAll' in main
+          assert 'runRemoval' in main
           assert 'shadowSource' in main
-          assert 'SHADOWMOUNT_RESULT' in main
+          assert 'PPSA21564' not in main
+          assert 'TITLEPROBE' in action and 'TITLEAUTO' in action
+          assert 'TITLEPROBE' in helper and 'TITLEAUTO' in helper
+          assert 'source_quarantine' in helper and 'source_delete' in helper
+          assert '/mnt/usb%u/%s-app' in helper
+          assert 'title_tracker_matches' in helper
+          assert 'shadowPoller' not in main
           assert 'L2/R2 Storage' not in main
           assert 'panel(d,723,145,1167,863)' in main
           assert 'actions::execute' in main
@@ -203,7 +212,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Uninstaller-v0.1.10-PPSA99986
+          name: Uninstaller-v0.1.11-PPSA99986
           path: app/dist/PPSA99986.zip
           if-no-files-found: error
       - name: Publish Uninstaller TESTBUILDS release
@@ -211,8 +220,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view uninstaller-v0.1.10 >/dev/null 2>&1; then
+          if gh release view uninstaller-v0.1.11 >/dev/null 2>&1; then
             echo 'Release tag already exists; refusing to replace immutable assets'
             exit 1
           fi
-          gh release create uninstaller-v0.1.10 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.10" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
+          gh release create uninstaller-v0.1.11 app/dist/PPSA99986.zip --target "$GITHUB_SHA" --title "Uninstaller v0.1.11" --notes-file homebrew/uninstaller/RELEASE_NOTES.md
