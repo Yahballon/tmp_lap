@@ -94,8 +94,9 @@ static struct timeval progress_started;
 static unsigned long long progress_millis(void){
   struct timeval now;
   if(gettimeofday(&now,NULL)!=0)return 0;
-  return (unsigned long long)(now.tv_sec-progress_started.tv_sec)*1000ull+
-         (unsigned long long)(now.tv_usec-progress_started.tv_usec+1000000)%1000000/1000ull;
+  int64_t delta=(int64_t)(now.tv_sec-progress_started.tv_sec)*1000000+
+                (int64_t)(now.tv_usec-progress_started.tv_usec);
+  return delta>0?(unsigned long long)(delta/1000):0;
 }
 static void progress_ping(unsigned count,int applying){
   if(progress_fd>=0 && count>0 && count%128==0){
@@ -139,6 +140,58 @@ static int tree_walk(const char* path,int apply,unsigned depth,unsigned* count){
   progress_ping(*count,apply);
   if(!apply)return 0;
   return rmdir(path)==0?0:errno;
+}
+// Optimized second pass after tree_walk(...,apply=0) validated all files.
+// Work relative to open directories instead of resolving a full path for
+// every unlink. Revalidate inode types, refuse symlinks/devices/hardlinks.
+static int turbo_delete_dir(int folder_fd,unsigned depth,unsigned* removed){
+  if(depth>64)return E2BIG;
+  int duplicate=dup(folder_fd);
+  if(duplicate<0)return errno;
+  DIR* dir=fdopendir(duplicate);
+  if(!dir){int code=errno;close(duplicate);return code;}
+  int code=0;struct dirent* entry;
+  errno=0;
+  while((entry=readdir(dir))!=NULL){
+    const char* name=entry->d_name;
+    if(!strcmp(name,".")||!strcmp(name,".."))continue;
+    if(strlen(name)>250||strchr(name,'/')){code=EINVAL;break;}
+    if(*removed>=500000){code=E2BIG;break;}
+    struct stat st;
+    if(fstatat(dirfd(dir),name,&st,AT_SYMLINK_NOFOLLOW)!=0){
+      code=errno;break;
+    }
+    if(S_ISDIR(st.st_mode)){
+      int child=openat(dirfd(dir),name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+      if(child<0){code=errno;break;}
+      code=turbo_delete_dir(child,depth+1,removed);
+      close(child);
+      if(code)break;
+      if(unlinkat(dirfd(dir),name,AT_REMOVEDIR)!=0){code=errno;break;}
+    }else if(S_ISREG(st.st_mode)&&st.st_nlink==1){
+      if(unlinkat(dirfd(dir),name,0)!=0){code=errno;break;}
+    }else{code=EPERM;break;}
+    (*removed)++;
+    progress_ping(*removed,1);
+    errno=0;
+  }
+  if(!code&&errno!=0)code=errno;
+  closedir(dir);
+  return code;
+}
+static int turbo_delete_quarantine(const char* root,unsigned* removed){
+  struct stat st;
+  if(lstat(root,&st)!=0)return errno;
+  if(!S_ISDIR(st.st_mode))return EPERM;
+  int fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);
+  if(fd<0)return errno;
+  int code=turbo_delete_dir(fd,0,removed);
+  close(fd);
+  if(code)return code;
+  if(*removed>=500000)return E2BIG;
+  if(rmdir(root)!=0)return errno;
+  (*removed)++;
+  return 0;
 }
 static void report_stage(int client,const char* phase){
   char msg[96];
@@ -258,7 +311,7 @@ static int remove_game_source(const char* src,const char* id,int client){
     snprintf(message,sizeof message,"UREM2_PROGRESS CHECK %u %u %llu\n",
              inspected,inspected,progress_millis());
     send(client,message,strlen(message),0);
-    err=tree_walk(staged,1,0,&removed);
+    err=turbo_delete_quarantine(staged,&removed);
     snprintf(message,sizeof message,"UREM2_PROGRESS DELETE %u %u %llu\n",
              removed,inspected,progress_millis());
     send(client,message,strlen(message),0);
