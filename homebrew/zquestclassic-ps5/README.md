@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/icon.svg" width="170" alt="Original ZQuest Classic PS5 port-prototype emblem"></p>
 
-# ZQuest Classic PS5 — Port Foundation v0.1.2
+# ZQuest Classic PS5 — Port Foundation v0.1.3
 
 **Native PS5 homebrew prototype · by YAHBALLON · PPSA99127**
 
@@ -22,10 +22,15 @@ Source icon `assets/icon.svg` and procedurally rendered PS5 icon are original
 artwork; they are not AI-generated and use no Nintendo/Zelda artwork. A real
 app UI screenshot has not been captured.
 
-For v0.1.2 the native scanner is explicitly enabled in `native/main.cpp`,
+For v0.1.3 the native scanner is explicitly enabled in `native/main.cpp`,
 without changing the OpenGL SDK's compilation flags. Startup log includes
-`SCAN_BACKEND=libkernel-getdents-v0.1.2`; CI verifies this marker in the
+`SCAN_BACKEND=libkernel-getdents-v0.1.3`; CI verifies this marker in the
 packaged binary.
+
+The v0.1.2 on-console logs proved the quest directory opens but native getdents
+returned `0x80020016` (EINVAL). v0.1.3 changes the entry buffer from
+16 KiB to 64 KiB with 16 KiB alignment, matching the existing PS5GBCX
+implementation. Hardware results still need to be verified.
 
 After scanning, the **Options** screen shows opened-folder/error counts. Detailed
 `DIR_OK`, `DIR_FAIL`, `DENTS_FAIL`, `QUEST_FOUND`, and `SCAN_DONE`
@@ -69,7 +74,7 @@ workflow builds an actual PS5 ELF then packages `PPSA99127.zip`; only an
 observed successful Actions job establishes a valid artifact.
 
 After successful native CI, the **experimental prerelease** can be downloaded from
-[ZQuest Classic PS5 v0.1.2](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.2)
+[ZQuest Classic PS5 v0.1.3](https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-v0.1.3)
 and is intentionally included in the TESTBUILDS catalog so the controller-first
 library UI can be tested on real hardware. The release is **NOT PLAYABLE**.
 

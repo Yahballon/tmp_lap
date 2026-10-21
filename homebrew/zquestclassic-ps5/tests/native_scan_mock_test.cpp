@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cerrno>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
@@ -26,6 +27,8 @@ extern "C" int sceKernelOpen(const char* path, int flags, int) {
 extern "C" int sceKernelGetdents(int fd, char* buf, int cap) {
   auto it = dirs.find(fd);
   if (it == dirs.end()) return -9;
+  // Validate PS5-sized directory scan buffer and its alignment.
+  if (cap != 65536 || (reinterpret_cast<uintptr_t>(buf) % 16384) != 0) return -22;
   // FreeBSD native dirent: ino(4), reclen(2), type(1), namlen(1), name.
   int used = 0;
   // One entry per call exercises partial getdents buffer/refill repeatedly.
@@ -108,5 +111,5 @@ int main() {
   assert(unlink((root + "/unrelated.txt").c_str()) == 0);
   assert(rmdir((root + "/nested").c_str()) == 0);
   assert(rmdir(root.c_str()) == 0);
-  puts("PASS: mocked PS5 sceKernelGetdents finds both reported quests");
+  puts("PASS: 64-KiB aligned native directory buffer finds both quests");
 }
