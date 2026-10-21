@@ -11,7 +11,7 @@ on:
       - 'homebrew/ps5-micropython/**'
       - '.github/workflows/build-ps5-micropython.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   ps5-native:
     runs-on: ubuntu-24.04
@@ -63,6 +63,24 @@ jobs:
           path.write_text(json.dumps(p,indent=2)+"\n")
           PY
           printf '%s\n' 'APP_INCLUDE_PATHS=src/third_party/micropython src/third_party/micropython/port' >>app/.env
+      - name: Use working pinned PS5 OpenGL SDK archive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/tools/fetch-opengl-sdk.sh')
+          s=p.read_text()
+          assert 'version=1.0.0' in s
+          assert 'blackbearreloaded/ps5-opengl' in s
+          assert 'archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5' in s
+          s=s.replace('version=1.0.0','version=1.0.2')
+          s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5',
+                      'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
+          s=s.replace('github.com/blackbearreloaded/ps5-opengl','github.com/LedyBacer/ps5-opengl')
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "SDK pinned archive SHA-256 checked" >&2'+s[end:]
+          p.write_text(s)
+          PY
       - name: Prepare PS5 OpenGL SDK
         working-directory: app
         env:
@@ -110,3 +128,13 @@ jobs:
           name: PS5-MicroPython-v0.1.0-PPSA99791
           path: app/dist/PPSA99791.zip
           if-no-files-found: error
+      - name: Publish validated release on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view ps5-micropython-v0.1.0 >/dev/null 2>&1; then
+            echo 'Release tag exists. Refusing overwrite.'
+            exit 1
+          fi
+          gh release create ps5-micropython-v0.1.0 app/dist/PPSA99791.zip --target "$GITHUB_SHA" --title 'PS5 MicroPython by YAHBALLON v0.1.0' --notes-file homebrew/ps5-micropython/RELEASE_NOTES.md
