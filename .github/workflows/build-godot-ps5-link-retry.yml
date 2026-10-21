@@ -99,6 +99,35 @@ jobs:
           fi
           test -s /tmp/godot-link-app/dist/PPSA99843/eboot.bin
           echo GODOT_ENGINE_EBOOT_LINK_SUCCESS
+      - name: Symbolize PS5 hardware crash addresses with unstripped linked ELF
+        if: steps.link.outcome == 'success'
+        run: |
+          set -euo pipefail
+          image=/tmp/godot-link-app/build/llvm-pie.elf
+          report=/tmp/godot-ps5-crash-symbols.txt
+          test -s "$image"
+          {
+            echo 'PS5 ENGINE SMOKE HARDWARE CRASH – symbolization'
+            echo 'User: SIGSEGV instruction fetch, RIP/fault 0x210f86, backtrace[0] 0xb8d14d'
+            echo 'Link artifact is PIE; addresses are direct offsets only if no additional ASLR slide.'
+            echo '=== LLVM address-to-line ==='
+            llvm-addr2line-18 -e "$image" -f -C -i 0x210f86 0xb8d14d || true
+            echo '=== Disassembly near fault ==='
+            llvm-objdump-18 --demangle --disassemble --start-address=0x210e80 --stop-address=0x211080 "$image" || true
+            echo '=== Object segments ==='
+            llvm-readelf-18 -l "$image" | head -90 || true
+            echo '=== Nearest symbols ==='
+            llvm-nm-18 --numeric-sort --demangle "$image" | awk '$1 >= "000000000020f000" && $1 <= "0000000000213000"' | tail -100 || true
+          } | tee "$report"
+      - name: Upload reproducible ELF and fault-address diagnostics
+        if: steps.link.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-Engine-Runtime-Crash-ELF-Debug
+          path: |
+            /tmp/godot-link-app/build/llvm-pie.elf
+            /tmp/godot-ps5-crash-symbols.txt
+          if-no-files-found: error
       - name: Verify signed engine smoke package
         if: steps.link.outcome == 'success'
         run: |
