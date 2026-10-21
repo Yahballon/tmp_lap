@@ -21,7 +21,7 @@ binary = (root / "eboot.bin").read_bytes()
 assert len(binary) > 4096
 assert binary[:4] == struct.pack("<I", 0x1D3D154F)
 for marker in (b"BOOT LEGACY PS5 NATIVE", b"ORIGINAL GAME DATA", b"GAME ROOT FOUND",
-               b"Original gameplay engine: NOT LINKED", b"RECHECK ASSETS", b"LEVEL_PREVIEW_READY",
+               b"Original gameplay engine: NOT LINKED", b"LEVEL_PREVIEW_UNAVAILABLE", b"LEVEL_PREVIEW_READY",
                b"LEVEL_PREVIEW_START", b"ORIGINAL DEMO-1 LEVEL", b"v0.2.0"):
     assert marker in binary, f"Missing native diagnostic marker {marker!r}"
 required = [
