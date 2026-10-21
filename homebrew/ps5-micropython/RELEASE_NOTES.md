@@ -1,15 +1,12 @@
-# PS5 MicroPython v0.2.1
+# PS5 MicroPython v0.2.2
 
-Fixes user-provided Python files not appearing in the script list.
+Filesystem backend redesign based on [ZQuest Classic PS5](https://github.com/Yahballon/tmp_lap/tree/main/homebrew/zquestclassic-ps5/native).
 
-- Removed fragile `stat()` file-type and size gate; scan now tests whether each .py file can actually be read.
-- Uses bounded streaming reads instead of `ftell` / `fseek` for user Python scripts.
-- Shows live scan diagnostics in the library/console screen (accepted count, empty, oversized, unreadable and errno).
-- Logs scan detail to `/data/PS5MicroPython/logs/scan.log` when log directory is writable.
-- Distinguishes empty scripts (0 bytes) and oversized scripts (>64 KiB) from unreadable files.
-- Added host regression tests with .py files, empty files, oversized files, symlinks and missing directories.
-- Preserves embedded MicroPython, controller editor and existing user scripts.
+- Replaces sandbox-blocked libc `opendir/readdir` with direct `sceKernelOpen` and `sceKernelGetdents` using FreeBSD dirent decoding and the known-working aligned 64KiB buffer.
+- Native `sceKernelRead` loads selected scripts directly from DATA and USB, avoiding libc file API quirks.
+- Scans `/data/PS5MicroPython/scripts`, `/mnt/usb0..7/PS5MicroPython/scripts`, and `/mnt/usb0..7/scripts`.
+- USB entries display their source; editing a USB script saves an independent copy to DATA.
+- Preserves original DEMO scripts and previously saved user files; `stat()` is no longer a prerequisite for `.py` listing.
+- Adds host-native mocked libkernel regression tests and updated root/error diagnostics.
 
-Note: This is a filesystem detection and diagnostics fix. On-device visibility may still depend on the privileges/mount namespace of the native PS5 title. Report the displayed scan status if the file is still not listed.
-
-Previous v0.2.0 release was built successfully; v0.2.1 requires a real PS5 rescan test.
+**Hardware verification remains pending**; some jailbreak/firmware mount restrictions can still block access. Press Triangle to rescan and inspect `/data/PS5MicroPython/logs/scan.log` if needed.
