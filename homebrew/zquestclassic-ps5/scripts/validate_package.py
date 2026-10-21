@@ -18,7 +18,8 @@ binary = (folder / "eboot.bin").read_bytes()
 assert len(binary) > 1000
 assert binary[:4] == struct.pack("<I", 0x1D3D154F), "expected PS5 patched ELF"
 assert b"ZQUEST CLASSIC" in binary and b"QUEST LIBRARY" in binary
-assert b"v0.1.1" in binary, "Expected native scanner fix v0.1.1"
+assert b"v0.1.2" in binary, "Expected native scanner fix v0.1.2"
+assert b"SCAN_BACKEND=libkernel-getdents-v0.1.2" in binary, "Native kernel backend marker missing from ELF"
 required = [
     "eboot.bin", "sce_sys/param.json", "sce_sys/icon0.png",
     "sce_module/libc.prx", "assets/fonts/inter-semibold.huifont"
