@@ -26,7 +26,7 @@ def stage(godot, app, entry, builtins_override=None):
     # template only links a minimal homebrew C++ allocation shim.
     # Bring in the actual PS5 SDK's static C++ ABI and unwind libraries.
     runtime = app/".deps/native/ps5-payload-sdk/target/lib"
-    for name in ("libc++.a", "libc++abi.a", "libunwind.a"):
+    for name in ("libc++.a", "libc++abi.a", "libunwind.a", "libc.a"):
         source = runtime/name
         if not source.is_file():
             raise ValueError("Missing PS5 C++ runtime archive: "+str(source))
