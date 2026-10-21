@@ -225,8 +225,13 @@ static void storage_report(const char* path){
     else {
        total=(uint64_t)info.f_blocks*(uint64_t)info.f_bsize;
        free=(uint64_t)info.f_bavail*(uint64_t)info.f_bsize;
-       if(total>70ull*1024ull*1024ull*1024ull || free>total ||
-          (!strcmp(path,"/user") && total<128ull*1024ull*1024ull*1024ull))
+       const uint64_t gib=1024ull*1024ull*1024ull;
+       // A non-mounted directory such as /mnt/ext0 can report its tiny
+       // underlying memory filesystem (seen as 2.0 MiB on real hardware).
+       // Never claim this is SSD or M.2 capacity.
+       const uint64_t min_size=!strcmp(path,"/user")?128*gib:
+           !strncmp(path,"/mnt/ext",8)?8*gib:128ull*1024*1024;
+       if(total>70ull*1024ull*1024ull*1024ull || free>total || total<min_size)
            code=ERANGE;
     }
     if(code){total=0;free=0;}

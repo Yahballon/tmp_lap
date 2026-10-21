@@ -1,6 +1,6 @@
 # Uninstaller by YAHBALLON
 
-Native PS5 Homebrew v0.1.5 | Title ID PPSA99986
+Native PS5 Homebrew v0.1.6 | Title ID PPSA99986
 
 Native neon blue-and-red dashboard inspired by the provided reference. This app has four tabs (All, Games, Homebrew, USB PKGs), a live file inventory, detail pane, storage capacity when available, full DualSense menu controls, and confirmation dialog.
 
@@ -37,7 +37,7 @@ The supplied screenshot is a visual reference, not a real PS5 capture. Native bu
 
 GPL-3.0-or-later, matching PS5-DevBridge homebrew UI. Developer: YAHBALLON.
 
-**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.5 (PPSA99986) or later.
+**Critical:** The old v0.1.0 archive used title ID PPSA99873, colliding with Payload LauncherX. Do not install that superseded archive. Always use v0.1.6 (PPSA99986) or later.
 
 ## Crash diagnostics in v0.1.2
 
@@ -74,3 +74,12 @@ The PS5 console logs showed EPERM (errno 1) at /data/homebrew, /mnt/usb0 and the
 - `unscan.elf` now runs a temporary localhost read-only icon server on port 9175; the title requests only an enumerated item's numeric ordinal, never arbitrary file paths. Logos are fetched lazily in a worker, decoded in the OpenGL render thread and held in a small in-memory texture cache. No icons are downloaded from the Internet or saved on disk.
 - Logs `ELFLDR_STORAGE` and `ELFLDR_STORAGE_ERROR` under `/data/Uninstaller/uninstaller.log`.
 - This update intentionally **does not enable uninstall of system-registered titles**. It also does not remotely delete USB files; visible remote entries remain read-only. Further safe privileged removal integration requires separate testing/confirmation.
+
+## v0.1.6: improved UI, reliable storage filtering, experimental removals
+- Removes the permanent "Found X entries" floating notification; successful refresh remains in the category count and logs. Errors are shown as a subtle status line near the footer.
+- Rejects misleading mount-point placeholder capacity such as /mnt/ext0 showing only 2 MB. Only drives with believable capacity (internal >=128GiB, extended >=8GiB, removable >=128MiB) are displayed. If no trustworthy drive is accessible, panel reports Unavailable rather than inventing figures.
+- Adds a separately compiled **unremove.elf** opt-in action runner, never invoked during scans. Requires a strict 0700 private request directory /data/Uninstaller/actions, random 128-bit nonce, explicit title/path validation, 2-step user confirmation, a verified response and correct owner permissions.
+- Registered installed titles at exact /user/app/<titleId> are sent to `sceAppInstUtilAppUnInstall`, not recursively deleted. The helper uses installer authid only around this call and restores the previous authid. A zero API return is *request accepted*, not proof of completion; the user must refresh and confirm disappearance.
+- USB PKG archives under /mnt/usb0..7 are eligible for explicit remove after strict lstat validation. Deleting a USB archive does not uninstall the registered copy.
+- Custom game dump mounts or homebrew folders accessed only through the privileged helper remain read-only because recursive folder deletion may destroy unrelated assets. No game saves, app databases, or system folders are manually modified.
+- Experimental PS5 system uninstall: source compiles, but firmware-specific execution results are NOT guaranteed. First test using a disposable homebrew app rather than a purchased game. Log details at /data/Uninstaller/uninstaller.log.

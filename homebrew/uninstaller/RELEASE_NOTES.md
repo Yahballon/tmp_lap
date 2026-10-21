@@ -1,7 +1,9 @@
-# Uninstaller v0.1.5 – real Console Storage and logos
+# Uninstaller v0.1.6 – actual controlled uninstall experiments
 
-- Console Storage panel now shows available/used/total capacity and a blue usage ring when reliable values are measured in the privileged, read-only ELF helper; L2/R2 switches connected volumes.
-- PS5 games and Homebrew now load their actual logo PNGs from sce_sys/icon0.png or system appmeta locations using on-demand localhost port 9175, with memory cache and renderer thread decoding.
-- Keeps gameplay smooth by loading only currently visible logos on background worker. Missing logos show fallback icons.
-- Distinguishes inaccessible drive capacity from a measured value.
-- Existing registered titles and privileged inventory results stay **read-only**; this update does not uninstall installed games. Save data remains untouched.
+- Remove permanent Found X entries overlay.
+- Reject false tiny drive capacities, e.g. /mnt/ext0=2 MB, and never default to a fake mount.
+- Enable explicit native AppInstUtil uninstall dispatch for installed titles where title ID and /user/app/<titleId> match. Two-step confirmation and private one-shot payload with request nonce. Native API may be asynchronous; acceptance must not be confused with completed removal.
+- Allow deleting explicit USB .pkg files via a privileged helper with filesystem/path checks. Installed games are not removed when clearing a USB archive.
+- Custom mount game-dump folders and privileged homebrew folders remain read-only (not safely uninstallable by deleting arbitrary directories).
+- Protect self PPSA99986 and keep saves untouched; report all actions under /data/Uninstaller.
+- Firmware 5.10 hardware support requires testing: start with a disposable homebrew app, not a valuable retail game.

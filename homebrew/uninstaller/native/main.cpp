@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "inventory.hpp"
 #include "helper_bridge.hpp"
+#include "action_bridge.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_NO_FAILURE_STRINGS
@@ -120,7 +121,9 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
   std::string path=item->root; if(path.size()>30)path=path.substr(0,28)+"...";
   txt(d,f,a,path,1290,707,17,white,Align::right);
   d.bordered_rect({750,747,562,90},14,color(0x880c25),3,color(0xff4366));
-  txt(d,f,a,item->remote||item->kind==uninstaller::Kind::Installed?"Read-only title":"Remove files",1031,806,30,white,Align::center);
+  txt(d,f,a,uninstaller::actions::eligible(*item)?
+     (item->kind==uninstaller::Kind::UsbPackage?"Delete USB PKG":"Uninstall")
+     :"Read-only title",1031,806,30,white,Align::center);
   txt(d,f,a,"Save data stays untouched",770,880,20,muted);
   txt(d,f,a,"No system directory is deleted directly",770,926,16,muted);
  }else txt(d,f,a,"Select an application",1025,514,26,muted,Align::center);
@@ -147,14 +150,18 @@ void render(DrawList& d,const Font& f,unsigned a,const std::vector<uninstaller::
  trash(d,1548,870,1.7f);
  d.bordered_rect({0,1027,1920,53},0,color(0x020d1a),1,color(0x2b496d));
  txt(d,f,a,"D-pad Select    L1/R1 Categories    L2/R2 Storage    X Details    Square Delete    Triangle Refresh    Circle Back",45,1063,17,muted);
- txt(d,f,a,"by YAHBALLON   v0.1.5",1887,1063,18,muted,Align::right);
- if(!msg.empty()){d.rounded_rect({370,944,1170,69},13,color(0x102844));txt(d,f,a,msg.size()>115?msg.substr(0,110)+"...":msg,958,989,19,white,Align::center);}
+ txt(d,f,a,"by YAHBALLON   v0.1.6",1887,1063,18,muted,Align::right);
+ // Status messages are intentionally unobtrusive: never cover the game list.
+ if(!msg.empty()&&msg!="ok"){
+   const std::string brief=msg.size()>104?msg.substr(0,101)+"...":msg;
+   txt(d,f,a,brief,745,991,16,color(0x99bad9));
+ }
  if(confirm){
   d.bordered_rect({367,359,1190,322},20,color(0x05162b),3,color(0xff466a));
   txt(d,f,a,"CONFIRM REMOVAL",962,432,39,color(0xff607a),Align::center);
   txt(d,f,a,item?item->name:"Unknown",962,496,25,white,Align::center);
-  txt(d,f,a,"X: Delete selected files     Circle: Cancel",962,581,25,white,Align::center);
-  txt(d,f,a,"This cannot be undone. Saves are not targeted.",962,636,20,muted,Align::center);
+  txt(d,f,a,"X: Confirm selected removal     Circle: Cancel",962,581,25,white,Align::center);
+  txt(d,f,a,"Permanent action. Saves are not targeted. Verify title ID.",962,636,20,muted,Align::center);
  }
 }
 }
@@ -204,7 +211,7 @@ int main(){
  uninstaller::diag::write("STORAGE","statvfs skipped: PS5 support unverified");
  int tab=0,selected=0,offset=0;bool confirm=false;
  bool firstFrame=true;
- unsigned prev=0;std::string notice="Ready. Installed titles require a verified system uninstall service.";
+ unsigned prev=0;std::string notice;
  uninstaller::diag::write("BOOT","initialization finished; first frame pending");
  for(;;){
   std::array<hui::PadSample,64> s{};unsigned pressed=0,buttons=prev;
@@ -241,23 +248,42 @@ int main(){
       for(const auto& t:iconTextures)if(t.second){GLuint tex=t.second;glDeleteTextures(1,&tex);}
       iconTextures.clear();++iconEpoch;
       selected=offset=0;
-      notice="Entries: "+std::to_string(items.size())+". "+helper.message;
+      notice=items.empty()?"No titles accessible. "+helper.message:"";
       uninstaller::diag::write("REFRESH","done");
     }
     if(pressed&(hui::pad_bits::kSquare|hui::pad_bits::kCross)){
       const auto* x=nth(items,tab,selected);
-      if(x&&x->remote)notice="Read-only helper result. No privileged delete is available.";
-      else if(x&&x->kind==uninstaller::Kind::Installed)notice="Installed title uninstall remains disabled.";
-      else if(x)confirm=true;
+      if(x&&uninstaller::actions::eligible(*x))confirm=true;
+      else if(x)notice="This source cannot be safely removed by the current backend.";
     }
   }else if(pressed&hui::pad_bits::kCross){
-    auto* x=nth(items,tab,selected);if(x){
-      if(x->remote||x->kind==uninstaller::Kind::Installed){notice="Read-only entry: system uninstall is not enabled.";log("Read-only uninstall blocked: "+x->id);}
-      else{
-        uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
-        const int result=uninstaller::removeFiles(*x);
-        if(result==0){uninstaller::bridge::stop_icons();notice="Selected files removed. Save data not modified.";log("Removed: "+x->path);items=uninstaller::scan(scanLog);const auto r=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);uninstaller::bridge::merge(items,r);volumes=r.volumes;selectedDrive=0;useDrive();selected=offset=0;}
-        else{notice="Remove failed: error "+std::to_string(result);log("Remove failed: "+x->path+" error "+std::to_string(result));}
+    const auto* x=nth(items,tab,selected);
+    if(x&&uninstaller::actions::eligible(*x)){
+      uninstaller::diag::write("REMOVE_ATTEMPT",x->path.c_str());
+      const bool systemAction=x->remote;
+      bool refresh=false;
+      if(systemAction){
+        uninstaller::bridge::stop_icons();
+        const auto outcome=uninstaller::actions::execute(*x,scanLog);
+        notice=outcome.detail;
+        log("Native action: "+outcome.detail);
+        refresh=outcome.accepted;
+      }else{
+        const int rc=uninstaller::removeFiles(*x);
+        notice=rc==0?"Selected files removed":"Removal rejected: "+std::to_string(rc);
+        log(notice);refresh=rc==0;
+      }
+      if(refresh){
+        uninstaller::bridge::stop_icons();
+        items=uninstaller::scan(scanLog);
+        const auto result=uninstaller::bridge::scan("/app0/unscan.elf",scanLog);
+        uninstaller::bridge::merge(items,result);
+        volumes=result.volumes;selectedDrive=0;useDrive();
+        for(const auto& icon:iconTextures)if(icon.second){
+          GLuint texture=icon.second;glDeleteTextures(1,&texture);
+        }
+        iconTextures.clear();++iconEpoch;
+        selected=offset=0;
       }
     }
     confirm=false;
@@ -311,8 +337,7 @@ int main(){
        ", denied: "+std::to_string(scanRootsDenied)+
        ". "+helper.message;
     }else{
-      notice="Found "+std::to_string(items.size())+
-       " entries. "+(helper.connected?"elfldr helper connected.":"Direct scan only.");
+      notice.clear(); // Successful scan is visible in category counters; no toast.
     }
   }
   hui::sys::sleep_us(16000);
