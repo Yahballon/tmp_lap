@@ -17,6 +17,14 @@ assert len(instances)>=1000
 assert meta["spawn"]==(176,9792), "Pinned original demo spawn changed"
 for filename,dimension in (("sunshine.rgba",meta["atlas"]),("surge.rgba",meta["hero"])):
     assert (root/filename).stat().st_size==dimension[0]*dimension[1]*4
+    pixels=(root/filename).read_bytes()
+    # Original magenta transparency must be zero alpha, not hot-pink blocks.
+    assert not any(pixels[i:i+3]==b"\\xff\\x00\\xff" and pixels[i+3]!=0
+                   for i in range(0,len(pixels),4)), filename
+collision=(root/"collision.bin").read_bytes()
+assert len(collision)==meta["atlas"][0]*meta["atlas"][1]
+assert all(pixel in (0,1) for pixel in collision)
+assert 1000<sum(collision)<len(collision)*.95
 by_id={int(row[0]):row for row in defs}
 assert len(by_id)==len(defs)
 assert {row[5] for row in defs}>={"SOLID","CLOUD","PASSABLE"}

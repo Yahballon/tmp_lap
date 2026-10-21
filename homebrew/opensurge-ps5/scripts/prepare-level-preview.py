@@ -9,6 +9,7 @@ import re
 import sys
 from pathlib import Path
 from PIL import Image
+from collections import Counter
 
 BRICK_HEAD = re.compile(r"(?m)^\s*brick\s+(\d+)\s*\{")
 BRICK_INSTANCE = re.compile(r"^\s*brick\s+(\d+)\s+(-?\d+)\s+(-?\d+)(?:\s|$)")
@@ -83,16 +84,57 @@ def run(staged: Path, app: Path) -> dict:
     dest = app / "assets" / "level-preview"
     dest.mkdir(parents=True, exist_ok=True)
 
-    def convert(rel: str, out: str):
-        with Image.open(root / rel) as img:
+    # Open Surge's color-key transparency uses exact RGB magenta (#FF00FF).
+    # Pillow convert("RGBA") preserves opaque magenta in indexed/opaque PNGs.
+    # This was responsible for the giant hot-pink rectangles in v0.2.0.
+    def rgba_and_key(path: str):
+        with Image.open(root / path) as img:
             rgba = img.convert("RGBA")
-            if not (1 <= rgba.width <= 4096 and 1 <= rgba.height <= 4096):
-                raise ValueError("Invalid texture dimensions")
-            (dest / out).write_bytes(rgba.tobytes())
-            return rgba.size
+        if not (1 <= rgba.width <= 4096 and 1 <= rgba.height <= 4096):
+            raise ValueError("Invalid texture dimensions")
+        pixels = bytearray(rgba.tobytes())
+        keyed = 0
+        for i in range(0, len(pixels), 4):
+            r, g, b, alpha = pixels[i:i+4]
+            if (r, g, b) == (255, 0, 255):
+                pixels[i:i+4] = bytes((0, 0, 0, 0))
+                keyed += 1
+            elif alpha == 0:
+                pixels[i:i+3] = bytes((0, 0, 0))
+        return rgba.size, pixels, keyed
 
-    atlas_size = convert("images/sunshine.png", "sunshine.rgba")
-    hero_size = convert("images/players/surge.png", "surge.rgba")
+    def convert(rel: str, out: str):
+        size, pixels, keyed = rgba_and_key(rel)
+        (dest / out).write_bytes(pixels)
+        print(f"ALPHA_KEY {rel}: keyed={keyed}, size={size}")
+        return size, pixels
+
+    atlas_size, atlas_pixels = convert("images/sunshine.png", "sunshine.rgba")
+    hero_size, hero_pixels = convert("images/players/surge.png", "surge.rgba")
+
+    # Exact Surge starting animation: source_rect 0,32,512,832;
+    # frame_size 64x64. Fail rather than silently ship an invisible hero.
+    first_frame_alpha = sum(
+        hero_pixels[(yy * hero_size[0] + xx) * 4 + 3] != 0
+        for yy in range(32, 96) for xx in range(64)
+    )
+    print(f"SURGE_FIRST_FRAME_VISIBLE_PIXELS={first_frame_alpha}")
+    if first_frame_alpha < 20:
+        raise ValueError("Original Surge animation frame 0 is unexpectedly blank")
+
+    # Physics collision pixels are derived from the *original* sunshine_mask
+    # atlas; magenta and transparent portions must never be collidable.
+    mask_size, raw_mask, masked_out = rgba_and_key("images/sunshine_mask.png")
+    if mask_size != atlas_size:
+        raise ValueError(f"Original Sunshine mask/sprite dimensions differ: {mask_size}, {atlas_size}")
+    coverage = bytearray(mask_size[0] * mask_size[1])
+    for i in range(len(coverage)):
+        coverage[i] = 1 if raw_mask[4*i + 3] >= 128 else 0
+    solids = sum(coverage)
+    print(f"ORIGINAL_MASK_COVERAGE={solids}/{len(coverage)} keyed={masked_out}")
+    if solids < 1000 or solids > len(coverage) * 0.95:
+        raise ValueError("Collision-mask opacity is unexpected; inspect original masks")
+    (dest / "collision.bin").write_bytes(coverage)
     for i, (x, y, w, h, _, _) in defs.items():
         if x+w > atlas_size[0] or y+h > atlas_size[1]:
             raise ValueError(f"Brick {i} outside atlas {atlas_size}")
@@ -115,7 +157,9 @@ def run(staged: Path, app: Path) -> dict:
     )
     summary = {"definitions": len(defs), "instances": len(items),
                "spawn": (int(spawn[1]),int(spawn[2])),
-               "theme": theme[1], "atlas": atlas_size, "hero": hero_size}
+               "theme": theme[1], "atlas": atlas_size, "hero": hero_size,
+               "mask_opaque": solids, "magenta_cleared": True,
+               "surge_frame_pixels": first_frame_alpha}
     print("Open Surge ORIGINAL data preview:", summary)
     return summary
 
