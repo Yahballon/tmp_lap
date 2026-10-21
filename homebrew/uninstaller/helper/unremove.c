@@ -170,6 +170,8 @@ int main(void){
   if(!strong_random(token)){puts("UREM2_ERROR no_random");return 2;}
   int server=socket(AF_INET,SOCK_STREAM,0);
   if(server<0){puts("UREM2_ERROR socket");return 2;}
+  int reuse=1;
+  setsockopt(server,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof reuse);
   struct sockaddr_in addr={0};
   addr.sin_family=AF_INET;
   addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
