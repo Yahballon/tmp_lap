@@ -18,6 +18,7 @@ struct Game {
   Opponent opponent=Opponent::Human;
   Level level=Level::Medium;
   int focus=0,submenu=0,selected=3,turn=1,winner=0,moves=0;
+  int last_drop_col=-1,last_drop_row=-1,last_drop_owner=0;
   int wins[2]{0,0}, draws=0;
   bool sound=true,first_player_red=true;
   uint64_t seed=0x5a795f1337badULL;
@@ -26,7 +27,7 @@ struct Game {
   bool legal(int col)const{return col>=0&&col<COLS&&heights[col]<ROWS;}
   bool full()const{return moves==COLS*ROWS;}
   int at(int c,int r)const{return c>=0&&c<COLS&&r>=0&&r<ROWS?int(grid[c][r]):0;}
-  void reset(){for(auto& c:grid)c.fill(0);heights.fill(0);selected=3;winner=0;moves=0;turn=first_player_red?1:2;winning_cells[0]=-1;screen=Screen::Playing;}
+  void reset(){for(auto& c:grid)c.fill(0);heights.fill(0);selected=3;winner=0;moves=0;last_drop_col=-1;last_drop_row=-1;last_drop_owner=0;turn=first_player_red?1:2;winning_cells[0]=-1;screen=Screen::Playing;}
   void undo(int col){if(col<0||col>=COLS||heights[col]==0)return;--heights[col];grid[col][heights[col]]=0;--moves;winner=0;winning_cells[0]=-1;}
   bool makes_four(int c,int r,int player,bool record=false){
     constexpr int dirs[4][2]={{1,0},{0,1},{1,1},{1,-1}};
@@ -37,7 +38,7 @@ struct Game {
   }
   bool drop(int col){
     if(!legal(col)||winner!=0)return false;
-    int r=heights[col]++;grid[col][r]=uint8_t(turn);++moves;
+    int r=heights[col]++;grid[col][r]=uint8_t(turn);last_drop_col=col;last_drop_row=r;last_drop_owner=turn;++moves;
     if(makes_four(col,r,turn,true)){winner=turn;wins[turn-1]++;screen=Screen::Result;}
     else if(full()){winner=3;++draws;screen=Screen::Result;}
     else turn=3-turn;
