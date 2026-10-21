@@ -12,7 +12,7 @@ on:
       - '.github/workflows/build-zquestclassic-ps5.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   native-quest-browser:
@@ -107,5 +107,21 @@ jobs:
           path: app/dist/PPSA99127.zip
           if-no-files-found: error
 
-# No public GitHub release and no TESTBUILDS manifest entry until upstream
-# zplayer is actually integrated, gameplay works, and hardware tests pass.
+      - name: Publish clearly labeled prerelease for TESTBUILDS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=zquestclassic-ps5-v0.1.0
+          file=app/dist/PPSA99127.zip
+          test -s "$file"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Refusing to overwrite an existing immutable release: $tag" >&2
+            exit 1
+          fi
+          gh release create "$tag" "$file" \
+            --target "$GITHUB_SHA" \
+            --title "ZQuest Classic PS5 v0.1.0 - Quest Browser Prototype (NOT PLAYABLE)" \
+            --notes-file homebrew/zquestclassic-ps5/RELEASE_NOTES.md \
+            --prerelease
