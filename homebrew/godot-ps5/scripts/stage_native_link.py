@@ -79,6 +79,15 @@ def stage(godot, app, entry, builtins_override=None):
     if source.count(original_archive_rule) != 1:
         raise ValueError("DevBridge static archive validation rule changed")
     source = source.replace(original_archive_rule, patched_archive_rule, 1)
+    # The DevBridge converter needs optional Zstd tracing callbacks
+    # resolved before converting ELF into SELF. It already excludes
+    # decompression trace callbacks when the public SDK lacks exports;
+    # apply exactly the same policy to compression instrumentation.
+    trace_list = "for name in ['ZSTD_trace_decompress_begin','ZSTD_trace_decompress_end',"
+    expanded = "for name in ['ZSTD_trace_compress_begin','ZSTD_trace_compress_end','ZSTD_trace_decompress_begin','ZSTD_trace_decompress_end',"
+    if source.count(trace_list) != 1:
+        raise ValueError("DevBridge Zstd trace import allowlist changed")
+    source = source.replace(trace_list, expanded, 1)
     build.write_text(source)
     # PS5-DevBridge's CRT references an optional weak jb_startup_mark() logger.
     # The PS5 native converter rejects undefined imports not provided by the
