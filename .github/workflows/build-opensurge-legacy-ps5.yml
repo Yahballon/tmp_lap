@@ -88,6 +88,12 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra \
             -I homebrew/opensurge-ps5/tests/mocks \
             -I homebrew/opensurge-ps5/native \
+            homebrew/opensurge-ps5/tests/native_uphill_smoke.cpp \
+            -o /tmp/opensurge-uphill-test
+          /tmp/opensurge-uphill-test "$PWD/app/assets/game/"
+          g++ -std=c++17 -O2 -Wall -Wextra \
+            -I homebrew/opensurge-ps5/tests/mocks \
+            -I homebrew/opensurge-ps5/native \
             homebrew/opensurge-ps5/tests/native_hazards_smoke.cpp \
             -o /tmp/opensurge-hazards-test
           /tmp/opensurge-hazards-test "$PWD/app/assets/game/"
@@ -161,7 +167,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.5.0
+          tag=opensurge-ps5-v0.5.1
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -172,7 +178,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.5.0 - Original SFX and Music on Native sceAudioOut" \
+            --title "Open Surge PS5 v0.5.1 - Spin Dash Uphill Collision Fix" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 

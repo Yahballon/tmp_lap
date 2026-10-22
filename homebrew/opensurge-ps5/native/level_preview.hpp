@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.3.1 - native roll and charge/release Spin Dash with original sprite animations.
+// Open Surge PS5 v0.5.1 - true rolling capsule sensors, slope momentum and uphill collision repair.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -35,6 +35,8 @@ public:
     size_t indexed_cells() const {return cells_.size();}
     unsigned collision_blocks() const {return blocked_;}
     unsigned auto_respawns() const {return respawns_;}
+    float slope_grade() const {return slope_grade_;}
+    unsigned uphill_steps() const {return uphill_steps_;}
     bool rolling() const {return rolling_;}
     bool charging() const {return charging_;}
     bool crouching() const {return ground_ && down_ && !rolling_ && !charging_ && std::abs(vx_)<60.f;}
@@ -57,6 +59,46 @@ public:
         if(std::abs(vx_)>10.f)return 1+(int(elapsed_*20.f)%8);
         return 0;
     }
+#ifdef SURGEPREVIEW_HOST_TEST
+    // Host-only way to reproduce the exact slope position from a PS5 user
+    // screenshot (x=2500,y=10015); this is absent from the shipping FSELF.
+    void test_pixel(float px,float py) const {
+        std::printf("PIXEL world=%.1f,%.1f\n",px,py);
+        candidates(px,py,[&](const PlacedBrick& b){
+            const auto& d=defs_[b.id];
+            if(px<float(b.x)||py<float(b.y)||px>=float(b.x+d.w)||
+               py>=float(b.y+d.h))return;
+            const bool opaque=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
+            std::printf("   BRICK id=%d pos=(%d,%d) size=(%d,%d) z=%.2f solid=%d cloud=%d mask=%d\n",
+                 b.id,b.x,b.y,d.w,d.h,d.z,d.solid?1:0,d.cloud?1:0,opaque?1:0);
+        });
+    }
+    void test_probe(float dx) const {
+        const float nx=x_+dx;
+        float floor=y_;
+        const bool support=find_floor(nx,y_,12,22,floor);
+        float forward=0.f,far=0.f;
+        bool front_floor=floor_height_at(nx+7.f,y_,110,32,forward);
+        bool far_floor=floor_height_at(nx+12.f,y_,110,32,far);
+        std::printf("PROBE dx=%+.1f x=%.1f feet=%.1f detected=%d floor=%.1f roll=%d hit=%d front_mid=%d front_top=%d front_floor=%d:%.1f far_floor=%d:%.1f\n",
+            dx,nx,y_,support?1:0,floor,rolling_?1:0,
+            body_hits(nx,support?floor:y_)?1:0,
+            solid_at(nx+7.f,(support?floor:y_)-16.f)?1:0,
+            solid_at(nx+7.f,(support?floor:y_)-26.f)?1:0,
+            front_floor?1:0,forward,far_floor?1:0,far);
+    }
+    bool test_position(float px,float feet){
+        x_=px;y_=feet;vx_=vy_=0;
+        rolling_=charging_=false;charge_=0.f;
+        float surface=feet;
+        if(!find_floor(px,feet,24,24,surface))return false;
+        y_=surface;ground_=true;last_ground_y_=y_;
+        // The PS5 screenshot reproduces an initial body/terrain overlap:
+        // that's precisely what the rolling sensor update should resolve.
+        // Ground placement must not reject it before exercising the dash.
+        return true;
+    }
+#endif
     // Experimental native spring velocity hook from original 'Spring
     // Standard/Stronger' SurgeScript values (600 and 960 world units/sec).
     void hit_recoil(float source_x) {
@@ -178,6 +220,7 @@ public:
         blocked_=0;last_ground_y_=y_;
         elapsed_=0;down_=up_=rolling_=charging_=braking_=false;
         charge_=0.f;spring_anim_=0.f;dash_releases_=0;
+        slope_grade_=0.f;uphill_steps_=0;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -237,15 +280,35 @@ public:
         braking_=ground_ && !rolling_ && dir!=0 && vx_*dir<0.f &&
                  std::abs(vx_)>220.f;
         if(rolling_){
-            // Rolling preserves momentum, rather than forcing target speed=310
-            // every frame. No roll acceleration from holding the direction.
-            // Original roll friction 3/128 * 60^2 = 84.375 px/s^2.
+            // Source physicsactor.c: rolling sensors are NARROWER and LOWER
+            // than upright sensors (15x29 vs 21x38). Keeping upright side
+            // probes here made a solid uphill slope look like a vertical wall
+            // and set VX=0, despite a smooth 60 FPS in the user screenshot.
+            //
+            // Source rolling friction = 84.375 world px/s2. Source rolling
+            // uphill gravity = 281.25 * sin(slope) px/s2; downhill 1125.
+            // Our native mask traces actual surface height, so derive slope
+            // from two samples on that mask, not arbitrary sprite artwork.
+            slope_grade_=0.f;
+            if(ground_){
+                float left=0.f,right=0.f;
+                if(floor_height_at(x_-9.f,y_,15,24,left) &&
+                   floor_height_at(x_+9.f,y_,15,24,right)){
+                    const float grade=std::clamp((left-right)/18.f,-3.f,3.f);
+                    slope_grade_=grade;
+                    const float sin_slope=grade/std::sqrt(1.f+grade*grade);
+                    const bool uphill=vx_*sin_slope>0.f;
+                    const float slope_force=uphill?281.25f:1125.f;
+                    vx_-=sin_slope*slope_force*dt;
+                }
+            }
             const float friction=(dir!=0 && vx_*dir<0.f)?450.f:84.375f;
             const float delta=friction*dt;
             if(std::abs(vx_)<=delta)vx_=0.f;
             else vx_-=std::copysign(delta,vx_);
             if(ground_ && std::abs(vx_)<30.f)rolling_=false;
         }else{
+            slope_grade_=0.f;
             const float target=(down && ground_)?0.f:dir*310.f;
             const float accel=(ground_?(dir?2200.f:2600.f):1500.f)*dt;
             vx_+=std::clamp(target-vx_,-accel,accel);
@@ -275,6 +338,7 @@ public:
             }
             if(supported){
                 if(!body_hits(nx,new_feet)){
+                    if(new_feet<y_-0.5f && rolling_)++uphill_steps_;
                     x_=nx;y_=new_feet;vy_=0.f;last_ground_y_=y_;
                     continue;
                 }
@@ -288,6 +352,7 @@ public:
                     float floor=0.f;
                     if(find_floor(nx,ytry,1,3,floor) &&
                        std::abs(floor-ytry)<3.f){
+                        if(floor<y_-0.5f && rolling_)++uphill_steps_;
                         x_=nx;y_=floor;last_ground_y_=y_;
                         stepped=true;break;
                     }
@@ -298,7 +363,12 @@ public:
                 if(ground_)ground_=false; // genuine pit / platform edge
                 continue;
             }
-            // This is an actual blocking wall, not arbitrary terrain "lag".
+            // Real Sunshine demo uphill has two SOLID 128px bricks stacked
+            // under the rendered slope (IDs 26 and 30 near world x=2500).
+            // A high-energy roll can climb the connected masked upper face.
+            // Spend kinetic energy on height, move in short continuous steps;
+            // never bypass walls too tall for the available momentum.
+            if(roll_uphill_step(nx,dx/float(horizontal_steps)))continue;
             vx_=0.f;
             if(dir!=0)++blocked_;
             break;
@@ -426,9 +496,48 @@ private:
         });
         return hit;
     }
+    bool roll_uphill_step(float next_x,float step_x) {
+        if(!rolling_||charging_||std::abs(vx_)<205.f ||
+           std::abs(y_-last_ground_y_)>36.f)return false;
+        // The original roll-uphill force is 281.25, NOT world gravity 1200.
+        // Converting height into speed using raw gravity drained energy
+        // four times faster than the upstream rolling physics.
+        constexpr float kRollHillResistance=281.25f;
+        const float energy_height=(vx_*vx_)/(2.f*kRollHillResistance);
+        // Allow at most 220 world-pixel rise (original demo steep hill), but
+        // require real free headroom on its upper SOLID mask surface.
+        const int max_rise=std::min(220,int(energy_height)+4);
+        if(max_rise<16)return false;
+        float upper=0.f;
+        if(!find_floor(next_x,y_,max_rise,12,upper) ||
+           upper>=y_-8.f || upper<y_-float(max_rise) ||
+           body_hits(next_x,upper))return false;
+        const float rise=std::min(y_-upper,std::min(4.f,std::abs(step_x)*2.f));
+        if(rise<=0.f)return false;
+        const float energy_after=std::max(0.f,vx_*vx_-2.f*kRollHillResistance*rise);
+        if(energy_after<205.f*205.f)return false;
+        x_=next_x;
+        y_-=rise;
+        vx_=std::copysign(std::sqrt(energy_after),vx_);
+        vy_=0.f;
+        ground_=true;
+        last_ground_y_=y_;
+        ++uphill_steps_;
+        return true;
+    }
     bool body_hits(float px,float feet) const {
-        for(const float yy:{feet-38.f,feet-22.f,feet-8.f}){
-            if(solid_at(px-12.f,yy)||solid_at(px+12.f,yy))return true;
+        // Open Surge rolls with a 15px width, ~29px height sensor (original
+        // physicsactor.c), NOT its normal standing 24x38 probe. This is vital
+        // when racing up real masked inclines: an upright front corner will
+        // penetrate the uphill terrain long before the feet reach its surface.
+        if(rolling_ || charging_){
+            for(const float yy:{feet-25.f,feet-16.f,feet-8.f}){
+                if(solid_at(px-7.f,yy)||solid_at(px+7.f,yy))return true;
+            }
+        }else{
+            for(const float yy:{feet-38.f,feet-22.f,feet-8.f}){
+                if(solid_at(px-12.f,yy)||solid_at(px+12.f,yy))return true;
+            }
         }
         return false;
     }
@@ -468,6 +577,17 @@ private:
         if(found)out=surface;
         return found;
     }
+    bool floor_height_at(float px,float feet,int rise,int drop,float& result) const {
+        // Same top-of-mask transition used for collision, single sensor to
+        // measure the geometric slope without mixing nearby brick surfaces.
+        const int lo=int(std::floor(feet))-rise,hi=int(std::ceil(feet))+drop;
+        for(int row=lo;row<=hi;++row){
+            if(floor_pixel(px,float(row)) && !floor_pixel(px,float(row)-1.f)){
+                result=float(row);return true;
+            }
+        }
+        return false;
+    }
     bool has_foot_support(float px,float feet) const {
         float floor=0.f;
         return find_floor(px,feet,2,2,floor) && std::abs(floor-feet)<=2.f;
@@ -498,6 +618,8 @@ private:
     bool ground_=false;
     bool down_=false,up_=false,rolling_=false,charging_=false,braking_=false;
     float charge_=0.f,spring_anim_=0.f;
+    float slope_grade_=0.f;
+    unsigned uphill_steps_=0;
     unsigned dash_releases_=0;
     float last_ground_y_=0.f;
     unsigned blocked_=0,respawns_=0;
