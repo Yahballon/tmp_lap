@@ -15,13 +15,16 @@ void OS_PS5::initialize() {
     FileAccess::make_default<FileAccessPS5>(FileAccess::ACCESS_FILESYSTEM);
 }
 void OS_PS5::initialize_joypads() {
-    // Native pad-to-Godot Input bridge will be implemented later.
+    controller.initialize();
 }
 bool OS_PS5::_check_internal_feature_support(const String &feature) {
     (void)feature;
     return false; // Do not advertise unimplemented PS5 features.
 }
-void OS_PS5::finalize() { delete_main_loop(); }
+void OS_PS5::finalize() {
+    controller.shutdown();
+    delete_main_loop();
+}
 void OS_PS5::delete_main_loop() {
     if (main_loop) memdelete(main_loop);
     main_loop = nullptr;
@@ -47,6 +50,7 @@ void OS_PS5::run() {
     if (!main_loop) return;
     main_loop->initialize();
     while (true) {
+        controller.poll();
         if (DisplayServer::get_singleton())
             DisplayServer::get_singleton()->process_events();
         if (Main::iteration()) break;
