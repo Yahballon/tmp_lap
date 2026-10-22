@@ -178,7 +178,7 @@ static void godot_ps5_boot_stage(const char *stage) {
     shutil.copyfile(entry,target/"main.cpp")
     metadata=app/"sce_sys/param.json"
     p=json.loads(metadata.read_text())
-    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.009")
+    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.010")
     p["localizedParameters"]["en-US"]["titleName"]="Godot PS5 Engine Smoke"
     metadata.write_text(json.dumps(p,indent=2)+'\n')
     (app/"GNUmakefile").write_text('APP_SOURCE_DIR := src/godot-smoke\nAPP_ASSETS := assets\nAPP_STATIC_ARCHIVES := '+' '.join(libraries)+'\ninclude Makefile\n')
