@@ -572,11 +572,14 @@ public:
             }
         }
         tick_routes();
-        // Native slopes may briefly touch a rolling player's outer edge.
-        // Only rescue if the CORE of the actor remains deeply inside a
-        // SOLID brick for 8 consecutive 120Hz ticks; a single masked seam
-        // must never teleport the player.
-        if(!wall_climb_ && !tube_active_ && torso_deep_inside_solid()){
+        // A small masked seam can overlap the actor for a tick or two.
+        // However, partial corner penetration can persist indefinitely
+        // without the CENTER/torso entering solid (observed Sunshine 3
+        // x=1164.3 y=9920 for 250 ticks). After eight consecutive ticks,
+        // recover to the last proven collision-free ground contact.
+        // Never recover mid-wall-climb or while travelling through a tube.
+        if(!wall_climb_ && !tube_active_ &&
+           (body_hits(x_,y_) || torso_deep_inside_solid())){
             if(++embedded_frames_>=8){
                 restore_safe_ground();
                 ++solid_recoveries_;
