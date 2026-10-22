@@ -106,6 +106,23 @@ jobs:
              "$app_src/runtime/"
           test -s "$app_src/platform/ps5/display_egl.cpp"
           test -s "$app_src/runtime/app_heap.c"
+          # The full Godot PS5 runtime already supplies syslog/openlog through
+          # libc.a. The smaller standalone GPU template only needs its no-op
+          # openlog() shim because it does not link all of Godot's libc users.
+          # Remove exactly this conflicting local implementation, keeping
+          # shader-cache mkstemp and splash/shader TLS shims intact.
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          shim=Path('/tmp/godot-scene-app/src/godot-smoke/runtime/runtime_shims.c')
+          code=shim.read_text()
+          pattern=r'\nvoid openlog\(const char \*identifier, int option, int facility\)\s*\{\s*\(void\)identifier;\s*\(void\)option;\s*\(void\)facility;\s*\}\s*'
+          code,count=re.subn(pattern,'\n',code)
+          assert count==1, f'Expected exactly one stand-alone openlog shim, got {count}'
+          assert 'int mkstemps(' in code and 'hui_release_splash' in code
+          shim.write_text(code)
+          print('PS5 full Godot libc openlog provider preserved; duplicate removed')
+          PY
           python3 - <<'PY'
           import json
           from pathlib import Path
