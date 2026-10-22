@@ -176,9 +176,16 @@ static void godot_ps5_boot_stage(const char *stage) {
     target=app/"src/godot-smoke"
     target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(entry,target/"main.cpp")
+    # The native launcher now imports only two portable, source-reviewed
+    # PCK screening headers; stage them adjacent to main.cpp so DevBridge's
+    # normal native compile command has no extra include-path assumptions.
+    overlay=Path(__file__).resolve().parents[1]/"engine/platform/ps5"
+    for header in ("pck_locator.hpp", "pck_launch_config.hpp"):
+        assert (overlay/header).is_file(), "Missing PS5 launcher header: "+header
+        shutil.copyfile(overlay/header,target/header)
     metadata=app/"sce_sys/param.json"
     p=json.loads(metadata.read_text())
-    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.012")
+    p.update(titleId="PPSA99843",contentId="UP9000-PPSA99843_00-GODOTPS5HEADLESS",conceptId="99843",contentVersion="01.000.013")
     p["localizedParameters"]["en-US"]["titleName"]="Godot PS5 Engine Smoke"
     metadata.write_text(json.dumps(p,indent=2)+'\n')
     (app/"GNUmakefile").write_text('APP_SOURCE_DIR := src/godot-smoke\nAPP_ASSETS := assets\nAPP_STATIC_ARCHIVES := '+' '.join(libraries)+'\ninclude Makefile\n')
