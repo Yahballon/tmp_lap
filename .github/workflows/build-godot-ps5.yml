@@ -33,6 +33,7 @@ jobs:
           python3 homebrew/godot-ps5/tests/test_engine_phases.py
           python3 homebrew/godot-ps5/tests/test_patch_ps5_setup_trace.py
           python3 homebrew/godot-ps5/tests/test_ps5_path_override.py
+          python3 homebrew/godot-ps5/tests/test_path_override_build_flag.py
       - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
         run: |
           set -euo pipefail
@@ -132,7 +133,7 @@ jobs:
           meta=json.loads((app/"sce_sys/param.json").read_text())
           assert meta["titleId"]=="PPSA99843"
           assert meta["contentId"]=="UP9000-PPSA99843_00-GODOTPS5HEADLESS"
-          assert meta["contentVersion"]=="01.000.006"
+          assert meta["contentVersion"]=="01.000.007"
           archive=app.parent/"PPSA99843.zip"
           with zipfile.ZipFile(archive) as z:
               assert z.testzip() is None
@@ -144,7 +145,7 @@ jobs:
         if: steps.godot_link.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-GDScript-Engine-Smoke-v0.2.5-UNVERIFIED-ON-CONSOLE
+          name: Godot-PS5-GDScript-Engine-Smoke-v0.2.6-UNVERIFIED-ON-CONSOLE
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
       - name: Publish real Godot PS5 engine-smoke prerelease after verified link
@@ -153,7 +154,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=godot-ps5-engine-smoke-v0.2.5
+          tag=godot-ps5-engine-smoke-v0.2.6
           asset=/tmp/godot-link-app/dist/PPSA99843.zip
           test -s "$asset"
           if gh release view "$tag" >/dev/null 2>&1; then
@@ -162,8 +163,8 @@ jobs:
           fi
           gh release create "$tag" "$asset" \
             --target "$GITHUB_SHA" \
-            --title "Godot PS5 Engine Smoke v0.2.5 (HEADLESS / NOT GAMEPLAY)" \
-            --notes "PS5 crash fix candidate v0.2.5 after hardware v0.2.4 crashed during OS_Unix::get_cwd. Override get_cwd / set_cwd / get_executable_path to safe PS5 /app0 sandbox paths without calling unsupported FreeBSD libc getcwd, chdir, or sysctl. Logs go to /data/GodotPS5/engine-stderr.log. This is a diagnostic build, not yet a verified crash fix or playable Godot graphics/audio. Packaged smoke.pck loads from /app0/assets/godot/smoke.pck. Logs: /data/GodotPS5/engine-smoke.log, engine-stdout.log and engine-stderr.log. This is experimental; hardware success is not yet established." \
+            --title "Godot PS5 Engine Smoke v0.2.6 (HEADLESS / NOT GAMEPLAY)" \
+            --notes "PS5 engine smoke v0.2.6: hardware v0.2.5 logs prove Godot main setup reaches core settings, then exits code 31 because upstream SCons defaults to disable_path_overrides=yes while our entry uses --main-pack. This build explicitly sets disable_path_overrides=no to enable native standalone Godot 4 PCK startup. No verified PS5 GDScript execution yet; the return/exit SIGSYS will be investigated separately if runtime succeeds. Logs go to /data/GodotPS5/engine-stderr.log. This is a diagnostic build, not yet a verified crash fix or playable Godot graphics/audio. Packaged smoke.pck loads from /app0/assets/godot/smoke.pck. Logs: /data/GodotPS5/engine-smoke.log, engine-stdout.log and engine-stderr.log. This is experimental; hardware success is not yet established." \
             --prerelease
       - name: Upload PS5 linker diagnostics for unresolved symbols
         if: always()
