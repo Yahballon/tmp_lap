@@ -73,6 +73,19 @@ PS5 / Firmware 5.10
 
 **Der Status ist „funktionierender experimenteller Godot-2D-Renderer“, nicht „vollständige oder universelle Godot-PS5-Engine“.** Insbesondere darf aus der selbstgeschriebenen Pong-Kollision nicht auf einen funktionierenden Godot-PhysicsServer2D geschlossen werden.
 
+## M8c – Independent external PCK acceptance fixture (23 October 2026)
+
+**Status: 🟡 Sources and CI test workflow committed; host workflow and physical PS5 results not yet verified.** This is an additive next step while Pong v0.1.2 hardware acceptance remains P0.
+
+- New standalone project: [`samples/external-pack-smoke/`](samples/external-pack-smoke/README.md), deliberately **not** linked into the native PPSA99847 binary.
+- New [`build-godot-ps5-external-pck.yml`](../../.github/workflows/build-godot-ps5-external-pck.yml) generates `external-smoke.pck` using official Godot 4.7.2, then performs a Linux/headless PCK runtime check. The expected downloadable artifact is `Godot-PS5-External-PCK-Host-Verified-NOT-PS5` **only after the workflow succeeds**.
+- The PCK contains two `Node2D` scenes, their GDScripts and a `res://palette.json` resource. It tests **real** `FileAccess.open`, `JSON.parse_string`, scene switching, CanvasItem primitive rendering, X input and clean engine exit.
+- Use `PPSA99847 v0.1.2` unchanged: copy artifact `external-smoke.pck` to `/data/GodotPS5/games/external-smoke.pck`; create `/data/GodotPS5/launch.txt` containing `external-smoke.pck`. Remove `launch.txt` afterward to restore the bundled Pong game.
+- Expected `gles3-runtime.log`: `PACK_SOURCE=CONFIG`, `GODOT_SWAP_FIRST`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`.
+- Expected `gles3-stdout.log`: `GODOT_PS5_EXTERNAL_MAIN_READY`, `GODOT_PS5_EXTERNAL_ASSET_OK`, `GODOT_PS5_EXTERNAL_SCENE_CHANGE_REQUESTED`, `GODOT_PS5_EXTERNAL_SECOND_SCENE_READY`, `GODOT_PS5_EXTERNAL_FINISHED`; optional pad proof `GODOT_PS5_EXTERNAL_GAMEPAD_X`.
+- **Acceptance gate:** green CI alone is not hardware proof. Obtain PS5 screenshot or video plus `gles3-runtime.log`, `gles3-stdout.log` and `gles3-stderr.log` before marking M8c confirmed; failed resource/scene/exit markers are useful debugging evidence.
+- No claims yet for broad Godot compatibility, saving, text rendering, PhysicsServer2D, audio or 3D.
+
 ## Roadmap: Was als Nächstes zu tun ist
 
 ### P0 – Pong v0.1.2 **auf der PS5 testen** (unmittelbarer nächster Schritt)
