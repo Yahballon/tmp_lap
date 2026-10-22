@@ -317,3 +317,26 @@ endif()
 """
 assert "target_link_libraries(zplayer PRIVATE core zcsound" in code
 cmake.write_text(code+support)
+
+
+# Unlike a host Linux executable, a PS5 native application needs the
+# PS5-DevBridge CRT's _start(process_parameters, loader_teardown).
+# The original zplayer main(argc, argv) remains unchanged. This startup code
+# initializes PS5 libc, runs C++ static constructors, and calls real main().
+# A linked engine without _start has e_entry=0 and cannot boot on hardware.
+import os
+crt = os.environ.get("PS5_APP_CRT_SOURCE")
+if not crt or not Path(crt).is_file():
+    raise RuntimeError("PS5_APP_CRT_SOURCE must be a real DevBridge app_crt.cpp")
+link_start = r'''
+if(ZC_PS5_TARGET_ONLY_PROBE)
+  # Use the same proven native startup object as PS5-DevBridge homebrew apps.
+  target_sources(zplayer PRIVATE "$ENV{PS5_APP_CRT_SOURCE}")
+  target_link_options(zplayer PRIVATE "-Wl,-e,_start")
+endif()
+'''
+current = cmake.read_text()
+assert "target_link_options(zplayer PRIVATE \"-Wl,-e,_start\")" not in current
+assert "add_executable(zplayer " in current
+cmake.write_text(current + "\n" + link_start)
+print("REAL_PS5_CRT_STARTUP_SOURCE=YES; upstream zplayer main remains original")
