@@ -2,4 +2,4 @@
 from misc.utility.scons_hints import *
 Import("env")
 # This is a static engine archive, NOT an installable PS5 game or eboot.bin.
-env.add_library("#bin/godot_ps5", ["os_ps5.cpp", "godot_ps5.cpp", "file_access_ps5.cpp", "compat.cpp"])
+env.add_library("#bin/godot_ps5", ["os_ps5.cpp", "godot_ps5.cpp", "file_access_ps5.cpp", "pad_ps5.cpp", "compat.cpp"])
