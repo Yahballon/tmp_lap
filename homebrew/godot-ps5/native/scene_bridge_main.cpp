@@ -81,7 +81,7 @@ struct GLScene {
             std::fprintf(f,
                 "[GodotPS5 BRIDGE 0.1.2] PERF_SAMPLE_FRAMES=%d CROSS_COUNT=%d "
                 "PAD_MAX_US=%u MAIN_MAX_US=%u DRAW_MAX_US=%u SWAP_MAX_US=%u "
-                "PAD_HITCHES=%u MAIN_HITCHES=%u DRAW_HITCHES=%u SWAP_HITCHES=%u\\n",
+                "PAD_HITCHES=%u MAIN_HITCHES=%u DRAW_HITCHES=%u SWAP_HITCHES=%u\n",
                 frames,last_presses,max_pad_us,max_main_us,max_draw_us,max_swap_us,
                 pad_hitches,main_hitches,draw_hitches,swap_hitches);
             std::fclose(f);
