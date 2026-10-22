@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.3 - authentic layer filters and native tube entry/exit subset.
+// Open Surge PS5 v0.5.4 - safe native tube exits and loop-region fallback.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
@@ -25,7 +25,7 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.5.3";
+constexpr const char* kVersion="0.5.4";
 constexpr const char* kTitle="OPEN SURGE PS5 - WORLD ROUTES";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
@@ -123,7 +123,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.5.3",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.5.4",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -214,6 +214,7 @@ int main(){
   unsigned fps_frames=0;
   unsigned last_blocked=0,last_respawns=0;
   unsigned last_layer_switches=0,last_tube_entries=0,last_tube_exits=0;
+  unsigned last_unsafe_tubes=0,last_loop_recoveries=0;
   float measured_fps=0.f;
   float accumulator=0.f;
   bool pending_jump=false;
@@ -359,6 +360,14 @@ int main(){
              last_tube_entries=level.tube_entries();
              log_message("ORIGINAL_TUBE_IN_SCRIPT controls locked");
           }
+          if(level.unsafe_tube_exits()!=last_unsafe_tubes){
+             last_unsafe_tubes=level.unsafe_tube_exits();
+             log_message("TUBE_UNSAFE_EXIT refusing outlet without valid landing");
+          }
+          if(level.loop_safety_recoveries()!=last_loop_recoveries){
+             last_loop_recoveries=level.loop_safety_recoveries();
+             log_message("LOOP_GUARD_RESTORE last grounded point; loop physics pending");
+          }
           if(level.tube_exits()!=last_tube_exits){
              last_tube_exits=level.tube_exits();
              log_message("ORIGINAL_TUBE_OUT_SCRIPT speed=600");
@@ -463,7 +472,7 @@ int main(){
       if(hazards_ready)hazards.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.5.3  -  ORIGINAL LAYERS + TUBES; LOOPS/ENGINE PENDING",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.5.4  -  SAFE TUBE OUTLETS; LOOP PHYSICS PENDING",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"MOVE  X JUMP  DOWN+X DASH  TRIANGLE MUSIC  SQUARE RESET  O BACK",73,1029,28,WHITE);
       char probe_line[180];

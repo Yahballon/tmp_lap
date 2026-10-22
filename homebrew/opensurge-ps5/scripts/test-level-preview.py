@@ -119,6 +119,10 @@ assert "rolluphillslp" in uphill_cpp or "281.25f" in uphill_cpp
 assert "uphill_steps_" in uphill_cpp
 assert "wall_climb_" in uphill_cpp
 assert "never bypass walls" not in uphill_cpp or "rolling" in uphill_cpp
+native_src=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
+assert "bool tube_exit_usable(" in native_src
+assert "restore_safe_ground()" in native_src
+assert "loop_safety_recoveries_" in native_src
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

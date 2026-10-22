@@ -1,10 +1,3 @@
-# Open Surge PS5 v0.5.3 — Original layer and tube routing
+# Open Surge PS5 v0.5.4 — Tube safety and unsupported loop fallback
 
-Fixes two missing features identified by the user's console report: original per-brick green/yellow collision layers were silently discarded, and all 12 original Tube In/Out entities were ignored.
-
-- Retain and filter the real 11 green/yellow bricks per `obstaclemap.c` default/green/yellow rules.
-- Read original Layer Green / Layer Yellow 32x32 trigger positions.
-- Basic automatic native Tube In/Out transport at 600 units/sec for matching authored routes (controls frozen inside); bidirectional endpoint tests included.
-- Native control/audio and Spin Dash uphill regression preserved.
-- **No complete 360-degree loops yet.** Original `physicsactor.c` rotates six sensors into four movement modes and also handles layers/tubes through SurgeScript. This native preview still lacks that complete engine.
-- On-console feedback requested. Do not describe full tube topology or loops as done.
+Real firmware 5.10 v0.5.3 video shows the player falling through the map after crossing the original tube/loop corridor. Tube entry now checks the exact original masked level floor and body clearance at the destination. Unsafe exits are refused; if exit geometry changes, transport returns to last verified support. In the unfinished four-direction loop area, unexpected vertical falling restores the last grounded position. CI checks source geometry with real original level assets. Loop/ceiling sensors remain unimplemented; audio and controls unchanged.
