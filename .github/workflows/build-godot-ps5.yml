@@ -33,6 +33,9 @@ jobs:
           /tmp/godot-ps5-test
           g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror homebrew/godot-ps5/tests/pck_native_mock_test.cpp -o /tmp/godot-ps5-native-mock
           /tmp/godot-ps5-native-mock
+          g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror \
+            homebrew/godot-ps5/tests/pad_mapping_test.cpp -o /tmp/godot-ps5-pad-test
+          /tmp/godot-ps5-pad-test
           python3 homebrew/godot-ps5/tests/test_static_bundle.py
           python3 homebrew/godot-ps5/tests/test_native_link_stage.py
           python3 homebrew/godot-ps5/tests/test_resolve_weak_tls.py
@@ -151,7 +154,7 @@ jobs:
           meta=json.loads((app/"sce_sys/param.json").read_text())
           assert meta["titleId"]=="PPSA99843"
           assert meta["contentId"]=="UP9000-PPSA99843_00-GODOTPS5HEADLESS"
-          assert meta["contentVersion"]=="01.000.012"
+          assert meta["contentVersion"]=="01.000.014"
           archive=app.parent/"PPSA99843.zip"
           with zipfile.ZipFile(archive) as z:
               assert z.testzip() is None
@@ -163,7 +166,7 @@ jobs:
         if: steps.godot_link.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-GDScript-Engine-Smoke-v0.2.11-UNVERIFIED-ON-CONSOLE
+          name: Godot-PS5-GDScript-Engine-Smoke-v0.3.1-UNVERIFIED-ON-CONSOLE
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
       # Publishing is handled by the trusted default-branch workflow
