@@ -16,7 +16,12 @@ SFX = (
     "charge", "charging_up", "release", "brake", "damaged", "death",
     "destroy", "spikes", "shot", "endsign", "checkpoint",
 )
-MUSIC = "template"  # demo-1.lev: music "musics/template.ogg"
+STAGE_TRACKS = {
+    "demo-1": "musics/template.ogg",
+    "sunshine-1": "musics/sunshine.ogg",
+    "sunshine-2": "musics/sunshine.ogg",
+    "sunshine-3": "musics/sunshine.ogg",
+}
 
 def ffmpeg(args: list[str]) -> None:
     subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
@@ -26,8 +31,11 @@ def prepare(staged: Path, app: Path) -> None:
     game=staged / "game"
     if not (game / "levels/demo-1.lev").exists():
         raise ValueError("Original level missing")
-    level=(game / "levels/demo-1.lev").read_text(encoding="utf-8")
-    assert 'music "musics/template.ogg"' in level, "Pinned level music changed"
+    for stage,track in STAGE_TRACKS.items():
+        level=(game/"levels"/(stage+".lev")).read_text(encoding="utf-8")
+        if f'music "{track}"' not in level:
+            raise ValueError(f"{stage}: pinned upstream track changed")
+
     dest=app / "assets" / "audio-cache"
     dest.mkdir(parents=True, exist_ok=True)
     for name in SFX:
@@ -41,29 +49,37 @@ def prepare(staged: Path, app: Path) -> None:
                 raise AssertionError(f"{name} invalid audio format")
             if wav.getnframes()<100 or wav.getnframes()>48_000*15:
                 raise AssertionError(f"{name} unexpected sound length")
-    source=game/"musics"/(MUSIC+".ogg")
-    if not source.is_file():raise FileNotFoundError(source)
-    target=dest/"level.ogg"
-    ffmpeg(["-i",str(source),"-vn","-ac","2","-ar","48000",
-            "-c:a","libvorbis","-q:a","4",str(target)])
-    probe=json.loads(subprocess.check_output(
-        ["ffprobe","-v","error","-show_streams","-of","json",str(target)],
-        timeout=20))
-    streams=[x for x in probe["streams"] if x.get("codec_type")=="audio"]
-    if len(streams)!=1 or streams[0].get("sample_rate")!="48000" or streams[0].get("channels")!=2:
-        raise ValueError("Incorrect resampled original level Vorbis format")
-    if target.stat().st_size<10000 or target.stat().st_size>32*1024*1024:
-        raise ValueError("Unexpected original level music size")
+    for name,output in (("template","level.ogg"),("sunshine","sunshine.ogg")):
+        source=game/"musics"/(name+".ogg")
+        if not source.is_file():raise FileNotFoundError(source)
+        target=dest/output
+        ffmpeg(["-i",str(source),"-vn","-ac","2","-ar","48000",
+                "-c:a","libvorbis","-q:a","4",str(target)])
+        probe=json.loads(subprocess.check_output(
+            ["ffprobe","-v","error","-show_streams","-of","json",str(target)],
+            timeout=20))
+        streams=[x for x in probe["streams"] if x.get("codec_type")=="audio"]
+        if len(streams)!=1 or streams[0].get("codec_name")!="vorbis" or (
+            streams[0].get("sample_rate")!="48000" or streams[0].get("channels")!=2
+        ): raise ValueError(f"Invalid {name} PS5 Vorbis")
+        if not 10000<target.stat().st_size<32*1024*1024:
+            raise ValueError(f"Unexpected {name} Vorbis length")
+        print("ORIGINAL_STAGE_MUSIC",name,output,target.stat().st_size)
     manifest={
         "source":"Open Surge upstream pinned original sound assets",
         "music":"musics/template.ogg",
         "music_output":"audio-cache/level.ogg",
+        "stage_music":STAGE_TRACKS,
+        "stage_outputs":{"demo-1":"audio-cache/level.ogg",
+                         "sunshine-1":"audio-cache/sunshine.ogg",
+                         "sunshine-2":"audio-cache/sunshine.ogg",
+                         "sunshine-3":"audio-cache/sunshine.ogg"},
         "sfx":list(SFX),
         "sample_rate":48000,"channels":2,
     }
     (dest/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
     print("ORIGINAL_AUDIO_STAGED",len(SFX),"sound effects",
-          "level.ogg",target.stat().st_size,"bytes")
+          "2 authentic stage music tracks")
 
 if __name__=="__main__":
     if len(sys.argv)!=3:raise SystemExit("Usage: prepare-audio.py <staged> <app>")
