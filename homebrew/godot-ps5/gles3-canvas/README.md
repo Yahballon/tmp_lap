@@ -68,8 +68,10 @@ External configured PCK paths still take precedence, exactly as in v0.1.1.
 The launcher intentionally retains the old internal file name
 `visual-smoke.pck` for binary compatibility.
 
-This is a *new, unverified game fixture*; the real GLES3 renderer had
-previously been confirmed with the checkerboard v0.1.0, but this Pong
-scene and its full input mapping need on-console confirmation.
+**Hardware update (23 October 2026):** the user confirmed Pong works and
+supplied a 13.88-second PS5 gameplay video (`20261022_234930_00248487(1).webm`).
+Visual Pong runtime is verified (moving ball, moving paddles and scoreboard).
+Specific X/Circle/Options mapping, scoring collisions, long-term performance
+and clean exit await standalone Pong logs/hardware acceptance.
 The v0.1.1 release remains available for regression comparison.
 See `samples/pong-smoke/README.md` for expected log markers.
