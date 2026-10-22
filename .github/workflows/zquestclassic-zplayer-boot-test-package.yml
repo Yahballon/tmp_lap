@@ -1,0 +1,92 @@
+name: ZQuest Original ZPlayer Separate PS5 Boot-Test ZIP
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Successful original zplayer PS5 FSELF source build run"
+        type: string
+        required: true
+        default: "39764121870"
+  pull_request:
+    paths:
+      - "homebrew/zquestclassic-ps5/engine/package_engine_boot_test.py"
+      - ".github/workflows/zquestclassic-zplayer-boot-test-package.yml"
+permissions:
+  actions: read
+  contents: read
+jobs:
+  boot-test-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native PS5 runtime and icon prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 lld-18 llvm-18 python3 python3-pil git unzip zip \
+            ninja-build make wget curl zlib1g-dev ca-certificates
+      - name: Fetch proven source FSELF for original zplayer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run_id || '39764121870' }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]{8,}$ ]] || exit 2
+          conclusion="$(gh run view "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)"
+          test "$conclusion" = success || { echo "Original build did not pass"; exit 3; }
+          mkdir -p /tmp/zplayer-source-fself
+          gh run download "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" \
+            -n ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED \
+            -D /tmp/zplayer-source-fself
+          mapfile -t files < <(find /tmp/zplayer-source-fself -type f -name eboot.bin)
+          test "${#files[@]}" -eq 1 || { echo "Expected one signed real-engine eboot.bin"; exit 4; }
+          test "$(stat -c %s "${files[0]}")" -gt 100000 || exit 5
+          cp "${files[0]}" /tmp/zplayer-engine-eboot.bin
+          echo "SOURCE_RUN_ID=$SOURCE_RUN" >> "$GITHUB_ENV"
+          sha256sum /tmp/zplayer-engine-eboot.bin
+          echo "This FSELF has NOT been boot-validated on a real PS5"
+      - name: Prepare isolated PS5-DevBridge runtime without modifying player ELF
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/zcps5-devbridge
+          cp -a /tmp/zcps5-devbridge/templates/simple-calc ./app
+          # Preserve zlib 1.3.2 SHA256 verification; use maintainer's GitHub release.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/tools/setup-native-dependencies.sh")
+          s = p.read_text()
+          old = 'zlib_url="https://zlib.net/fossils/zlib-$zlib_version.tar.gz"'
+          new = 'zlib_url="https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"'
+          assert s.count(old) == 1
+          assert 'zlib_hash="bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16"' in s
+          p.write_text(s.replace(old, new, 1))
+          PY
+          bash app/tools/setup-native-dependencies.sh
+          make -C app USE_CCACHE=0 libc
+          test -s app/runtime/libc.prx
+          test -s app/sce_sys/param.json
+          python3 homebrew/zquestclassic-ps5/assets/generate_assets.py app
+          test -s app/sce_sys/icon0.png
+      - name: Assemble and validate PPSA99128 isolated hardware boot diagnostic
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 homebrew/zquestclassic-ps5/engine/package_engine_boot_test.py \
+            --fself /tmp/zplayer-engine-eboot.bin \
+            --libc app/runtime/libc.prx \
+            --param-template app/sce_sys/param.json \
+            --icon app/sce_sys/icon0.png \
+            --source-run "$SOURCE_RUN_ID" \
+            --output out/PPSA99128-ENGINE-BOOT-TEST.zip
+          unzip -l out/PPSA99128-ENGINE-BOOT-TEST.zip
+          sha256sum out/PPSA99128-ENGINE-BOOT-TEST.zip > out/sha256sum.txt
+      - name: Upload PS5 diagnostic ZIP, separate Title-ID, no public release
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-PPSA99128-ORIGINAL-ZPLAYER-BOOT-TEST-UNVERIFIED
+          path: out/
+          if-no-files-found: error
+# This never edits version.json and never creates a public Release.
+# It is a BOOT diagnostic of original engine with separate Title ID, NOT gameplay.
