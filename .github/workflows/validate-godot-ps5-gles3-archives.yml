@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           bash homebrew/godot-ps5/scripts/build-engine.sh 2>&1 | tee /tmp/gles3-compile.log
-          archive=/tmp/godot/bin/libdrivers.ps5.template_debug.x86_64.a
+          archive=/tmp/godot/bin/obj/drivers/libdrivers.ps5.template_debug.x86_64.a
           test -s "$archive"
           llvm-ar-18 t "$archive" > /tmp/gles3-objects.txt
           grep -F 'rasterizer_gles3' /tmp/gles3-objects.txt
