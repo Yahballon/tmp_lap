@@ -7,8 +7,15 @@ on:
       - '.github/workflows/build-godot-ps5.yml'
   push:
     branches: [main, feature/godot-ps5-engine-foundation]
+    # Rebuild upstream Godot only for engine, engine patches, or smoke PCK
+    # changes. Fast native-launcher/PCK-chooser builds use the separate
+    # 10-archive CI link retry workflow and shouldn't recompile Godot.
     paths:
-      - 'homebrew/godot-ps5/**'
+      - 'homebrew/godot-ps5/engine/**'
+      - '!homebrew/godot-ps5/engine/platform/ps5/pck_launch_config.hpp'
+      - 'homebrew/godot-ps5/scripts/build-engine.sh'
+      - 'homebrew/godot-ps5/scripts/patch_ps5_*.py'
+      - 'homebrew/godot-ps5/samples/script-smoke/**'
       - '.github/workflows/build-godot-ps5.yml'
 permissions:
   contents: write
