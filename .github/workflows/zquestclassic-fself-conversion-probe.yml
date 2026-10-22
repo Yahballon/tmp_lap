@@ -1,6 +1,12 @@
 name: ZQuest ZPlayer PS5 FSELF Conversion Diagnostic
 on:
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: 'Successful ZQuest Original ZPlayer cross-build run ID'
+        required: true
+        type: string
+        default: '39752900028'
   pull_request:
     paths:
       - '.github/workflows/zquestclassic-fself-conversion-probe.yml'
@@ -44,10 +50,14 @@ jobs:
       - name: Download proven original zplayer ELF (not installable)
         env:
           GH_TOKEN: ${{ github.token }}
+          ZPLAYER_SOURCE_RUN: ${{ inputs.source_run_id || '39752900028' }}
         run: |
           set -euo pipefail
+          [[ "$ZPLAYER_SOURCE_RUN" =~ ^[0-9]{8,}$ ]] || { echo "Invalid source run ID"; exit 2; }
+          status="$(gh run view "$ZPLAYER_SOURCE_RUN" -R "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)"
+          test "$status" = success || { echo "Selected zplayer build is not successful: $status"; exit 3; }
           mkdir -p /tmp/zquest-elf
-          gh run download 39743865567 -R "$GITHUB_REPOSITORY" \
+          gh run download "$ZPLAYER_SOURCE_RUN" -R "$GITHUB_REPOSITORY" \
             -n ZQuest-Original-ZPlayer-PS5-Linked-ELF-NOT-PLAYABLE-OR-INSTALLABLE \
             -D /tmp/zquest-elf
           # Uploaded Actions archive preserves the parent "build/" path
@@ -55,11 +65,10 @@ jobs:
           test -s /tmp/zquest-elf/build/zplayer
           cp /tmp/zquest-elf/build/zplayer /tmp/zquest-elf/zplayer
           file /tmp/zquest-elf/zplayer
-          echo 'SOURCE_BUILD_RUN=39743865567' > /tmp/zquest-elf/source-build.txt
+          echo "SOURCE_BUILD_RUN=$ZPLAYER_SOURCE_RUN" > /tmp/zquest-elf/source-build.txt
           llvm-readelf-18 -h -l -d /tmp/zquest-elf/zplayer \
             > /tmp/zquest-elf/source-elf-report.txt
       - name: Attempt native PS5 module conversion (diagnostic, never publish)
-        continue-on-error: true
         run: |
           set -euo pipefail
           tool=app/build/host/ps5-native-tool
@@ -109,4 +118,6 @@ jobs:
             /tmp/zquest-conversion/self.log
             /tmp/zquest-conversion/self-inspect.txt
           if-no-files-found: warn
-# Linked ELF does not imply playable PS5 homebrew. No TESTBUILDS mutation.
+# Failed native module conversion must fail the job; logs are retained by if: always().
+# Build success and FSELF conversion never imply bootability or gameplay.
+# No TESTBUILDS mutation.
