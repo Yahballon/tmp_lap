@@ -49,6 +49,7 @@ public:
     size_t indexed_cells() const {return cells_.size();}
     unsigned collision_blocks() const {return blocked_;}
     unsigned auto_respawns() const {return respawns_;}
+    unsigned solid_recoveries() const {return solid_recoveries_;}
     float slope_grade() const {return slope_grade_;}
     unsigned uphill_steps() const {return uphill_steps_;}
     bool wall_climbing() const {return wall_climb_;}
@@ -295,6 +296,7 @@ public:
         charge_=0.f;spring_anim_=0.f;dash_releases_=0;
         slope_grade_=0.f;uphill_steps_=0;
         wall_climb_=false;wall_climbs_=0;wall_top_=0.f;wall_dir_=0;
+        embedded_frames_=solid_recoveries_=0;
         active_layer_=0;layer_switches_=0;tube_entries_=tube_exits_=0;
         tube_active_=false;tube_timer_=tube_cooldown_=0.f;
         unsafe_tube_exits_=loop_safety_recoveries_=0;
@@ -566,6 +568,17 @@ public:
             }
         }
         tick_routes();
+        // Native slopes may briefly touch a rolling player's outer edge.
+        // Only rescue if the CORE of the actor remains deeply inside a
+        // SOLID brick for 8 consecutive 120Hz ticks; a single masked seam
+        // must never teleport the player.
+        if(!wall_climb_ && !tube_active_ && torso_deep_inside_solid()){
+            if(++embedded_frames_>=8){
+                restore_safe_ground();
+                ++solid_recoveries_;
+                embedded_frames_=0;
+            }
+        }else embedded_frames_=0;
         if(ground_ && !wall_climb_ && !tube_active_ &&
            !body_hits(x_,y_) && has_foot_support(x_,y_)){
             safe_ground_x_=x_;safe_ground_y_=y_;
@@ -833,6 +846,10 @@ private:
         }
         return false;
     }
+    bool torso_deep_inside_solid() const {
+        return solid_at(x_,y_-18.f) && solid_at(x_-3.f,y_-12.f) &&
+               solid_at(x_+3.f,y_-12.f);
+    }
     bool head_hits(float px,float feet) const {
         return solid_at(px-11.f,feet-44.f)||solid_at(px+11.f,feet-44.f);
     }
@@ -929,6 +946,7 @@ private:
     unsigned dash_releases_=0;
     float last_ground_y_=0.f;
     unsigned blocked_=0,respawns_=0;
+    unsigned embedded_frames_=0,solid_recoveries_=0;
     std::string error_;
 };
 } // namespace surgepreview

@@ -58,20 +58,37 @@ int main(int argc,char** argv){
                     max_wall_ticks,penetrations);
         // Repeated pit recovery must be reflected in the diagnostics.
         // Prior reset() zeroed the increment, making respawn logs useless.
+        const unsigned before=map.auto_respawns();
         map.test_put(50000.f,40000.f);
         map.update(dt,0,false);
-        if(map.auto_respawns()!=1 || !map.grounded()){
+        if(map.auto_respawns()!=before+1 || !map.grounded()){
             std::fprintf(stderr,"FAILED FALL RECOVERY stage=%s count=%u grounded=%d\n",
                          stages[stage],map.auto_respawns(),map.grounded()?1:0);
             return 7;
         }
         map.test_put(50000.f,40000.f);
         map.update(dt,0,false);
-        if(map.auto_respawns()!=2){
+        if(map.auto_respawns()!=before+2){
             std::fprintf(stderr,"FAILED RESPAWN COUNTER stage=%s count=%u\n",
                          stages[stage],map.auto_respawns());
             return 8;
         }
+    }
+    {
+        // From the PS5 screenshot/source mask: both bricks 26 and 30 are
+        // opaque inside x2517, y9990..10012. An embedded player must
+        // recover to safe ground rather than getting permanently trapped.
+        surgepreview::LevelPreview embedded;
+        if(!embedded.load(renderer,game))return 12;
+        embedded.test_enable_routes(false);
+        embedded.test_put(2517.f,10015.f);
+        for(int tick=0;tick<30;++tick)embedded.update(dt,0,false);
+        if(embedded.solid_recoveries()!=1 || embedded.test_inside()){
+            std::fprintf(stderr,"FAILED DEEP SOLID RECOVERY count=%u x=%.1f y=%.1f\n",
+                         embedded.solid_recoveries(),embedded.player_x(),embedded.player_y());
+            return 13;
+        }
+        std::printf("DEEP_SOLID_RESTORE_PASS count=%u\n",embedded.solid_recoveries());
     }
     std::puts("PASS original four-stage physics stress, solid ascent guard and repeated fall recovery");
     return 0;

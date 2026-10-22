@@ -273,10 +273,10 @@ int main(){
     if(level_mode && now-perf_log_us>=5000000u){
       char line[250];
       std::snprintf(line,sizeof(line),
-          "PERF fps=%.1f x=%.1f y=%.1f vx=%.1f vy=%.1f grounded=%d cells=%zu blocked=%u respawn=%u slope=%.2f climb=%u wall=%d traversals=%u layer=%d tube=%d",
+          "PERF fps=%.1f x=%.1f y=%.1f vx=%.1f vy=%.1f grounded=%d cells=%zu blocked=%u respawn=%u slope=%.2f climb=%u wall=%d traversals=%u layer=%d tube=%d deep_restore=%u",
           measured_fps,level.player_x(),level.player_y(),level.velocity_x(),
           level.velocity_y(),level.grounded()?1:0,level.indexed_cells(),
-          level.collision_blocks(),level.auto_respawns(),level.slope_grade(),level.uphill_steps(),level.wall_climbing()?1:0,level.wall_climbs(),level.active_layer(),level.in_tube()?1:0);
+          level.collision_blocks(),level.auto_respawns(),level.slope_grade(),level.uphill_steps(),level.wall_climbing()?1:0,level.wall_climbs(),level.active_layer(),level.in_tube()?1:0,level.solid_recoveries());
       log_message(line);
       std::snprintf(line,sizeof(line),
           "PAD_DIAG raw=0x%08x held=0x%08x empty_polls=%llu samples=%llu disconnects=%llu",
