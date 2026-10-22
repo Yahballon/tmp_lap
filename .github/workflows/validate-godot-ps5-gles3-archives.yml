@@ -65,18 +65,7 @@ jobs:
           loader=/tmp/godot/bin/libgodot_ps5_glad.ps5.template_debug.x86_64.a
           test -s "$loader"
           llvm-ar-18 t "$loader" > /tmp/glad-objects.txt
-          grep -E '(^|/)(gl|egl)\.ps5\.template_debug\.x86_64\.o
-          echo 'REAL_GODOT_PS5_GLES3_ARCHIVES_COMPILED'
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: PS5-Godot-GLES3-CrossCompile-Diagnostics-NO-INSTALLER
-          path: |
-            /tmp/gles3-compile.log
-            /tmp/gles3-objects.txt
-            /tmp/glad-objects.txt
-          if-no-files-found: warn
- /tmp/glad-objects.txt
+          grep -E '(^|/)(gl|egl)\.ps5\.template_debug\.x86_64\.o$' /tmp/glad-objects.txt
           echo 'REAL_GODOT_PS5_GLES3_ARCHIVES_COMPILED'
       - uses: actions/upload-artifact@v4
         if: always()
