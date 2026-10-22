@@ -7,7 +7,7 @@ text = (root / "engine/platform/ps5/godot_ps5.cpp").read_text()
 phase_pairs = [
     ("BEFORE_PROFILER_INIT", "AFTER_PROFILER_INIT", "godot_init_profiler();"),
     ("BEFORE_OS_PS5_CONSTRUCTOR", "AFTER_OS_PS5_CONSTRUCTOR", "OS_PS5 os;"),
-    ("BEFORE_MAIN_SETUP", "AFTER_MAIN_SETUP", 'Main::setup("godot.ps5", 3, args)'),
+    ("BEFORE_MAIN_SETUP", "AFTER_MAIN_SETUP", 'Main::setup("godot.ps5", count, args)'),
     ("BEFORE_MAIN_START", "AFTER_MAIN_START", "Main::start();"),
 ]
 for pre, post, call in phase_pairs:

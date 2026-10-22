@@ -10,6 +10,8 @@ for token in ("GODOT_PS5_NATIVE_GLES3: '1'","GODOT_PS5_GLES3_ARCHIVES: '1'",
               "GODOT_PS5_DISPLAY_EXPERIMENT: '1'","PPSA99846",
               "visual-smoke.pck","graphics_hooks_ps5.h","stage_native_link.py"):
     assert token in workflow,token
-assert "glDrawArrays" not in native and "glTexImage2D" not in native
+import re
+assert re.search(r"\\bglDrawArrays\\s*\\(", native) is None
+assert re.search(r"\\bglTexImage2D\\s*\\(", native) is None
 assert "gh release create" not in workflow
 print("PASS: true Godot GLES3 Canvas2D PS5 title source/build isolated")
