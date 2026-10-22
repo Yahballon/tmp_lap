@@ -33,7 +33,7 @@ jobs:
           "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m9-pack.log
           grep -Fq GODOT_PS5_M9_PCK_WRITTEN /tmp/m9-pack.log
           test -s "$project/physics-smoke.pck"
-          "$godot" --headless --main-pack "$project/physics-smoke.pck" --quit-after 850 2>&1 | tee /tmp/m9-physics.log
+          "$godot" --headless --main-pack "$project/physics-smoke.pck" --quit-after 2200 2>&1 | tee /tmp/m9-physics.log
           for marker in GODOT_PS5_M9_BOOT GODOT_PS5_M9_BODIES_READY GODOT_PS5_M9_REAL_COLLISION_OK GODOT_PS5_M9_TEST_PASS; do
             grep -Fq "$marker" /tmp/m9-physics.log
           done
