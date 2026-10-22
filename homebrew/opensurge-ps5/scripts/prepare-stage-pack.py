@@ -24,7 +24,7 @@ HAZARDS={
     "Lady Bugsy":"bugsy", "Spikes":"spikes",
 }
 OBJ=re.compile(r'^\s*entity\s+"([^"]+)"\s+(-?\d+)\s+(-?\d+)\s+"([0-9a-f]+)"\s*$')
-BRICK=re.compile(r'^\s*brick\s+(\d+)\s+(-?\d+)\s+(-?\d+)(?:\s+(green|yellow))?\s*$')
+BRICK=re.compile(r'^\s*brick\s+(\d+)\s+(-?\d+)\s+(-?\d+)(?:\s+(green|yellow|hflip))?\s*$')
 SPAWN=re.compile(r'^\s*spawn_point\s+(-?\d+)\s+(-?\d+)\s*$')
 THEME=re.compile(r'^\s*theme\s+"([^"]+)"')
 MUSIC=re.compile(r'^\s*music\s+"([^"]+)"')
@@ -58,7 +58,9 @@ def run(staged:Path,app:Path)->None:
                 ident,x,y=int(m[1]),int(m[2]),int(m[3])
                 if ident not in depth or abs(x)>100000 or abs(y)>100000:
                     raise ValueError(f"{stage}: unsupported brick {ident}")
-                bricks.append((ident,x,y,m[4] or "default"))
+                flag=m[4] or "default"
+                bricks.append((ident,x,y,"default" if flag=="hflip" else flag,
+                               flag=="hflip"))
             elif m:=OBJ.match(line):
                 name,x,y=m[1],int(m[2]),int(m[3])
                 if abs(x)>100000 or abs(y)>100000:raise ValueError("bad entity coordinate")
@@ -80,7 +82,8 @@ def run(staged:Path,app:Path)->None:
             f"instances {len(bricks)}\n",encoding="ascii")
         (d/"defs.txt").write_text(defs,encoding="ascii")
         (d/"bricks.txt").write_text(
-            "".join(f"{a} {b} {c} {layer}\n" for a,b,c,layer in bricks),encoding="ascii")
+            "".join(f"{a} {b} {c} {layer}"+(" hflip" if flip else "")+"\n"
+                    for a,b,c,layer,flip in bricks),encoding="ascii")
         for target,items in (("routes.tsv",routes),("entities.tsv",entities),("hazards.tsv",hazards)):
             (d/target).write_text(
                 "".join(f"{a}\t{b}\t{c}\n" for a,b,c in items),encoding="ascii")
