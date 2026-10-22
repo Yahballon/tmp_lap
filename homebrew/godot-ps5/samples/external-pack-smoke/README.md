@@ -5,6 +5,12 @@ Godot GLES3/Canvas2D engine in `PPSA99847`, **without rebuilding the PS5
 native executable**. It packages two Godot scenes, two GDScripts and
 `res://palette.json` into `external-smoke.pck`.
 
+## Verified host build (23 October 2026)
+
+**PASS** — [M8c GitHub Actions run #39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380) completed successfully, including real Godot 4.7.2 pack generation, headless execution of both scenes with asset reading, bundle tests and artifact publication. CI artifact: [`Godot-PS5-M8c-External-PCK-PS5-READY-HOST-TESTED`](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380/artifacts/12464481166). Real PCK 4,828 bytes; SHA-256 `137f4c5722e385c04c4f36a84fcd8548e5038a348f68d91ca2c3310c21527591` confirmed in the extracted PS5 installation ZIP. Dedicated acceptance [PR #235](https://github.com/Yahballon/tmp_lap/pull/235) merged into the development branch.
+
+**PS5 hardware test is not yet confirmed.** No new native binary is necessary; use the unchanged `PPSA99847 v0.1.2` and replace only `launch.txt`/external game resources.
+
 ## Build / download
 
 Open [Build External Godot PS5 PCK](https://github.com/Yahballon/tmp_lap/actions/workflows/build-godot-ps5-external-pck.yml)
