@@ -81,7 +81,7 @@ echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100" \
+  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100 -Wl,--version-script=$root/app/tooling/native/app-symbols.map" \
   -DCMAKE_HAVE_LIBC_PTHREAD=TRUE \
   -DTHREADS_PREFER_PTHREAD_FLAG=OFF \
   "-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG" \
