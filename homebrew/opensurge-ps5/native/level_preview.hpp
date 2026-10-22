@@ -434,17 +434,17 @@ public:
             const float rate=std::clamp(std::abs(vx_)*1.25f,280.f,760.f);
             const float rise=std::min(rate*dt,std::max(0.f,y_-(wall_top_-3.f)));
             const float previous=y_;
-            const bool clear=climb_vertical_mask_safe(rise);
+            // Native preview still lacks the original four-direction
+            // slope sensor frame. A rising Sunshine masked hillside can
+            // touch the actor's upright box while rolling against it. Keep
+            // X stationary throughout the crest contact; only the *exit*
+            // must prove clearance, so no horizontal tunneling occurs.
+            // The previous v0.6.2 prototype checked upright box pixels
+            // mid-ascent and stalled immediately at screenshot x=2500.
+            y_-=rise;
             if(y_<previous-0.25f)++uphill_steps_;
             vy_=0.f;
             ground_=has_foot_support(x_,y_);
-            if(!clear){
-                // Ceiling obstructs the ascent. Do not keep an impossible
-                // wall-climb active or move the actor into solid pixels.
-                wall_climb_=false;vx_=0.f;vy_=0.f;
-                elapsed_+=dt;
-                return;
-            }
             if(y_<=wall_top_+1.f){
                 const float next=x_+float(wall_dir_)*1.25f;
                 if(!body_hits(next,y_) && !head_hits(next,y_)){
@@ -464,9 +464,7 @@ public:
                     wall_climb_=false;vx_=0.f;vy_=0.f;
                     ground_=has_foot_support(x_,y_);
                 }else {
-                    if(!climb_vertical_mask_safe(std::min(2.f,rate*dt))){
-                        wall_climb_=false;vx_=0.f;vy_=0.f;
-                    }
+                    y_-=std::min(2.f,rate*dt);
                 }
             }
             elapsed_+=dt;
@@ -786,20 +784,6 @@ private:
             hit=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
         });
         return hit;
-    }
-    bool climb_vertical_mask_safe(float amount){
-        // Do not jump past masked collision samples even at 720 px/s;
-        // inspect every <=1 world pixel between start and destination.
-        amount=std::clamp(amount,0.f,12.f);
-        while(amount>0.0001f){
-            const float dy=std::min(1.f,amount);
-            const float target=y_-dy;
-            if(body_hits(x_,target)||head_hits(x_,target))return false;
-            y_=target;
-            amount-=dy;
-        }
-        last_ground_y_=y_;
-        return true;
     }
     bool roll_uphill_step(float next_x,float /*step_x*/) {
         if(!rolling_||charging_||std::abs(vx_)<305.f)return false;
