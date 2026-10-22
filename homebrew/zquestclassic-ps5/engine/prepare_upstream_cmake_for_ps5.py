@@ -229,7 +229,8 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
       strtoll_l strtof_l strtod_l strtold_l
       sscanf_l snprintf_l asprintf_l __runes_for_locale
       strftime_l mbsrtowcs_l wcsnrtombs_l wcrtomb_l mbsnrtowcs_l
-      catopen catgets catclose)
+      catopen catgets catclose
+      mbtowc_l ___mb_cur_max_l mbrlen_l freelocale strtoull_l)
     target_link_options(zplayer PRIVATE
         "-Wl,--defsym,@@{_name}=ps5_@@{_name}")
   endforeach()
@@ -240,7 +241,8 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
   # PS5 implementations rather than stubbing the missing C locale symbols.
   foreach(_zc_locale_symbol IN ITEMS
       strftime_l mbsrtowcs_l wcsnrtombs_l wcrtomb_l mbsnrtowcs_l
-      catopen catgets catclose)
+      catopen catgets catclose
+      mbtowc_l ___mb_cur_max_l mbrlen_l freelocale strtoull_l)
     target_link_options(zplayer PRIVATE
         "-Wl,--undefined=ps5_${_zc_locale_symbol}")
   endforeach()
