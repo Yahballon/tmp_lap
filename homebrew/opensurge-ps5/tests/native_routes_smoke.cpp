@@ -16,8 +16,8 @@ int main(int argc,char** argv){
     assert(level.route_count()>50);
     assert(level.active_layer()==0);
     constexpr float dt=1.f/120.f;
-    // Real original Layer Green entity (6720,10192).
-    level.test_put(6720.f,10216.f);
+    // Real original Layer Green entity (3696,9552).
+    level.test_put(3696.f,9576.f);
     level.update(dt,0,false);
     assert(level.active_layer()==1 && level.layer_switches()>=1);
     // Real original Layer Yellow entity (3792,9392).
