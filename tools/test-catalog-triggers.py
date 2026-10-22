@@ -22,6 +22,12 @@ assert "Build 4 WINS PS5" in names, "4 WINS release workflow not subscribed"
 assert "Build Open Surge PS5 Legacy Native (non-playable test)" in names, "Open Surge test-release workflow not subscribed"
 assert "Publish PS5DreamcastX Release" in names, "DreamcastX standalone release publisher not subscribed"
 assert "Publish PS5DreamcastX TESTBUILD" in names
+assert "Publish Godot PS5 GPU TESTBUILD" in names
+gpu_publisher=(workflow_dir / "publish-godot-ps5-gpu-probe.yml").read_text()
+assert "gh release create" in gpu_publisher
+assert "PPSA99844.zip" in gpu_publisher
+assert "tools/update-version.py" in gpu_publisher
+assert "Godot PS5 Isolated GPU Probe (NOT A GODOT RENDERER)" in gpu_publisher
 
 release_workflows = {}
 # Legacy Crypto Tracker has no app.json; still require its release workflow.
