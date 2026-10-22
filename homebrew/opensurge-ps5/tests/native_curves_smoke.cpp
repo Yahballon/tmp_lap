@@ -22,11 +22,14 @@ int main(int argc,char** argv){
     level.test_put(3704.f,10048.f,1,true);
     unsigned entered=0;
     float miny=1e6f,maxy=-1e6f;
+    unsigned snake_in_solid=0,snake_sampled=0;
     bool done=false;
     for(int i=0;i<900;++i){
         level.update(dt,1,false,true,false);
         if(level.in_curve()){
             ++entered;
+            ++snake_sampled;
+            if(level.test_inside())++snake_in_solid;
             miny=std::min(miny,level.player_y());
             maxy=std::max(maxy,level.player_y());
         }
@@ -37,6 +40,7 @@ int main(int argc,char** argv){
     std::printf("SERPENTINE_RESULT x=%.1f y=%.1f range=%.1f..%.1f ticks=%u entries=%u completed=%u\n",
         level.player_x(),level.player_y(),miny,maxy,entered,
         level.curve_entries(),level.curve_completions());
+    std::printf("CURVE_MASK snake_inside=%u of %u frames\n",snake_in_solid,snake_sampled);
     if(!done||entered<110||level.player_x()<4480.f||
        miny>10048.f||maxy<10105.f||maxy-miny<65.f)return 5;
     if(level.in_curve())return 6;
@@ -45,6 +49,7 @@ int main(int argc,char** argv){
     // ->bottom. The old downward-only gravity wrongly threw us out at top.
     level.test_put(5765.f,9923.f,1,true);
     int orbit_ticks=0,positive=0,negative=0;
+    unsigned ring_in_solid=0,ring_sampled=0;
     float mx=1e6f,Mx=-1e6f,my=1e6f,My=-1e6f;
     bool circle_enter=false,circle_finished=false,exited_before_orbit=false;
     const unsigned complete_before=level.curve_completions();
@@ -53,6 +58,8 @@ int main(int argc,char** argv){
         level.update(dt,1,false,true,false);
         if(level.in_curve()){
             circle_enter=true;
+            ++ring_sampled;
+            if(level.test_inside())++ring_in_solid;
             mx=std::min(mx,level.player_x());Mx=std::max(Mx,level.player_x());
             my=std::min(my,level.player_y());My=std::max(My,level.player_y());
             if(level.curve_mode()==3){
@@ -70,6 +77,7 @@ int main(int argc,char** argv){
     std::printf("LOOP_360_RESULT x=%.1f y=%.1f orbit_ticks=%d range_x=%.1f..%.1f range_y=%.1f..%.1f positive=%d negative=%d turns=%u completed=%u early_exit=%d\n",
         level.player_x(),level.player_y(),orbit_ticks,mx,Mx,my,My,
         positive,negative,level.curve_orbits(),level.curve_completions(),exited_before_orbit?1:0);
+    std::printf("CURVE_MASK ring_inside=%u of %u frames\n",ring_in_solid,ring_sampled);
     if(!circle_enter||!circle_finished||exited_before_orbit||
        orbit_ticks<150||level.curve_orbits()!=orbits_before+1||
        level.player_x()<6035.f||mx>5810.f||Mx<5980.f||
