@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "c7812a66d9bc9b519ef0155c6b3dd952cb600d72364783ed0ec5f9319d1556b2",
+  "version": "bdc230b2c589aa4436084018c4369a6a7f7479708bdb9cd5fd56dcdb6d05cefa",
   "repository": "Yahballon/tmp_lap",
   "app_count": 27,
   "apps": [
@@ -255,14 +255,14 @@
       "name": "Godot PS5 GPU Probe (EXPERIMENTAL)",
       "slug": "godot-ps5-gpu-probe",
       "title_id": "PPSA99844",
-      "version": "0.1.0",
-      "tag": "godot-ps5-gpu-probe-v0.1.0",
+      "version": "0.1.5",
+      "tag": "godot-ps5-gpu-probe-v0.1.5",
       "zip_name": "PPSA99844.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gpu-probe-v0.1.0/PPSA99844.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gpu-probe-v0.1.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gpu-probe-v0.1.5/PPSA99844.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gpu-probe-v0.1.5",
       "source": "homebrew/godot-ps5-gpu-probe",
       "size_bytes": 6196081,
-      "published_at": "2026-10-22T11:13:00Z"
+      "published_at": "2026-10-22T11:15:28Z"
     },
     {
       "name": "Snake",
