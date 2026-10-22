@@ -886,6 +886,10 @@ private:
             float foot=prev.y;
             if(!nearest_tube_floor(px,prev.y,foot) ||
                std::abs(foot-prev.y)>25.f){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("TUBE_TRACK_GAP x=%.1f prev_x=%.1f prev_y=%.1f sampled_y=%.1f\n",
+                    px,prev.x,prev.y,foot);
+#endif
                 tube_track_.clear();return false;
             }
             tube_track_length_+=std::hypot(px-prev.x,foot-prev.y);
@@ -895,6 +899,10 @@ private:
         }
         const auto& prev=tube_track_.back();
         if(std::abs(prev.y-target_y)>32.f){
+#ifdef SURGEPREVIEW_HOST_TEST
+            std::printf("TUBE_TRACK_END_MISMATCH x=%.1f prev_y=%.1f target_y=%.1f\n",
+                target_x,prev.y,target_y);
+#endif
             tube_track_.clear();return false;
         }
         tube_track_length_+=std::hypot(target_x-prev.x,target_y-prev.y);
