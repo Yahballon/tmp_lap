@@ -11,7 +11,7 @@ int main() {
            "/mnt/usb0/godot/My Game.PCK");
     assert(parse_launch_txt("# no launch config") == "");
     assert(parse_launch_txt("   \t  ") == "");
-    for (const std::string &s : {
+    for (const char *s : {
             "../evil.pck", "/tmp/evil.pck", "/app0/evil.pck",
             "/data/GodotPS5/games/../evil.pck",
             "/data/GodotPS5/games/./evil.pck",
