@@ -21,6 +21,13 @@ void OS_PS5::delete_main_loop() {
 }
 void OS_PS5::set_main_loop(MainLoop *loop) { main_loop = loop; }
 MainLoop *OS_PS5::get_main_loop() const { return main_loop; }
+// Godot's FreeBSD getcwd() crashes on PS5 firmware tested in v0.2.4.
+String OS_PS5::get_cwd() const { return "/app0"; }
+String OS_PS5::get_executable_path() const { return "/app0/eboot.bin"; }
+Error OS_PS5::set_cwd(const String &path) {
+    // Logical app root only; never call unverified libc chdir().
+    return path == "/app0" ? OK : ERR_UNAVAILABLE;
+}
 String OS_PS5::get_identifier() const { return "ps5"; }
 String OS_PS5::get_name() const { return "PS5 Homebrew"; }
 String OS_PS5::get_config_path() const { return "/data/GodotPS5/config"; }
