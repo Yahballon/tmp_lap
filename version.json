@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "6db69410a03cd29bb05a61e24523ef37fd75ce91503a94a06ce3321a7690b5e9",
+  "version": "e1e653ff6b0906f33767a2a0a6ba1f0f9d84effc5012556f1913a5f965b6c585",
   "repository": "Yahballon/tmp_lap",
   "app_count": 26,
   "apps": [
@@ -242,14 +242,14 @@
       "name": "Godot PS5 Engine Smoke",
       "slug": "godot-ps5-engine-smoke",
       "title_id": "PPSA99843",
-      "version": "0.2.11",
-      "tag": "godot-ps5-engine-smoke-v0.2.11",
+      "version": "0.3.0",
+      "tag": "godot-ps5-engine-smoke-v0.3.0",
       "zip_name": "PPSA99843.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-engine-smoke-v0.2.11/PPSA99843.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-engine-smoke-v0.2.11",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-engine-smoke-v0.3.0/PPSA99843.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-engine-smoke-v0.3.0",
       "source": "homebrew/godot-ps5-engine-smoke",
-      "size_bytes": 15543677,
-      "published_at": "2026-10-22T09:33:52Z"
+      "size_bytes": 15546614,
+      "published_at": "2026-10-22T09:58:29Z"
     },
     {
       "name": "Snake",
