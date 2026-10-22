@@ -110,6 +110,13 @@ public:
             front_floor?1:0,forward,far_floor?1:0,far);
     }
     bool test_inside() const{return body_hits(x_,y_);}
+    void test_scan_column(float px,int y0,int y1,int step=8) const{
+        std::string line;
+        for(int yy=y0;yy<=y1;yy+=step)
+            line+=solid_at(px,float(yy))?'#':'.';
+        std::printf("CURVE_COLUMN x=%.0f y=%d..%d step=%d terrain=%s\n",
+           px,y0,y1,step,line.c_str());
+    }
     void test_enable_routes(bool enabled){routes_enabled_=enabled;}
     void test_put(float x,float y,int facing=1,bool rolling=false){
         x_=x;y_=y;vx_=rolling?(facing>=0?300.f:-300.f):0.f;

@@ -19,6 +19,10 @@ int main(int argc,char** argv){
     }
     // Real PS5 user video: x ~3828,y10064, roll straight through snake
     // rather than following S-shaped channel between huge solid blocks.
+    for(float x:{3712.f,3776.f,3840.f,3904.f,3968.f,4032.f,4096.f,4224.f,4352.f})
+        level.test_scan_column(x,9960,10170,8);
+    for(float x:{5776.f,5824.f,5888.f,5952.f,6000.f})
+        level.test_scan_column(x,9670,9950,8);
     level.test_put(3704.f,10048.f,1,true);
     unsigned entered=0;
     float miny=1e6f,maxy=-1e6f;
