@@ -146,7 +146,7 @@ zelda = once(zelda, 'int main(int argc, char **argv)\n{',
 for call, name in (
     ('\tzalleg_setup_allegro(App::zelda, argc, argv);', 'ALLEGRO_SETUP'),
     ('\tallocate_crap();', 'INITIAL_BITMAP_ALLOCATIONS'),
-    ('\tFFCore.clear_combo_scripts();', 'FFCORE_SCRIPTS_CLEAR'),
+    ('\tFFCore.clear_combo_scripts();\n\n\tZ_title', 'FFCORE_SCRIPTS_CLEAR'),
     ('\tif(!get_qst_buffers())', 'QUEST_BUFFERS'),
     ('\tload_control_schemes();', 'LOAD_CONTROLS'),
     ('\tzplayer_handle_commands();', 'HANDLE_COMMANDS'),
