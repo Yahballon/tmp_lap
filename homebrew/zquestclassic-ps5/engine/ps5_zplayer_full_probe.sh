@@ -29,6 +29,11 @@ test -d "$PS5_PAYLOAD_SDK/target/lib"
 find "$PS5_PAYLOAD_SDK/target/lib" -maxdepth 1 -type f \( -name "*.so" -o -name "*.a" \) | head -n 20
 export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
 test -f "${PS5_OPENGL_PREFIX:?}/lib/libPS5OpenGL.a"
+# A real PS5 linker must see the actual SDK's Sony import stubs.
+test -f "$PS5_PAYLOAD_SDK/target/lib/libSceLibcInternal.so"
+test -f "$PS5_PAYLOAD_SDK/target/lib/libScePad.so"
+test -f "$PS5_PAYLOAD_SDK/target/lib/libSceSystemService.so"
+
 test -f "$PS5_OPENGL_PREFIX/include/GL/glcorearb.h"
 test -d "$PS5_PAYLOAD_SDK/target/lib"
 echo "PS5 import libraries present:" >> "$report"
@@ -66,6 +71,9 @@ echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
+  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--as-needed" \
+  -DCMAKE_HAVE_LIBC_PTHREAD=1 \
+  -DTHREADS_PREFER_PTHREAD_FLAG=OFF \
   "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100" \
   -DTHREADS_PREFER_PTHREAD_FLAG=OFF \
   -DCMAKE_HAVE_LIBC_PTHREAD=TRUE \
