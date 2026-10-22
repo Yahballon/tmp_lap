@@ -153,31 +153,16 @@ def run(staged: Path, app: Path) -> dict:
     # Native preview render sorts original depth; the true engine uses more
     # complex z-order rules, which are not reproduced here.
     items.sort(key=lambda x: (defs[x[0]][5], x[2], x[1]))
-    # Unlike the original preview, retain the original 11 GREEN/YELLOW
-    # per-brick collision filters. These are essential to tube entrances
-    # and proper paths through loop/intersection geometry.
+    # Preserve collision layers: 7 GREEN and 4 YELLOW bricks in demo-1.lev.
     (dest / "bricks.txt").write_text(
-        "".join(f"{i} {x} {y} {layer}\n" for i,x,y,layer in items), encoding="ascii"
+        "".join(f"{i} {x} {y} {layer}\n" for i,x,y,layer in items),
+        encoding="ascii"
     )
     route_names={"Layer Green":"green","Layer Yellow":"yellow",
                  "Tube In":"tube_in","Tube Out":"tube_out"}
     route_records=[]
     for line in text.splitlines():
-        match=re.match(r'^\s*entity\s+"([^"]+)"\s+(-?\d+)\s+(-?\d+)\s+"[^"]+"\s*
-    summary = {"definitions": len(defs), "instances": len(items),
-               "spawn": (int(spawn[1]),int(spawn[2])),
-               "theme": theme[1], "atlas": atlas_size, "hero": hero_size,
-               "mask_opaque": solids, "magenta_cleared": True,
-               "surge_frame_pixels": first_frame_alpha}
-    print("Open Surge ORIGINAL data preview:", summary)
-    return summary
-
-
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        raise SystemExit("Usage: prepare-level-preview.py <staged-original-game> <app>")
-    run(Path(sys.argv[1]), Path(sys.argv[2]))
-,line)
+        match=re.match(r'^\s*entity\s+"([^"]+)"\s+(-?\d+)\s+(-?\d+)\s+"[^"]+"\s*$',line)
         if match and match.group(1) in route_names:
             route_records.append((route_names[match.group(1)],
                                   int(match.group(2)),int(match.group(3))))
