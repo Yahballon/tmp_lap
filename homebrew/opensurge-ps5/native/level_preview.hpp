@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.4 - reject unsupported tube exits and prevent loop-area floor dropouts.
+// Open Surge PS5 v0.6.2 - original Sunshine serpentine + 360 loop geometric path preview.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
+#include "level_curves.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -38,7 +39,12 @@ public:
     unsigned unsafe_tube_exits() const {return unsafe_tube_exits_;}
     unsigned loop_safety_recoveries() const {return loop_safety_recoveries_;}
     bool in_tube() const {return tube_active_;}
-    bool loop_mode_ready() const {return false;} // Original MM_* physics not yet linked
+    bool loop_mode_ready() const {return curves_.ready();} // native authored curves, not source MM_*
+    bool in_curve() const {return curves_.active();}
+    unsigned curve_entries() const{return curves_.entries();}
+    unsigned curve_completions() const{return curves_.completions();}
+    unsigned curve_orbits() const{return curves_.orbit_cycles();}
+    int curve_mode() const{return static_cast<int>(curves_.mode());}
 
     int visible() const {return visible_;}
     float player_x() const {return x_;}
@@ -226,6 +232,19 @@ public:
         if(static_cast<int>(placed_.size())!=count){
             error_="LEVEL BRICK COUNT";placed_.clear();return false;
         }
+        // The original demo-1 Sunshine level has distinctive authored brick
+        // pairs 50/51 and 53/52 (128px snake waves), plus loop ring tiles
+        // 41/42 (256px circle). Enable dedicated curved-rail preview ONLY
+        // when those exact original tiles exist at their authored locations.
+        // No procedural rail is enabled on any of the other three stages.
+        bool snake=false,loop_left=false,loop_right=false;
+        for(const auto& b:placed_){
+            if(b.id==50 && b.x==3712 && b.y==9984)snake=true;
+            if(b.id==41 && b.x==5760 && b.y==9664)loop_left=true;
+            if(b.id==42 && b.x==5888 && b.y==9664)loop_right=true;
+        }
+        curves_.configure(snake,3712.f,10080.f,
+                          loop_left&&loop_right,5888.f,9824.f);
         // Original SurgeScript level entities: layer collision selectors and
         // tube input locking/unlocking. Not present in the old native preview.
         const auto scripted=read(base+"routes.tsv",16*1024);
@@ -300,6 +319,7 @@ public:
         unsafe_tube_exits_=loop_safety_recoveries_=0;
         safe_ground_x_=x_;safe_ground_y_=y_;
         tube_guard_=0.f;
+        curves_.reset();
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -339,6 +359,30 @@ public:
         tube_guard_=std::max(0.f,tube_guard_-dt);
         if(tube_active_){
             tick_tube(dt);
+            elapsed_+=dt;
+            return;
+        }
+        // The regular preview only samples DOWN-facing foot sensors. It can
+        // never track the S-shaped tunnel or the reverse/ceiling segments of a
+        // full 360 loop. In these two validated original Sunshine structures
+        // use a continuous high-speed path whose curve is anchored in the
+        // actual authored tile coordinates; do not teleport between Tube In
+        // and Tube Out or drop back to downward gravity halfway through.
+        if(curves_.active()||curves_.enter(x_,y_,vx_,rolling_)){
+            const auto pos=curves_.tick(dt);
+            x_=pos.x;y_=pos.y;vx_=pos.vx;vy_=pos.vy;
+            ground_=true;rolling_=true;charging_=false;wall_climb_=false;
+            last_ground_y_=y_;
+            if(pos.completed){
+                // Never reset velocity on curve exit (otherwise we stop at
+                // the finish line and appear to be stuck inside the level).
+                vy_=0.f;vx_=std::max(320.f,vx_);
+                float surface=y_;
+                if(find_floor(x_,y_,18,30,surface) && !body_hits(x_,surface)){
+                    y_=surface;ground_=true;
+                }else ground_=false;
+                last_ground_y_=y_;
+            }
             elapsed_+=dt;
             return;
         }
@@ -880,6 +924,7 @@ private:
     BrickDef defs_[512]{};
     std::vector<PlacedBrick> placed_;
     std::vector<ScriptRoute> routes_;
+    StageCurves curves_;
     bool routes_enabled_=true;
     std::vector<BrickCell> cells_;
     std::vector<unsigned char> mask_;

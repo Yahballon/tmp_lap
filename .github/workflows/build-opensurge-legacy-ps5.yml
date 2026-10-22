@@ -44,6 +44,7 @@ jobs:
           done
           cp homebrew/opensurge-ps5/native/main.cpp app/src/main.cpp
           cp homebrew/opensurge-ps5/native/level_preview.hpp app/src/level_preview.hpp
+          cp homebrew/opensurge-ps5/native/level_curves.hpp app/src/level_curves.hpp
           cp homebrew/opensurge-ps5/native/pad_state.hpp app/src/pad_state.hpp
           cp homebrew/opensurge-ps5/native/level_entities.hpp app/src/level_entities.hpp
           cp homebrew/opensurge-ps5/native/level_hazards.hpp app/src/level_hazards.hpp
@@ -94,6 +95,12 @@ jobs:
             homebrew/opensurge-ps5/tests/native_uphill_smoke.cpp \
             -o /tmp/opensurge-uphill-test
           /tmp/opensurge-uphill-test "$PWD/app/assets/game/"
+          g++ -std=c++17 -O2 -Wall -Wextra \
+            -I homebrew/opensurge-ps5/tests/mocks \
+            -I homebrew/opensurge-ps5/native \
+            homebrew/opensurge-ps5/tests/native_curves_smoke.cpp \
+            -o /tmp/opensurge-curves-test
+          /tmp/opensurge-curves-test "$PWD/app/assets/game/"
           g++ -std=c++17 -O2 -Wall -Wextra \
             -I homebrew/opensurge-ps5/tests/mocks \
             -I homebrew/opensurge-ps5/native \
@@ -188,7 +195,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.6.1
+          tag=opensurge-ps5-v0.6.2
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -199,7 +206,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.6.1 - Original Sunshine Level Music and Crossfades" \
+            --title "Open Surge PS5 v0.6.2 - S-Shaped Tunnel and Full 360-Degree Loop Preview" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 
