@@ -29,6 +29,7 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M8b | Erstes Godot-Spiel als Hardwaretest | `PPSA99847 v0.1.2`: **Pong** läuft sichtbar auf echter PS5; Video zeigt Ballbewegung, Schläger und Punktestand. Individuelle Eingaben/Punkte/sauberer Exit ohne neue Pong-Logs nicht unabhängig nachgewiesen. | ✅ Auf PS5 sichtbar/laufend; 🟡 Detailabnahme offen |
 | M8c | Eigenes externes Godot-4.7.2-PCK ohne eboot.bin-Neubau | Zwei Szenen, `res://palette.json`, GDScript, Canvas2D, DualSense-X; grüner CI-Lauf **39866584380** und Nutzerbericht „geht auch alles wie es soll“ | ✅ PS5-Funktion vom Nutzer bestätigt; 🟡 Hardware-Logs noch ausstehend |
 | M9a | **Real PhysicsServer2D collision PCK** | Separate native-engine acceptance PCK with CharacterBody2D, StaticBody2D, CollisionShape2D, real `move_and_collide()` contact (`x=1093.984375`, normal `(-1,0)`), host CI [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs/39869677215) succeeded, PR [#236](https://github.com/Yahballon/tmp_lap/pull/236) merged | 🟡 Host CI ✅, **PS5 test still OPEN** |
+| M9b | Native GodotPhysics2D PS5 engine / PPSA99847 v0.1.3 | Real physics module compiled and signed PS5 package; Actions [#39872101079](https://github.com/Yahballon/tmp_lap/actions/runs/39872101079) green, PR #238 merged | 🟡 CI ✅, PS5 test OPEN |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -101,6 +102,17 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 - Copy the nested ZIP's `GodotPS5/` contents under `/data/GodotPS5/`. This **replaces the selected launch.txt**, but leaves Pong, M8c, and native PS5 title unchanged. Open `PPSA99847 v0.1.2`.
 - **Success criterion on PS5:** cyan CharacterBody2D moves right and physically stops at magenta StaticBody2D wall; visual body turns green only after real `move_and_collide()` returns matching collider and normal; logs contain `GODOT_PS5_M9_REAL_COLLISION_OK` and `GODOT_PS5_M9_TEST_PASS`. Also check native `gles3-runtime.log` for `PACK_SOURCE=CONFIG`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, and `EGL_CLOSED`.
 - **Failure diagnostic:** if the square passes through the wall or prints `GODOT_PS5_M9_NO_COLLISION_PHYSICS_UNAVAILABLE`, the PS5 executable still needs native PhysicsServer2D support. **Do not mark M9 passed** simply because the desktop workflow or visible squares succeed. Capture `gles3-stdout.log`, `gles3-stderr.log`, and `gles3-runtime.log` before deciding whether to rebuild the native engine.
+
+## M9b – Native GodotPhysics2D integration, PS5 v0.1.3 (23 October 2026)
+
+**Status: 🟡 Native signed PS5 installer successfully cross-built and structurally validated; physical PS5 collision test still OPEN.**
+
+- Root cause observed on the user's PS5 M9a test: `Falling back to dummy PhysicsServer2D` and `GODOT_PS5_M9_TIMEOUT physics_frames=720`, resulting in `GODOT_RETURN=43`. The PCK and display rendered correctly, but the native engine had been compiled without the actual physics module.
+- Fix in `scripts/build-engine.sh`: opt-in `GODOT_PS5_PHYSICS2D=1` enables the genuine Godot 4.7.2 `module_godot_physics_2d_enabled=yes` while retaining default behavior for previously verified versions.
+- Dedicated [native M9b build #39872101079](https://github.com/Yahballon/tmp_lap/actions/runs/39872101079) **SUCCESS**: real GodotPhysics2D archive present, native PS5 engine compiled and linked, signed `eboot.bin` generated, `PPSA99847.zip` passed ZIP/integrity/title/version validation.
+- PS5 package `PPSA99847`, version `01.000.004` (project v0.1.3), with default Pong and additional bundled `physics-smoke.pck`; explicit `launch.txt` still selects `/data/GodotPS5/games/physics-smoke.pck`. Build artifact `Godot-PS5-M9b-NATIVE-PHYSICS-v0.1.3-PS5-HARDWARE-UNTESTED`, artifact ID `12467676123`.
+- [PR #238](https://github.com/Yahballon/tmp_lap/pull/238) merged to the engine foundation branch as `94bb83919c112e7ecafeff02a21b463b67d6f677`. Previous `PPSA99847 v0.1.2` remains available as regression fallback.
+- **Next hardware gate:** install test-only v0.1.3, keep M9 PCK selected, verify movement, real wall stop, green success state, `GODOT_PS5_M9_REAL_COLLISION_OK`, `GODOT_PS5_M9_TEST_PASS`, `GODOT_RETURN=0` and no dummy PhysicsServer2D warning. User screenshot or logs are required before marking M9b PS5-confirmed.
 
 ## Roadmap: Was als Nächstes zu tun ist
 
