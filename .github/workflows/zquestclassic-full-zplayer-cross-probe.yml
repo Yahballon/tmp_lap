@@ -193,12 +193,14 @@ jobs:
           "$tool" self --inspect --file "$out/eboot.bin" > "$out/inspect.txt"
           test -s "$out/eboot.bin"
           echo "PS5_FSELF_BUILT_BUT_BOOT_UNVERIFIED" | tee "$out/status.txt"
-      - name: Preserve real zplayer FSELF conversion diagnostic
+      - name: Preserve real zplayer FSELF conversion diagnostic (boot unverified)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED
           path: |
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/eboot.bin
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/eboot.elf
             ${{ runner.temp }}/zcps5-full-zplayer/fself/sections.txt
             ${{ runner.temp }}/zcps5-full-zplayer/fself/link.log
             ${{ runner.temp }}/zcps5-full-zplayer/fself/sign.log
