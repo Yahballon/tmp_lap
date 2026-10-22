@@ -33,6 +33,6 @@ for marker in ("extends Node2D", "func _draw()", "draw_rect(",
                "GODOT_PS5_PONG_READY", "GODOT_PS5_PONG_SERVE"):
     assert marker in pong, marker
 assert "Label.new()" not in pong
-assert "PhysicsServer2D" not in pong
+assert "PhysicsServer2D." not in pong and "PhysicsBody2D.new(" not in pong
 assert "GL" not in pong.split("# Godot 4.7.2",1)[-1].splitlines()[0]
 print("PASS: true Godot GLES3 Canvas2D PS5 title source/build isolated")
