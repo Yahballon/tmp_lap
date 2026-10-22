@@ -1,6 +1,8 @@
 name: Build External Godot PS5 PCK (host acceptance)
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
   push:
     branches: [feature/godot-ps5-engine-foundation]
     paths:
