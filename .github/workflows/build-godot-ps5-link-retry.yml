@@ -160,22 +160,10 @@ jobs:
           name: Godot-PS5-Engine-Smoke-v0.2.7-PPSA99843-UNTESTED
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
-      - name: Publish experimental TESTBUILDS prerelease after verified link
-        if: steps.link.outcome == 'success' && github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          tag=godot-ps5-engine-smoke-v0.2.7
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo 'Engine smoke release already exists.'
-            exit 0
-          fi
-          gh release create "$tag" /tmp/godot-link-app/dist/PPSA99843.zip \
-            --target "$GITHUB_SHA" \
-            --title "Godot PS5 Engine Smoke v0.2.7 (headless testing only)" \
-            --notes "Godot PS5 v0.2.7 shell-exit test on top of the genuine Godot 4.7.2 engine rebuilt in v0.2.6 with disable_path_overrides=no to permit --main-pack. Adds strong catchReturnFromMain hook that closes via sceSystemServiceLoadExec(exit) instead of causing SIGSYS through unsupported libc exit(status). GDScript execution and clean shell exit still require console verification. No graphical gameplay, rendering backend, audio or general project compatibility. Logs: /data/GodotPS5/engine-smoke.log, engine-stdout.log, engine-stderr.log. Signed PS5 app title PPSA99843." \
-            --prerelease
+      # This workflow is a linker diagnostic; it only uploads immutable CI
+      # artifacts. All public Godot PS5 releases are promoted by the separate
+      # default-branch publisher from a successfully validated engine build.
+      # The feature-branch GitHub release API returned HTTP 403.
       - name: Upload detailed native link logs
         if: always()
         uses: actions/upload-artifact@v4
