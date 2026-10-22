@@ -80,7 +80,7 @@ jobs:
           set -euo pipefail
           git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
-          bash homebrew/zquestclassic-ps5/engine/prepare_boot_probe_deps.sh
+          bash -x homebrew/zquestclassic-ps5/engine/prepare_boot_probe_deps.sh
           chmod +x app/tooling/prospero-clang18
           test -x app/tooling/prospero-clang18
           test -f app/.deps/native/ps5-payload-sdk/target/include/c++/v1/vector
