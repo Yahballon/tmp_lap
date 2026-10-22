@@ -248,7 +248,7 @@ jobs:
               assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
               meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
               assert meta['titleId']=='PPSA99847'
-              assert meta['contentVersion']=='01.000.003'
+              assert meta['contentVersion']=='01.000.004'
           print('SIGNED GODOT M9B PHYSICS TEST BUILT; REAL PS5 PHYSICS UNVERIFIED')
           PY
       - uses: actions/upload-artifact@v4
