@@ -62,6 +62,16 @@ public:
 #ifdef SURGEPREVIEW_HOST_TEST
     // Host-only way to reproduce the exact slope position from a PS5 user
     // screenshot (x=2500,y=10015); this is absent from the shipping FSELF.
+    void test_probe(float dx) const {
+        const float nx=x_+dx;
+        float floor=y_;
+        const bool support=find_floor(nx,y_,12,22,floor);
+        std::printf("PROBE dx=%+.1f x=%.1f feet=%.1f detected=%d floor=%.1f roll=%d hit=%d front_mid=%d front_top=%d\n",
+            dx,nx,y_,support?1:0,floor,rolling_?1:0,
+            body_hits(nx,support?floor:y_)?1:0,
+            solid_at(nx+7.f,(support?floor:y_)-16.f)?1:0,
+            solid_at(nx+7.f,(support?floor:y_)-26.f)?1:0);
+    }
     bool test_position(float px,float feet){
         x_=px;y_=feet;vx_=vy_=0;
         rolling_=charging_=false;charge_=0.f;

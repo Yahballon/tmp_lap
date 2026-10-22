@@ -32,7 +32,11 @@ int main(int argc,char** argv){
     }
     level.update(dt,0,false,false,false);
     const float launch=level.velocity_x();
-    if(level.dash_releases()!=1 || !level.rolling() || launch<580.f)return 6;
+    std::printf("UPHILL_RELEASE vx=%.1f rolling=%d releases=%u grounded=%d y=%.1f blocks=%u\n",
+        launch,level.rolling()?1:0,level.dash_releases(),level.grounded()?1:0,
+        level.player_y(),level.collision_blocks());
+    for(float off:{0.f,1.f,2.f,4.f,7.f,10.f,16.f,24.f,36.f})level.test_probe(off);
+    if(level.dash_releases()!=1 || !level.rolling())return 6;
     float maxx=level.player_x(), minvx=launch;
     for(int i=0;i<190;++i){
         level.update(dt,1,false,false,false);
