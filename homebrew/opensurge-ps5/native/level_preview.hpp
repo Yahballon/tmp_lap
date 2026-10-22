@@ -871,7 +871,9 @@ private:
             const float delta=std::abs(row-prev_feet);
             if(delta<best){best=delta;out=row;}
         }
-        return best<=25.f;
+        // The original S curve moves 27-30px between some 4px X samples.
+        // Keep a 40px bounded local contour tolerance, not a remote floor hop.
+        return best<=40.f;
     }
     bool build_tube_track(float target_x,float target_y) {
         tube_track_.clear();tube_track_length_=0.f;tube_track_index_=0;
@@ -888,7 +890,7 @@ private:
             const float px=x_+sign*step;
             float foot=prev.y;
             if(!nearest_tube_floor(px,prev.y,foot) ||
-               std::abs(foot-prev.y)>25.f){
+               std::abs(foot-prev.y)>40.f){
 #ifdef SURGEPREVIEW_HOST_TEST
                 std::printf("TUBE_TRACK_GAP x=%.1f prev_x=%.1f prev_y=%.1f sampled_y=%.1f\n",
                     px,prev.x,prev.y,foot);
