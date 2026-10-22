@@ -92,6 +92,20 @@ jobs:
           python3 homebrew/godot-ps5/scripts/stage_native_link.py \
             --godot /tmp/godot --app /tmp/godot-scene-app \
             --entry homebrew/godot-ps5/native/scene_bridge_main.cpp
+          # stage_native_link makes an isolated APP_SOURCE_DIR. Preserve the
+          # *proven DevBridge* native GPU sources + malloc/mmap wrappers there;
+          # otherwise the linker loses its __wrap_* and EGL/Display symbols.
+          app_src=/tmp/godot-scene-app/src/godot-smoke
+          mkdir -p "$app_src/platform/ps5" "$app_src/runtime"
+          cp /tmp/devbridge/templates/simple-calc/src/platform/ps5/display_egl.cpp \
+             /tmp/devbridge/templates/simple-calc/src/platform/ps5/system.cpp \
+             "$app_src/platform/ps5/"
+          cp /tmp/devbridge/templates/simple-calc/src/runtime/app_heap.c \
+             /tmp/devbridge/templates/simple-calc/src/runtime/native_mmap.c \
+             /tmp/devbridge/templates/simple-calc/src/runtime/runtime_shims.c \
+             "$app_src/runtime/"
+          test -s "$app_src/platform/ps5/display_egl.cpp"
+          test -s "$app_src/runtime/app_heap.c"
           python3 - <<'PY'
           import json
           from pathlib import Path
