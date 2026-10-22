@@ -111,7 +111,8 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" /tmp/godot-release/PPSA99843.zip --repo "$GITHUB_REPOSITORY" --clobber
+            echo "Existing immutable engine release: $TAG"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets               --jq '.assets[].name' | grep -Fx PPSA99843.zip
           else
             gh release create "$TAG" /tmp/godot-release/PPSA99843.zip \
               --repo "$GITHUB_REPOSITORY" --target main \
