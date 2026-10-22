@@ -57,9 +57,9 @@ int main(int argc,char** argv){
     assert(std::isfinite(level.player_y()));
 
     std::printf("PASS AUTHORED ROUTES: %zu original layer/tube entities, exits=%u refused=%u\n",level.route_count(),level.tube_exits(),level.unsafe_tube_exits());
-    if(level.loop_mode_ready()){
-        std::fputs("Unexpectedly advertised full loop physics\n",stderr);return 4;
+    if(!level.loop_mode_ready() || level.loop_count()<1){
+        std::fputs("No original-mask Sunshine ring discovered\n",stderr);return 4;
     }
-    std::puts("LOOP PHYSICS NOT IMPLEMENTED: original four-mode obstacle sensors still required");
+    std::printf("AUTHORED RINGS DETECTED count=%zu: native four-phase loop preview, not full original physics\n",level.loop_count());
     return 0;
 }
