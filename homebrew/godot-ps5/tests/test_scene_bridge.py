@@ -18,6 +18,6 @@ for token in ("godot_ps5_run_pack(", "godot_ps5_set_scene_frame_callback", "GODO
     assert token in native,token
 assert "NOT Godot's GLES3" in native
 assert 'BOOT_FRAME_PRESENTED' in native and 'BOOT_FRAME_GL_ERROR' in native
-assert native.index('scene.boot_frame()') < native.index('godot_ps5_run_pack(')
+assert native.index('scene.boot_frame()') < native.index('const int result=godot_ps5_run_pack(')
 
 print("PASS: Same-process real Godot GDScript → PS5 native GL proof wiring")
