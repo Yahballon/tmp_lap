@@ -368,7 +368,7 @@ public:
             // A high-energy roll can climb the connected masked upper face.
             // Spend kinetic energy on height, move in short continuous steps;
             // never bypass walls too tall for the available momentum.
-            if(roll_uphill_step(nx,step))continue;
+            if(roll_uphill_step(nx,dx/float(horizontal_steps)))continue;
             vx_=0.f;
             if(dir!=0)++blocked_;
             break;
