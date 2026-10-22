@@ -363,10 +363,12 @@ public:
                 if(ground_)ground_=false; // genuine pit / platform edge
                 continue;
             }
-            // A failed uphill step must be distinguished from a true
-            // vertical wall. At a slope, the next 1–2 px may require raising
-            // the feet, but an upright sensor touching the ground isn't a
-            // valid wall (narrow rolling body is handled in body_hits).
+            // Real Sunshine demo uphill has two SOLID 128px bricks stacked
+            // under the rendered slope (IDs 26 and 30 near world x=2500).
+            // A high-energy roll can climb the connected masked upper face.
+            // Spend kinetic energy on height, move in short continuous steps;
+            // never bypass walls too tall for the available momentum.
+            if(roll_uphill_step(nx,step))continue;
             vx_=0.f;
             if(dir!=0)++blocked_;
             break;
@@ -493,6 +495,31 @@ private:
             hit=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
         });
         return hit;
+    }
+    bool roll_uphill_step(float next_x,float step_x) {
+        if(!rolling_||charging_||std::abs(vx_)<205.f ||
+           std::abs(y_-last_ground_y_)>36.f)return false;
+        const float energy_height=(vx_*vx_)/(2.f*1200.f);
+        // Allow at most 220 world-pixel rise (original demo steep hill), but
+        // require real free headroom on its upper SOLID mask surface.
+        const int max_rise=std::min(220,int(energy_height)+4);
+        if(max_rise<16)return false;
+        float upper=0.f;
+        if(!find_floor(next_x,y_,max_rise,12,upper) ||
+           upper>=y_-8.f || upper<y_-float(max_rise) ||
+           body_hits(next_x,upper))return false;
+        const float rise=std::min(y_-upper,std::min(4.f,std::abs(step_x)*2.f));
+        if(rise<=0.f)return false;
+        const float energy_after=std::max(0.f,vx_*vx_-2.f*1200.f*rise);
+        if(energy_after<205.f*205.f)return false;
+        x_=next_x;
+        y_-=rise;
+        vx_=std::copysign(std::sqrt(energy_after),vx_);
+        vy_=0.f;
+        ground_=true;
+        last_ground_y_=y_;
+        ++uphill_steps_;
+        return true;
     }
     bool body_hits(float px,float feet) const {
         // Open Surge rolls with a 15px width, ~29px height sensor (original
