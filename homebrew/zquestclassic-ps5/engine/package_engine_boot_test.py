@@ -12,7 +12,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 
 TITLE_ID = "PPSA99128"
-CONTENT_ID = "UP9000-PPSA99128_00-ZQUESTENGINEBOOT1"
+CONTENT_ID = "UP9000-PPSA99128_00-ZQUESTENGINEBOOT"
 assert len(CONTENT_ID.split("-")[-1]) == 16
 PROVENANCE = "ZQuestClassic/ZQuestClassic@c44dde7d0146da78bf8b541af457d5ff4e67a830"
 
