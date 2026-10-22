@@ -33,4 +33,12 @@ with tempfile.TemporaryDirectory() as td:
             pass
         else:
             raise AssertionError("incompatible/invalid PCK header accepted")
-print("PASS: M8c PS5 starter bundle layout, checksum and strict header gate")
+fixture_dir = Path(__file__).resolve().parents[1] / "samples/external-pack-smoke"
+packer_source = (fixture_dir / "make_pack.gd").read_text()
+for filename in ("project.godot", "main.tscn", "main.gd",
+                 "second.tscn", "second.gd", "palette.json"):
+    assert f'"{filename}"' in packer_source, f"external pack omits {filename}"
+for scene, marker in (("main.gd", "GODOT_PS5_EXTERNAL_ASSET_OK"),
+                      ("second.gd", "GODOT_PS5_EXTERNAL_FINISHED")):
+    assert marker in (fixture_dir / scene).read_text(), marker
+print("PASS: M8c PS5 starter bundle layout, resources, and strict header gate")
