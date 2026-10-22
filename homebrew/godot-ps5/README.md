@@ -2,6 +2,32 @@
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
+## Breakthrough: Real Godot 4.7.2 GLES3 Canvas2D on PS5 hardware
+
+**22 Oct 2026 – physical PS5 user test passed for PPSA99847 v0.1.0.**
+The screenshot supplied by the user shows an actual Godot-produced
+translucent `Sprite2D` checkerboard over a `ColorRect`; DualSense X
+drives GDScript background color changes. The PS5 logs in
+`bfpilot-download (18).tar` contain four successful native engine
+sessions (1001, 1145, 1136 and 1106 Godot GL swaps), with return code 0,
+clean EGL shutdown and 223 GDScript Cross button press events.
+
+**Unlike the previous GPL native scene bridge PPSA99845**, the new
+`PPSA99847` test uses Godot's real `DisplayServerPS5`,
+`RasterizerGLES3` and GLES3 CanvasItem pipeline. The wrapper provides
+only EGL context creation and presentation, not a custom sprite renderer.
+
+**Next experimental v0.1.1:** explicit Godot 4 external PCK selection
+through `/data/GodotPS5/launch.txt`, with the working bundled 2D
+fixture as fallback. See `gles3-canvas/README.md` for instructions.
+The broad Godot API surface (fonts, audio, 2D/3D physics, arbitrary
+projects and complex scenes) is **not** yet hardware validated.
+
+**Licensing:** the original Godot engine is MIT, while the integrated
+PS5 GPU bridge uses GPL-3.0-or-later components and a pinned unofficial
+OpenGL SDK mirror requiring distribution/source provenance review.
+
+
 ## Hardware-confirmed DualSense-to-GDScript — PS5 v0.3.2 (2026-10-22)
 
 The user-provided hardware TAR `bfpilot-download (14).tar` independently verifies
