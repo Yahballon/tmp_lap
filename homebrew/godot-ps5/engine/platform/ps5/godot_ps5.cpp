@@ -28,13 +28,30 @@ extern "C" int godot_ps5_run_pack(const char *requested) {
         OS_PS5 os;
         std::fprintf(stderr, "[GodotPS5 PHASE 0.2.11] AFTER_OS_PS5_CONSTRUCTOR\n");
         std::fflush(stderr);
-        char headless[] = "--headless";
         char main_pack[] = "--main-pack";
+#ifdef GODOT_PS5_NATIVE_GLES3
+        // IMPORTANT: Don't pass --headless; it would bypass DisplayServerPS5.
+        // The engine must construct the *real* GLES3 renderer from this
+        // display driver's EGL context, not our old native preview path.
+        char display_opt[] = "--display-driver";
+        char display_name[] = "ps5";
+        char driver_opt[] = "--rendering-driver";
+        char driver_name[] = "opengl3";
+        char method_opt[] = "--rendering-method";
+        char method_name[] = "gl_compatibility";
+        char *args[] = {display_opt, display_name, driver_opt, driver_name,
+                        method_opt, method_name, main_pack,
+                        const_cast<char *>(pack.c_str())};
+        constexpr int count = 8;
+#else
+        char headless[] = "--headless";
         char *args[] = {headless, main_pack, const_cast<char *>(pack.c_str())};
+        constexpr int count = 3;
+#endif
 
         std::fprintf(stderr, "[GodotPS5 PHASE 0.2.11] BEFORE_MAIN_SETUP\n");
         std::fflush(stderr);
-        const Error err = Main::setup("godot.ps5", 3, args);
+        const Error err = Main::setup("godot.ps5", count, args);
         std::fprintf(stderr, "[GodotPS5 PHASE 0.2.11] AFTER_MAIN_SETUP status=%d\n", int(err));
         std::fflush(stderr);
         if (err == OK) {

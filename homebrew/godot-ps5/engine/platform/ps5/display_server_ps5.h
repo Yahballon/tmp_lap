@@ -6,6 +6,9 @@
 // advertises ONLY the "dummy" rendering driver. Native EGL/GLES3 is a
 // separate experimental milestone, NOT a capability of this class yet.
 #include "servers/display/display_server_headless.h"
+#ifdef GODOT_PS5_NATIVE_GLES3
+#include "graphics_hooks_ps5.h"
+#endif
 
 class DisplayServerPS5 final : public DisplayServerHeadless {
     GDSOFTCLASS(DisplayServerPS5, DisplayServerHeadless);
@@ -37,9 +40,20 @@ public:
     int window_get_current_screen(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override { return 0; }
     Size2i window_get_size(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override { return Size2i(1920, 1080); }
     Size2i window_get_size_with_decorations(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override { return window_get_size(p_window); }
-    // No framebuffer is exposed to the Godot renderer in this build.
+#ifdef GODOT_PS5_NATIVE_GLES3
+    // A real EGL surface is opened by the PS5 graphics hooks in create_func.
+    bool window_can_draw(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override {
+        return p_window == DisplayServerEnums::MAIN_WINDOW_ID && context_ready;
+    }
+    bool can_any_window_draw() const override { return context_ready; }
+    void swap_buffers() override;
+    ~DisplayServerPS5() override;
+    static bool context_ready;
+#else
+    // Non-graphical ABI smoke never advertises framebuffer support.
     bool window_can_draw(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override { return false; }
     bool can_any_window_draw() const override { return false; }
+#endif
 
     DisplayServerPS5() = default;
 };

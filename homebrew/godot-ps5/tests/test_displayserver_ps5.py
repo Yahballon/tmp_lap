@@ -17,6 +17,15 @@ for symbol in ("public DisplayServerHeadless", "get_screen_count() const overrid
         assert symbol in header, symbol
 assert '"ps5", create_func' in impl
 assert 'RasterizerDummy::make_current()' in impl
+assert 'RasterizerGLES3::make_current(true)' in impl
+assert 'DISPLAY_SERVER_PS5_EGL_READY' in impl
+assert 'glad_eglGetProcAddress' in impl
+assert 'GODOT_PS5_NATIVE_GLES3' in impl
+assert 'GODOT_PS5_NATIVE_GLES3' in detect
+assert '"--rendering-driver"' in (p/"engine/platform/ps5/godot_ps5.cpp").read_text()
+assert '"--headless"' in (p/"engine/platform/ps5/godot_ps5.cpp").read_text()
+assert "p_rendering_driver != \"dummy\"" in impl
+assert 'graphics_hooks_ps5.h' in header
 assert 'ERR_UNAVAILABLE' in impl
 assert 'p_rendering_driver != "dummy"' in impl
 assert 'DISPLAY_SERVER_PS5_DUMMY_REGISTERED_NO_VIDEO' in impl

@@ -59,6 +59,11 @@ def configure(env):
         env.Append(CPPDEFINES=["GODOT_PS5_DISPLAY_EXPERIMENT"])
     if os.environ.get("GODOT_PS5_SCENE_PREVIEW") == "1":
         env.Append(CPPDEFINES=["GODOT_PS5_SCENE_PREVIEW"])
+    if os.environ.get("GODOT_PS5_NATIVE_GLES3") == "1":
+        if os.environ.get("GODOT_PS5_DISPLAY_EXPERIMENT") != "1" or os.environ.get("GODOT_PS5_GLES3_ARCHIVES") != "1":
+            print_error("PS5 native GLES3 requires GLES3 archives + DisplayServer opt-in")
+            raise SystemExit(2)
+        env.Append(CPPDEFINES=["GODOT_PS5_NATIVE_GLES3"])
     if os.environ.get("GODOT_PS5_GLES3_ARCHIVES") == "1":
         # Compile upstream GLES3 with GLAD's DYNAMIC EGL function table.
         # EGL_STATIC redeclares eglGetPlatformDisplayEXT as a function,
