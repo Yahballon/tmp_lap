@@ -4,6 +4,21 @@ Status: **design/bring-up plan, not a working renderer**. Source baseline:
 Godot 4.7.2; PS5 firmware 5.10; homebrew `PPSA99843`. The console
 already executed `GODOT_PS5_SMOKE_READY` three times with v0.2.11.
 
+## October 22, 2026 PS5 hardware input acceptance passed
+
+Real `v0.3.2` console logs confirm `PACK_SOURCE=BUNDLED_SMOKE`,
+`GODOT_PS5_DUALSENSE_TEST_WAITING`,
+`GODOT_PS5_DUALSENSE_CONNECTED`, and 38 actual GDScript
+`GODOT_PS5_DUALSENSE_CROSS_PRESSED` messages, followed by
+`GODOT_PS5_DUALSENSE_TEST_FINISHED`, `NATIVE_GODOT_RETURN=0`,
+and clean shell exit. This verifies native PS5 pad → original Godot
+Input → GDScript. It **does not** establish display/renderer/audio support.
+
+A standalone PS5 GPU-probe scaffold is at `gpu-probe/`. It is
+GPL-3.0-or-later, uses the existing DevBridge EGL/OpenGL adapter and keeps
+the known-good `PPSA99843` runtime completely independent. Its CI artifact
+remains **UNVERIFIED ON PS5** until there is a physical frame and log.
+
 ## Current execution contract
 
 The native Godot VM / GDScript / scene lifecycle is verified headlessly.

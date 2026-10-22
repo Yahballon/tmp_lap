@@ -1,0 +1,92 @@
+name: Godot PS5 Isolated GPU Probe (NOT A GODOT RENDERER)
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/gpu-probe/**'
+      - 'homebrew/godot-ps5/tests/test_gpu_probe.py'
+      - '.github/workflows/build-godot-ps5-gpu-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keep GPU probe isolated from headless Godot
+        run: |
+          set -euo pipefail
+          python3 homebrew/godot-ps5/tests/test_gpu_probe.py
+
+  gpu-native-build:
+    needs: host-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 llvm-18 lld-18 ninja-build make git python3 \
+            unzip wget curl ca-certificates g++ pkg-config
+      - name: Clone pinned DevBridge native EGL/OpenGL starter
+        run: |
+          set -euo pipefail
+          git clone https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          git -C /tmp/devbridge checkout ce6178ed7b7668a4686e5368971ca567b33d394b
+          cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-gpu-probe
+          cp homebrew/godot-ps5/gpu-probe/main.cpp /tmp/godot-gpu-probe/src/main.cpp
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('/tmp/godot-gpu-probe/sce_sys/param.json')
+          j=json.loads(p.read_text())
+          j['titleId']='PPSA99844'
+          j['conceptId']='99844'
+          j['contentId']='UP9000-PPSA99844_00-GODOTGPUPROBE000'
+          j['contentVersion']='01.000.001'
+          j['localizedParameters']['en-US']['titleName']='Godot GPU Probe'
+          p.write_text(json.dumps(j,indent=2)+'\n')
+          assert len(j['contentId'].split('-00-')[1]) == 16
+          PY
+      - name: Prepare original verified OpenGL SDK via DevBridge
+        run: |
+          set -euo pipefail
+          # Keep the pinned zlib SHA-256 verification, use the maintainer mirror.
+          sed -i 's|https://zlib.net/fossils/|https://github.com/madler/zlib/releases/download/v1.3.2/|g' \
+            /tmp/godot-gpu-probe/tools/setup-native-dependencies.sh
+          bash /tmp/godot-gpu-probe/tools/prepare-opengl.sh
+      - name: Compile native EGL clear-and-swap app
+        run: |
+          set -euo pipefail
+          cd /tmp/godot-gpu-probe
+          env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify separate signed PS5 GPU diagnostic package
+        run: |
+          python3 - <<'PY'
+          import json,struct,zipfile
+          from pathlib import Path
+          root=Path('/tmp/godot-gpu-probe/dist')
+          p=root/'PPSA99844'
+          assert p.is_dir()
+          binary=(p/'eboot.bin').read_bytes()
+          assert len(binary)>4096 and binary[:4]==struct.pack('<I',0x1d3d154f)
+          meta=json.loads((p/'sce_sys/param.json').read_text())
+          assert meta['titleId']=='PPSA99844'
+          assert meta['contentId']=='UP9000-PPSA99844_00-GODOTGPUPROBE000'
+          archive=root/'PPSA99844.zip'
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              assert 'PPSA99844/eboot.bin' in z.namelist()
+              assert 'PPSA99844/sce_sys/param.json' in z.namelist()
+          print('Real signed GPU probe structurally validated; PS5 video still UNVERIFIED.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-Isolated-GPU-Probe-v0.1.0-UNVERIFIED-ON-CONSOLE
+          path: /tmp/godot-gpu-probe/dist/PPSA99844.zip
+          if-no-files-found: error

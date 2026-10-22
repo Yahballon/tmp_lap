@@ -2,6 +2,41 @@
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
+## Hardware-confirmed DualSense-to-GDScript — PS5 v0.3.2 (2026-10-22)
+
+The user-provided hardware TAR `bfpilot-download (14).tar` independently verifies
+the **full end-to-end path**:
+
+```text
+[GodotPS5 engine] MAIN_ENTER_BEFORE_REDIRECT v0.3.2
+[GodotPS5 engine] PACK_SOURCE=BUNDLED_SMOKE PACK=/app0/assets/godot/smoke.pck
+[GodotPS5 PAD] CONNECTED dev=0
+[GodotPS5 PAD] CROSS_DOWN
+GODOT_PS5_SMOKE_READY
+GODOT_PS5_DUALSENSE_TEST_WAITING
+GODOT_PS5_DUALSENSE_CONNECTED
+GODOT_PS5_DUALSENSE_CROSS_PRESSED
+GODOT_PS5_DUALSENSE_TEST_FINISHED
+[GodotPS5 engine] NATIVE_GODOT_RETURN=0
+[GodotPS5 engine] SHELL_EXIT_REQUEST v0.3.2 status=0
+```
+
+The saved `engine-stdout.log` contains **38 distinct
+`GODOT_PS5_DUALSENSE_CROSS_PRESSED` lines**. The bundled current GDScript
+scene completed the 20-second input test and returned 0. This demonstrates
+native PS5 `scePad` samples forwarded into the real Godot `Input` singleton
+and observed by real GDScript on the console, not just a raw pad driver test.
+
+The existing missing optional `project.binary`, `override.cfg`, script
+cache and dummy PhysicsServer2D diagnostics did not prevent this headless
+input smoke success. They must not be mistaken for verified graphics/physics
+compatibility.
+
+**Next:** start an isolated PS5 OpenGL/EGL GPU probe with a *different*
+title ID `PPSA99844`, and only after actual video output on firmware 5.10
+work toward the native Godot DisplayServer. `PPSA99843` remains the proven
+headless runtime; do not add an unverified GPU probe to TESTBUILDS.
+
 ## Proven on real PS5
 
 The **v0.2.11 headless build actually executes Godot GDScript on the console**.
@@ -18,9 +53,9 @@ engine milestone: we are running the real native Godot VM, resource loader,
 project settings, main loop, and a GDScript scene, not emulating Godot.
 
 **Not yet a playable game port:** Godot still runs headless; there is no PS5
-DisplayServer, Vulkan or OpenGL renderer, audio driver, or DualSense-to-Godot
-Input bridge. The built-in `smoke.pck` exits after printing the verification
-marker. PS5 console behavior of each new release must be tested separately.
+DisplayServer, Vulkan or OpenGL renderer, or audio driver. The DualSense-to-Godot
+Input bridge is **now proven on PS5 with v0.3.2** (X-button GDScript events).
+Other input mappings and full graphical gameplay still require hardware tests.
 
 ## PS5 hardware discovery and v0.3.2 fix
 
@@ -28,8 +63,8 @@ User's 22 Oct 2026 PS5 console log (TAR #13) confirms native
 `[GodotPS5 PAD] CONNECTED dev=0` and `[GodotPS5 PAD] CROSS_DOWN`.
 However its selected pack is `PACK_SOURCE=AUTOSCAN PACK=/mnt/usb0/godot/smoke.pck`.
 That USB fixture is older and prints only `GODOT_PS5_SMOKE_READY`:
-it has no `GODOT_PS5_DUALSENSE_TEST_WAITING` marker. Thus the native button
-is demonstrated, but its forwarding to *GDScript* is not yet proven.
+it has no `GODOT_PS5_DUALSENSE_TEST_WAITING` marker. That v0.3.1 finding was resolved in the subsequent v0.3.2 hardware test:
+GDScript now logs real Cross button presses.
 
 v0.3.2 fixes the test collision: automatic discovery ignores a file named
 `smoke.pck` (case insensitive) in external folders, but still launches real
@@ -50,8 +85,8 @@ Native samples are consumed in batches to preserve short presses.
 Connection, disconnection, short-lived controller interception and retry
 are handled without using the app's UI-specific pad classes.
 
-Host mapping and 120-byte sample ABI tests are present. **This is not yet
-proven on PS5 hardware**. The built-in `smoke.pck` still immediately prints
+Host mapping and 120-byte sample ABI tests are present. **DualSense X and
+connection events are now proven end-to-end on real PS5 hardware.** The built-in `smoke.pck` still immediately prints
 `GODOT_PS5_SMOKE_READY`, then waits up to **20 seconds** for a controller:
 press X (Cross) on the DualSense and read these console logs:
 
