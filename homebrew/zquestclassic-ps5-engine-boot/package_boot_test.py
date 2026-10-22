@@ -49,7 +49,7 @@ if (args.upstream / "resources" / "README.txt").is_file():
 
 data = json.loads(args.template_param.read_text())
 data.update(titleId=TITLE, conceptId=TITLE[4:], contentId=CONTENT,
-            contentVersion="01.000.001")
+            contentVersion="01.000.002")
 data["localizedParameters"]["en-US"]["titleName"] = "ZQuest Engine BOOT TEST"
 data["localizedParameters"]["en-US"]["titleDescription"] = (
     "Experimental zplayer native PS5 boot diagnostic. NOT PLAYABLE."
@@ -77,10 +77,14 @@ assert (resource_dest / "allegro5.cfg").is_file()
 assert not list(resource_dest.rglob("*.qst"))
 assert not list(resource_dest.rglob("*.nsf"))
 (folder / "BOOT_TEST_README.txt").write_text(
-    "ZQuestClassic original zplayer PS5 engine BOOT TEST v0.0.1\n"
+    "ZQuestClassic original zplayer PS5 engine BOOT TEST v0.0.2\n"
     "HARDWARE STARTUP/QUEST PLAYBACK NOT VERIFIED. May crash/hang.\n"
     "Separate PPSA99128. Keep working Quest Browser PPSA99127 v0.1.5.\n"
     "Use PS5 jailbreak and launch this app; report first on-screen behavior.\n"
+    "Startup log (after libc init): /data/ZQuestEngineBoot/logs/boot.log\n"
+    "Crash signal log: /data/ZQuestEngineBoot/logs/crash.log\n"
+    "Fallback: /data/ZQuestClassic/logs/engine-boot.log and engine-crash.log\n"
+    "Send the logs after any crash; missing files may mean a pre-libc fault.\n"
     "Original .qst quest selection is not yet attached to the engine boot.\n"
     "Original upstream GPLv3 source: https://github.com/ZQuestClassic/ZQuestClassic\n"
 )
