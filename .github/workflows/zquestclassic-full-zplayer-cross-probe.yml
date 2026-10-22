@@ -154,6 +154,21 @@ jobs:
           llvm-readelf-18 -h "$binary" | tee "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
           grep -q 'Machine:.*Advanced Micro Devices X86-64' "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
           echo 'LINKED_REAL_ZPLAYER_ELF=YES (still not verified runnable or packaged as PS5 FSELF)'
+      - name: Audit real PS5 boot readiness without mistaking ELF for FSELF
+        if: success()
+        run: |
+          set -euo pipefail
+          python3 homebrew/zquestclassic-ps5/engine/check_ps5_boot_contract.py \
+            "$RUNNER_TEMP/zcps5-full-zplayer/build/zplayer" \
+            --report "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-boot-readiness.json"
+          python3 - "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-boot-readiness.json" <<'PY'
+          import json, sys
+          result=json.load(open(sys.argv[1]))
+          assert result["full_upstream_engine_linked"] is True
+          assert result["ps5_fself_packaged"] is False
+          assert result["ready_for_testbuilds"] is False
+          print("ELF validated as engine milestone; PS5 FSELF/boot verification still required")
+          PY
       - name: Save original PS5 zplayer link artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -162,6 +177,7 @@ jobs:
           path: |
             ${{ runner.temp }}/zcps5-full-zplayer/build/zplayer
             ${{ runner.temp }}/zcps5-full-zplayer/zplayer-elf-header.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/zplayer-boot-readiness.json
             ${{ runner.temp }}/zcps5-full-zplayer/results.txt
           if-no-files-found: error
       - name: Export complete real-engine compiler diagnostics
