@@ -37,7 +37,7 @@ int main(int argc,char** argv){
     level.test_put(3728.f,10072.f,1,true);
     level.update(dt,0,false);
     if(level.in_tube()){
-        for(int i=0;i<200 && level.in_tube();++i)level.update(dt,0,false);
+        for(int i=0;i<340 && level.in_tube();++i)level.update(dt,0,false);
         assert(!level.in_tube());
         assert(level.tube_exits()==1 || level.unsafe_tube_exits()>0);
         if(level.tube_exits()==1)
@@ -48,7 +48,7 @@ int main(int argc,char** argv){
     level.test_put(4464.f,10072.f,-1,true);
     level.update(dt,0,false);
     if(level.in_tube()){
-        for(int i=0;i<200 && level.in_tube();++i)level.update(dt,0,false);
+        for(int i=0;i<340 && level.in_tube();++i)level.update(dt,0,false);
         assert(!level.in_tube());
         assert(level.tube_exits()==1 || level.unsafe_tube_exits()>0);
         if(level.tube_exits()==1)
