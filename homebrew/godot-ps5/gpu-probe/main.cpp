@@ -160,6 +160,149 @@ struct Geometry {
         ready = false;
     }
 };
+
+// Second, independent shader program: deliberately exercises the Godot 2D
+// compatibility prerequisites (RGBA8 texture upload, UV interpolation,
+// alpha blending, and animated textured quads) on real PS5 AGC hardware.
+// This is NOT Godot's RenderingServer/DisplayServer.
+struct Texture2DProbe {
+    GLuint program = 0;
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint texture = 0;
+    GLint wobble_uniform = -1;
+    GLint sampler_uniform = -1;
+    bool ready = false;
+
+    static constexpr const char *vertex_source = R"(#version 460 core
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 uv;
+out vec2 pixel_uv;
+uniform float wobble;
+void main() {
+    vec2 displacement = vec2(0.17 * sin(wobble), 0.08 * cos(wobble * 0.7));
+    gl_Position = vec4(position + displacement, 0.0, 1.0);
+    pixel_uv = uv;
+}
+)";
+    static constexpr const char *fragment_source = R"(#version 460 core
+in vec2 pixel_uv;
+layout(location = 0) out vec4 fragColor;
+uniform sampler2D sprite_tex;
+void main() {
+    fragColor = texture(sprite_tex, pixel_uv);
+}
+)";
+
+    bool init() {
+        const GLuint vs = Geometry::compile(GL_VERTEX_SHADER, vertex_source);
+        if (!vs) { record("SPRITE_VERTEX_COMPILE_FAILED"); return false; }
+        const GLuint fs = Geometry::compile(GL_FRAGMENT_SHADER, fragment_source);
+        if (!fs) { record("SPRITE_FRAGMENT_COMPILE_FAILED"); glDeleteShader(vs); return false; }
+        program = glCreateProgram();
+        if (!program) { record("SPRITE_PROGRAM_CREATE_FAILED"); glDeleteShader(fs); glDeleteShader(vs); return false; }
+        glAttachShader(program, vs);
+        glAttachShader(program, fs);
+        glLinkProgram(program);
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        GLint ok = GL_FALSE;
+        glGetProgramiv(program, GL_LINK_STATUS, &ok);
+        if (ok != GL_TRUE) {
+            record("SPRITE_PROGRAM_LINK_FAILED");
+            log_shader_failure(program, true);
+            release();
+            return false;
+        }
+        record("SPRITE_PROGRAM_LINK_OK");
+        wobble_uniform = glGetUniformLocation(program, "wobble");
+        sampler_uniform = glGetUniformLocation(program, "sprite_tex");
+        if (wobble_uniform < 0 || sampler_uniform < 0) {
+            record("SPRITE_UNIFORM_FAILED"); release(); return false;
+        }
+
+        // 64x64 fully deterministic RGBA8 test image. Color, UV mirroring,
+        // checker edges and transparency are visible without external files.
+        constexpr int side = 64;
+        std::array<std::uint8_t, side * side * 4> pixels{};
+        for (int y = 0; y < side; ++y) {
+            for (int x = 0; x < side; ++x) {
+                const bool magenta = ((x / 8) + (y / 8)) % 2 == 0;
+                const int at = (y * side + x) * 4;
+                pixels[at] = magenta ? 255 : 5;
+                pixels[at + 1] = magenta ? 22 : 235;
+                pixels[at + 2] = magenta ? 170 : 255;
+                pixels[at + 3] = 185; // 72.5% opacity => alpha blend witness
+            }
+        }
+        glGenTextures(1, &texture);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, side, side, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
+        record("SPRITE_TEXTURE_UPLOAD");
+
+        constexpr GLfloat quad[] = {
+            // x, y, u, v
+            -0.95f, -0.80f, 0.0f, 0.0f,
+            -0.27f, -0.80f, 1.0f, 0.0f,
+            -0.95f, -0.12f, 0.0f, 1.0f,
+            -0.27f, -0.12f, 1.0f, 1.0f
+        };
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat),
+                              reinterpret_cast<const void *>(0));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat),
+                              reinterpret_cast<const void *>(2 * sizeof(GLfloat)));
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        const GLenum error = glGetError();
+        if (!vao || !vbo || !texture || error != GL_NO_ERROR) {
+            record("SPRITE_INIT_GL_ERROR", static_cast<int>(error));
+            release();
+            return false;
+        }
+        ready = true;
+        record("SPRITE_2D_READY");
+        return true;
+    }
+
+    void draw(int frame) {
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glUseProgram(program);
+        glUniform1f(wobble_uniform, static_cast<float>(frame) * 0.032f);
+        glUniform1i(sampler_uniform, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindVertexArray(vao);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glBindVertexArray(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUseProgram(0);
+        glDisable(GL_BLEND);
+    }
+    void release() {
+        if (vbo) { glDeleteBuffers(1, &vbo); vbo = 0; }
+        if (vao) { glDeleteVertexArrays(1, &vao); vao = 0; }
+        if (texture) { glDeleteTextures(1, &texture); texture = 0; }
+        if (program) { glDeleteProgram(program); program = 0; }
+        ready = false;
+    }
+};
 } // namespace
 
 int main() {
@@ -179,12 +322,15 @@ int main() {
 
     Geometry geometry;
     if (!geometry.init()) record("GEOMETRY_FAILED_BACKGROUND_FALLBACK");
+    Texture2DProbe sprite;
+    if (!sprite.init()) record("SPRITE_FAILED_BACKGROUND_FALLBACK");
     hui::ps5::Pad pad;
     record(pad.open() ? "PAD_OPEN_OK" : "PAD_UNAVAILABLE");
     std::uint32_t previous = 0;
     int selected = 0;
     bool splash_hidden = false;
     bool draw_reported = false;
+    bool sprite_draw_reported = false;
     int presented = 0;
 
     constexpr std::array<std::array<float, 3>, 3> colors = {{
@@ -217,6 +363,15 @@ int main() {
                 draw_reported = true;
             }
         }
+        if (sprite.ready) {
+            sprite.draw(frame);
+            if (!sprite_draw_reported) {
+                const GLenum error = glGetError();
+                record("SPRITE_FIRST_DRAW_ERROR", static_cast<int>(error));
+                if (error == GL_NO_ERROR) record("SPRITE_2D_DRAW_SUBMITTED");
+                sprite_draw_reported = true;
+            }
+        }
         if (!display.swap()) {
             record("EGL_SWAP_FAILED", static_cast<int>(display.last_error()));
             break;
@@ -233,6 +388,7 @@ int main() {
     }
     record("TOTAL_PRESENTED", presented);
     pad.close();
+    sprite.release(); // GL objects must be destroyed before EGL context.
     geometry.release(); // MUST be before EGL context teardown.
     display.close();
     record("CLEAN_SHUTDOWN");

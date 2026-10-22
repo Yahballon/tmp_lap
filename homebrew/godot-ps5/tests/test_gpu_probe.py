@@ -33,4 +33,13 @@ for symbol in ("#version 460 core", "glCreateShader", "glShaderSource", "glCompi
                "GEOMETRY_FAILED_BACKGROUND_FALLBACK"):
     assert symbol in src, symbol
 assert src.index("geometry.release();") < src.index("display.close();")
+for symbol in ("Texture2DProbe", "glTexImage2D", "GL_RGBA8", "GL_UNPACK_ALIGNMENT",
+               "glPixelStorei", "GL_TEXTURE_2D", "GL_NEAREST", "GL_CLAMP_TO_EDGE",
+               "glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)",
+               "glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)",
+               "SPRITE_PROGRAM_LINK_OK", "SPRITE_TEXTURE_UPLOAD",
+               "SPRITE_2D_READY", "SPRITE_FIRST_DRAW_ERROR",
+               "SPRITE_2D_DRAW_SUBMITTED", "sprite.release();"):
+    assert symbol in src, symbol
+assert src.index("sprite.release();") < src.index("display.close();")
 print("PASS: isolated GPU probe source & release separation + GL 4.6 geometry")

@@ -113,3 +113,24 @@ the signed ZIP, creates a tagged GitHub prerelease and updates
 `version.json` automatically. No manual Actions artifact download is
 required for new builds. This remains an experimental GPU probe until
 hardware validates actual display frames; provenance review is still open.
+
+## Next GPU acceptance: textured 2D sprite with alpha (after v0.1.6)
+
+The PS5 operator supplied an actual screenshot of the colored gradient triangle
+and native console log confirming `VERTEX_COMPILE_OK`,
+`FRAGMENT_COMPILE_OK`, `PROGRAM_LINK_OK`, `GL_GEOMETRY_READY`,
+`GL_FIRST_DRAW_ERROR=0`, `GL_TRIANGLE_SUBMITTED`, and `CLEAN_SHUTDOWN`
+for the v0.1.6 shader test. The log records 645 presented frames and
+`CIRCLE_EXIT`: **shader rasterization is now proven on real PS5 hardware**.
+
+This follow-up probe adds a moving magenta/cyan 64×64 checkerboard
+RGBA8 texture drawn as a translucent 2D quad over the rotating triangle.
+It tests 2D prerequisites: `glTexImage2D`, texture sampling with interpolated
+UVs, VAO/VBO quad upload, GLSL 4.60, `GL_SRC_ALPHA` blending and uniform
+animation. Look for `SPRITE_2D_READY`, `SPRITE_FIRST_DRAW_ERROR=0`,
+`SPRITE_2D_DRAW_SUBMITTED` and *visible* checkerboard with transparency.
+
+As before, this is an isolated native GPU test, **not** Godot's own 2D
+renderer or DisplayServer. The proven GDScript binary `PPSA99843` remains
+independent. On successful CI, the TESTBUILD publisher should create the
+next version automatically without any manual ZIP installation.

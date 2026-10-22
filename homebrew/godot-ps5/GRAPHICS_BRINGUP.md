@@ -30,6 +30,22 @@ probe only**, not a functional Godot DisplayServer. Its library provenance
 is unverified beyond a pinned mirror SHA256 plus embedded manifest check.
 Keep the verified headless Godot title PPSA99843 unchanged.
 
+## Shader/triangle GPU proof passed on PS5 (2026-10-22)
+
+User supplied a physical PS5 screenshot clearly showing the interpolated RGB
+triangle on a colored framebuffer. Native shader-test log confirms OpenGL 4.6
+core, GLSL 4.60, vertex and fragment compilation, program link,
+`GL_GEOMETRY_READY`, `GL_FIRST_DRAW_ERROR=0`, `GL_TRIANGLE_SUBMITTED`,
+`TOTAL_PRESENTED=645` and `CLEAN_SHUTDOWN`. Thus **actual shader
+rasterization** is hardware-proven, not only clear/swap.
+
+Next isolated test adds a procedurally generated RGBA8 checkerboard texture,
+a moving UV-mapped quad, and conventional alpha blending. These are Godot 2D
+renderer prerequisites, but **not yet a Godot renderer**. The next actual
+integration still requires enabling and linking Godot's GLES3 compatibility
+renderer and implementing a true PS5 DisplayServer that owns EGL presentation,
+input/window methods, and render-thread context lifecycle.
+
 ## Firmware 5.10 graphics bring-up proven (2026-10-22)
 
 User physically observed the blue, green and red fullscreen color transitions
