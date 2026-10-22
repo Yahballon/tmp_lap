@@ -126,8 +126,12 @@ The user saw the checkerboard and background color change from X.
 `bfpilot-download (16).tar` confirms 24 GDScript X press events,
 `BOOT_FRAME_PRESENTED`, `GODOT_GDSCRIPT_SCENE_FRAME_DRAWN`,
 `FIRST_DRAW_GL_ERROR=0` and at least 600 presented frames.
-Because logs were captured during gameplay, normal shutdown is still
-unverified. The source remains under GPL-3.0-or-later+MIT obligations
+A later user-supplied complete `scene-bridge.log` confirms
+`GDSCRIPT_CROSS_COUNT=24`, `PRESENTED_FRAME_COUNT=600`,
+`GODOT_ENGINE_RETURN=0`, `TOTAL_PRESENTED=1156`,
+`GPU_SHUTDOWN`, and `NORMAL_SHUTDOWN`. **Normal engine exit and
+EGL GPU cleanup are now hardware-confirmed on v0.1.1.**
+The source remains under GPL-3.0-or-later+MIT obligations
 and an unofficial GPU SDK mirror requires provenance review.
 
 ### Next real renderer gate: upstream GLES3 archive cross-compilation
@@ -151,3 +155,23 @@ redeclared by `EGL_STATIC` as C functions, conflicting with GLAD's
 function-pointer globals. The CI-only GLES3 mode now uses
 `EGL_ENABLED + GLAD_ENABLED` **without** `EGL_STATIC`, leaving
 actual EGL function loading for the later DisplayServer runtime stage.
+
+
+## First real GLES3 DisplayServer test available in TESTBUILD
+
+The next isolated title is `PPSA99847`, **Godot PS5 GLES3 Canvas v0.1.0**:
+[release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.0) |
+[native compile](https://github.com/Yahballon/tmp_lap/actions/runs/39839623074).
+The signed ZIP is in `main/version.json` for the TESTBUILD app.
+This experimental binary compiles and invokes Godot's actual
+`RasterizerGLES3` and `DisplayServerPS5` backed by a native PS5 EGL
+context. It **does not** contain the custom Scene Bridge Sprite2D
+rasterizer. A successful build does not prove the PS5 shows a Godot frame.
+
+Console acceptance for PPSA99847 requires a real screenshot of its
+GDScript-driven Sprite2D/ColorRect, `GODOT_SWAP_FIRST` in
+`/data/GodotPS5/gles3-runtime.log`, `DISPLAY_SERVER_PS5_EGL_READY`
+in `gles3-stderr.log`, `GODOT_PS5_REAL_2D_SCENE_READY` in
+`gles3-stdout.log`, button-driven background transitions, and
+normal engine+GPU shutdown. If only the blue boot background shows,
+EGL setup is proven but Godot's Canvas2D is not.
