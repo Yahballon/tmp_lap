@@ -36,5 +36,5 @@ case "${GODOT_MODULE_SET:-smoke}" in
 esac
 scons platform=ps5 target=template_debug library_type=static_library \
     arch=x86_64 lto=none vulkan=no opengl3=no d3d12=no metal=no \
-    module_mono_enabled=no use_llvm=yes "${module_flags[@]}" -j"$jobs"
+    module_mono_enabled=no use_llvm=yes disable_path_overrides=no "${module_flags[@]}" -j"$jobs"
 echo 'Engine archive build completed: NOT an installable PS5 title.'
