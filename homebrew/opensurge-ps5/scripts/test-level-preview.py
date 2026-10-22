@@ -97,6 +97,12 @@ audio_manifest=json.loads(audio.read_text())
 assert audio_manifest["sample_rate"]==48000
 assert len(audio_manifest["sfx"])>=16
 assert (app/"assets"/"audio-cache"/"level.ogg").is_file()
+uphill_cpp=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
+assert "floor_height_at(" in uphill_cpp
+assert "rolling_ || charging_" in uphill_cpp
+assert "feet-25.f" in uphill_cpp and "px+7.f" in uphill_cpp
+assert "rolluphillslp" in uphill_cpp or "281.25f" in uphill_cpp
+assert "uphill_steps_" in uphill_cpp
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")
