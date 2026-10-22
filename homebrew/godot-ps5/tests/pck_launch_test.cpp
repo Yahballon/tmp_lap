@@ -18,7 +18,6 @@ int main() {
             "/data/GodotPS5/games//evil.pck",
             "/data/GodotPS5/private/evil.pck",
             "/mnt/usb0/godot2/evil.pck",
-            "/mnt/usb0/godot/g.pck\n/evil.pck",
             "/mnt/usb0/godot/g.pck\\backslash.pck",
             "/mnt/usb0/godot/g.mp4",
             "/mnt/usb0/godot/.hidden.pck"
