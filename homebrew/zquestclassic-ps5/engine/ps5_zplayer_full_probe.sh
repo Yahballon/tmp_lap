@@ -26,6 +26,7 @@ test -f "${PS5_PAYLOAD_SDK:?}/target/include/c++/v1/vector"
 test -f "${PS5_DEVBRIDGE_TOOL:?}"
 test -x "$PS5_PAYLOAD_SDK/bin/prospero-lld"
 test -f "$root/app/tooling/native/ps5-pie.ld"
+python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_ps5_linker_layout.py" "$root/app/tooling/native/ps5-pie.ld"
 test -f "$root/app/tooling/native/app-symbols.map"
 test -d "$PS5_PAYLOAD_SDK/target/lib"
 find "$PS5_PAYLOAD_SDK/target/lib" -maxdepth 1 -type f \( -name "*.so" -o -name "*.a" \) | head -n 20
