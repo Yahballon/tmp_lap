@@ -4,6 +4,26 @@ Status: **PS5 EGL/OpenGL 4.6 clear/swap is now confirmed on firmware 5.10**; nat
 Godot 4.7.2; PS5 firmware 5.10; homebrew `PPSA99843`. The console
 already executed `GODOT_PS5_SMOKE_READY` three times with v0.2.11.
 
+## PS5 GPU Probe v0.1.7 — textured 2D accepted (2026-10-22)
+
+User tested [GPU Probe v0.1.7](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gpu-probe-v0.1.7)
+on real PS5 hardware and supplied a screenshot showing the GLSL-rotating
+gradient triangle plus an RGBA checkerboard 2D sprite, with the triangle
+visibly showing through the partially transparent checkerboard. The image
+confirms **textured quad rendering and alpha blending on the PS5 display**.
+The screenshot alone does not prove all inputs, exact animation speed,
+or lifecycle behavior: no new v0.1.7 text log was supplied.
+
+The independent headless Godot v0.3.2 runtime proved GDScript input; the
+independent GPU title v0.1.7 proved GL 2D textured drawing. **These have not
+yet been combined into one Godot process.** The next milestone is *actual
+Godot 4.7.2 engine DisplayServer PS5 + GLES3 compatibility renderer*, not
+another stand-alone shader demo. Keep existing PPSA99843 and PPSA99844
+stable until integration hardware testing is successful.
+
+See [integration contract](docs/DISPLAYSERVER_INTEGRATION.md) for
+tracked engine APIs, EGL lifetime, GPL/MIT boundaries, and acceptance gates.
+
 ## October 22, 2026 PS5 hardware input acceptance passed
 
 Real `v0.3.2` console logs confirm `PACK_SOURCE=BUNDLED_SMOKE`,
