@@ -1,0 +1,104 @@
+name: Publish ZQuest Engine BOOT TESTBUILD
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/zquestclassic-ps5-engine-boot/**'
+      - '.github/workflows/publish-zquest-engine-boot.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/zquestclassic-ps5-engine-boot/**'
+      - '.github/workflows/publish-zquest-engine-boot.yml'
+permissions:
+  contents: write
+  actions: read
+jobs:
+  boot-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image and package tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pil unzip curl git ca-certificates
+      - name: Download actual FSELF from verified original zplayer cross-build
+        uses: actions/download-artifact@v4
+        with:
+          name: ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED
+          repository: Yahballon/tmp_lap
+          run-id: 39755653005
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/zc-engine-fself
+      - name: Validate real signed FSELF before packaging
+        run: |
+          set -euo pipefail
+          test -s /tmp/zc-engine-fself/eboot.bin
+          test -s /tmp/zc-engine-fself/inspect.txt
+          test "$(cat /tmp/zc-engine-fself/status.txt)" = "PS5_FSELF_BUILT_BUT_BOOT_UNVERIFIED"
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          b=Path('/tmp/zc-engine-fself/eboot.bin').read_bytes()
+          assert len(b)>1048576 and b[:4]==struct.pack('<I',0x1D3D154F)
+          print('Validated actual original zplayer signed FSELF:',len(b))
+          PY
+      - name: Reuse verified hardware-working PS5 runtime and app metadata
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 4 \
+            https://github.com/Yahballon/tmp_lap/releases/download/zquestclassic-ps5-v0.1.5/PPSA99127.zip \
+            -o /tmp/zc-browser.zip
+          mkdir -p /tmp/zc-browser
+          unzip -q /tmp/zc-browser.zip \
+            'PPSA99127/sce_module/libc.prx' \
+            'PPSA99127/sce_sys/param.json' \
+            'PPSA99127/sce_sys/icon0.png' -d /tmp/zc-browser
+          git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/zc-devbridge
+          cp /tmp/zc-devbridge/templates/simple-calc/runtime/libc.prx.sha256 \
+             /tmp/zc-browser/PPSA99127/sce_module/
+          cd /tmp/zc-browser/PPSA99127/sce_module
+          sha256sum --check --strict libc.prx.sha256
+      - name: Fetch pinned GPLv3 original engine resources (no bundled quests)
+        run: |
+          set -euo pipefail
+          git init /tmp/zc-pinned-upstream
+          git -C /tmp/zc-pinned-upstream remote add origin https://github.com/ZQuestClassic/ZQuestClassic.git
+          git -C /tmp/zc-pinned-upstream fetch --depth 1 origin c44dde7d0146da78bf8b541af457d5ff4e67a830
+          git -C /tmp/zc-pinned-upstream checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/zc-pinned-upstream rev-parse HEAD)" = "c44dde7d0146da78bf8b541af457d5ff4e67a830"
+      - name: Create isolated original engine boot-test install ZIP
+        run: |
+          set -euo pipefail
+          python3 homebrew/zquestclassic-ps5-engine-boot/package_boot_test.py \
+            --fself /tmp/zc-engine-fself/eboot.bin \
+            --runtime-prx /tmp/zc-browser/PPSA99127/sce_module/libc.prx \
+            --template-param /tmp/zc-browser/PPSA99127/sce_sys/param.json \
+            --icon /tmp/zc-browser/PPSA99127/sce_sys/icon0.png \
+            --upstream /tmp/zc-pinned-upstream \
+            --output /tmp/zc-boot-dist
+          test -s /tmp/zc-boot-dist/PPSA99128.zip
+          unzip -t /tmp/zc-boot-dist/PPSA99128.zip | tail -n 2
+      - name: Upload boot-test ZIP for PR review
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-Original-Engine-PS5-BOOT-PPSA99128-NOT-PLAYABLE
+          path: /tmp/zc-boot-dist/PPSA99128.zip
+          if-no-files-found: error
+      - name: Publish experimental engine test to TESTBUILDS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=zquestclassic-ps5-engine-boot-v0.0.1
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Existing immutable release; not overwriting."
+            exit 0
+          fi
+          gh release create "$tag" /tmp/zc-boot-dist/PPSA99128.zip \
+            --target "$GITHUB_SHA" \
+            --title "ZQuest REAL Engine BOOT TEST v0.0.1 (NOT PLAYABLE)" \
+            --notes-file homebrew/zquestclassic-ps5-engine-boot/RELEASE_NOTES.md \
+            --prerelease
