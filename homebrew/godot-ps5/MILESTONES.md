@@ -3,7 +3,7 @@
 **Projekt:** PS5-Godot-Homebrew-Port von YAHBALLON  
 **Stand:** 23. Oktober 2026 · PS5 Firmware **5.10** · Entwicklungsbranch `feature/godot-ps5-engine-foundation` · [PR #207](https://github.com/Yahballon/tmp_lap/pull/207)
 
-> **Aktueller Meilenstein: M8b – Pong sichtbar und laufend auf PS5 bestätigt.** Das vom Nutzer bereitgestellte 13,88-Sekunden-Video `20261022_234930_00248487(1).webm` zeigt das echte Godot-Canvas2D-Pong mit Ballbewegung, bewegten Schlägern, Spielfeld und Vektorziffern. Der Nutzer bestätigt ausdrücklich, dass Pong funktioniert. **Offen bleiben noch individuelle Eingabemarker, Punkte/Kollisionslogik, Langzeittest und sauberer Exit durch neue Pong-Logs.** Nächster eigenständiger Hardwaretest: **M8c externes Godot-PCK**. Dies ist noch kein universeller Godot-Port.
+> **Aktueller Meilenstein: M8c AUF PS5 BESTÄTIGT (Nutzerbericht, 23.10.2026).** `PPSA99847 v0.1.2` lädt ein unabhängiges, auf dem PC erstelltes Godot-4.7.2-PCK **ohne neues eboot.bin**. Der Nutzer hat nach dem M8c-Hardwaretest ausdrücklich bestätigt, dass beide Szenen und der X-Farbwechsel „alles wie es soll“ funktionieren. Host-CI [#39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380) hatte zuvor PCK, Asset und Szenenwechsel validiert. **Kein neues Konsolenlog oder M8c-Video eingereicht**, daher Logmarker, FPS und Exit nicht unabhängig gemessen. **Nächster Meilenstein: M9 – native Godot 2D-Physik.**
 
 ## Bedeutung der Statusangaben
 
@@ -25,8 +25,9 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M5 | 2D-Texturen und Blending | `PPSA99844 v0.1.7`: sichtbare RGBA-Schachbretttextur, UV-Mapping, Alpha-Blending | ✅ Auf PS5 |
 | M6 | Godot + GPU in **einem** Prozess | `PPSA99845 v0.1.1`: echte Godot-GDScript-Szene steuert native OpenGL-Brücke; **24 X-Eingaben**, sichtbares Schachbrett, sauberes Ende in späterem Log | ✅ Auf PS5 |
 | M7 | **Godots eigener GLES3-/Canvas2D-Renderer** | `PPSA99847 v0.1.0`: `DisplayServerPS5`, `RasterizerGLES3`, `Sprite2D`, `ColorRect`, Controller; **4.388 Godot-Swaps über vier Sitzungen**, **223 X-Meldungen**, Screenshot und sauberer Exit | ✅ Auf PS5 |
-| M8a | Fremde Godot-PCK explizit auswählen | `PPSA99847 v0.1.1`: `launch.txt`-Auswahl, geprüfte Pfade, Fallback, signiertes TESTBUILD | 🟡 Implementiert, fremdes PCK nicht auf PS5 validiert |
-| M8b | Erstes Godot-Spiel als Hardwaretest | `PPSA99847 v0.1.2`: **Pong** läuft sichtbar auf echter PS5; Nutzer-Video zeigt Ballbewegung, beide Schläger, Spielfeld und 0:0-Anzeige. Individuelle Eingaben/Punkte/sauberer Exit ohne aktuelle Pong-Logs nicht endgültig nachgewiesen. | ✅ Auf PS5 sichtbar/laufend; 🟡 vollständige Abnahme offen |
+| M8a | Fremde Godot-PCK explizit auswählen | `PPSA99847 v0.1.2`: Externes `external-smoke.pck` über `launch.txt` auf PS5 geladen; Nutzer bestätigt Szenen und X-Interaktion | ✅ Auf PS5 vom Nutzer bestätigt (M8c) |
+| M8b | Erstes Godot-Spiel als Hardwaretest | `PPSA99847 v0.1.2`: **Pong** läuft sichtbar auf echter PS5; Video zeigt Ballbewegung, Schläger und Punktestand. Individuelle Eingaben/Punkte/sauberer Exit ohne neue Pong-Logs nicht unabhängig nachgewiesen. | ✅ Auf PS5 sichtbar/laufend; 🟡 Detailabnahme offen |
+| M8c | Eigenes externes Godot-4.7.2-PCK ohne eboot.bin-Neubau | Zwei Szenen, `res://palette.json`, GDScript, Canvas2D, DualSense-X; grüner CI-Lauf **39866584380** und Nutzerbericht „geht auch alles wie es soll“ | ✅ PS5-Funktion vom Nutzer bestätigt; 🟡 Hardware-Logs noch ausstehend |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -67,7 +68,7 @@ PS5 / Firmware 5.10
        ├─ DisplayServerPS5 + RasterizerGLES3 ✅
        ├─ PS5 AGC / EGL / OpenGL 4.6 / GLAD ✅
        ├─ Shader/Texture/Sprite2D/ColorRect ✅
-       ├─ Externe PCK-Auswahl 🟡 (Build, aber noch kein Konsolentest)
+       ├─ Externe PCK-Auswahl ✅ (M8c auf PS5 vom Nutzer bestätigt)
        ├─ Pong Godot 2D ✅ (PS5-Video: sichtbar und laufend; Detail-Logs noch offen)
        └─ Fonts / Audio / Physik / Saves / 3D / allgemeine Spiele ⬜
 ```
@@ -76,7 +77,7 @@ PS5 / Firmware 5.10
 
 ## M8c – Independent external PCK acceptance fixture (23 October 2026)
 
-**Status: 🟡 M8c host acceptance completed; physical PS5 M8c validation still pending.** Official Godot 4.7.2 PCK generation, two-scene/asset runtime acceptance, header/ZIP/checksum verification and GitHub Actions artifact upload all passed in [run #39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380) (23 October 2026). [PR #235](https://github.com/Yahballon/tmp_lap/pull/235) merged to the development branch at `7f3fe710f9d11e399b49f96092ab0461b43dade3`. Pong v0.1.2 is now visibly running on PS5 (video supplied); individual gameplay/control/exit logs are still pending.
+**Status: ✅ Physical PS5 M8c behavior confirmed by user on 23 October 2026; 🟡 diagnostic logs/video not provided for this fixture.** The user tested the standalone `external-smoke.pck` with the existing `PPSA99847 v0.1.2` and reported that both Godot scenes and X-triggered color changes work as intended. This is real **user-reported console acceptance**, not just a host simulation. Official Godot 4.7.2 PCK generation, two-scene/asset runtime acceptance, header/ZIP/checksum verification and artifact publication all passed [CI run #39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380). [PR #235](https://github.com/Yahballon/tmp_lap/pull/235) merged at `7f3fe710f9d11e399b49f96092ab0461b43dade3`. Do not claim measured FPS, independent shutdown traces or generalized third-party game support.
 
 - New standalone project: [`samples/external-pack-smoke/`](samples/external-pack-smoke/README.md), deliberately **not** linked into the native PPSA99847 binary.
 - New [`build-godot-ps5-external-pck.yml`](../../.github/workflows/build-godot-ps5-external-pck.yml) produces a genuine `external-smoke.pck` with official Godot 4.7.2, verifies markers in a Linux/headless game run, then runs strict PCK-header/ZIP checks. A passing workflow uploads artifact **`Godot-PS5-M8c-External-PCK-PS5-READY-HOST-TESTED`**, containing `external-smoke.pck` and nested **`GodotPS5-M8c-External-PCK-PS5-TEST.zip`**. CI is now **confirmed successful** in [run #39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380), artifact `Godot-PS5-M8c-External-PCK-PS5-READY-HOST-TESTED` (artifact ID `12464481166`).
@@ -85,19 +86,21 @@ PS5 / Firmware 5.10
 - Use `PPSA99847 v0.1.2` unchanged: copy artifact `external-smoke.pck` to `/data/GodotPS5/games/external-smoke.pck`; create `/data/GodotPS5/launch.txt` containing `external-smoke.pck`. Remove `launch.txt` afterward to restore the bundled Pong game.
 - Expected `gles3-runtime.log`: `PACK_SOURCE=CONFIG`, `GODOT_SWAP_FIRST`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`.
 - Expected `gles3-stdout.log`: `GODOT_PS5_EXTERNAL_MAIN_READY`, `GODOT_PS5_EXTERNAL_ASSET_OK`, `GODOT_PS5_EXTERNAL_SCENE_CHANGE_REQUESTED`, `GODOT_PS5_EXTERNAL_SECOND_SCENE_READY`, `GODOT_PS5_EXTERNAL_FINISHED`; optional pad proof `GODOT_PS5_EXTERNAL_GAMEPAD_X`.
-- **Acceptance gate:** green CI alone is not hardware proof. Obtain PS5 screenshot or video plus `gles3-runtime.log`, `gles3-stdout.log` and `gles3-stderr.log` before marking M8c confirmed; failed resource/scene/exit markers are useful debugging evidence.
+- **Acceptance result:** user confirms PS5 display, independent PCK loading, scenes and X behavior. **Hardware logs and independent video remain optional follow-up evidence** for accurate frame-time, resource-open and exit diagnostics. Do not relabel those measurements as proven without logs.
 - No claims yet for broad Godot compatibility, saving, text rendering, PhysicsServer2D, audio or 3D.
 
 ## Roadmap: Was als Nächstes zu tun ist
 
-### P0 – External-PCK-Test auf PS5 (nächster Schritt; Pong-Grafiknachweis abgeschlossen)
+### P0 – M8c bestätigt; M9 Godot-PhysicsServer2D prüfen (nächster Schritt)
 
 - [x] `PPSA99847 v0.1.2` auf realer PS5 starten: vom Nutzer bestätigt.
 - [x] Pong-Bildschirm mit zwei Schlägern, bewegtem Ball, Spielfeld und Punktestand nachweisen: Video `20261022_234930_00248487(1).webm` bestätigt.
 - [ ] Restliche Pong-Einzeltests bei Gelegenheit mit `/data/GodotPS5/gles3-stdout.log`, `gles3-runtime.log`, `gles3-stderr.log` erfassen: X-Aufschlag, Analog/D-Pad, Kollision/Punkte, Kreis-Reset, Options-Exit, Framezeiten und `GODOT_RETURN=0` / `EGL_CLOSED`. **Nicht mit dem jetzt vorliegenden kurzen Video gleichsetzen.**
 - [x] M8c-GitHub Actions erfolgreich: Original-Godot-4.7.2-PCK erzeugt und auf Linux/headless vollständig durch zwei Szenen getestet. Run `39866584380`; PCK 4,828 Bytes, PCK format 4, engine 4.7, SHA-256 `137f4c5722e385c04c4f36a84fcd8548e5038a348f68d91ca2c3310c21527591` verified from downloaded Actions artifact.
-- [ ] **Physical PS5 M8c test**: Copy the content of the generated `GodotPS5/` folder under `/data/GodotPS5/` and run the unchanged `PPSA99847 v0.1.2`. Confirm `PACK_SOURCE=CONFIG`, visible two-scene sequence, optional X input, complete stdout log markers and clean GLES3 shutdown.
-- [ ] `PACK_SOURCE=CONFIG`, Assetladen, Szenenwechsel, Pad-Eingaben und sauberen Exit auf PS5 mit Video plus Logs belegen.
+- [x] **M8c physical PS5 test**: user reports the externally selected PCK works, both scenes switch correctly and X changes their colors, without rebuilding `PPSA99847 v0.1.2`.
+- [ ] Supplement M8c with `PACK_SOURCE=CONFIG`, `GODOT_PS5_EXTERNAL_*` markers and `NORMAL_SHUTDOWN` console logs if further diagnostic evidence is needed; no logs uploaded for this run.
+- [ ] **M9a:** Design a separate `CharacterBody2D` + `StaticBody2D` + `CollisionShape2D` acceptance project and validate real `PhysicsServer2D` collisions on device; a host-only build or scripted Pong bounce is insufficient.
+- [ ] **M9b:** If physics is unavailable in current `PPSA99847`, enable and link the original Godot 2D physics backend in the PS5 engine, build a separate version and repeat the exact scene with logs.
 
 ### P1 – Echte eigene Godot-4-PCKs laden
 
@@ -148,4 +151,4 @@ PS5 / Firmware 5.10
 
 ---
 
-**Kurzfassung:** Die echte Godot-4.7.2-Canvas2D-Pipeline und **Pong v0.1.2 sind auf physischer PS5 sichtbar und laufend bestätigt (Nutzer-Video)**. Für einzelne Gameplay-/Exit-Akzeptanzkriterien fehlen noch Pong-Logs. **Nächster Hardware-Meilenstein: eigenes externes Godot-4.7.2-PCK laden**, danach Physik/Fonts/Audio/Saves.
+**Kurzfassung:** Echte Godot-4.7.2-Canvas2D-Pipeline, Pong v0.1.2 und **ein separat erstelltes externes Godot-PCK** sind nun auf echter PS5 demonstriert bzw. **durch Nutzerbericht bestätigt**. Zusätzliche Logs für Pong/M8c-Exit fehlen noch. **Als Nächstes: PhysicsServer2D / native Kollisionstest**, danach Fonts, Audio und Savegames.
