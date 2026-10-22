@@ -499,7 +499,11 @@ private:
     bool roll_uphill_step(float next_x,float step_x) {
         if(!rolling_||charging_||std::abs(vx_)<205.f ||
            std::abs(y_-last_ground_y_)>36.f)return false;
-        const float energy_height=(vx_*vx_)/(2.f*1200.f);
+        // The original roll-uphill force is 281.25, NOT world gravity 1200.
+        // Converting height into speed using raw gravity drained energy
+        // four times faster than the upstream rolling physics.
+        constexpr float kRollHillResistance=281.25f;
+        const float energy_height=(vx_*vx_)/(2.f*kRollHillResistance);
         // Allow at most 220 world-pixel rise (original demo steep hill), but
         // require real free headroom on its upper SOLID mask surface.
         const int max_rise=std::min(220,int(energy_height)+4);
@@ -510,7 +514,7 @@ private:
            body_hits(next_x,upper))return false;
         const float rise=std::min(y_-upper,std::min(4.f,std::abs(step_x)*2.f));
         if(rise<=0.f)return false;
-        const float energy_after=std::max(0.f,vx_*vx_-2.f*1200.f*rise);
+        const float energy_after=std::max(0.f,vx_*vx_-2.f*kRollHillResistance*rise);
         if(energy_after<205.f*205.f)return false;
         x_=next_x;
         y_-=rise;
