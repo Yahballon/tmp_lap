@@ -1,0 +1,62 @@
+name: Godot PS5 M9a Real 2D Physics PCK
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/physics-smoke/**'
+      - '.github/workflows/build-godot-ps5-m9-physics-pck.yml'
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/physics-smoke/**'
+      - '.github/workflows/build-godot-ps5-m9-physics-pck.yml'
+permissions:
+  contents: read
+jobs:
+  real-physics-pck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official Godot 4.7.2
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot47.zip
+          unzip -q /tmp/godot47.zip -d /tmp
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+      - name: Host-test real Godot CharacterBody2D collision, fail closed
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/physics-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m9-pack.log
+          grep -Fq GODOT_PS5_M9_PCK_WRITTEN /tmp/m9-pack.log
+          test -s "$project/physics-smoke.pck"
+          "$godot" --headless --main-pack "$project/physics-smoke.pck" --quit-after 2200 2>&1 | tee /tmp/m9-physics.log
+          for marker in GODOT_PS5_M9_BOOT GODOT_PS5_M9_BODIES_READY GODOT_PS5_M9_REAL_COLLISION_OK GODOT_PS5_M9_TEST_PASS; do
+            grep -Fq "$marker" /tmp/m9-physics.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M9_(NO_COLLISION|COLLISION_INVALID|TIMEOUT)' /tmp/m9-physics.log; then exit 1; fi
+      - name: Bundle PS5 user-installable physics acceptance PCK
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/m9-ready
+          project=homebrew/godot-ps5/samples/physics-smoke
+          python3 "$project/make_ps5_test_bundle.py" "$project/physics-smoke.pck" /tmp/m9-ready | tee /tmp/m9-bundle.log
+          grep -Fq GODOT_PS5_M9_BUNDLE_READY /tmp/m9-bundle.log
+          cp "$project/physics-smoke.pck" /tmp/m9-ready/physics-smoke.pck
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-M9a-REAL-PHYSICS-Host-Validated-PS5-UNTESTED
+          path: /tmp/m9-ready/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-M9a-Physics-Diagnostics
+          path: |
+            /tmp/m9-pack.log
+            /tmp/m9-physics.log
+            /tmp/m9-bundle.log
+          if-no-files-found: warn
