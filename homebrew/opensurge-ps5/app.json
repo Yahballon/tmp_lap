@@ -1,20 +1,20 @@
 {
   "name": "Open Surge PS5 Test",
   "slug": "opensurge-ps5",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "titleId": "PPSA99358",
   "contentId": "UP9000-PPSA99358_00-OPENSURGEPS5PORT",
-  "contentVersion": "01.014.000",
+  "contentVersion": "01.015.000",
   "developer": "YAHBALLON",
   "upstream": "alemart/opensurge",
   "upstreamVersion": "0.6.1.3",
   "buildArchitecture": "PS5-DevBridge / ps5-homebrew-ui native OpenGL",
   "nativeFrontend": true,
   "engineIntegrated": false,
-  "ps5BuildStatus": "bundled-four-original-sunshine-stages-and-save-ci-pending",
+  "ps5BuildStatus": "stage-specific-original-music-ci-pending",
   "installableGame": false,
   "gamePlayable": false,
-  "testbuildRelease": "opensurge-ps5-v0.6.0",
+  "testbuildRelease": "opensurge-ps5-v0.6.1",
   "nativeLevelPreview": true,
   "originalGameEngineIntegrated": false,
   "nativeEntitySubset": true,
@@ -23,5 +23,6 @@
   "nativeAudioSubset": true,
   "nativeLayerAndTubeSubset": true,
   "nativeStagePack": true,
-  "nativeCheckpointAutosave": true
+  "nativeCheckpointAutosave": true,
+  "nativeStageMusic": true
 }

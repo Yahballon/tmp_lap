@@ -1,5 +1,11 @@
-# Open Surge PS5 v0.6.0 – four-stage integrated native testbuild
+# Open Surge PS5 v0.6.1 — Original music for every Sunshine stage
 
-Features in one installable bundle: authentic pinned upstream Sunshine `.lev` layouts (demo-1, sunshine-1, sunshine-2, sunshine-3), menus and stage selection, stage switching on Goal, touch Checkpoints with native respawn, and persistent stage/checkpoint data. Also retains original music/SFX, native enemies, spring and ring gameplay, layers, basic tubes, and PS5 120Hz input handling. CI exercises all four stage caches, packaged FSELF, progression save/reload.
+Building on v0.6.0's four native playable preview stages, stage selection and automatic goal progression now select the authentic upstream `.lev` music:
 
-Not the complete upstream engine: full SurgeScript VM, advanced physics/loops, scripted AI/objects/cutscenes, level-specific music, and original save format do NOT work yet. This release is meant for one broader console QA round.
+- Demo: `musics/template.ogg`.
+- Sunshine Paradise Acts 1, 2 and 3: `musics/sunshine.ogg`.
+- Two persistent 48-kHz stereo Vorbis decode streams crossfade through the native PS5 `sceAudioOut` mixer in 0.18 seconds. There is no interruption to effects or PS5 graphics.
+- The stage loader records `STAGE_MUSIC` diagnostic lines and falls back gracefully if one track is missing.
+- The complete signed native package still has four original stages, stage selection and goal transitions, checkpoints/progress.cfg, original enemies, rings and springs, sound effects, and the previous collision/Spin Dash safety logic.
+
+This remains a native compatibility preview rather than full SurgeScript gameplay. Test the track switching between demo-1 and Sunshine Act 1 on a real PS5.

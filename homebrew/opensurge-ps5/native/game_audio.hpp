@@ -53,27 +53,51 @@ public:
             clips_[i].clip.frames=decoded.frames;
             ++loaded_;
         }
-        const auto data=read(base+"level.ogg",32*1024*1024);
-        if(!data.empty()) {
-            const std::string error=track_.open(data);
+        // Original stage music: demo-1 -> musics/template.ogg; all three
+        // Sunshine acts -> musics/sunshine.ogg. Both decoder/ring pairs remain
+        // alive while sceAudioOut is running, so switching streams is safe.
+        const auto demo=read(base+"level.ogg",32*1024*1024);
+        if(!demo.empty()){
+            const std::string error=track_.open(demo);
             music_ready_=error.empty();
-            if(!music_ready_)status_="OGG VORBIS ERROR: "+error;
+            if(!music_ready_)status_="OGG DEMO ERROR: "+error;
+        }
+        const auto sunshine=read(base+"sunshine.ogg",32*1024*1024);
+        if(!sunshine.empty()){
+            const std::string error=sunshine_track_.open(sunshine);
+            sunshine_ready_=error.empty();
+            if(!sunshine_ready_)status_="OGG SUNSHINE ERROR: "+error;
         }
         mixer_.attach_stream(0,&ring_);
-        mixer_.set_stream_gain(0,0.32f,0.0f);
+        mixer_.attach_stream(1,&sunshine_ring_);
+        mixer_.set_stream_gain(0,0.f,0.0f);
+        mixer_.set_stream_gain(1,0.f,0.0f);
         mixer_.set_master_gain(0.90f);
-        if(music_ready_)pump();
+        if(music_ready_ || sunshine_ready_)pump();
         opened_=output_.start(mixer_);
         if(!opened_){
             status_="SCE_AUDIO_OUT_OPEN_FAILED";
             return false;
         }
-        if(!music_ready_)status_="AUDIO_SFX_ONLY";
-        else status_="AUDIO_ORIGINAL_SFX_AND_LEVEL_MUSIC";
+        if(!music_ready_ && !sunshine_ready_)status_="AUDIO_SFX_ONLY";
+        else if(music_ready_ && sunshine_ready_)status_="AUDIO_TWO_ORIGINAL_STAGE_TRACKS";
+        else status_="AUDIO_ONE_STAGE_TRACK_ONLY";
         return true;
     }
     bool ready() const{return opened_;}
-    bool music_ready() const{return music_ready_;}
+    bool music_ready() const{return (stage_slot_==0?music_ready_:sunshine_ready_);}
+    const char* stage_track() const{
+        return stage_slot_==1?"musics/sunshine.ogg":"musics/template.ogg";
+    }
+    bool select_stage(int stage){
+        // Do not unexpectedly mute later acts on a damaged install: fall
+        // back to the original demo track if the Sunshine file is missing.
+        const int wanted=stage>0?1:0;
+        stage_slot_=(wanted==1&&!sunshine_ready_&&music_ready_)?0:wanted;
+        if(stage_slot_==0&&!music_ready_&&sunshine_ready_)stage_slot_=1;
+        level_active(active_);
+        return wanted==0?music_ready_:sunshine_ready_;
+    }
     bool music_enabled() const{return music_enabled_;}
     int clips_loaded() const{return loaded_;}
     const std::string& status() const{return status_;}
@@ -82,7 +106,9 @@ public:
     void level_active(bool active){
         if(!opened_)return;
         active_=active;
-        mixer_.set_stream_gain(0,(active_&&music_enabled_&&music_ready_)?0.32f:0.f,0.15f);
+        const bool audible=active_&&music_enabled_;
+        mixer_.set_stream_gain(0,(audible&&stage_slot_==0&&music_ready_)?0.32f:0.f,0.18f);
+        mixer_.set_stream_gain(1,(audible&&stage_slot_==1&&sunshine_ready_)?0.32f:0.f,0.18f);
     }
     bool toggle_music(){
         music_enabled_=!music_enabled_;
@@ -101,14 +127,8 @@ public:
     void pump(){
         // Keep enough music decoded ahead to prevent underruns while the
         // original tile renderer costs variable CPU time.
-        if(!music_ready_ || (!opened_ && ring_.available()>24000))return;
-        for(int count=0;count<18 && ring_.available()<26000;++count){
-            const int frames=int(std::min<std::size_t>(1024,ring_.space()));
-            if(frames<=0)break;
-            const int n=track_.decode(scratch_.data(),frames);
-            if(n<=0)break;
-            ring_.write(scratch_.data(),std::size_t(n));
-        }
+        pump_track(track_,ring_,music_ready_);
+        pump_track(sunshine_track_,sunshine_ring_,sunshine_ready_);
     }
     void shutdown(){
         if(opened_){output_.stop();opened_=false;}
@@ -119,6 +139,19 @@ private:
         std::vector<float> buffer;
         hui::audio::Clip clip;
     };
+    void pump_track(hui::audio::MusicTrack& track,hui::audio::StreamRing& ring,bool ready){
+        if(!ready || (!opened_ && ring.available()>24000))return;
+        // Two music decks allow fade without mutating the audio thread's
+        // stream pointers. Both decks pre-decode smoothly; only the selected
+        // deck's gain is audible.
+        for(int count=0;count<18 && ring.available()<26000;++count){
+            const int frames=int(std::min<std::size_t>(1024,ring.space()));
+            if(frames<=0)break;
+            const int n=track.decode(scratch_.data(),frames);
+            if(n<=0)break;
+            ring.write(scratch_.data(),std::size_t(n));
+        }
+    }
     static std::string read(const std::string& path,std::size_t max){
         FILE* f=std::fopen(path.c_str(),"rb");
         if(!f)return {};
@@ -134,12 +167,15 @@ private:
 
     hui::audio::Mixer mixer_;
     hui::audio::StreamRing ring_{1u<<16};
+    hui::audio::StreamRing sunshine_ring_{1u<<16};
     hui::audio::MusicTrack track_;
+    hui::audio::MusicTrack sunshine_track_;
     hui::ps5::AudioOut output_;
     std::array<OwnedClip,static_cast<std::size_t>(Sound::Count)> clips_{};
     std::array<float,2048> scratch_{};
     std::string status_="AUDIO_NOT_INITIALIZED";
     int loaded_=0;
-    bool music_ready_=false,opened_=false,active_=false,music_enabled_=true;
+    bool music_ready_=false,sunshine_ready_=false,opened_=false,active_=false,music_enabled_=true;
+    int stage_slot_=0;
 };
 } // namespace surgepreview

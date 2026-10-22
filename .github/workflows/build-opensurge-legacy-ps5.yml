@@ -188,7 +188,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.6.0
+          tag=opensurge-ps5-v0.6.1
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -199,7 +199,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.6.0 - Four Original Sunshine Stages, Goal Routing and Autosave" \
+            --title "Open Surge PS5 v0.6.1 - Original Sunshine Level Music and Crossfades" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 
