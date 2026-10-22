@@ -30,16 +30,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 ninja-build make unzip g++ python3 ca-certificates
-      - name: Stage previously cross-compiled Godot archives + genuine smoke PCK
+      - name: Stage verified Godot v0.3.1 archives + genuine smoke PCK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p /tmp/godot /tmp/godot-engine-input /tmp/godot-smoke-pck
-          gh run download 39755185338 --repo Yahballon/tmp_lap \
+          # Reuse the successful v0.3.1 full Godot cross-build, including\n          # its real PS5-native DualSense bridge (not legacy v0.2.11 archives).\n          mkdir -p /tmp/godot /tmp/godot-engine-input /tmp/godot-smoke-pck
+          gh run download 39761451957 --repo Yahballon/tmp_lap \
             --name godot-ps5-complete-static-archives-NOT-PLAYABLE \
             --dir /tmp/godot-engine-input
-          gh run download 39755185338 --repo Yahballon/tmp_lap \
+          gh run download 39761451957 --repo Yahballon/tmp_lap \
             --name godot-4-gdscript-smoke-pck-NOT-PS5 \
             --dir /tmp/godot-smoke-pck
           unzip -q /tmp/godot-engine-input/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip -d /tmp/godot
@@ -153,7 +153,7 @@ jobs:
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99843'
           assert meta['contentId']=='UP9000-PPSA99843_00-GODOTPS5HEADLESS'
-          assert meta['contentVersion']=='01.000.013'
+          assert meta['contentVersion']=='01.000.014'
           with zipfile.ZipFile(root.parent/'PPSA99843.zip') as z:
               assert z.testzip() is None
               assert 'PPSA99843/eboot.bin' in z.namelist()
@@ -164,7 +164,7 @@ jobs:
         if: steps.link.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-GDScript-Engine-Smoke-v0.3.0-UNVERIFIED-ON-CONSOLE
+          name: Godot-PS5-GDScript-Engine-Smoke-v0.3.1-UNVERIFIED-ON-CONSOLE
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
       # This workflow is a linker diagnostic; it only uploads immutable CI
