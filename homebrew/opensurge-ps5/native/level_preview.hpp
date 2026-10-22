@@ -123,6 +123,15 @@ public:
         return true;
     }
 #endif
+    bool set_checkpoint(float px,float py) {
+        if(!ready()||!std::isfinite(px)||!std::isfinite(py)||
+           std::abs(px)>100000.f||std::abs(py)>100000.f)return false;
+        float floor=py;
+        if(!find_floor(px,py,36,54,floor))return false;
+        if(body_hits(px,floor))return false;
+        startx_=px;starty_=floor;
+        return true;
+    }
     // Experimental native spring velocity hook from original 'Spring
     // Standard/Stronger' SurgeScript values (600 and 960 world units/sec).
     void hit_recoil(float source_x) {
@@ -142,13 +151,15 @@ public:
         y_-=3.f; // free the player's feet from the spring platform
     }
 
-    bool load(Renderer& renderer,const std::string& game_root) {
+    bool load(Renderer& renderer,const std::string& game_root,const std::string& stage="") {
         error_.clear(); placed_.clear(); cells_.clear(); routes_.clear(); atlas_=hero_=0;
         for(auto& def:defs_)def=BrickDef{};
         if(game_root.size()<5 || game_root.substr(game_root.size()-5)!="game/") {
             error_="GAME ROOT INVALID";return false;
         }
-        const std::string base=game_root.substr(0,game_root.size()-5)+"level-preview/";
+        const std::string parent=game_root.substr(0,game_root.size()-5);
+        const std::string visual=parent+"level-preview/";
+        const std::string base=stage.empty()?visual:parent+"stages/"+stage+"/";
         const auto hdr=read(base+"header.txt",4096);
         if(hdr.empty()){error_="PREVIEW DATA MISSING";return false;}
         int atlasw=0,atlash=0,herow=0,heroh=0;
@@ -216,7 +227,7 @@ public:
         // Original SurgeScript level entities: layer collision selectors and
         // tube input locking/unlocking. Not present in the old native preview.
         const auto scripted=read(base+"routes.tsv",16*1024);
-        if(scripted.empty()){error_="ORIGINAL ROUTES MISSING";return false;}
+        if(scripted.empty() && stage.empty()){error_="ORIGINAL ROUTES MISSING";return false;}
         size_t rp=0;int tube_in=0,tube_out=0,layer_points=0;
         while(rp<scripted.size()){
             const auto end=scripted.find('\n',rp);
@@ -240,7 +251,7 @@ public:
             }
             rp=end==std::string::npos?scripted.size():end+1;
         }
-        if(tube_in!=6||tube_out!=6||layer_points<30){
+        if(stage.empty() && (tube_in!=6||tube_out!=6||layer_points<30)){
             error_="INCOMPLETE ORIGINAL ROUTES";return false;
         }
         // Static cell index is built once, NEVER per frame.
@@ -250,8 +261,8 @@ public:
             error_="COLLISION CELL INDEX TOO LARGE";
             return false;
         }
-        const auto bg=read(base+"sunshine.rgba",static_cast<size_t>(atlasw)*atlash*4u+1);
-        const auto player=read(base+"surge.rgba",static_cast<size_t>(herow)*heroh*4u+1);
+        const auto bg=read(visual+"sunshine.rgba",static_cast<size_t>(atlasw)*atlash*4u+1);
+        const auto player=read(visual+"surge.rgba",static_cast<size_t>(herow)*heroh*4u+1);
         if(bg.size()!=static_cast<size_t>(atlasw)*atlash*4u ||
            player.size()!=static_cast<size_t>(herow)*heroh*4u) {
             error_="ORIGINAL TEXTURES INVALID";placed_.clear();return false;
@@ -259,7 +270,7 @@ public:
 
         // The mask comes from Open Surge's separate, authentic brick collision
         // image; no arbitrary 128x128 box collider for passable decorations.
-        const auto collision=read(base+"collision.bin",
+        const auto collision=read(visual+"collision.bin",
             static_cast<size_t>(atlasw)*atlash+1);
         if(collision.size()!=static_cast<size_t>(atlasw)*atlash){
             error_="ORIGINAL COLLISION MASK MISSING";return false;

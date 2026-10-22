@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.4 - safe native tube exits and loop-region fallback.
+// Open Surge PS5 v0.6.0 - native multi-level bundle, progression and checkpoints.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
 #include "level_entities.hpp"
 #include "level_hazards.hpp"
 #include "game_audio.hpp"
+#include "stage_progress.hpp"
 #include "pad_state.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -25,7 +26,9 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.5.4";
+constexpr const char* kVersion="0.6.0";
+constexpr const char* kSave="/data/OpenSurge/progress.cfg";
+constexpr std::array<const char*,4> kStageNames={"demo-1","sunshine-1","sunshine-2","sunshine-3"};
 constexpr const char* kTitle="OPEN SURGE PS5 - WORLD ROUTES";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
@@ -35,7 +38,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native world routing preview 0.5.3] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge multi-stage preview 0.6.0] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -123,7 +126,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.5.4",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.6.0",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -183,15 +186,18 @@ int main(){
                   audio.music_ready()?1:0,audio_ready?1:0);
     log_message(line);
   }
+  surgepreview::Progress progress;
+  progress.load(kSave);
+  int stage_index=progress.selected;
   surgepreview::LevelPreview level;
-  const bool level_ready=level.load(renderer,root);
+  bool level_ready=level.load(renderer,root);
   surgepreview::LevelEntities entities;
-  const bool entities_ready=level_ready && entities.load(renderer,root);
+  bool entities_ready=level_ready && entities.load(renderer,root);
   log_message(entities_ready?
       "ORIGINAL_ENTITIES_READY collectibles, springs and goal":
       std::string("ORIGINAL_ENTITIES_FAILED ")+entities.error());
   surgepreview::LevelHazards hazards;
-  const bool hazards_ready=level_ready && hazards.load(renderer,root);
+  bool hazards_ready=level_ready && hazards.load(renderer,root);
   log_message(hazards_ready?
       "ORIGINAL_HAZARDS_READY 5 mosquito 1 wolfey 1 lady_bugsy 6 spikes":
       std::string("ORIGINAL_HAZARDS_FAILED ")+hazards.error());
@@ -207,6 +213,29 @@ int main(){
                   level.count(),level.indexed_cells());
     log_message(line);
   }
+  auto load_stage=[&](int selected)->bool{
+    if(selected<0||selected>=int(kStageNames.size()))return false;
+    const std::string id=selected==0?"":kStageNames[selected];
+    level_ready=level.load(renderer,root,id);
+    entities_ready=level_ready && entities.load(renderer,root,id);
+    hazards_ready=level_ready && hazards.load(renderer,root,id);
+    if(!level_ready){
+      log_message(std::string("STAGE_LOAD_FAILED ")+kStageNames[selected]+" "+level.error());
+      return false;
+    }
+    if(progress.checkpoint_stage==selected &&
+       !level.set_checkpoint(progress.checkpoint_x,progress.checkpoint_y))
+      log_message("CHECKPOINT_UNSAFE; default spawn used");
+    char status[160];
+    std::snprintf(status,sizeof(status),"STAGE_READY %s bricks=%zu entities=%zu hazards=%zu",
+      kStageNames[selected],level.count(),entities_ready?entities.count():0,
+      hazards_ready?hazards.count():0);
+    log_message(status);
+    if(!entities_ready)log_message(std::string("STAGE_ENTITIES_UNAVAILABLE ")+entities.error());
+    if(!hazards_ready)log_message(std::string("STAGE_HAZARDS_UNAVAILABLE ")+hazards.error());
+    return true;
+  };
+  bool pending_stage_advance=false;
   bool detail=false,exiting=false,level_mode=false;
   uint64_t last_us=static_cast<uint64_t>(hui::sys::monotonic_us());
   uint64_t fps_sample_us=last_us,perf_log_us=last_us;
@@ -389,9 +418,18 @@ int main(){
                  "ORIGINAL_SPRING_STRONGER_BOUNCE 960":
                  "ORIGINAL_SPRING_STANDARD_BOUNCE 600");
             }
+            if(event.checkpoint){
+              if(level.set_checkpoint(event.checkpoint_x,event.checkpoint_y) &&
+                 progress.checkpoint(stage_index,event.checkpoint_x,event.checkpoint_y)){
+                log_message(progress.save(kSave)?
+                    "ORIGINAL_CHECKPOINT_SAVED":"SAVE_CHECKPOINT_FAILED");
+                audio.play(surgepreview::Sound::Checkpoint);
+              }else log_message("CHECKPOINT_SKIPPED_UNSAFE_COLLISION");
+            }
             if(event.goal){
-              log_message("ORIGINAL_GOAL_REACHED demo-1 preview only");
+              log_message(std::string("STAGE_GOAL_REACHED ")+kStageNames[stage_index]);
               audio.play(surgepreview::Sound::Endsign);
+              pending_stage_advance=true;
             }
           }
           if(hazards_ready && !hazards.game_over() && !level.in_tube()){
@@ -436,6 +474,23 @@ int main(){
           accumulator-=step;++ticks;
         }
         if(ticks>=9)accumulator=0.f; // avoid spiral of death on a stalled GPU
+        if(pending_stage_advance){
+          pending_stage_advance=false;
+          const int completed=stage_index;
+          progress.complete_stage(stage_index,hazards_ready?hazards.score():0);
+          if(!progress.save(kSave))log_message("SAVE_STAGE_PROGRESS_FAILED");
+          if(completed+1<int(kStageNames.size())){
+            stage_index=completed+1;
+            if(!load_stage(stage_index)){
+              level_mode=false;audio.level_active(false);
+            }
+            accumulator=0.f;pending_jump=false;
+            log_message(std::string("AUTO_NEXT_STAGE ")+kStageNames[stage_index]);
+          }else{
+            log_message("SUNSHINE_STAGE_BUNDLE_COMPLETE");
+            level_mode=false;audio.level_active(false);
+          }
+        }
       }
     }else if(exiting){
       if(pressed&hui::pad_bits::kCircle)exiting=false;
@@ -447,17 +502,25 @@ int main(){
         hui::sys::quit();
       }
     }else{
+      // All four stages unlocked for QA testing; story completion is saved
+      // separately so testers can reproduce late-game problems immediately.
+      const bool prev=(pressed&(hui::pad_bits::kL1|hui::pad_bits::kLeft))!=0;
+      const bool next=(pressed&(hui::pad_bits::kR1|hui::pad_bits::kRight))!=0;
+      if(prev!=next){
+        stage_index=(stage_index+(next?1:3))%4;
+        progress.selected=stage_index;
+        if(!progress.save(kSave))log_message("SAVE_STAGE_SELECTION_FAILED");
+        log_message(std::string("STAGE_SELECTED ")+kStageNames[stage_index]);
+      }
       if(pressed&hui::pad_bits::kCross){
-        if(level_ready){
+        if(load_stage(stage_index)){
           level_mode=true;level.reset();
           audio.level_active(true);
-          if(entities_ready)entities.reset();
-          if(hazards_ready)hazards.reset_game();
           accumulator=0.f;pending_jump=false;
-          log_message("LEVEL_PREVIEW_START demo-1.lev, terrain slope-follow test; original gameplay engine not linked");
+          log_message(std::string("STAGE_START ")+kStageNames[stage_index]);
         }else{
           root=resolve_root();run_probes(probes,root);
-          log_message(std::string("LEVEL_PREVIEW_UNAVAILABLE ")+level.error());
+          log_message(std::string("STAGE_UNAVAILABLE ")+kStageNames[stage_index]);
         }
       }
       if(pressed&hui::pad_bits::kTriangle)detail=!detail;
@@ -471,8 +534,8 @@ int main(){
       if(entities_ready)entities.draw(ui,level.player_x(),level.player_y());
       if(hazards_ready)hazards.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
-      txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.5.4  -  SAFE TUBE OUTLETS; LOOP PHYSICS PENDING",66,125,21,GOLD);
+      txt(ui,font,atlas,std::string("OPEN SURGE  /  ")+kStageNames[stage_index],66,81,33,WHITE);
+      txt(ui,font,atlas,"v0.6.0  -  ORIGINAL SUNSHINE STAGES / CHECKPOINTS / AUTOSAVE",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"MOVE  X JUMP  DOWN+X DASH  TRIANGLE MUSIC  SQUARE RESET  O BACK",73,1029,28,WHITE);
       char probe_line[180];
@@ -496,7 +559,7 @@ int main(){
       if(entities_ready){
         char hud[140];
         std::snprintf(hud,sizeof(hud),"COLLECTIBLES %03d     %s",
-                      entities.collected(),entities.complete()?"DEMO GOAL REACHED":"DEMO LEVEL");
+                      entities.collected(),entities.complete()?"GOAL REACHED":"ORIGINAL LEVEL");
         ui.rounded_rect({1240,116,620,62},12,C(0x092431,.90f));
         txt(ui,font,atlas,hud,1258,157,24,entities.complete()?GOLD:ACCENT);
       }
@@ -518,6 +581,11 @@ int main(){
       }
     }else{
       draw(ui,font,atlas,preview,probes,root,detail,exiting);
+      ui.rounded_rect({965,875,885,135},14,C(0x0a3139,.97f));
+      txt(ui,font,atlas,std::string("STAGE: ")+kStageNames[stage_index]+
+          "    L1 / R1  TO CHANGE",985,927,26,ACCENT);
+      txt(ui,font,atlas,"X START   |   GOAL NEXT STAGE   |   CHECKPOINT AUTOSAVE",
+          985,969,18,GOLD);
       if(!level_ready)
         txt(ui,font,atlas,std::string("LEVEL PREVIEW: ")+level.error(),103,905,19,GOLD);
     }

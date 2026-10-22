@@ -48,6 +48,7 @@ jobs:
           cp homebrew/opensurge-ps5/native/level_entities.hpp app/src/level_entities.hpp
           cp homebrew/opensurge-ps5/native/level_hazards.hpp app/src/level_hazards.hpp
           cp homebrew/opensurge-ps5/native/game_audio.hpp app/src/game_audio.hpp
+          cp homebrew/opensurge-ps5/native/stage_progress.hpp app/src/stage_progress.hpp
           python3 homebrew/opensurge-ps5/scripts/prepare-legacy-assets.py \
             homebrew/opensurge-ps5/.work/legacy-stage app
           python3 homebrew/opensurge-ps5/scripts/prepare-level-preview.py \
@@ -57,6 +58,8 @@ jobs:
           python3 homebrew/opensurge-ps5/scripts/prepare-hazards-preview.py \
             homebrew/opensurge-ps5/.work/legacy-stage app
           python3 homebrew/opensurge-ps5/scripts/prepare-audio.py \
+            homebrew/opensurge-ps5/.work/legacy-stage app
+          python3 homebrew/opensurge-ps5/scripts/prepare-stage-pack.py \
             homebrew/opensurge-ps5/.work/legacy-stage app
           python3 homebrew/opensurge-ps5/scripts/test-native-audio.py app
           python3 homebrew/opensurge-ps5/scripts/test-level-preview.py app
@@ -109,6 +112,12 @@ jobs:
             homebrew/opensurge-ps5/tests/native_hazards_smoke.cpp \
             -o /tmp/opensurge-hazards-test
           /tmp/opensurge-hazards-test "$PWD/app/assets/game/"
+          g++ -std=c++17 -O2 -Wall -Wextra \
+            -I homebrew/opensurge-ps5/tests/mocks \
+            -I homebrew/opensurge-ps5/native \
+            homebrew/opensurge-ps5/tests/native_stage_pack_smoke.cpp \
+            -o /tmp/opensurge-stage-test
+          /tmp/opensurge-stage-test "$PWD/app/assets/game/" "$PWD/app/assets"
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -179,7 +188,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.5.4
+          tag=opensurge-ps5-v0.6.0
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -190,7 +199,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.5.4 - Tube Exit and Loop Fall Safety" \
+            --title "Open Surge PS5 v0.6.0 - Four Original Sunshine Stages, Goal Routing and Autosave" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 

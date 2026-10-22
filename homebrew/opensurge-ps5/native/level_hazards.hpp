@@ -25,14 +25,16 @@ struct HazardEvent {
 };
 class LevelHazards {
 public:
-    bool load(hui::gfx::Renderer& renderer,const std::string& root) {
+    bool load(hui::gfx::Renderer& renderer,const std::string& root,const std::string& stage="") {
         ready_=false;error_.clear();hazards_.clear();bullets_.clear();
         if(root.size()<5||root.substr(root.size()-5)!="game/"){
             error_="HAZARD GAME ROOT";return false;
         }
-        const std::string base=root.substr(0,root.size()-5)+"level-preview/";
+        const std::string parent=root.substr(0,root.size()-5);
+        const std::string visual=parent+"level-preview/";
+        const std::string base=stage.empty()?visual:parent+"stages/"+stage+"/";
         const std::string list=read(base+"hazards.tsv",8192);
-        if(list.empty()){error_="HAZARDS MISSING";return false;}
+        if(list.empty() && stage.empty()){error_="HAZARDS MISSING";return false;}
         size_t start=0;
         while(start<list.size()){
             const auto end=list.find('\n',start);
@@ -61,12 +63,12 @@ public:
         }
         int counts[4]{};
         for(const auto& h:hazards_)++counts[int(h.kind)];
-        if(counts[0]!=5||counts[1]!=1||counts[2]!=1||counts[3]!=6){
+        if(stage.empty() && (counts[0]!=5||counts[1]!=1||counts[2]!=1||counts[3]!=6)){
             error_="ORIGINAL HAZARD COUNT";return false;
         }
         const char* labels[]={"mosquito","wolfey","bugsy","spikes"};
         for(int i=0;i<4;++i){
-            if(!texture(renderer,base,labels[i],tex_[i],sheet_w_[i],sheet_h_[i])){
+            if(!texture(renderer,visual,labels[i],tex_[i],sheet_w_[i],sheet_h_[i])){
                 error_="ORIGINAL HAZARD ART";return false;
             }
         }
