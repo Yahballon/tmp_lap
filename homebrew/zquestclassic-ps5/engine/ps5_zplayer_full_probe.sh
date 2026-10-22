@@ -70,6 +70,7 @@ echo "SDL2 PS5 fork: ee4c47dc0d617b3bc8f35108f9956baf228a1322" >> "$report"
 echo "Attempt original zplayer with ALLEGRO_SDL=ON and JIT_BACKEND=none" >> "$report"
 echo "Locale: genuine Mihawk PS5 libc compat b5efad528e0ac1b8289f39d72a0e890ff68ff0a6" >> "$report"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_upstream_cmake_for_ps5.py" "$upstream"
+python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_zconsole_for_ps5.py" "$upstream"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_allegro_for_ps5_probe.py" "$allegro"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_sdl2_for_ps5_probe.py" "$sdl"
 echo "PS5 adaptations: portable stduuid; WANT_NFD=OFF" >> "$report"
@@ -108,6 +109,7 @@ timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DOPENGL_gl_LIBRARY="$PS5_OPENGL_PREFIX/lib/libPS5OpenGL.a" \
   -DALLEGRO_SDL=ON \
   -DWANT_NFD=OFF \
+  -DWANT_WEBSOCKETS=OFF \
   -DCOPY_RESOURCES=OFF \
   -DJIT_BACKEND=none >"$log" 2>&1
 status=$?
