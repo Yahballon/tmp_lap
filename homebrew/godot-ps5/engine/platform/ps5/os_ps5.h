@@ -12,6 +12,10 @@ protected:
     void delete_main_loop() override;
     void set_main_loop(MainLoop *loop) override;
 public:
+    // PS5 sandbox: avoid unsupported libc getcwd and FreeBSD sysctl.
+    String get_cwd() const override;
+    Error set_cwd(const String &path) override;
+    String get_executable_path() const override;
     String get_identifier() const override;
     String get_name() const override;
     String get_config_path() const override;
