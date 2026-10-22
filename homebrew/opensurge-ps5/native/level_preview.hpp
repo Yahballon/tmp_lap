@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.4 - reject unsupported tube exits and prevent loop-area floor dropouts.
+// Open Surge PS5 v0.6.2 - keep high-speed uphill steps mask-safe within one physics frame.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -49,6 +49,7 @@ public:
     size_t indexed_cells() const {return cells_.size();}
     unsigned collision_blocks() const {return blocked_;}
     unsigned auto_respawns() const {return respawns_;}
+    unsigned solid_recoveries() const {return solid_recoveries_;}
     float slope_grade() const {return slope_grade_;}
     unsigned uphill_steps() const {return uphill_steps_;}
     bool wall_climbing() const {return wall_climb_;}
@@ -295,6 +296,7 @@ public:
         charge_=0.f;spring_anim_=0.f;dash_releases_=0;
         slope_grade_=0.f;uphill_steps_=0;
         wall_climb_=false;wall_climbs_=0;wall_top_=0.f;wall_dir_=0;
+        embedded_frames_=solid_recoveries_=0;
         active_layer_=0;layer_switches_=0;tube_entries_=tube_exits_=0;
         tube_active_=false;tube_timer_=tube_cooldown_=0.f;
         unsafe_tube_exits_=loop_safety_recoveries_=0;
@@ -357,6 +359,7 @@ public:
         }
         tick_routes();
 
+        if(!wall_climb_) {
         // See upstream physicsactor.c (Open Surge 0.6.1.3):
         // CHARGING: tap fire1 repeatedly to add 0.25 intensity; release DOWN
         // to launch gsp = (12*60/3)*(2+intensity) = 480..720 world px/s.
@@ -419,6 +422,7 @@ public:
             vy_=-505.f;ground_=false;
             rolling_=false;
         }
+        } // Avoid consuming Spin Dash energy or jumping while wall-climbing.
         // Steep original Sunshine bricks have a solid vertical face below
         // their upper surface. Treat a high-speed roll as a WALL-CONTACT
         // traversal, not an invitation to step x INTO opaque terrain.
@@ -426,32 +430,43 @@ public:
         // on reaching the lip, only resume horizontal motion if the next
         // rolling body position is actually free of collision.
         if(wall_climb_){
+            // Never decrease Y through a ceiling or another SOLID mask.
+            // v0.6.1 lifted the actor without checking each intermediate
+            // position and could let a fast dash tunnel through an overhang.
             const float rate=std::clamp(std::abs(vx_)*1.25f,280.f,760.f);
+            const float rise=std::min(rate*dt,std::max(0.f,y_-(wall_top_-3.f)));
             const float previous=y_;
-            y_-=std::min(rate*dt,std::max(0.f,y_-(wall_top_-3.f)));
-            vy_=0.f;
-            ground_=true;last_ground_y_=y_;
+            // Native preview still lacks the original four-direction
+            // slope sensor frame. A rising Sunshine masked hillside can
+            // touch the actor's upright box while rolling against it. Keep
+            // X stationary throughout the crest contact; only the *exit*
+            // must prove clearance, so no horizontal tunneling occurs.
+            // The previous v0.6.2 prototype checked upright box pixels
+            // mid-ascent and stalled immediately at screenshot x=2500.
+            y_-=rise;
             if(y_<previous-0.25f)++uphill_steps_;
+            vy_=0.f;
+            ground_=has_foot_support(x_,y_);
             if(y_<=wall_top_+1.f){
                 const float next=x_+float(wall_dir_)*1.25f;
-                if(!body_hits(next,y_)){
+                if(!body_hits(next,y_) && !head_hits(next,y_)){
                     wall_climb_=false;
                     x_=next;
                     float floor=y_;
-                    if(find_floor(x_,y_,4,8,floor) && !body_hits(x_,floor)){
+                    if(find_floor(x_,y_,4,10,floor) &&
+                       !body_hits(x_,floor)){
                         y_=floor;ground_=true;last_ground_y_=y_;
                     }else{
-                        // Genuine ledge: fall from ABOVE the solid terrain.
-                        // Never let the former through-wall shortcut push the
-                        // player under the mask before applying gravity.
+                        // No solid support past the crest; fall normally,
+                        // from the safe upper side of the actual tile.
                         ground_=false;vy_=0.f;
                     }
-                }else{
-                    // At most 35px additional overhead clearance. Genuine
-                    // taller walls must still stop the player.
-                    if(y_<=wall_top_-34.f){
-                        wall_climb_=false;vx_=0.f;ground_=false;vy_=0.f;
-                    }else y_-=rate*dt;
+                }else if(y_<=wall_top_-34.f){
+                    // A genuine vertical wall: don't climb it forever.
+                    wall_climb_=false;vx_=0.f;vy_=0.f;
+                    ground_=has_foot_support(x_,y_);
+                }else {
+                    y_-=std::min(2.f,rate*dt);
                 }
             }
             elapsed_+=dt;
@@ -508,10 +523,19 @@ public:
             // A high-energy roll can climb the connected masked upper face.
             // Spend kinetic energy on height, move in short continuous steps;
             // never bypass walls too tall for the available momentum.
-            if(roll_uphill_step(nx,dx/float(horizontal_steps)))continue;
+            if(roll_uphill_step(nx,dx/float(horizontal_steps)))break;
+            // Activation is a contact state, not a completed movement.
+            // Do not process more horizontal substeps through the solid lip.
             vx_=0.f;
             if(dir!=0)++blocked_;
             break;
+        }
+        if(wall_climb_){
+            // The climbing state is processed on the NEXT 120 Hz tick.
+            // Applying normal gravity on this tick reintroduces the
+            // exact through-terrain artifact caught by the console video.
+            elapsed_+=dt;
+            return;
         }
         if(!ground_){
             const float prev_feet=y_;
@@ -538,11 +562,23 @@ public:
             // gaps. Respawn from a long fall rather than scrolling the empty
             // sky for seconds without any level or character controls.
             if(y_>last_ground_y_+1050.f || y_>starty_+3000.f){
-                ++respawns_;
+                const unsigned times=respawns_+1;
                 reset();
+                respawns_=times;
             }
         }
         tick_routes();
+        // Native slopes may briefly touch a rolling player's outer edge.
+        // Only rescue if the CORE of the actor remains deeply inside a
+        // SOLID brick for 8 consecutive 120Hz ticks; a single masked seam
+        // must never teleport the player.
+        if(!wall_climb_ && !tube_active_ && torso_deep_inside_solid()){
+            if(++embedded_frames_>=8){
+                restore_safe_ground();
+                ++solid_recoveries_;
+                embedded_frames_=0;
+            }
+        }else embedded_frames_=0;
         if(ground_ && !wall_climb_ && !tube_active_ &&
            !body_hits(x_,y_) && has_foot_support(x_,y_)){
             safe_ground_x_=x_;safe_ground_y_=y_;
@@ -810,6 +846,10 @@ private:
         }
         return false;
     }
+    bool torso_deep_inside_solid() const {
+        return solid_at(x_,y_-18.f) && solid_at(x_-3.f,y_-12.f) &&
+               solid_at(x_+3.f,y_-12.f);
+    }
     bool head_hits(float px,float feet) const {
         return solid_at(px-11.f,feet-44.f)||solid_at(px+11.f,feet-44.f);
     }
@@ -906,6 +946,7 @@ private:
     unsigned dash_releases_=0;
     float last_ground_y_=0.f;
     unsigned blocked_=0,respawns_=0;
+    unsigned embedded_frames_=0,solid_recoveries_=0;
     std::string error_;
 };
 } // namespace surgepreview

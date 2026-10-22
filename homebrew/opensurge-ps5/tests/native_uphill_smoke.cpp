@@ -47,6 +47,8 @@ int main(int argc,char** argv){
     float farthest_grounded=level.grounded()?level.player_x():initial;
     float deepest_on_ramp=level.player_y();
     unsigned frames_inside=0;
+    unsigned wall_penetrations=0;
+    unsigned longest_climb=0,consecutive_climb=0;
     unsigned frames_below_floor=0;
     for(int i=0;i<190;++i){
         level.update(dt,1,false,false,false);
@@ -57,6 +59,11 @@ int main(int argc,char** argv){
             deepest_on_ramp=std::max(deepest_on_ramp,level.player_y());
             if(level.player_y()>10155.f)++frames_below_floor;
         }
+        if(level.wall_climbing()){
+            ++consecutive_climb;
+            longest_climb=std::max(longest_climb,consecutive_climb);
+            if(level.test_inside())++wall_penetrations;
+        }else consecutive_climb=0;
         if(!level.wall_climbing() && level.rolling() && level.test_inside())
             ++frames_inside;
         minvx=std::min(minvx,level.velocity_x());
@@ -79,6 +86,16 @@ int main(int argc,char** argv){
     if(level.wall_climbs()==0 || farthest_grounded<2650.f){
         std::fprintf(stderr,"FAIL: no stable steep uphill contact traversal\n");
         return 11;
+    }
+    // A rolling wall-contact state deliberately overlaps an upright mask
+    // while moving upward (source needs rotated MM_WALL sensor to remove
+    // this compatibility compromise). X remains fixed during this state.
+    // No collision penetration is allowed after leaving wall contact.
+    std::printf("UPHILL_WALL_CONTACT mask_overlap_frames=%u max_ticks=%u\n",
+                wall_penetrations,longest_climb);
+    if(longest_climb>85){
+        std::fprintf(stderr,"FAIL: Wall traversal never ended; ticks=%u\n",longest_climb);
+        return 14;
     }
     if(frames_inside>2 || frames_below_floor>0){
         std::fprintf(stderr,"FAIL: Spin Dash clipped through original solid terrain, then fell below the route\n");

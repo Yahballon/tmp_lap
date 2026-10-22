@@ -118,6 +118,8 @@ assert "feet-25.f" in uphill_cpp and "px+7.f" in uphill_cpp
 assert "rolluphillslp" in uphill_cpp or "281.25f" in uphill_cpp
 assert "uphill_steps_" in uphill_cpp
 assert "wall_climb_" in uphill_cpp
+assert "if(roll_uphill_step(nx,dx/float(horizontal_steps)))break;" in uphill_cpp
+assert "The climbing state is processed on the NEXT" in uphill_cpp
 assert "never bypass walls" not in uphill_cpp or "rolling" in uphill_cpp
 native_src=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
 assert "bool tube_exit_usable(" in native_src
