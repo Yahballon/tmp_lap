@@ -24,4 +24,13 @@ assert "ps5-opengl-sdk-mirror" in readme
 assert "Godot-PS5-Isolated-GPU-Probe-v0.1.${{ github.run_number }}-UNVERIFIED-ON-CONSOLE" in wf
 assert "j['contentVersion']=f'01.000.{patch+1:03d}'" in wf
 assert "github.run_number" in wf
-print("PASS: isolated GPU probe source & release separation")
+for symbol in ("#version 460 core", "glCreateShader", "glShaderSource", "glCompileShader",
+               "GL_COMPILE_STATUS", "glLinkProgram", "GL_LINK_STATUS",
+               "glGenVertexArrays", "glGenBuffers", "glBufferData",
+               "glVertexAttribPointer", "glDrawArrays(GL_TRIANGLES", "glGetError()",
+               "VERTEX_COMPILE_OK", "FRAGMENT_COMPILE_OK", "PROGRAM_LINK_OK",
+               "GL_GEOMETRY_READY", "GL_TRIANGLE_SUBMITTED",
+               "GEOMETRY_FAILED_BACKGROUND_FALLBACK"):
+    assert symbol in src, symbol
+assert src.index("geometry.release();") < src.index("display.close();")
+print("PASS: isolated GPU probe source & release separation + GL 4.6 geometry")

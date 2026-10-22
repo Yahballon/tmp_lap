@@ -4,6 +4,42 @@
 title **PPSA99844** (initial build v0.1.0); the proven headless Godot
 GDScript runtime stays PPSA99843 and is never changed by this probe.
 
+## Firmware 5.10 GPU acceptance — REAL HARDWARE SUCCESS (22 October 2026)
+
+The PS5 user confirmed **visible blue/green/red fullscreen changes** in
+GPU Probe v0.1.5. Console log verified:
+
+```text
+[GodotPS5 GPU 0.1.0] EGL_OPEN_OK
+[GodotPS5 GPU 0.1.0] SURFACE_WIDTH=1920
+[GodotPS5 GPU 0.1.0] SURFACE_HEIGHT=1080
+[GodotPS5 GPU 0.1.0] GL_VERSION=4.6 (Core Profile) Mesa 26.2.0
+[GodotPS5 GPU 0.1.0] GL_RENDERER=PS5 AGC
+[GodotPS5 GPU 0.1.0] GLSL_VERSION=4.60
+[GodotPS5 GPU 0.1.0] PAD_OPEN_OK
+[GodotPS5 GPU 0.1.0] FIRST_FRAME_PRESENTED
+[GodotPS5 GPU 0.1.0] PRESENTED_FRAME_COUNT=600
+[GodotPS5 GPU 0.1.0] TOTAL_PRESENTED=1800
+[GodotPS5 GPU 0.1.0] CLEAN_SHUTDOWN
+```
+
+Thus **native PS5 EGL context, GL 4.6, display mode, clear/swap,
+DualSense open, 1800 presented frames, and clean shutdown are confirmed**.
+Not yet evidence of Godot's own renderer.
+
+## Next GPU milestone: GL shader + rotating triangle
+
+The new probe should show **a large rotating three-color triangle** over the
+blue/green/red fullscreen background. This tests actual compiled GLSL 4.60
+vertex/fragment shaders, program linking, VAO/VBO uploads, uniform updates
+and `glDrawArrays(GL_TRIANGLES,...)` on the PS5 GPU. It preserves the
+previous color background as a fallback if shader compilation fails. Logs:
+`VERTEX_COMPILE_OK`, `FRAGMENT_COMPILE_OK`, `PROGRAM_LINK_OK`,
+`GL_GEOMETRY_READY`, `GL_FIRST_DRAW_ERROR=0`,
+`GL_TRIANGLE_SUBMITTED`, `FIRST_FRAME_PRESENTED`.
+On hardware also **visually verify the triangle**; successful GL calls
+alone are insufficient.
+
 ## Acceptance conditions on PS5 hardware
 
 After installing `PPSA99844.zip`, a real PS5 screen should display a sequence
@@ -42,9 +78,11 @@ The pinned unofficial SDK `v1.0.2` mirror workaround and its validation
 passed, and the independent native probe **built, linked, signed, and
 packaged successfully** in [run 39767154442](https://github.com/Yahballon/tmp_lap/actions/runs/39767154442).
 
-The workflow uploads the signed `PPSA99844.zip` as a **CI artifact only**:
+The first workflow uploaded the signed `PPSA99844.zip` as an Actions artifact:
 [download GPU test artifact](https://github.com/Yahballon/tmp_lap/actions/runs/39767154442/artifacts/12420847267).
-It is **NOT verified on PS5 hardware**, and it is NOT in TESTBUILDS.
+The initial wording above describes the first CI artifact before the
+subsequent console success. The GPU probe is **now in TESTBUILDS** and
+v0.1.5 fullscreen color output was verified on PS5 hardware.
 Please collect `/data/GodotPS5/graphics-probe.log` and a screenshot of
 the first blue/green/red framebuffer test before claiming rendering support.
 The GPL license/provenance audit for the unofficial SDK mirror remains open.

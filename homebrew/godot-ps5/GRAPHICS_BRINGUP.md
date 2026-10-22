@@ -1,6 +1,6 @@
 # Next major milestone: native Godot display + controller for PS5
 
-Status: **design/bring-up plan, not a working renderer**. Source baseline:
+Status: **PS5 EGL/OpenGL 4.6 clear/swap is now confirmed on firmware 5.10**; native Godot DisplayServer and Godot renderer remain unimplemented. Source baseline:
 Godot 4.7.2; PS5 firmware 5.10; homebrew `PPSA99843`. The console
 already executed `GODOT_PS5_SMOKE_READY` three times with v0.2.11.
 
@@ -17,7 +17,7 @@ Input → GDScript. It **does not** establish display/renderer/audio support.
 A standalone PS5 GPU-probe scaffold is at `gpu-probe/`. It is
 GPL-3.0-or-later, uses the existing DevBridge EGL/OpenGL adapter and keeps
 the known-good `PPSA99843` runtime completely independent. Its CI artifact
-remains **UNVERIFIED ON PS5** until there is a physical frame and log.
+has **now been verified on physical PS5 hardware** for EGL/GL clear/swap by the v0.1.5 color-screen test; Godot integration is still pending.
 
 ## First isolated GPU build (22 October 2026)
 
@@ -29,6 +29,22 @@ is available for manual PS5 testing. This is still a **GPU clear/swap
 probe only**, not a functional Godot DisplayServer. Its library provenance
 is unverified beyond a pinned mirror SHA256 plus embedded manifest check.
 Keep the verified headless Godot title PPSA99843 unchanged.
+
+## Firmware 5.10 graphics bring-up proven (2026-10-22)
+
+User physically observed the blue, green and red fullscreen color transitions
+and supplied a `graphics-probe.log` showing `EGL_OPEN_OK`,
+`GL_VERSION=4.6 (Core Profile) Mesa 26.2.0`, `GL_RENDERER=PS5 AGC`,
+`GLSL_VERSION=4.60`, `SURFACE_WIDTH=1920`,
+`SURFACE_HEIGHT=1080`, `PAD_OPEN_OK`,
+`FIRST_FRAME_PRESENTED`, `TOTAL_PRESENTED=1800`,
+`CLEAN_SHUTDOWN`. This validates the EGL/GL clear/swap GPU path.
+**No Godot renderer or visible Godot scene has been proven.**
+
+Next safe hardware acceptance is a GLSL 4.60 vertex/fragment shader,
+VAO/VBO geometry upload, GL link and draw, animated triangle, and clean
+resource teardown in the same standalone GPU probe. The Godot GDScript
+runtime title `PPSA99843` must remain independent.
 
 ## Current execution contract
 
