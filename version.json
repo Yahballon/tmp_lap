@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "091a65ea0204039ab38aafb9ce6ce7dabeb6dc4ded2bf49123587295f8449a16",
+  "version": "c7812a66d9bc9b519ef0155c6b3dd952cb600d72364783ed0ec5f9319d1556b2",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 26,
+  "app_count": 27,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -250,6 +250,19 @@
       "source": "homebrew/godot-ps5-engine-smoke",
       "size_bytes": 15551116,
       "published_at": "2026-10-22T10:36:25Z"
+    },
+    {
+      "name": "Godot PS5 GPU Probe (EXPERIMENTAL)",
+      "slug": "godot-ps5-gpu-probe",
+      "title_id": "PPSA99844",
+      "version": "0.1.0",
+      "tag": "godot-ps5-gpu-probe-v0.1.0",
+      "zip_name": "PPSA99844.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gpu-probe-v0.1.0/PPSA99844.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gpu-probe-v0.1.0",
+      "source": "homebrew/godot-ps5-gpu-probe",
+      "size_bytes": 6196081,
+      "published_at": "2026-10-22T11:13:00Z"
     },
     {
       "name": "Snake",
