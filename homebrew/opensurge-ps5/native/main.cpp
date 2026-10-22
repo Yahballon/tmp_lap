@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.6.3 - safe original mask physics, wall-climb clipping guard and fall recovery.
+// Open Surge PS5 v0.6.4 - safe original mask physics, wall-climb clipping guard and fall recovery.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
@@ -26,7 +26,7 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.6.3";
+constexpr const char* kVersion="0.6.4";
 constexpr const char* kSave="/data/OpenSurge/progress.cfg";
 constexpr std::array<const char*,4> kStageNames={"demo-1","sunshine-1","sunshine-2","sunshine-3"};
 constexpr const char* kTitle="OPEN SURGE PS5 - WORLD ROUTES";
@@ -38,7 +38,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge multi-stage preview 0.6.3] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge multi-stage preview 0.6.4] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -126,7 +126,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.6.3",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.6.4",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -555,7 +555,7 @@ int main(){
       if(hazards_ready)hazards.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,std::string("OPEN SURGE  /  ")+kStageNames[stage_index],66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.6.3  -  PHYSICS SAFETY / FOUR-STAGE COLLISION QA",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.6.4  -  S-TUBE / LOOP PHYSICS QA",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"MOVE  X JUMP  DOWN+X DASH  TRIANGLE MUSIC  SQUARE RESET  O BACK",73,1029,28,WHITE);
       char probe_line[180];
