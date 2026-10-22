@@ -1,9 +1,13 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
-> **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 22.10.2026.
-> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer auf PS5 bestätigt; `PPSA99847 v0.1.2` (Pong) erfolgreich gebaut, **Pong-Hardwaretest noch offen**.
+> **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
+> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer, `PPSA99847 v0.1.2` Pong **auf PS5 spielend gezeigt** und **M8c externes Godot-PCK auf PS5 vom Nutzer bestätigt** (zwei Szenen und X-Steuerung). Nächste offene Funktion: echte 2D-Physik `PhysicsServer2D`. Konsolenlogs für M8c-Exit/FPS stehen noch aus.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M8c acceptance: independent Godot PCK on PS5 (23 October 2026)
+
+The user confirms that the separate `external-smoke.pck` loaded by existing `PPSA99847 v0.1.2` via `/data/GodotPS5/launch.txt`, transitioned between both Canvas2D scenes and responded to DualSense X as expected. **No native `eboot.bin` rebuild was required.** The standalone PCK was generated and host-tested by successful [Actions run #39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380). See [`samples/external-pack-smoke/README.md`](samples/external-pack-smoke/README.md). User-confirmed PS5 behavior is stronger than CI-only evidence, but FPS, full input mapping and shutdown log markers have not yet been independently recorded for this sample. This does not establish general compatibility with arbitrary Godot projects. The **next milestone is real 2D physics**, not just hand-coded Pong collision.
 
 ## Breakthrough: Real Godot 4.7.2 GLES3 Canvas2D on PS5 hardware
 
