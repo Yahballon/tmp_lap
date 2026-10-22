@@ -90,7 +90,7 @@ timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_HAVE_LIBC_PTHREAD=TRUE \
   "-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG" \
   "-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG" \
-  "-DCMAKE_C_FLAGS=-DZC_PS5_LIBC_NO_STRERROR_S=1 -DZC_PS5_NO_GLU_HEADER=1" \
+  "-DCMAKE_C_FLAGS=-DZC_PS5_LIBC_NO_STRERROR_S=1 -DZC_PS5_NO_GLU_HEADER=1 -DZC_PS5_WCHAR_FALLBACK=1" \
   "-DCMAKE_CXX_FLAGS=-fexceptions -frtti" \
   "-DZC_PS5_LIBC_LINK_PROBE=ON" \
   -DCMAKE_TOOLCHAIN_FILE="$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake" \
