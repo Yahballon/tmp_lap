@@ -19,6 +19,17 @@ GPL-3.0-or-later, uses the existing DevBridge EGL/OpenGL adapter and keeps
 the known-good `PPSA99843` runtime completely independent. Its CI artifact
 remains **UNVERIFIED ON PS5** until there is a physical frame and log.
 
+## First isolated GPU build (22 October 2026)
+
+GitHub Actions [run 39767154442](https://github.com/Yahballon/tmp_lap/actions/runs/39767154442)
+**PASSED**: isolated host tests, checksum-verified unofficial SDK 1.0.2
+fetch, native PS5 cross-compile, link, SELF signature, and ZIP validation.
+The separate [PPSA99844 test artifact](https://github.com/Yahballon/tmp_lap/actions/runs/39767154442/artifacts/12420847267)
+is available for manual PS5 testing. This is still a **GPU clear/swap
+probe only**, not a functional Godot DisplayServer. Its library provenance
+is unverified beyond a pinned mirror SHA256 plus embedded manifest check.
+Keep the verified headless Godot title PPSA99843 unchanged.
+
 ## Current execution contract
 
 The native Godot VM / GDScript / scene lifecycle is verified headlessly.

@@ -34,16 +34,22 @@ notices must be reviewed before any broad public release.
 Next milestone after hardware success: implement real `DisplayServerPS5`
 and connect to the upstream Godot 4.7.2 OpenGL compatibility renderer.
 
-## Current build gate (2026-10-22)
+## GitHub Actions build gate (2026-10-22)
 
-The first GPU-probe GitHub Actions attempt passed the isolated host tests.
-The native compile is **blocked before linking**: the existing DevBridge
-pin to `blackbearreloaded/ps5-opengl` SDK `v1.0.0` receives **HTTP 404**
-for its release archive. See [CI run 39765770533](https://github.com/Yahballon/tmp_lap/actions/runs/39765770533).
-Do not claim a `PPSA99844.zip` exists or add this probe to TESTBUILDS.
-A byte-identical verified SDK archive from a trustworthy mirror, or a
-reproducible source rebuild with its own provenance, is required to proceed.
-The known-good headless Godot title `PPSA99843` is unaffected.
+The previous upstream OpenGL SDK `v1.0.0` fetch failed with HTTP 404
+([failed run 39765770533](https://github.com/Yahballon/tmp_lap/actions/runs/39765770533)).
+The pinned unofficial SDK `v1.0.2` mirror workaround and its validation
+passed, and the independent native probe **built, linked, signed, and
+packaged successfully** in [run 39767154442](https://github.com/Yahballon/tmp_lap/actions/runs/39767154442).
+
+The workflow uploads the signed `PPSA99844.zip` as a **CI artifact only**:
+[download GPU test artifact](https://github.com/Yahballon/tmp_lap/actions/runs/39767154442/artifacts/12420847267).
+It is **NOT verified on PS5 hardware**, and it is NOT in TESTBUILDS.
+Please collect `/data/GodotPS5/graphics-probe.log` and a screenshot of
+the first blue/green/red framebuffer test before claiming rendering support.
+The GPL license/provenance audit for the unofficial SDK mirror remains open.
+
+The known-good Godot headless/runtime title `PPSA99843` is unaffected.
 
 ## SDK mirror recovery (2026-10-22)
 
