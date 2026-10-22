@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.1 - true rolling capsule sensors, slope momentum and uphill collision repair.
+// Open Surge PS5 v0.5.2 - contact-safe high-speed rolling wall/steep-slope traversal.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -37,6 +37,8 @@ public:
     unsigned auto_respawns() const {return respawns_;}
     float slope_grade() const {return slope_grade_;}
     unsigned uphill_steps() const {return uphill_steps_;}
+    bool wall_climbing() const {return wall_climb_;}
+    unsigned wall_climbs() const {return wall_climbs_;}
     bool rolling() const {return rolling_;}
     bool charging() const {return charging_;}
     bool crouching() const {return ground_ && down_ && !rolling_ && !charging_ && std::abs(vx_)<60.f;}
@@ -87,6 +89,7 @@ public:
             solid_at(nx+7.f,(support?floor:y_)-26.f)?1:0,
             front_floor?1:0,forward,far_floor?1:0,far);
     }
+    bool test_inside() const{return body_hits(x_,y_);}
     bool test_position(float px,float feet){
         x_=px;y_=feet;vx_=vy_=0;
         rolling_=charging_=false;charge_=0.f;
@@ -221,6 +224,7 @@ public:
         elapsed_=0;down_=up_=rolling_=charging_=braking_=false;
         charge_=0.f;spring_anim_=0.f;dash_releases_=0;
         slope_grade_=0.f;uphill_steps_=0;
+        wall_climb_=false;wall_climbs_=0;wall_top_=0.f;wall_dir_=0;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -316,6 +320,44 @@ public:
         if(jump && ground_ && !down && !charging_){
             vy_=-505.f;ground_=false;
             rolling_=false;
+        }
+        // Steep original Sunshine bricks have a solid vertical face below
+        // their upper surface. Treat a high-speed roll as a WALL-CONTACT
+        // traversal, not an invitation to step x INTO opaque terrain.
+        // Advance upwards at real frame speed, with x fixed at the obstacle;
+        // on reaching the lip, only resume horizontal motion if the next
+        // rolling body position is actually free of collision.
+        if(wall_climb_){
+            const float rate=std::clamp(std::abs(vx_)*1.25f,280.f,760.f);
+            const float previous=y_;
+            y_-=std::min(rate*dt,std::max(0.f,y_-(wall_top_-3.f)));
+            vy_=0.f;
+            ground_=true;last_ground_y_=y_;
+            if(y_<previous-0.25f)++uphill_steps_;
+            if(y_<=wall_top_+1.f){
+                const float next=x_+float(wall_dir_)*1.25f;
+                if(!body_hits(next,y_)){
+                    wall_climb_=false;
+                    x_=next;
+                    float floor=y_;
+                    if(find_floor(x_,y_,4,8,floor) && !body_hits(x_,floor)){
+                        y_=floor;ground_=true;last_ground_y_=y_;
+                    }else{
+                        // Genuine ledge: fall from ABOVE the solid terrain.
+                        // Never let the former through-wall shortcut push the
+                        // player under the mask before applying gravity.
+                        ground_=false;vy_=0.f;
+                    }
+                }else{
+                    // At most 35px additional overhead clearance. Genuine
+                    // taller walls must still stop the player.
+                    if(y_<=wall_top_-34.f){
+                        wall_climb_=false;vx_=0.f;ground_=false;vy_=0.f;
+                    }else y_-=rate*dt;
+                }
+            }
+            elapsed_+=dt;
+            return;
         }
         // Keep ground contact stable across frame substeps and small changes
         // in mask height instead of falling and re-landing each single frame.
@@ -496,34 +538,37 @@ private:
         });
         return hit;
     }
-    bool roll_uphill_step(float next_x,float step_x) {
-        if(!rolling_||charging_||std::abs(vx_)<205.f ||
-           std::abs(y_-last_ground_y_)>36.f)return false;
-        // The original roll-uphill force is 281.25, NOT world gravity 1200.
-        // Converting height into speed using raw gravity drained energy
-        // four times faster than the upstream rolling physics.
-        constexpr float kRollHillResistance=281.25f;
-        const float energy_height=(vx_*vx_)/(2.f*kRollHillResistance);
-        // Allow at most 220 world-pixel rise (original demo steep hill), but
-        // require real free headroom on its upper SOLID mask surface.
-        const int max_rise=std::min(220,int(energy_height)+4);
-        if(max_rise<16)return false;
-        float upper=0.f;
-        if(!find_floor(next_x,y_,max_rise,12,upper) ||
-           upper>=y_-8.f || upper<y_-float(max_rise) ||
-           body_hits(next_x,upper))return false;
-        const float rise=std::min(y_-upper,std::min(4.f,std::abs(step_x)*2.f));
-        if(rise<=0.f)return false;
-        const float energy_after=std::max(0.f,vx_*vx_-2.f*kRollHillResistance*rise);
-        if(energy_after<205.f*205.f)return false;
-        x_=next_x;
-        y_-=rise;
-        vx_=std::copysign(std::sqrt(energy_after),vx_);
-        vy_=0.f;
-        ground_=true;
-        last_ground_y_=y_;
-        ++uphill_steps_;
-        return true;
+    bool roll_uphill_step(float next_x,float /*step_x*/) {
+        if(!rolling_||charging_||std::abs(vx_)<305.f)return false;
+        // The authored Sunshine ramp can briefly lose a foot sensor at its
+        // tile seam even on a charged roll. Use the actual last foot contact
+        // within a tightly bounded recovery window, not an unrestricted
+        // mid-air wall climb (which could catch distant vertical scenery).
+        if(!ground_){
+            if(std::abs(y_-last_ground_y_)>40.f)return false;
+            float old_floor=0.f;
+            if(!find_floor(x_,y_,24,36,old_floor) ||
+               std::abs(old_floor-y_)>36.f)return false;
+        }
+        const int dir=(vx_>=0.f)?1:-1;
+        // Only cross a SOLID obstacle when it has an actual upper mask
+        // surface above the current feet and space for the rolling body.
+        // The previous v0.5.1 shortcut moved x while y rose only 2-4px,
+        // which tunneled through 128px solid bricks and triggered freefall.
+        // That shortcut is intentionally removed here.
+        float top=0.f;
+        if(!find_floor(next_x,y_,215,5,top) ||
+           top>y_-22.f || top<y_-200.f ||
+           body_hits(next_x,top-2.f))return false;
+        // The upper part must be a real, contiguous solid lip, not a random
+        // sprite or arbitrary air point. A small window behind the obstacle
+        // must still be supported on the player's current side.
+        if(ground_&&!has_foot_support(x_,y_))return false;
+        wall_climb_=true;
+        wall_top_=top-1.f;
+        wall_dir_=dir;
+        ++wall_climbs_;
+        return true; // we did NOT move x or punch through the solid mask
     }
     bool body_hits(float px,float feet) const {
         // Open Surge rolls with a 15px width, ~29px height sensor (original
@@ -620,6 +665,10 @@ private:
     float charge_=0.f,spring_anim_=0.f;
     float slope_grade_=0.f;
     unsigned uphill_steps_=0;
+    bool wall_climb_=false;
+    float wall_top_=0.f;
+    int wall_dir_=0;
+    unsigned wall_climbs_=0;
     unsigned dash_releases_=0;
     float last_ground_y_=0.f;
     unsigned blocked_=0,respawns_=0;

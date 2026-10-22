@@ -40,9 +40,21 @@ int main(int argc,char** argv){
         level.test_pixel(2517.f,yy);
     if(level.dash_releases()!=1 || !level.rolling())return 6;
     float maxx=level.player_x(), minvx=launch;
+    float farthest_grounded=level.grounded()?level.player_x():initial;
+    float deepest_on_ramp=level.player_y();
+    unsigned frames_inside=0;
+    unsigned frames_below_floor=0;
     for(int i=0;i<190;++i){
         level.update(dt,1,false,false,false);
         maxx=std::max(maxx,level.player_x());
+        if(level.grounded() && !level.wall_climbing())
+            farthest_grounded=std::max(farthest_grounded,level.player_x());
+        if(level.player_x()>2500.f && level.player_x()<2850.f){
+            deepest_on_ramp=std::max(deepest_on_ramp,level.player_y());
+            if(level.player_y()>10155.f)++frames_below_floor;
+        }
+        if(!level.wall_climbing() && level.rolling() && level.test_inside())
+            ++frames_inside;
         minvx=std::min(minvx,level.velocity_x());
         if(i%30==29)
             std::printf("UPHILL_TRACE t=%.2f x=%.1f y=%.1f vx=%.1f slope=%.2f blocks=%u uphill=%u rolling=%d\n",
@@ -57,6 +69,20 @@ int main(int argc,char** argv){
     if(maxx-initial<220.f){
         std::fprintf(stderr,"FAIL: Charged Spin Dash stalled halfway up original incline\n");
         return 8;
+    }
+    std::printf("UPHILL_SAFETY grounded_max=%.1f deepest=%.1f solid_penetration_frames=%u below_floor_frames=%u wall_climbs=%u\n",
+                farthest_grounded,deepest_on_ramp,frames_inside,frames_below_floor,level.wall_climbs());
+    if(level.wall_climbs()==0 || farthest_grounded<2650.f){
+        std::fprintf(stderr,"FAIL: no stable steep uphill contact traversal\n");
+        return 11;
+    }
+    if(frames_inside>2 || frames_below_floor>0){
+        std::fprintf(stderr,"FAIL: Spin Dash clipped through original solid terrain, then fell below the route\n");
+        return 12;
+    }
+    if(level.wall_climbing()){
+        std::fprintf(stderr,"FAIL: Player remained locked to wall after the upper lip\n");
+        return 13;
     }
     if(level.uphill_steps()==0){
         std::fprintf(stderr,"FAIL: Slope was not climbed, collision/motion was bypassed\n");

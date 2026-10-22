@@ -167,7 +167,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.5.1
+          tag=opensurge-ps5-v0.5.2
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -178,7 +178,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.5.1 - Spin Dash Uphill Collision Fix" \
+            --title "Open Surge PS5 v0.5.2 - Solid Terrain Wall-Climb Safety Fix" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 
