@@ -46,7 +46,7 @@ manifest=json.loads((app/"assets"/"game-data-manifest.json").read_text())
 assert manifest["file_count"]>100
 # Regression: DrawList.image UV Rect is x,y,width,height, never x0,y0,x1,y1.
 native=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
-assert "{u0,v0,u1-u0,v1-v0}" in native
+assert "brick.hflip?u0-u1:u1-u0" in native
 assert "facing_<0?u0-u1:u1-u0,v1-v0" in native
 assert "mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)))" in native
 assert "floor_pixel(sensor,at)" in native
