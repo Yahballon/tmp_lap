@@ -103,7 +103,7 @@ jobs:
           tag="$GLES3_TAG"
           cat > /tmp/godot-bridge-notes.md <<'NOTES'
           EXPERIMENTAL PS5 hardware test: real Godot 4.7.2 DisplayServerPS5 + upstream GLES3 Compatibility rasterizer via native PS5 EGL context.
-          THIS IS Godot's actual GLES3 renderer, but hardware output remains UNVERIFIED until a PS5 screenshot and logs.
+          REAL Godot GLES3 Canvas2D already verified on physical PS5 firmware 5.10 with v0.1.0 screenshot and 4 clean sessions (4388 Godot swaps). Custom external PCK support in v0.1.1 remains experimentally unverified.
           Title PPSA99847 is isolated from known-good Godot headless PPSA99843 and GPU PPSA99844.
           Expected: moving/rotating translucent magenta/cyan checkerboard; press X to change background color through REAL Godot input/GDScript.
           Logs: /data/GodotPS5/gles3-runtime.log, gles3-stdout.log, gles3-stderr.log

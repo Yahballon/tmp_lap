@@ -6,9 +6,10 @@
   "contentId": "UP9000-PPSA99847_00-GODOTGLES3CANVAS",
   "contentVersion": "01.000.001",
   "developer": "YAHBALLON",
-  "description": "Original Godot 4.7.2 GLES3 Canvas2D PS5 integration. GPU output unverified.",
+  "description": "Real original Godot 4.7.2 GLES3 Canvas2D renderer running on PS5; v0.1.0 proven on physical hardware.",
   "releaseStage": "EXPERIMENTAL",
   "license": "GPL-3.0-or-later AND MIT",
   "source": "homebrew/godot-ps5/gles3-canvas",
-  "gpuHardwareVerified": false
+  "gpuHardwareVerified": true,
+  "provenOnFirmware": "5.10"
 }
