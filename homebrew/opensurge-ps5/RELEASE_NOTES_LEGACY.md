@@ -1,11 +1,12 @@
-# Open Surge PS5 v0.6.1 — Original music for every Sunshine stage
+# Open Surge PS5 v0.6.2 — S-shaped tunnel and looping route fix
 
-Building on v0.6.0's four native playable preview stages, stage selection and automatic goal progression now select the authentic upstream `.lev` music:
+Real PS5 gameplay video v0.6.1: Surge clips straight through Sunshine S-curves and drops out of the loop before reaching its ceiling.
 
-- Demo: `musics/template.ogg`.
-- Sunshine Paradise Acts 1, 2 and 3: `musics/sunshine.ogg`.
-- Two persistent 48-kHz stereo Vorbis decode streams crossfade through the native PS5 `sceAudioOut` mixer in 0.18 seconds. There is no interruption to effects or PS5 graphics.
-- The stage loader records `STAGE_MUSIC` diagnostic lines and falls back gracefully if one track is missing.
-- The complete signed native package still has four original stages, stage selection and goal transitions, checkpoints/progress.cfg, original enemies, rings and springs, sound effects, and the previous collision/Spin Dash safety logic.
+- Only demo-1 authored brick placements (pairs 50/51 and 53/52, original loop 41/42) activate these custom native preview paths.
+- Snake tunnel follows a continuous 256px wavelength curve with 46px amplitude, 120Hz arclength stepping and retained Spin Dash speed.
+- The circle is followed for one complete revolution (bottom → right → top → left → bottom) and exits right; reversed horizontal velocity during the ceiling arc cannot prematurely terminate the loop.
+- No walking teleport: activation only when rolling quickly into the curve entrance.
+- Native regression performs the entire snake and 360-degree loop and checks vertical travel, reversed direction, early exits, and reset.
+- Original music, UI, stages, saves, enemies and controller pipeline unchanged.
 
-This remains a native compatibility preview rather than full SurgeScript gameplay. Test the track switching between demo-1 and Sunshine Act 1 on a real PS5.
+**Important:** This is a PS5-native approximation that uses geometry-anchored authored curves instead of original 4-mode source engine physics. The stage has many other obstacles that still need proper MM_FLOOR/MM_WALL/MM_CEILING handling. Hardware playtest required.

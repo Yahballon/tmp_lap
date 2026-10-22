@@ -22,7 +22,7 @@ assert len(binary) > 4096
 assert binary[:4] == struct.pack("<I", 0x1D3D154F)
 for marker in (b"BOOT LEGACY PS5 NATIVE", b"ORIGINAL GAME DATA", b"GAME ROOT FOUND",
                b"Original gameplay engine: NOT LINKED", b"LEVEL_PREVIEW_READY",
-               b"STAGE_START", b"STAGE_READY", b"STAGE_MUSIC", b"v0.6.1", b"TUBE_UNSAFE_EXIT", b"LOOP_GUARD_RESTORE", b"ORIGINAL_TUBE_IN_SCRIPT", b"ORIGINAL_LAYER_SWITCH", b"ORIGINAL_AUDIO_INIT", b"AUDIO_PERF", b"ORIGINAL_MUSIC_MUTED", b"ORIGINAL_HAZARDS_READY", b"ENEMY_DEFEATED", b"PLAYER_HIT_RING_LOSS", b"PLAYER_LOST_LIFE", b"PLAYER_GAME_OVER", b"MOVE_SPINDASH_CHARGE", b"MOVE_SPINDASH_RELEASE", b"MOVE_ROLL_START", b"PAD_DIAG", b"PAD_CROSS_EDGE", b"PAD_SQUARE_EDGE", b"COLLECTIBLE_PICKUP", b"STAGE_GOAL_REACHED", b"ORIGINAL_CHECKPOINT_SAVED", b"ORIGINAL_ENTITIES_READY", b"COLLISION_GRID", b"PERF fps=", b"TERRAIN_BLOCK"):
+               b"STAGE_START", b"STAGE_READY", b"STAGE_MUSIC", b"v0.6.2", b"ORIGINAL_SUNSHINE_CURVE_ENTER", b"ORIGINAL_LOOP_360_COMPLETE", b"ORIGINAL_SUNSHINE_CURVE_EXIT", b"TUBE_UNSAFE_EXIT", b"LOOP_GUARD_RESTORE", b"ORIGINAL_TUBE_IN_SCRIPT", b"ORIGINAL_LAYER_SWITCH", b"ORIGINAL_AUDIO_INIT", b"AUDIO_PERF", b"ORIGINAL_MUSIC_MUTED", b"ORIGINAL_HAZARDS_READY", b"ENEMY_DEFEATED", b"PLAYER_HIT_RING_LOSS", b"PLAYER_LOST_LIFE", b"PLAYER_GAME_OVER", b"MOVE_SPINDASH_CHARGE", b"MOVE_SPINDASH_RELEASE", b"MOVE_ROLL_START", b"PAD_DIAG", b"PAD_CROSS_EDGE", b"PAD_SQUARE_EDGE", b"COLLECTIBLE_PICKUP", b"STAGE_GOAL_REACHED", b"ORIGINAL_CHECKPOINT_SAVED", b"ORIGINAL_ENTITIES_READY", b"COLLISION_GRID", b"PERF fps=", b"TERRAIN_BLOCK"):
     assert marker in binary, f"Missing native diagnostic marker {marker!r}"
 required = [
     "eboot.bin", "sce_sys/param.json", "sce_sys/icon0.png", "sce_module/libc.prx",
@@ -34,6 +34,8 @@ required = [
     "assets/level-preview/bricks.txt", "assets/level-preview/sunshine.rgba",
     "assets/level-preview/surge.rgba",
     "assets/level-preview/collision.bin",
+    "assets/level-preview/curves.tsv",
+    "assets/stages/demo-1/curves.tsv",
     "assets/level-preview/entities.tsv",
     "assets/level-preview/collectibles.rgba",
     "assets/level-preview/springs.rgba",
@@ -70,4 +72,4 @@ with zipfile.ZipFile(app/"dist/PPSA99358.zip") as archive:
         assert (root/rel).is_file(), rel
         assert f"PPSA99358/{rel}" in archive.namelist(), rel
     assert len([x for x in archive.namelist() if x.startswith("PPSA99358/assets/game/")]) >= 100
-print("PASS: PS5 v0.6.1 original Sunshine soundtrack per stage, goal progression and checkpoint saves; SurgeScript not linked")
+print("PASS: PS5 v0.6.2 Sunshine S-shaped tunnel and 360-degree loop native tests, stage music, and saves; SurgeScript not linked")

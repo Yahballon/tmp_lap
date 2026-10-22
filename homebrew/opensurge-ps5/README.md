@@ -1,6 +1,6 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.6.1 transparency + mask-collision test · PPSA99358**
+**by YAHBALLON · v0.6.2 transparency + mask-collision test · PPSA99358**
 
 **Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
@@ -10,7 +10,7 @@
 ## What the native PS5 test actually does
 
 1. Boots a genuine native PS5 OpenGL + DualSense application with the old DevBridge system.
-2. Stages **all 682 original Open Surge game files** (count observed in CI for v0.6.1.3; authoritative file count is calculated from SHA-256 manifest during each build), including quests, level data, music, fonts, scripts, sprites and license files.
+2. Stages **all 682 original Open Surge game files** (count observed in CI for v0.6.2.3; authoritative file count is calculated from SHA-256 manifest during each build), including quests, level data, music, fonts, scripts, sprites and license files.
 3. Displays the genuine game's image and tests opening and reading representative engine asset files **from the PS5 app mount**.
 4. Logs results to **/data/OpenSurge/legacy-port.log** so actual console behavior can be verified.
 5. **Cross** enters the new real level renderer; left stick/D-pad moves the original Surge sprite; **Cross** jumps; **Square** resets; **Circle** returns. This now samples the original `sunshine_mask.png` collision pixels, implements gravity/jump and a first bounded slope step. It remains a physics prototype, NOT the original engine.
@@ -20,7 +20,7 @@ It does **not** run SurgeScript gameplay scripts, the original Allegro game loop
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.6.1**. The release tag is `opensurge-ps5-v0.6.1` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.6.2**. The release tag is `opensurge-ps5-v0.6.2` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
@@ -64,7 +64,7 @@ Hardware v0.2.3 logs showed **59.6 FPS with no terrain block** through x=1346 bu
 If the test still jumps without CROSS, capture `PAD_CROSS_EDGE raw=...` messages to identify hardware-reported input. This remains a native level preview and does not run original SurgeScript gameplay.
 
 
-## v0.6.1 - Original demo entity subset
+## v0.6.2 - Original demo entity subset
 
 Based on the PS5-tested v0.2.4 native input and rendering stack.
 
@@ -75,7 +75,7 @@ Original images and sprites are loaded from the same pinned Open Surge upstream 
 SurgeScript execution, enemy AI, full damage physics, sound, full stages, checkpoints, and save states are still missing. This is an experimental native compatibility subset, not a complete Open Surge engine port.
 
 
-## v0.6.1 - Original Surge movement and animation subset
+## v0.6.2 - Original Surge movement and animation subset
 
 Based on the player's successful firmware 5.10 test of v0.3.0; measured 59.5–59.6 FPS, original 124 collectible entities and spring mechanics confirmed.
 
@@ -87,41 +87,47 @@ Fixes spring rapid retrigger from the uploaded v0.3.0 console log at x≈2928: a
 
 Tests native C++ spins/charges/rolls and the real upstream data; all old collision and PS5 input smoke tests remain. Enemies, sound, authentic sensor physics, all level transitions and save games remain incomplete.
 
-## v0.6.1 — Original enemies, hazards and damage (native compatibility subset)
+## v0.6.2 — Original enemies, hazards and damage (native compatibility subset)
 
 After console confirmation of stable 60fps movement, animated rings, springs and the Spin Dash, this native release adds the original demo's **5 Mosquitos, 1 Wolfey, 1 Lady Bugsy, 6 Spikes** with their original PNG sprites and level coordinates. Approximate enemy behavior is derived from the pinned 0.6.1.3 SurgeScripts: Mosquitos fly left at 60 px/s, Wolfey patrols at 80, Lady Bugsy walks at 30 and fires simple 60 px/s projectiles, and spikes hurt on contact. Rolling or landing on an enemy defeats it and awards 100 points. Player hits trigger 1.6 seconds of invulnerability; a hit with collectibles loses them (scattered rings not yet implemented); otherwise the player loses one of three lives and respawns, with game over at zero. Square restarts all lives and enemy states; Circle returns to the main menu. PS5 verified pad-state logic remains unchanged.
 
 **Not full original Open Surge:** native enemy physics and bullets are simplified; full SurgeScript gameplay VM, authentic obstacle-aware enemy walking/AI, dynamic layers/tubes/bridge interactions, sound/music, item effects, damage-ring scattering, original stage transitions and savegames remain unavailable. Upstream attribution and original assets preserved.
 
-## v0.6.1 – Original Open Surge sound effects and level music
+## v0.6.2 – Original Open Surge sound effects and level music
 
 Adds **16 authentic Open Surge WAV SFX** (jump, collectible, ring loss, spring, Spin Dash charge/recharge/release, roll, brake, damage, death, enemy defeat, spikes, enemy shot, goal and checkpoint) and the exact **`musics/template.ogg`** named in the original `levels/demo-1.lev`. ffmpeg only converts the pinned upstream files to PS5 UI's required 48 kHz stereo PCM SFX / Ogg Vorbis. The existing `hui::audio::Mixer` with `hui::ps5::AudioOut` streams decoded music into sceAudioOut from a separate thread and plays the original effects through 32 software voices. The buffer is refilled from the main thread about 0.5s ahead; no external service is required. Triangle toggles music when playing; music is silent on the main menu. Optional audio initialization never blocks the already verified graphics or DualSense controls; console runtime checks report `ORIGINAL_AUDIO_INIT`, `AUDIO_PERF`, underruns and audio output errors in `/data/OpenSurge/legacy-port.log`.
 
 **Still incomplete:** the original SurgeScript gameplay VM, full enemy AI/collision/terrain interactivity, dynamic rings-on-hit, all stage transitions and saves. This revision needs an on-console audio quality and stability test.
 
-## v0.6.1 — uphill Spin Dash collision fix
+## v0.6.2 — uphill Spin Dash collision fix
 
-Real PS5 screenshots show an uphill stall at player world position **x=2500, y=10015, VX=0 and 60 FPS**. The native movement class mistakenly used upright collision probes even during a high-speed roll, causing the front corner to misinterpret a true textured ramp as a solid vertical wall. Original `physicsactor.c` defines a smaller 15x29 rolling collision sensor: v0.6.1 switches to 14px-wide, 25px-tall native rolling probes and preserves authentic mask-based floor movement. Rolling momentum is now influenced by sampled true terrain slope, with the original upstream uphill and downhill forces (281.25 / 1125 units/s²) and the existing rolling friction. The host CI test warps to the user's actual screenshot coordinates in test-only code, charges Spin Dash and requires the player to advance up the authentic ramp and gain height. Stable buffered DualSense, OpenGL terrain, native original SFX/music and combat stay untouched. Console retest required.
+Real PS5 screenshots show an uphill stall at player world position **x=2500, y=10015, VX=0 and 60 FPS**. The native movement class mistakenly used upright collision probes even during a high-speed roll, causing the front corner to misinterpret a true textured ramp as a solid vertical wall. Original `physicsactor.c` defines a smaller 15x29 rolling collision sensor: v0.6.2 switches to 14px-wide, 25px-tall native rolling probes and preserves authentic mask-based floor movement. Rolling momentum is now influenced by sampled true terrain slope, with the original upstream uphill and downhill forces (281.25 / 1125 units/s²) and the existing rolling friction. The host CI test warps to the user's actual screenshot coordinates in test-only code, charges Spin Dash and requires the player to advance up the authentic ramp and gain height. Stable buffered DualSense, OpenGL terrain, native original SFX/music and combat stay untouched. Console retest required.
 
-## v0.6.1 – Stop Spin Dash passing through solid terrain
+## v0.6.2 – Stop Spin Dash passing through solid terrain
 
 User's actual 6.7-second PS5 video of v0.5.1 shows the character partially tunneling through the big Sunshine ramp and falling beneath solid ground, although rendering remains at 59.6 FPS with clean audio. Root cause: old `roll_uphill_step` wrote the next X position while moving Y upward by only 2–4px; its target was verified, but the entire path through intermediate solid pixels was not. The replacement **never advances X into the obstacle**. For a fast rolling approach to a real reachable upper mask surface, Surge stays on the wall/contact X coordinate, moves upwards continuously at bounded speed, and only resumes horizontal motion when the next rolling body position is collision-free. The contact state blocks normal falling physics during the vertical traversal and exits on the real upper ledge. Normal jumping, collectibles, hazards, sound, music, 120-Hz stepping and pad buffering unchanged. CI additionally tests for body-in-solid and under-floor physics failures (not just maximum X). The result remains an approximation of original wall/loop physics; real PS5 validation required.
 
-## v0.6.1 — Original world layers and basic Tube In/Out scripts
+## v0.6.2 — Original world layers and basic Tube In/Out scripts
 
 The pinned original `demo-1.lev` contains **11 collision-layer-specific bricks** (6 green, 5 yellow) and Layer Green / Layer Yellow activation entities, none of which the old native preview recognized. The 0.5.3 asset builder now preserves their layer labels, and the C++ collision mask selects default/green/yellow according to the original `obstaclemap.c` filter. All 6 original `Tube In` and 6 `Tube Out` locations are staged. A limited native scripted route transports a rolling player between compatible authored entry/out points at 600 world px/s with input locked and a boosted exit, matching core numbers in `scripts/items/tubes.ss`. Unsupported complex curves and loop physics **remain unimplemented**. The original engine has 4 sensor orientations (floor/right wall/ceiling/left wall); the preview does not. This build **does not claim that loopings or all tubes work**. All existing graphics/music/Spin Dash/combat preserved; host CI specifically tests green/yellow transitions and two-way original tube endpoints.
 
 
-## v0.6.1: Safe tube exit guard
+## v0.6.2: Safe tube exit guard
 
 The real PS5 v0.5.3 video shows the player leaving an underground tube at about x=4496 and falling below the map because the native four-mode wall/ceiling loop physics isn't linked. This revision prevents tube routes from launching the character into a destination without clear body geometry, a real mask-supported floor, and safe forward foot contact. In an unsupported x=3500–4860 loop corridor, a fall more than 130px below the last confirmed grounded position is recovered to that position. This is a controlled safety fallback, not full loop support. The original audio, controllers, collectibles and enemies are unchanged. Logs include TUBE_UNSAFE_EXIT and LOOP_GUARD_RESTORE counters.
 
-## v0.6.1 — four original Sunshine stage QA bundle
+## v0.6.2 — four original Sunshine stage QA bundle
 
 Bakes pinned upstream **demo-1, sunshine-1, sunshine-2 and sunshine-3** authored maps into individual native stage caches, preserving their original tile positions and collision masks. Use L1/R1 (or D-pad left/right) in the menu to pick any stage and X to start. Original Goal/Goal Capsule touch advances to the next stage; Checkpoint touch changes the native respawn point if collision-safe. Selected stage, completion unlock and checkpoint are saved atomically in `/data/OpenSurge/progress.cfg`. For testing, all stages remain manually selectable before unlock. Previous native sound effects, music, gameplay subset and input remain.
 
 **Still not the complete Open Surge engine:** SurgeScript/Allegro are not integrated, level-specific soundtrack switching and many objects (bridges, powerups, ziplines, angled springs, loop physics, bosses, original ending) are unsupported or approximated. Sunshine-3 capsule is only a trigger, not original boss fight. This is a broad QA build, not a finished upstream port.
 
-## v0.6.1 — original stage-specific music with crossfade
+## v0.6.2 — original stage-specific music with crossfade
 
-The stage pack already contains authentic pinned upstream `music` metadata, but v0.6.0 played `musics/template.ogg` on every level. v0.6.1 stages two *real* tracks, `template.ogg` (demo-1) and `sunshine.ogg` (Sunshine 1/2/3), converted by ffmpeg to 48-kHz stereo Vorbis in the asset cache. PS5 GameAudio uses two independent decoding ring buffers/mixer stream slots, keeping both alive while `sceAudioOut` is running. Stage selection / auto-advance fades between the correct source streams (0.18 seconds), without resetting the PS5 audio device or losing game SFX. Triangle toggles music as before, and the diagnostic log prints `STAGE_MUSIC <level> <track> ORIGINAL_TRACK_OK` on stage load. The original gameplay/physics, savegame, checkpoint and four stage layouts remain unchanged. CI verifies the exact original per-level music mapping and both valid Vorbis streams. Console audio validation is required. The upstream SurgeScript/Allegro gameplay engine remains unported.
+The stage pack already contains authentic pinned upstream `music` metadata, but v0.6.0 played `musics/template.ogg` on every level. v0.6.2 stages two *real* tracks, `template.ogg` (demo-1) and `sunshine.ogg` (Sunshine 1/2/3), converted by ffmpeg to 48-kHz stereo Vorbis in the asset cache. PS5 GameAudio uses two independent decoding ring buffers/mixer stream slots, keeping both alive while `sceAudioOut` is running. Stage selection / auto-advance fades between the correct source streams (0.18 seconds), without resetting the PS5 audio device or losing game SFX. Triangle toggles music as before, and the diagnostic log prints `STAGE_MUSIC <level> <track> ORIGINAL_TRACK_OK` on stage load. The original gameplay/physics, savegame, checkpoint and four stage layouts remain unchanged. CI verifies the exact original per-level music mapping and both valid Vorbis streams. Console audio validation is required. The upstream SurgeScript/Allegro gameplay engine remains unported.
+
+## v0.6.2 — Sunshine native S-tunnel and full 360° Loop compatibility rails
+
+Real PS5 v0.6.1 footage shows Surge flying straight through the alternating curved terrain and losing contact at the top of the loop. The native preview has only downward-facing collision sensors; upstream physicsactor.c uses MM_FLOOR / MM_RIGHTWALL / MM_CEILING / MM_LEFTWALL. The stage-specific correction recognizes exact original Sunshine demo-1 tile coordinates for six alternating snake half-wave bricks (50/51 and 53/52) and ring (41/42), and permits fast rolling players to enter continuous geometric paths matching those authored structures. S-tunnel advances by arclength through alternating crests and troughs; 360° loop travels bottom→right→top→left→bottom without disengaging when VX reverses, then exits to right-hand ground. No universal tube teleport or wall bypass; other stages and ordinary walking remain on normal physics. The code retains the renderer, 120Hz motion, original audio/objects/saves and routes. CI proves at least 65px of vertical S-track variation and a full 2π orbit including reversed x direction. This is still NOT original pixel-perfect terrain/loop physics; hardware evaluation needed.
+
+**Mask-accurate curve data (v0.6.2):** A post-stage build step derives all route samples from genuine Sunshine collision pixels, not an imagined sine wave. For the S tunnel, the generated player-foot position follows the last free pixel of the passable strip, keeping the body probes inside the original tunnel. For the full circle, it measures the radial boundary of the original mask in 256 angular steps and keeps the player within the hole. Stage-specific rails are loaded from `assets/level-preview/curves.tsv`; entering other stages never enables them. The geometry-generation step will fail if the original source mask is changed or no safe corridor is found. The resulting movement remains a scripted native compatibility subset, not the original 4-mode engine.

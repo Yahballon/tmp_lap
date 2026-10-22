@@ -20,7 +20,13 @@ int main(int argc,char** argv){
     std::printf("TUBE_INITIAL in=%d entries=%u rejected=%u x=%.1f y=%.1f\n",
         int(level.in_tube()),level.tube_entries(),
         level.unsafe_tube_exits(),level.player_x(),level.player_y());
-    if(level.in_tube()){
+    if(level.in_curve()){
+        // A legitimate authored snake course takes precedence over Tube In/
+        // Out teleport. The old exit safety guarantee still holds.
+        for(int n=0;n<900&&level.in_curve();++n)
+            level.update(dt,1,false);
+        if(level.in_curve()||level.curve_completions()==0)return 9;
+    }else if(level.in_tube()){
         for(int n=0;n<220&&level.in_tube();++n)
             level.update(dt,0,false);
         if(level.in_tube())return 4;

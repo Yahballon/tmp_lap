@@ -36,7 +36,13 @@ int main(int argc,char** argv){
     level.reset();
     level.test_put(3728.f,10072.f,1,true);
     level.update(dt,0,false);
-    if(level.in_tube()){
+    if(level.in_curve()){
+        // v0.6.2: the authentic continuous snake supersedes a brittle
+        // guessed tube teleport in this exact authored demo region.
+        for(int i=0;i<900 && level.in_curve();++i)level.update(dt,1,false);
+        assert(!level.in_curve() && level.curve_completions()>0);
+        assert(level.player_x()>=4470.f);
+    }else if(level.in_tube()){
         for(int i=0;i<200 && level.in_tube();++i)level.update(dt,0,false);
         assert(!level.in_tube());
         assert(level.tube_exits()==1 || level.unsafe_tube_exits()>0);
@@ -57,9 +63,9 @@ int main(int argc,char** argv){
     assert(std::isfinite(level.player_y()));
 
     std::printf("PASS AUTHORED ROUTES: %zu original layer/tube entities, exits=%u refused=%u\n",level.route_count(),level.tube_exits(),level.unsafe_tube_exits());
-    if(level.loop_mode_ready()){
-        std::fputs("Unexpectedly advertised full loop physics\n",stderr);return 4;
+    if(!level.loop_mode_ready()){
+        std::fputs("Expected authored demo S-curve + full loop path unavailable\n",stderr);return 4;
     }
-    std::puts("LOOP PHYSICS NOT IMPLEMENTED: original four-mode obstacle sensors still required");
+    std::puts("AUTHORED LOOP TRACK AVAILABLE: original MM_* pixel sensors still need full port");
     return 0;
 }
