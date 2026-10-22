@@ -1,6 +1,6 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.6.3 native collision test · PPSA99358**
+**by YAHBALLON · v0.6.4 native collision test · PPSA99358**
 
 **Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
@@ -20,7 +20,7 @@ It does **not** run SurgeScript gameplay scripts, the original Allegro game loop
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.6.3**. The release tag is `opensurge-ps5-v0.6.3` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.6.4**. The release tag is `opensurge-ps5-v0.6.4` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
@@ -134,3 +134,13 @@ The user-supplied PS5 recording showed that the older dash implementation could 
 ## v0.6.3 — Native landing and stuck collision recovery
 
 Host regressions now reject persistent solid-mask overlaps rather than only printing them. The original Sunshine 3 stress run revealed a 250-tick stuck state at x=1164.3 y=9920, where the previous recovery only detected deep center overlap, not a blocked collision sensor on the player's side. After eight ticks of continuous non-wall overlap, the preview returns to the most recent collision-free grounded location. All stage movement, Spin Dash, music, sound, entities, checkpoints and original asset builds are preserved. This is still a native compatibility preview and not full SurgeScript or original loop physics; real PS5 retesting is needed.
+
+## v0.6.4 — masked S-tunnel and four-contact-phase looping
+
+The PS5 video at the original demo S-tunnel (x~3689–4585, y~10064) showed straight, flat player movement even though the original track dives and rises. The v0.6.4 native route now follows original SOLID/CLOUD mask geometry along a 1207px S-curve (128px vertical range), with valid Tube In/Out and safe exits in **both directions**. Motion uses 600 world pixels/s along the measured arclength, not a fixed-time linear teleport.
+
+The authored loop rings (Brick 37/38/41/42, including the ring centred near world x=5888) now implement a **native four-contact-phase compatibility preview**: FLOOR → RIGHTWALL → CEILING → LEFTWALL → FLOOR, plus reverse direction, momentum-dependent detachment and jumping out from the active normal. Its own original-mask radial contacts continue through Green/Yellow foreground layer changes. The PS5 test reproduction starts at the supplied video coordinates x=5689, y=9922, rightward rolling speed 597; this and eight bidirectional loop traversals passed host CI.
+
+A fast physics-only CI uses the SHA256-verified released v0.6.3 original stage assets; the full legacy workflow continues to cross-compile and package signed native PS5 binaries. TESTBUILDS release tag: `opensurge-ps5-v0.6.4`.
+
+**Still not the original gameplay engine:** sprite rotation, full angled-surface four-mode sensors on arbitrary terrain, all upstream SurgeScripts/Allegro, bosses and certain complex objects are not fully supported. Firmware 5.10 console QA is needed before calling this feature complete.
