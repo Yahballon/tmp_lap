@@ -94,6 +94,12 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra \
             -I homebrew/opensurge-ps5/tests/mocks \
             -I homebrew/opensurge-ps5/native \
+            homebrew/opensurge-ps5/tests/native_routes_smoke.cpp \
+            -o /tmp/opensurge-routes-test
+          /tmp/opensurge-routes-test "$PWD/app/assets/game/"
+          g++ -std=c++17 -O2 -Wall -Wextra \
+            -I homebrew/opensurge-ps5/tests/mocks \
+            -I homebrew/opensurge-ps5/native \
             homebrew/opensurge-ps5/tests/native_hazards_smoke.cpp \
             -o /tmp/opensurge-hazards-test
           /tmp/opensurge-hazards-test "$PWD/app/assets/game/"
@@ -167,7 +173,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.5.2
+          tag=opensurge-ps5-v0.5.3
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -178,7 +184,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.5.2 - Solid Terrain Wall-Climb Safety Fix" \
+            --title "Open Surge PS5 v0.5.3 - Native Layer Filters and Tube Routes" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 

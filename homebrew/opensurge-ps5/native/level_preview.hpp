@@ -17,7 +17,11 @@ struct BrickDef {
     bool solid=false,cloud=false,defined=false;
     float z=.5f;
 };
-struct PlacedBrick {int id=0,x=0,y=0;};
+struct PlacedBrick {int id=0,x=0,y=0;unsigned char layer=0;};
+struct ScriptRoute {
+    enum Kind : unsigned char { Green,Yellow,TubeIn,TubeOut } kind=Green;
+    float x=0,y=0;
+};
 struct BrickCell {std::uint64_t key=0;std::uint32_t index=0;};
 
 class LevelPreview {
@@ -26,6 +30,14 @@ public:
     bool ready() const {return atlas_!=0 && hero_!=0 && !placed_.empty();}
     const std::string& error() const {return error_;}
     size_t count() const {return placed_.size();}
+    int active_layer() const {return active_layer_;}
+    unsigned layer_switches() const {return layer_switches_;}
+    size_t route_count() const {return routes_.size();}
+    unsigned tube_entries() const {return tube_entries_;}
+    unsigned tube_exits() const {return tube_exits_;}
+    bool in_tube() const {return tube_active_;}
+    bool loop_mode_ready() const {return false;} // Original MM_* physics not yet linked
+
     int visible() const {return visible_;}
     float player_x() const {return x_;}
     float player_y() const {return y_;}
@@ -90,6 +102,13 @@ public:
             front_floor?1:0,forward,far_floor?1:0,far);
     }
     bool test_inside() const{return body_hits(x_,y_);}
+    void test_enable_routes(bool enabled){routes_enabled_=enabled;}
+    void test_put(float x,float y,int facing=1,bool rolling=false){
+        x_=x;y_=y;vx_=rolling?(facing>=0?300.f:-300.f):0.f;
+        facing_=facing>=0?1:-1;
+        vy_=0.f;rolling_=rolling;charging_=false;ground_=true;
+        last_ground_y_=y_;
+    }
     bool test_position(float px,float feet){
         x_=px;y_=feet;vx_=vy_=0;
         rolling_=charging_=false;charge_=0.f;
@@ -122,7 +141,8 @@ public:
     }
 
     bool load(Renderer& renderer,const std::string& game_root) {
-        error_.clear(); placed_.clear(); cells_.clear(); atlas_=hero_=0;
+        error_.clear(); placed_.clear(); cells_.clear(); routes_.clear(); atlas_=hero_=0;
+        for(auto& def:defs_)def=BrickDef{};
         if(game_root.size()<5 || game_root.substr(game_root.size()-5)!="game/") {
             error_="GAME ROOT INVALID";return false;
         }
@@ -174,17 +194,52 @@ public:
             const auto length=end==std::string::npos?positions.size()-index:end-index;
             if(length==0){index=end==std::string::npos?positions.size():end+1;continue;}
             const auto row=positions.substr(index,length);
-            int id=0,bx=0,by=0;
-            if(std::sscanf(row.c_str(),"%d %d %d",&id,&bx,&by)!=3 ||
+            int id=0,bx=0,by=0;char lname[16]{};
+            if(std::sscanf(row.c_str(),"%d %d %d %15s",&id,&bx,&by,lname)!=4 ||
                id<0||id>=512||!defs_[id].defined ||
                bx<-1000000||bx>1000000||by<-1000000||by>1000000){
-                error_="LEVEL BRICK PARSE";placed_.clear();return false;
+                error_="LEVEL BRICK/LAYER PARSE";placed_.clear();return false;
             }
-            placed_.push_back({id,bx,by});
+            const std::string layer(lname);
+            if(layer!="default" && layer!="green" && layer!="yellow"){
+                error_="UNSUPPORTED BRICK LAYER";return false;
+            }
+            placed_.push_back({id,bx,by,
+                static_cast<unsigned char>(layer=="green"?1:layer=="yellow"?2:0)});
             index=end==std::string::npos?positions.size():end+1;
         }
         if(static_cast<int>(placed_.size())!=count){
             error_="LEVEL BRICK COUNT";placed_.clear();return false;
+        }
+        // Original SurgeScript level entities: layer collision selectors and
+        // tube input locking/unlocking. Not present in the old native preview.
+        const auto scripted=read(base+"routes.tsv",16*1024);
+        if(scripted.empty()){error_="ORIGINAL ROUTES MISSING";return false;}
+        size_t rp=0;int tube_in=0,tube_out=0,layer_points=0;
+        while(rp<scripted.size()){
+            const auto end=scripted.find('\n',rp);
+            const std::string line=scripted.substr(rp,end==std::string::npos?
+                                   std::string::npos:end-rp);
+            if(!line.empty()){
+                char name[24]{};int rx=0,ry=0;
+                if(std::sscanf(line.c_str(),"%23s %d %d",name,&rx,&ry)!=3 ||
+                   std::abs(rx)>100000||std::abs(ry)>100000){
+                    error_="ORIGINAL ROUTE PARSE";return false;
+                }
+                ScriptRoute route;
+                const std::string kind(name);
+                if(kind=="green")route.kind=ScriptRoute::Green,++layer_points;
+                else if(kind=="yellow")route.kind=ScriptRoute::Yellow,++layer_points;
+                else if(kind=="tube_in")route.kind=ScriptRoute::TubeIn,++tube_in;
+                else if(kind=="tube_out")route.kind=ScriptRoute::TubeOut,++tube_out;
+                else{error_="UNKNOWN LEVEL SCRIPT ROUTE";return false;}
+                route.x=float(rx);route.y=float(ry);
+                routes_.push_back(route);
+            }
+            rp=end==std::string::npos?scripted.size():end+1;
+        }
+        if(tube_in!=6||tube_out!=6||layer_points<30){
+            error_="INCOMPLETE ORIGINAL ROUTES";return false;
         }
         // Static cell index is built once, NEVER per frame.
         // The previous collision code linearly checked all 1323 bricks for
@@ -225,6 +280,8 @@ public:
         charge_=0.f;spring_anim_=0.f;dash_releases_=0;
         slope_grade_=0.f;uphill_steps_=0;
         wall_climb_=false;wall_climbs_=0;wall_top_=0.f;wall_dir_=0;
+        active_layer_=0;layer_switches_=0;tube_entries_=tube_exits_=0;
+        tube_active_=false;tube_timer_=tube_cooldown_=0.f;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -259,6 +316,14 @@ public:
         dir=std::clamp(dir,-1,1);
         down_=down;up_=up;
         spring_anim_=std::max(0.f,spring_anim_-dt);
+        tube_cooldown_=std::max(0.f,tube_cooldown_-dt);
+        if(tube_active_){
+            tick_tube(dt);
+            elapsed_+=dt;
+            return;
+        }
+        tick_routes();
+
         // See upstream physicsactor.c (Open Surge 0.6.1.3):
         // CHARGING: tap fire1 repeatedly to add 0.25 intensity; release DOWN
         // to launch gsp = (12*60/3)*(2+intensity) = 480..720 world px/s.
@@ -444,6 +509,7 @@ public:
                 reset();
             }
         }
+        tick_routes();
         elapsed_+=dt;
     }
     void draw(DrawList& ui) {
@@ -453,6 +519,8 @@ public:
         visible_=0;
         for(const auto& brick:placed_){
             const auto& def=defs_[brick.id];
+            // Render both layers just like the original tilemap; collision
+            // layer is independently selected by layer-switch entities.
             const float worldx=float(brick.x),worldy=float(brick.y);
             if(worldx+def.w<camx||worldx>camx+960 ||
                worldy+def.h<camy||worldy>camy+540)continue;
@@ -521,6 +589,72 @@ private:
             fn(placed_[cur->index]);
         }
     }
+    bool brick_in_layer(const PlacedBrick& b) const {
+        // Exactly upstream obstaclemap.c ignore_obstacle:
+        // OL_DEFAULT player collides with all; green/yellow players collide
+        // with default plus bricks belonging to the corresponding layer.
+        return active_layer_==0||b.layer==0||b.layer==active_layer_;
+    }
+    void tick_routes(){
+        if(tube_active_||!routes_enabled_)return;
+        for(const auto& route:routes_){
+            // Original scripting CollisionBox(32,32) near character center.
+            if(std::abs(x_-route.x)>18.f||
+               std::abs((y_-24.f)-route.y)>28.f)continue;
+            if(route.kind==ScriptRoute::Green || route.kind==ScriptRoute::Yellow){
+                const int next=route.kind==ScriptRoute::Green?1:2;
+                if(active_layer_!=next){active_layer_=next;++layer_switches_;}
+                continue;
+            }
+            if(route.kind!=ScriptRoute::TubeIn||tube_cooldown_>0.f)continue;
+            const ScriptRoute* selected=nullptr;
+            float best=1e7f;
+            // Keep the authored paired entrances/outlets. The neighbouring
+            // Tube Out only 32px away belongs to the OPPOSITE direction;
+            // don't immediately exit where we just entered.
+            for(const auto& candidate:routes_){
+                if(candidate.kind!=ScriptRoute::TubeOut)continue;
+                const float dx=candidate.x-route.x;
+                const float dy=candidate.y-route.y;
+                const float forward=dx*float(facing_);
+                if(forward<80.f||forward>1300.f||std::abs(dy)>45.f)continue;
+                const float cost=forward+std::abs(dy)*4.f;
+                if(cost<best){best=cost;selected=&candidate;}
+            }
+            if(selected && (rolling_||std::abs(vx_)>=100.f)){
+                tube_active_=true;tube_from_x_=x_;tube_from_y_=y_;
+                tube_to_x_=selected->x;tube_to_y_=selected->y+24.f;
+                tube_timer_=0.f;
+                const float distance=std::hypot(tube_to_x_-tube_from_x_,
+                                                 tube_to_y_-tube_from_y_);
+                tube_duration_=std::max(0.05f,distance/600.f);
+                ++tube_entries_;
+                rolling_=true;charging_=false;ground_=false;
+                vy_=0.f;
+            }
+            break;
+        }
+    }
+    void tick_tube(float dt){
+        if(!tube_active_)return;
+        tube_timer_=std::min(tube_duration_,tube_timer_+dt);
+        const float t=tube_timer_/tube_duration_;
+        // These are original authored Tube In/Out coordinates. Tube scripts
+        // freeze the player and move at a nominal 600 px/s. This limited
+        // native approximation runs without terrain collision WHILE INSIDE
+        // the scripted tunnel only; normal solid collision resumes at exit.
+        x_=tube_from_x_+(tube_to_x_-tube_from_x_)*t;
+        y_=tube_from_y_+(tube_to_y_-tube_from_y_)*t;
+        vx_=0.f;vy_=0.f;
+        if(t>=1.f){
+            tube_active_=false;
+            ++tube_exits_;
+            tube_cooldown_=0.7f;
+            vx_=(facing_>=0?1.f:-1.f)*600.f;
+            rolling_=true;ground_=false;
+            last_ground_y_=y_;
+        }
+    }
     bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
         if(sx<0||sy<0||sx>=defs_[b.id].w||sy>=defs_[b.id].h)return false;
         const auto& d=defs_[b.id];
@@ -531,6 +665,7 @@ private:
         bool hit=false;
         candidates(px,py,[&](const PlacedBrick& b){
             if(hit)return;
+            if(!brick_in_layer(b))return;
             const auto& d=defs_[b.id];
             if(!d.solid||px<float(b.x)||py<float(b.y)||
                 px>=float(b.x+d.w)||py>=float(b.y+d.h))return;
@@ -594,6 +729,7 @@ private:
         bool cloudy=false;
         candidates(px,py,[&](const PlacedBrick& b){
             if(cloudy)return;
+            if(!brick_in_layer(b))return;
             const auto& d=defs_[b.id];
             if(!d.cloud||px<float(b.x)||px>=float(b.x+d.w)||
                py<float(b.y)||py>=float(b.y+d.h))return;
@@ -654,6 +790,8 @@ private:
     }
     BrickDef defs_[512]{};
     std::vector<PlacedBrick> placed_;
+    std::vector<ScriptRoute> routes_;
+    bool routes_enabled_=true;
     std::vector<BrickCell> cells_;
     std::vector<unsigned char> mask_;
     unsigned atlas_=0,hero_=0;
@@ -665,6 +803,11 @@ private:
     float charge_=0.f,spring_anim_=0.f;
     float slope_grade_=0.f;
     unsigned uphill_steps_=0;
+    int active_layer_=0;
+    unsigned layer_switches_=0,tube_entries_=0,tube_exits_=0;
+    bool tube_active_=false;
+    float tube_from_x_=0.f,tube_from_y_=0.f,tube_to_x_=0.f,tube_to_y_=0.f;
+    float tube_timer_=0.f,tube_duration_=0.f,tube_cooldown_=0.f;
     bool wall_climb_=false;
     float wall_top_=0.f;
     int wall_dir_=0;

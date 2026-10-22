@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.2 - solid-safe rolling wall contact and crest recovery.
+// Open Surge PS5 v0.5.3 - authentic layer filters and native tube entry/exit subset.
 // NOT the full original Allegro/SurgeScript gameplay engine.
 #include "gfx/renderer.hpp"
 #include "level_preview.hpp"
@@ -25,8 +25,8 @@
 
 namespace {
 using namespace hui::gfx;
-constexpr const char* kVersion="0.5.2";
-constexpr const char* kTitle="OPEN SURGE PS5 - MOVEMENT FIX";
+constexpr const char* kVersion="0.5.3";
+constexpr const char* kTitle="OPEN SURGE PS5 - WORLD ROUTES";
 constexpr const char* kData="/data/OpenSurge";
 constexpr const char* kLog="/data/OpenSurge/legacy-port.log";
 Color C(unsigned hex,float opacity=1.f){return Color::rgb(hex,opacity);}
@@ -35,7 +35,7 @@ const Color WHITE=C(0xecf9ff),DIM=C(0xb0bfcf),ACCENT=C(0x66ebac),GOLD=C(0xfbd27e
 void log_message(const std::string& msg){
   mkdir(kData,0755);
   if(FILE* f=fopen(kLog,"ab")){
-    fprintf(f,"[OpenSurge native solid collision preview 0.5.2] %s\n",msg.c_str());
+    fprintf(f,"[OpenSurge native world routing preview 0.5.3] %s\n",msg.c_str());
     fclose(f);
   }
 }
@@ -123,7 +123,7 @@ void draw(DrawList& ui,const Font& font,unsigned atlas,unsigned preview,
   ui.rounded_rect({62,58,1794,164},22,C(0x112b36,.96f));
   txt(ui,font,atlas,"OPEN SURGE",94,142,74,WHITE);
   txt(ui,font,atlas,"by YAHBALLON  /  native PS5 / old DevBridge pipeline",101,192,25,ACCENT);
-  txt(ui,font,atlas,"v0.5.2",1807,143,27,DIM,Align::right);
+  txt(ui,font,atlas,"v0.5.3",1807,143,27,DIM,Align::right);
   ui.bordered_rect({64,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   ui.bordered_rect({970,249,884,687},18,C(0x102631,.96f),2,C(0x236a69));
   txt(ui,font,atlas,"ORIGINAL GAME DATA",103,317,37,ACCENT);
@@ -213,6 +213,7 @@ int main(){
   uint64_t last_block_log_us=0;
   unsigned fps_frames=0;
   unsigned last_blocked=0,last_respawns=0;
+  unsigned last_layer_switches=0,last_tube_entries=0,last_tube_exits=0;
   float measured_fps=0.f;
   float accumulator=0.f;
   bool pending_jump=false;
@@ -237,12 +238,12 @@ int main(){
       fps_frames=0;fps_sample_us=now;
     }
     if(level_mode && now-perf_log_us>=5000000u){
-      char line[160];
+      char line[250];
       std::snprintf(line,sizeof(line),
-          "PERF fps=%.1f x=%.1f y=%.1f vx=%.1f vy=%.1f grounded=%d cells=%zu blocked=%u respawn=%u slope=%.2f climb=%u wall=%d traversals=%u",
+          "PERF fps=%.1f x=%.1f y=%.1f vx=%.1f vy=%.1f grounded=%d cells=%zu blocked=%u respawn=%u slope=%.2f climb=%u wall=%d traversals=%u layer=%d tube=%d",
           measured_fps,level.player_x(),level.player_y(),level.velocity_x(),
           level.velocity_y(),level.grounded()?1:0,level.indexed_cells(),
-          level.collision_blocks(),level.auto_respawns(),level.slope_grade(),level.uphill_steps(),level.wall_climbing()?1:0,level.wall_climbs());
+          level.collision_blocks(),level.auto_respawns(),level.slope_grade(),level.uphill_steps(),level.wall_climbing()?1:0,level.wall_climbs(),level.active_layer(),level.in_tube()?1:0);
       log_message(line);
       std::snprintf(line,sizeof(line),
           "PAD_DIAG raw=0x%08x held=0x%08x empty_polls=%llu samples=%llu disconnects=%llu",
@@ -347,7 +348,22 @@ int main(){
              log_message("MOVE_ROLL_START");
              audio.play(surgepreview::Sound::Roll);
           }
-          if(entities_ready){
+          if(level.layer_switches()!=last_layer_switches){
+             last_layer_switches=level.layer_switches();
+             char event[90];
+             std::snprintf(event,sizeof(event),"ORIGINAL_LAYER_SWITCH layer=%d changes=%u",
+                           level.active_layer(),last_layer_switches);
+             log_message(event);
+          }
+          if(level.tube_entries()!=last_tube_entries){
+             last_tube_entries=level.tube_entries();
+             log_message("ORIGINAL_TUBE_IN_SCRIPT controls locked");
+          }
+          if(level.tube_exits()!=last_tube_exits){
+             last_tube_exits=level.tube_exits();
+             log_message("ORIGINAL_TUBE_OUT_SCRIPT speed=600");
+          }
+          if(entities_ready && !level.in_tube()){
             const auto event=entities.tick(step,level.player_x(),level.player_y(),
                                             level.velocity_y());
             if(event.collected){
@@ -369,7 +385,7 @@ int main(){
               audio.play(surgepreview::Sound::Endsign);
             }
           }
-          if(hazards_ready && !hazards.game_over()){
+          if(hazards_ready && !hazards.game_over() && !level.in_tube()){
             const bool attacking=level.rolling()||
                 (!level.grounded() && level.velocity_y()>40.f);
             const int rings=entities_ready?entities.collected():0;
@@ -447,7 +463,7 @@ int main(){
       if(hazards_ready)hazards.draw(ui,level.player_x(),level.player_y());
       ui.rounded_rect({36,28,1090,122},14,C(0x072128,.90f));
       txt(ui,font,atlas,"OPEN SURGE  /  ORIGINAL DEMO-1 LEVEL",66,81,33,WHITE);
-      txt(ui,font,atlas,"v0.5.2  -  NO SOLID TERRAIN TUNNELING; SURGE SCRIPT PENDING",66,125,21,GOLD);
+      txt(ui,font,atlas,"v0.5.3  -  ORIGINAL LAYERS + TUBES; LOOPS/ENGINE PENDING",66,125,21,GOLD);
       ui.rounded_rect({36,979,1830,73},12,C(0x072128,.94f));
       txt(ui,font,atlas,"MOVE  X JUMP  DOWN+X DASH  TRIANGLE MUSIC  SQUARE RESET  O BACK",73,1029,28,WHITE);
       char probe_line[180];
