@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.2 - contact-safe high-speed rolling wall/steep-slope traversal.
+// Open Surge PS5 v0.5.4 - reject unsupported tube exits and prevent loop-area floor dropouts.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -35,6 +35,8 @@ public:
     size_t route_count() const {return routes_.size();}
     unsigned tube_entries() const {return tube_entries_;}
     unsigned tube_exits() const {return tube_exits_;}
+    unsigned unsafe_tube_exits() const {return unsafe_tube_exits_;}
+    unsigned loop_safety_recoveries() const {return loop_safety_recoveries_;}
     bool in_tube() const {return tube_active_;}
     bool loop_mode_ready() const {return false;} // Original MM_* physics not yet linked
 
@@ -282,6 +284,9 @@ public:
         wall_climb_=false;wall_climbs_=0;wall_top_=0.f;wall_dir_=0;
         active_layer_=0;layer_switches_=0;tube_entries_=tube_exits_=0;
         tube_active_=false;tube_timer_=tube_cooldown_=0.f;
+        unsafe_tube_exits_=loop_safety_recoveries_=0;
+        safe_ground_x_=x_;safe_ground_y_=y_;
+        tube_guard_=0.f;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -305,6 +310,7 @@ public:
         }
         ground_=has_foot_support(x_,y_);
         last_ground_y_=y_;
+        safe_ground_x_=x_;safe_ground_y_=y_;
     }
     // Stable 120Hz step. Map dimensions and original mask stay unchanged.
     // IMPORTANT: walking on a slope follows the surface before checking a
@@ -317,8 +323,22 @@ public:
         down_=down;up_=up;
         spring_anim_=std::max(0.f,spring_anim_-dt);
         tube_cooldown_=std::max(0.f,tube_cooldown_-dt);
+        tube_guard_=std::max(0.f,tube_guard_-dt);
         if(tube_active_){
             tick_tube(dt);
+            elapsed_+=dt;
+            return;
+        }
+        // For the original loop/ramp corridor our partial native movement
+        // lacks MM_FLOOR/WALL/CEILING gravity rotation. v0.5.3 jumped out of
+        // a tube into unsupported space and then fell under the entire map.
+        // Until four-mode source physics is linked, fail safely to the last
+        // real ground contact instead of losing the player below solid tiles.
+        if((tube_guard_>0.f || layer_switches_>0) &&
+           x_>=3500.f && x_<=4860.f && !ground_ &&
+           y_>safe_ground_y_+130.f){
+            restore_safe_ground();
+            ++loop_safety_recoveries_;
             elapsed_+=dt;
             return;
         }
@@ -510,6 +530,10 @@ public:
             }
         }
         tick_routes();
+        if(ground_ && !wall_climb_ && !tube_active_ &&
+           !body_hits(x_,y_) && has_foot_support(x_,y_)){
+            safe_ground_x_=x_;safe_ground_y_=y_;
+        }
         elapsed_+=dt;
     }
     void draw(DrawList& ui) {
@@ -595,10 +619,42 @@ private:
         // with default plus bricks belonging to the corresponding layer.
         return active_layer_==0||b.layer==0||b.layer==active_layer_;
     }
+    // A tube may be animated through SOLID scenery only when the receiving
+    // outlet has a physically valid player landing. The original SurgeScript
+    // does special 4-mode tube/loop sensor handling. The preview doesn't.
+    bool tube_exit_usable(float ex,float feet,float& floor) const {
+        if(!find_floor(ex,feet,28,24,floor) ||
+           std::abs(floor-feet)>24.f ||
+           body_hits(ex,floor))return false;
+        const float advance=ex+float(facing_)*12.f;
+        float next=floor;
+        if(!find_floor(advance,floor,12,24,next) ||
+           next<floor-12.f || next>floor+24.f ||
+           body_hits(advance,next))return false;
+        return true;
+    }
+    void restore_safe_ground(){
+        tube_active_=wall_climb_=false;
+        x_=safe_ground_x_;y_=safe_ground_y_;
+        vx_=vy_=0.f;rolling_=charging_=false;
+        ground_=has_foot_support(x_,y_);
+        if(!ground_){
+            float floor=y_;
+            if(find_floor(x_,y_,32,32,floor) && !body_hits(x_,floor)){
+                y_=floor;ground_=true;
+            }
+        }
+        if(!ground_){
+            // Fallback is an authored, previously verified game spawn,
+            // never a blind reappearance inside a solid tube tile.
+            reset();
+        }
+        last_ground_y_=y_;
+        tube_cooldown_=2.f;tube_guard_=0.f;
+    }
     void tick_routes(){
         if(tube_active_||!routes_enabled_)return;
         for(const auto& route:routes_){
-            // Original scripting CollisionBox(32,32) near character center.
             if(std::abs(x_-route.x)>18.f||
                std::abs((y_-24.f)-route.y)>28.f)continue;
             if(route.kind==ScriptRoute::Green || route.kind==ScriptRoute::Yellow){
@@ -609,9 +665,6 @@ private:
             if(route.kind!=ScriptRoute::TubeIn||tube_cooldown_>0.f)continue;
             const ScriptRoute* selected=nullptr;
             float best=1e7f;
-            // Keep the authored paired entrances/outlets. The neighbouring
-            // Tube Out only 32px away belongs to the OPPOSITE direction;
-            // don't immediately exit where we just entered.
             for(const auto& candidate:routes_){
                 if(candidate.kind!=ScriptRoute::TubeOut)continue;
                 const float dx=candidate.x-route.x;
@@ -622,8 +675,20 @@ private:
                 if(cost<best){best=cost;selected=&candidate;}
             }
             if(selected && (rolling_||std::abs(vx_)>=100.f)){
+                float support=0.f;
+                const float exit_feet=selected->y+24.f;
+                if(!tube_exit_usable(selected->x,exit_feet,support)){
+                    ++unsafe_tube_exits_;
+                    restore_safe_ground();
+                    // Do not start a teleport that would deposit the player
+                    // in midair or inside the original tile collision.
+                    break;
+                }
+                if(ground_ && !body_hits(x_,y_)){
+                    safe_ground_x_=x_;safe_ground_y_=y_;
+                }
                 tube_active_=true;tube_from_x_=x_;tube_from_y_=y_;
-                tube_to_x_=selected->x;tube_to_y_=selected->y+24.f;
+                tube_to_x_=selected->x;tube_to_y_=support;
                 tube_timer_=0.f;
                 const float distance=std::hypot(tube_to_x_-tube_from_x_,
                                                  tube_to_y_-tube_from_y_);
@@ -639,20 +704,29 @@ private:
         if(!tube_active_)return;
         tube_timer_=std::min(tube_duration_,tube_timer_+dt);
         const float t=tube_timer_/tube_duration_;
-        // These are original authored Tube In/Out coordinates. Tube scripts
-        // freeze the player and move at a nominal 600 px/s. This limited
-        // native approximation runs without terrain collision WHILE INSIDE
-        // the scripted tunnel only; normal solid collision resumes at exit.
+        // This animation may pass through terrain ONLY while the destination
+        // has a validated physical landing. Don't let it silently hand the
+        // character back to normal gravity under the solid floor.
         x_=tube_from_x_+(tube_to_x_-tube_from_x_)*t;
         y_=tube_from_y_+(tube_to_y_-tube_from_y_)*t;
         vx_=0.f;vy_=0.f;
         if(t>=1.f){
             tube_active_=false;
-            ++tube_exits_;
-            tube_cooldown_=0.7f;
-            vx_=(facing_>=0?1.f:-1.f)*600.f;
-            rolling_=true;ground_=false;
+            float floor=y_;
+            if(!tube_exit_usable(x_,y_,floor)){
+                ++unsafe_tube_exits_;
+                restore_safe_ground();
+                return;
+            }
+            y_=floor;
+            ground_=true;
             last_ground_y_=y_;
+            safe_ground_x_=x_;safe_ground_y_=y_;
+            ++tube_exits_;
+            tube_cooldown_=1.2f;
+            tube_guard_=1.5f;
+            vx_=(facing_>=0?1.f:-1.f)*600.f;
+            rolling_=true;
         }
     }
     bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
@@ -808,6 +882,8 @@ private:
     bool tube_active_=false;
     float tube_from_x_=0.f,tube_from_y_=0.f,tube_to_x_=0.f,tube_to_y_=0.f;
     float tube_timer_=0.f,tube_duration_=0.f,tube_cooldown_=0.f;
+    float tube_guard_=0.f,safe_ground_x_=0.f,safe_ground_y_=0.f;
+    unsigned unsafe_tube_exits_=0,loop_safety_recoveries_=0;
     bool wall_climb_=false;
     float wall_top_=0.f;
     int wall_dir_=0;
