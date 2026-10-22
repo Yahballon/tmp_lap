@@ -9,6 +9,7 @@ python3 "$root/scripts/check_overlay.py"
 mkdir -p "$GODOT_SOURCE/platform/ps5"
 cp -a "$root/engine/platform/ps5/." "$GODOT_SOURCE/platform/ps5/"
 python3 "$root/scripts/patch_ps5_kvm.py" "$GODOT_SOURCE"
+python3 "$root/scripts/patch_ps5_setup_trace.py" "$GODOT_SOURCE"
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
