@@ -8,8 +8,23 @@ native executable**. It packages two Godot scenes, two GDScripts and
 ## Build / download
 
 Open [Build External Godot PS5 PCK](https://github.com/Yahballon/tmp_lap/actions/workflows/build-godot-ps5-external-pck.yml)
-and download the **Godot-PS5-External-PCK-Host-Verified-NOT-PS5** artifact from
-a green run. Green CI means only the desktop/headless Godot test passed.
+and download the **Godot-PS5-M8c-External-PCK-PS5-READY-HOST-TESTED**
+artifact from a **successful branch push run**. The workflow is stored on
+the feature branch, so the GitHub **Run workflow** button may not appear
+until the workflow is also present on the default branch. The feature
+branch's pushes run it automatically.
+
+The downloadable Actions artifact contains:
+
+- `GodotPS5-M8c-External-PCK-PS5-TEST.zip` — unpack this nested starter ZIP;
+  it already contains the correct `/data/GodotPS5/` directory layout,
+  `launch.txt`, `games/external-smoke.pck`, a SHA-256 checksum and instructions.
+- `external-smoke.pck` — standalone PCK for custom path/USB testing.
+
+The workflow uses **official Godot 4.7.2** to generate the actual PCK,
+loads that PCK in a host/headless runtime, checks scene/asset and clean
+completion markers, then checks its ZIP and PCK header. **Green CI does not
+prove PS5 hardware compatibility.**
 
 Or use official Godot 4.7.2 on a PC:
 
@@ -21,9 +36,17 @@ godot --headless --path homebrew/godot-ps5/samples/external-pack-smoke \
 ## Hardware test (PS5)
 
 1. Install `PPSA99847 v0.1.2` from TESTBUILD; this is the existing native runner.
-2. Copy `external-smoke.pck` to `/data/GodotPS5/games/external-smoke.pck`.
-3. Create `/data/GodotPS5/launch.txt` containing exactly `external-smoke.pck`
-   followed by a newline. Alternatively put the PCK in
+2. Extract the `GodotPS5-M8c-External-PCK-PS5-TEST.zip` inside the Actions
+   artifact. Copy its `GodotPS5/` **contents** into `/data/GodotPS5/`.
+   The ZIP supplies these two files automatically:
+
+   ```text
+   /data/GodotPS5/launch.txt
+   /data/GodotPS5/games/external-smoke.pck
+   ```
+
+3. Verify `/data/GodotPS5/launch.txt` contains `external-smoke.pck` on its
+   first line. Alternatively put the standalone PCK in
    `/mnt/usb0/godot/external-smoke.pck` and write that *full absolute path*
    in `launch.txt`.
 4. Launch PPSA99847. The first screen is a magenta ring on a deep-blue
