@@ -87,7 +87,7 @@ jobs:
         with:
           name: GodotPS5-GLES3-Genuine-Visual-PCK-NOT-PS5
           path: /tmp/godot-visual-pck
-      - name: Stage graphics + native Godot in an isolated PPSA99846 install
+      - name: Stage graphics + native Godot in an isolated PPSA99847 install
         run: |
           set -euo pipefail
           cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-scene-app
@@ -133,8 +133,8 @@ jobs:
           from pathlib import Path
           root=Path('/tmp/godot-scene-app')
           data=json.loads((root/'sce_sys/param.json').read_text())
-          data.update(titleId='PPSA99846',conceptId='99846',
-                      contentId='UP9000-PPSA99846_00-GODOTGLES3CANVAS',
+          data.update(titleId='PPSA99847',conceptId='99847',
+                      contentId='UP9000-PPSA99847_00-GODOTGLES3CANVAS',
                       contentVersion='01.000.001')
           data['localizedParameters']['en-US']['titleName']='Godot PS5 GLES3 Canvas'
           assert len(data['contentId'].split('_00-')[1])==16
@@ -150,7 +150,7 @@ jobs:
           original=original.replace('APP_STATIC_ARCHIVES := ',
                                     'APP_STATIC_ARCHIVES := .deps/ps5-opengl/libps5opengl-group.a ',1)
           (root/'GNUmakefile').write_text('\n'.join(flags)+'\n'+original)
-          print('Staged PPSA99846 using upstream Godot GLES3 and native PS5 EGL callbacks')
+          print('Staged PPSA99847 using upstream Godot GLES3 and native PS5 EGL callbacks')
           PY
       - name: Native ELF link, weak-TLS fallback and signed PS5 installation ZIP
         run: |
@@ -175,25 +175,25 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import zipfile,json,struct
-          p=Path('/tmp/godot-scene-app/dist/PPSA99846.zip')
+          p=Path('/tmp/godot-scene-app/dist/PPSA99847.zip')
           assert p.is_file() and p.stat().st_size>100_000
           with zipfile.ZipFile(p) as z:
               assert z.testzip() is None
               paths=z.namelist()
-              assert all(name.startswith('PPSA99846/') and '..' not in Path(name).parts for name in paths)
-              assert 'PPSA99846/eboot.bin' in paths
-              assert 'PPSA99846/assets/godot/visual-smoke.pck' in paths
-              elf=z.read('PPSA99846/eboot.bin')
+              assert all(name.startswith('PPSA99847/') and '..' not in Path(name).parts for name in paths)
+              assert 'PPSA99847/eboot.bin' in paths
+              assert 'PPSA99847/assets/godot/visual-smoke.pck' in paths
+              elf=z.read('PPSA99847/eboot.bin')
               assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
-              meta=json.loads(z.read('PPSA99846/sce_sys/param.json'))
-              assert meta['titleId']=='PPSA99846'
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
               assert meta['contentVersion']=='01.000.001'
           print('SIGNED GODOT GLES3 TEST BUILT; HARDWARE OUTPUT STILL UNVERIFIED')
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: Godot-PS5-REAL-GLES3-Canvas-v0.1.0-UNVERIFIED-ON-PS5
-          path: /tmp/godot-scene-app/dist/PPSA99846.zip
+          path: /tmp/godot-scene-app/dist/PPSA99847.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

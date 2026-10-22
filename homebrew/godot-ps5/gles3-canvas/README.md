@@ -1,4 +1,4 @@
-# Godot 4.7.2 PS5 native GLES3 / Canvas2D — PPSA99846
+# Godot 4.7.2 PS5 native GLES3 / Canvas2D — PPSA99847
 
 The first **isolated** PS5 test intended to use Godot's actual
 `DisplayServerPS5` and upstream `RasterizerGLES3` for drawing.

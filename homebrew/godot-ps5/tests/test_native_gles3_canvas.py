@@ -7,7 +7,7 @@ for token in ("godot_ps5_set_graphics_hooks(&hooks)", "godot_ps5_run_pack(",
               "BOOT_FRAME_PRESENTED","GODOT_SWAP_FIRST","gles3-stderr.log","gl_resolve"):
     assert token in native,token
 for token in ("GODOT_PS5_NATIVE_GLES3: '1'","GODOT_PS5_GLES3_ARCHIVES: '1'",
-              "GODOT_PS5_DISPLAY_EXPERIMENT: '1'","PPSA99846",
+              "GODOT_PS5_DISPLAY_EXPERIMENT: '1'","PPSA99847",
               "visual-smoke.pck","graphics_hooks_ps5.h","stage_native_link.py"):
     assert token in workflow,token
 

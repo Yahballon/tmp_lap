@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PPSA99846: real Godot 4.7.2 GLES3 RenderingServer canvas test.
+// PPSA99847: real Godot 4.7.2 GLES3 RenderingServer canvas test.
 // No native sprite shaders or glDrawArrays: Godot must draw the scene.
 #include "graphics_hooks_ps5.h"
 #include "platform/ps5/display_egl.hpp"
