@@ -124,6 +124,12 @@ jobs:
             homebrew/opensurge-ps5/tests/native_terrain_stress.cpp \
             -o /tmp/opensurge-terrain-stress
           /tmp/opensurge-terrain-stress "$PWD/app/assets/game/"
+          g++ -std=c++17 -O2 -Wall -Wextra \
+            -I homebrew/opensurge-ps5/tests/mocks \
+            -I homebrew/opensurge-ps5/native \
+            homebrew/opensurge-ps5/tests/native_loop_smoke.cpp \
+            -o /tmp/opensurge-native-loop
+          /tmp/opensurge-native-loop "$PWD/app/assets/game/"
           python3 - <<'PY'
           import json
           from pathlib import Path
