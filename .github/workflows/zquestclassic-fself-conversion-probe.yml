@@ -24,6 +24,19 @@ jobs:
           set -euo pipefail
           git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/zquest-devbridge
           cp -a /tmp/zquest-devbridge/templates/simple-calc ./app
+          # The zlib.net fossils CDN intermittently returns non-archive data
+          # to Actions runners. Use the upstream maintainer's GitHub release,
+          # preserving the exact published SHA-256 verification.
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/tools/setup-native-dependencies.sh")
+          s=p.read_text()
+          old='zlib_url="https://zlib.net/fossils/zlib-$zlib_version.tar.gz"'
+          new='zlib_url="https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"'
+          assert s.count(old)==1
+          assert 'zlib_hash="bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16"' in s
+          p.write_text(s.replace(old,new,1))
+          PY
           bash app/tools/setup-native-dependencies.sh
           bash app/tools/build-host-tools.sh
           test -x app/build/host/ps5-native-tool
