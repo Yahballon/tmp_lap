@@ -539,7 +539,17 @@ private:
         return hit;
     }
     bool roll_uphill_step(float next_x,float /*step_x*/) {
-        if(!rolling_||charging_||!ground_||std::abs(vx_)<305.f)return false;
+        if(!rolling_||charging_||std::abs(vx_)<305.f)return false;
+        // The authored Sunshine ramp can briefly lose a foot sensor at its
+        // tile seam even on a charged roll. Use the actual last foot contact
+        // within a tightly bounded recovery window, not an unrestricted
+        // mid-air wall climb (which could catch distant vertical scenery).
+        if(!ground_){
+            if(std::abs(y_-last_ground_y_)>40.f)return false;
+            float old_floor=0.f;
+            if(!find_floor(x_,y_,24,36,old_floor) ||
+               std::abs(old_floor-y_)>36.f)return false;
+        }
         const int dir=(vx_>=0.f)?1:-1;
         // Only cross a SOLID obstacle when it has an actual upper mask
         // surface above the current feet and space for the rolling body.
@@ -553,7 +563,7 @@ private:
         // The upper part must be a real, contiguous solid lip, not a random
         // sprite or arbitrary air point. A small window behind the obstacle
         // must still be supported on the player's current side.
-        if(!has_foot_support(x_,y_))return false;
+        if(ground_&&!has_foot_support(x_,y_))return false;
         wall_climb_=true;
         wall_top_=top-1.f;
         wall_dir_=dir;
