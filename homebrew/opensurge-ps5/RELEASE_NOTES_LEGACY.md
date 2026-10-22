@@ -1,3 +1,5 @@
-# Open Surge PS5 v0.5.4 — Tube safety and unsupported loop fallback
+# Open Surge PS5 v0.6.0 – four-stage integrated native testbuild
 
-Real firmware 5.10 v0.5.3 video shows the player falling through the map after crossing the original tube/loop corridor. Tube entry now checks the exact original masked level floor and body clearance at the destination. Unsafe exits are refused; if exit geometry changes, transport returns to last verified support. In the unfinished four-direction loop area, unexpected vertical falling restores the last grounded position. CI checks source geometry with real original level assets. Loop/ceiling sensors remain unimplemented; audio and controls unchanged.
+Features in one installable bundle: authentic pinned upstream Sunshine `.lev` layouts (demo-1, sunshine-1, sunshine-2, sunshine-3), menus and stage selection, stage switching on Goal, touch Checkpoints with native respawn, and persistent stage/checkpoint data. Also retains original music/SFX, native enemies, spring and ring gameplay, layers, basic tubes, and PS5 120Hz input handling. CI exercises all four stage caches, packaged FSELF, progression save/reload.
+
+Not the complete upstream engine: full SurgeScript VM, advanced physics/loops, scripted AI/objects/cutscenes, level-specific music, and original save format do NOT work yet. This release is meant for one broader console QA round.

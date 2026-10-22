@@ -46,7 +46,7 @@ manifest=json.loads((app/"assets"/"game-data-manifest.json").read_text())
 assert manifest["file_count"]>100
 # Regression: DrawList.image UV Rect is x,y,width,height, never x0,y0,x1,y1.
 native=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
-assert "{u0,v0,u1-u0,v1-v0}" in native
+assert "brick.hflip?u0-u1:u1-u0" in native
 assert "facing_<0?u0-u1:u1-u0,v1-v0" in native
 assert "mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)))" in native
 assert "floor_pixel(sensor,at)" in native
@@ -123,6 +123,23 @@ native_src=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").re
 assert "bool tube_exit_usable(" in native_src
 assert "restore_safe_ground()" in native_src
 assert "loop_safety_recoveries_" in native_src
+catalog=(app/"assets"/"stages"/"catalog.tsv").read_text().splitlines()
+assert [row.split("\t")[0] for row in catalog]==[
+    "demo-1","sunshine-1","sunshine-2","sunshine-3"]
+for stage,count in (("demo-1",1323),("sunshine-1",1791),
+                    ("sunshine-2",2938),("sunshine-3",634)):
+    d=app/"assets"/"stages"/stage
+    header=(d/"header.txt").read_text()
+    n=int(next(row.split()[1] for row in header.splitlines() if row.startswith("instances ")))
+    assert n==count
+    assert len((d/"bricks.txt").read_text().splitlines())==count
+    assert (d/"defs.txt").is_file()
+    assert "goal" in (d/"entities.tsv").read_text()
+    assert (d/"hazards.tsv").is_file()
+    assert (d/"routes.tsv").is_file()
+assert "stage_progress.hpp" in main_cpp
+assert "AUTO_NEXT_STAGE" in main_cpp
+assert "ORIGINAL_CHECKPOINT_SAVED" in main_cpp
 print("PASS original demo terrain/sprites staged for PS5: "
       f"{len(instances)} bricks, {len(defs)} types, "
       f"{meta['atlas']} RGBA atlas, real player sprite; NOT SurgeScript gameplay")

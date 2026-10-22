@@ -12,7 +12,7 @@
 
 namespace surgepreview {
 struct NativeEntity {
-    enum Kind {Ring,Spring,Stronger,Goal} kind=Ring;
+    enum Kind {Ring,Spring,Stronger,Goal,Checkpoint} kind=Ring;
     float x=0,y=0,disappearing=0,spring_cooldown=0;
     bool consumed=false,spring_armed=true;
 };
@@ -20,16 +20,20 @@ struct EntityEvents {
     int collected=0;
     float spring_power=0;
     bool goal=false;
+    bool checkpoint=false;
+    float checkpoint_x=0,checkpoint_y=0;
 };
 
 class LevelEntities {
 public:
-    bool load(hui::gfx::Renderer& renderer,const std::string& root) {
+    bool load(hui::gfx::Renderer& renderer,const std::string& root,const std::string& stage="") {
         error_.clear(); objects_.clear();rings_=0;completed_=false; clock_=0;
         if(root.size()<5 || root.substr(root.size()-5)!="game/"){
             error_="NO ORIGINAL GAME ROOT";return false;
         }
-        const std::string base=root.substr(0,root.size()-5)+"level-preview/";
+        const std::string parent=root.substr(0,root.size()-5);
+        const std::string visual=parent+"level-preview/";
+        const std::string base=stage.empty()?visual:parent+"stages/"+stage+"/";
         const auto records=read(base+"entities.tsv",32768);
         if(records.empty()){error_="NO ORIGINAL ENTITIES";return false;}
         size_t start=0;
@@ -51,6 +55,7 @@ public:
                 else if(type=="spring")o.kind=NativeEntity::Spring;
                 else if(type=="spring_stronger")o.kind=NativeEntity::Stronger;
                 else if(type=="goal")o.kind=NativeEntity::Goal;
+                else if(type=="checkpoint")o.kind=NativeEntity::Checkpoint;
                 else {error_="UNSUPPORTED ENTITY TYPE";return false;}
                 objects_.push_back(o);
             }
@@ -62,12 +67,12 @@ public:
             ns+=item.kind==NativeEntity::Spring || item.kind==NativeEntity::Stronger;
             ng+=item.kind==NativeEntity::Goal;
         }
-        if(nr<60||ns<2||ng!=1){
+        if(stage.empty()?(nr<60||ns<2||ng!=1):(nr<5||ng<1)){
             error_="ORIGINAL ENTITY COUNT";return false;
         }
-        if(!load_texture(renderer,base,"collectibles",rings_texture_,ringw_,ringh_) ||
-           !load_texture(renderer,base,"springs",springs_texture_,springw_,springh_) ||
-           !load_texture(renderer,base,"goal",goal_texture_,goalw_,goalh_)){
+        if(!load_texture(renderer,visual,"collectibles",rings_texture_,ringw_,ringh_) ||
+           !load_texture(renderer,visual,"springs",springs_texture_,springw_,springh_) ||
+           !load_texture(renderer,visual,"goal",goal_texture_,goalw_,goalh_)){
             error_="ENTITY TEXTURE NOT FOUND";return false;
         }
         if(ringw_<304||ringh_<16||springw_<64||springh_<96||goalw_<288||goalh_<144){
@@ -117,6 +122,13 @@ public:
                     item.consumed=true;item.disappearing=0.001f;
                     ++rings_;++events.collected;
                 }
+            } else if(item.kind==NativeEntity::Checkpoint){
+                if(!item.consumed && std::abs(px-item.x)<26.f &&
+                   std::abs(feet-item.y)<56.f){
+                    item.consumed=true;
+                    events.checkpoint=true;events.checkpoint_x=item.x;
+                    events.checkpoint_y=item.y;
+                }
             } else if(item.kind==NativeEntity::Goal){
                 if(!completed_ && std::abs(px-item.x)<29.f &&
                    feet>=item.y-54.f && feet<=item.y+8.f){
@@ -161,7 +173,13 @@ public:
                 w=h=32;hotx=16;hoty=32;
                 sy=e.kind==NativeEntity::Stronger?64:32;
                 break;
-            case NativeEntity::Goal: {
+            case NativeEntity::Checkpoint: {
+                texture=goal_texture_;sheetw=goalw_;sheeth=goalh_;
+                w=48;h=56;hotx=24;hoty=56;sy=32;
+                sx=e.consumed?4*48:0;
+                break;
+             }
+             case NativeEntity::Goal: {
                 texture=goal_texture_;sheetw=goalw_;sheeth=goalh_;
                 w=48;h=56;hotx=24;hoty=56;sy=32;
                 // Upstream goal.spr not-cleared frame 0 and cleared frame 4.

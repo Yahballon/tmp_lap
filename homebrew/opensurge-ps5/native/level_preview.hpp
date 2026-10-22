@@ -17,7 +17,7 @@ struct BrickDef {
     bool solid=false,cloud=false,defined=false;
     float z=.5f;
 };
-struct PlacedBrick {int id=0,x=0,y=0;unsigned char layer=0;};
+struct PlacedBrick {int id=0,x=0,y=0;unsigned char layer=0;bool hflip=false;};
 struct ScriptRoute {
     enum Kind : unsigned char { Green,Yellow,TubeIn,TubeOut } kind=Green;
     float x=0,y=0;
@@ -123,6 +123,15 @@ public:
         return true;
     }
 #endif
+    bool set_checkpoint(float px,float py) {
+        if(!ready()||!std::isfinite(px)||!std::isfinite(py)||
+           std::abs(px)>100000.f||std::abs(py)>100000.f)return false;
+        float floor=py;
+        if(!find_floor(px,py,36,54,floor))return false;
+        if(body_hits(px,floor))return false;
+        startx_=px;starty_=floor;
+        return true;
+    }
     // Experimental native spring velocity hook from original 'Spring
     // Standard/Stronger' SurgeScript values (600 and 960 world units/sec).
     void hit_recoil(float source_x) {
@@ -142,13 +151,15 @@ public:
         y_-=3.f; // free the player's feet from the spring platform
     }
 
-    bool load(Renderer& renderer,const std::string& game_root) {
+    bool load(Renderer& renderer,const std::string& game_root,const std::string& stage="") {
         error_.clear(); placed_.clear(); cells_.clear(); routes_.clear(); atlas_=hero_=0;
         for(auto& def:defs_)def=BrickDef{};
         if(game_root.size()<5 || game_root.substr(game_root.size()-5)!="game/") {
             error_="GAME ROOT INVALID";return false;
         }
-        const std::string base=game_root.substr(0,game_root.size()-5)+"level-preview/";
+        const std::string parent=game_root.substr(0,game_root.size()-5);
+        const std::string visual=parent+"level-preview/";
+        const std::string base=stage.empty()?visual:parent+"stages/"+stage+"/";
         const auto hdr=read(base+"header.txt",4096);
         if(hdr.empty()){error_="PREVIEW DATA MISSING";return false;}
         int atlasw=0,atlash=0,herow=0,heroh=0;
@@ -196,8 +207,9 @@ public:
             const auto length=end==std::string::npos?positions.size()-index:end-index;
             if(length==0){index=end==std::string::npos?positions.size():end+1;continue;}
             const auto row=positions.substr(index,length);
-            int id=0,bx=0,by=0;char lname[16]{};
-            if(std::sscanf(row.c_str(),"%d %d %d %15s",&id,&bx,&by,lname)!=4 ||
+            int id=0,bx=0,by=0;char lname[16]{},flag[16]{};
+            const int parsed=std::sscanf(row.c_str(),"%d %d %d %15s %15s",&id,&bx,&by,lname,flag);
+            if((parsed!=4 && parsed!=5) || (parsed==5 && std::string(flag)!="hflip") ||
                id<0||id>=512||!defs_[id].defined ||
                bx<-1000000||bx>1000000||by<-1000000||by>1000000){
                 error_="LEVEL BRICK/LAYER PARSE";placed_.clear();return false;
@@ -207,7 +219,8 @@ public:
                 error_="UNSUPPORTED BRICK LAYER";return false;
             }
             placed_.push_back({id,bx,by,
-                static_cast<unsigned char>(layer=="green"?1:layer=="yellow"?2:0)});
+                static_cast<unsigned char>(layer=="green"?1:layer=="yellow"?2:0),
+                parsed==5});
             index=end==std::string::npos?positions.size():end+1;
         }
         if(static_cast<int>(placed_.size())!=count){
@@ -216,7 +229,7 @@ public:
         // Original SurgeScript level entities: layer collision selectors and
         // tube input locking/unlocking. Not present in the old native preview.
         const auto scripted=read(base+"routes.tsv",16*1024);
-        if(scripted.empty()){error_="ORIGINAL ROUTES MISSING";return false;}
+        if(scripted.empty() && stage.empty()){error_="ORIGINAL ROUTES MISSING";return false;}
         size_t rp=0;int tube_in=0,tube_out=0,layer_points=0;
         while(rp<scripted.size()){
             const auto end=scripted.find('\n',rp);
@@ -240,7 +253,7 @@ public:
             }
             rp=end==std::string::npos?scripted.size():end+1;
         }
-        if(tube_in!=6||tube_out!=6||layer_points<30){
+        if(stage.empty() && (tube_in!=6||tube_out!=6||layer_points<30)){
             error_="INCOMPLETE ORIGINAL ROUTES";return false;
         }
         // Static cell index is built once, NEVER per frame.
@@ -250,8 +263,8 @@ public:
             error_="COLLISION CELL INDEX TOO LARGE";
             return false;
         }
-        const auto bg=read(base+"sunshine.rgba",static_cast<size_t>(atlasw)*atlash*4u+1);
-        const auto player=read(base+"surge.rgba",static_cast<size_t>(herow)*heroh*4u+1);
+        const auto bg=read(visual+"sunshine.rgba",static_cast<size_t>(atlasw)*atlash*4u+1);
+        const auto player=read(visual+"surge.rgba",static_cast<size_t>(herow)*heroh*4u+1);
         if(bg.size()!=static_cast<size_t>(atlasw)*atlash*4u ||
            player.size()!=static_cast<size_t>(herow)*heroh*4u) {
             error_="ORIGINAL TEXTURES INVALID";placed_.clear();return false;
@@ -259,7 +272,7 @@ public:
 
         // The mask comes from Open Surge's separate, authentic brick collision
         // image; no arbitrary 128x128 box collider for passable decorations.
-        const auto collision=read(base+"collision.bin",
+        const auto collision=read(visual+"collision.bin",
             static_cast<size_t>(atlasw)*atlash+1);
         if(collision.size()!=static_cast<size_t>(atlasw)*atlash){
             error_="ORIGINAL COLLISION MASK MISSING";return false;
@@ -554,7 +567,8 @@ public:
             // ps5-homebrew-ui Rect UV is (x,y,width,height), NOT
             // (u0,v0,u1,v1). Passing end-points caused texture bleeding.
             ui.image(atlas_,{left,top,float(def.w)*scale,float(def.h)*scale},
-                     {u0,v0,u1-u0,v1-v0},white);
+                     {brick.hflip?u1:u0,v0,
+                      brick.hflip?u0-u1:u1-u0,v1-v0},white);
             if(++visible_>=1200)break;
         }
         const int frame=sprite_frame();
@@ -732,7 +746,8 @@ private:
     bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
         if(sx<0||sy<0||sx>=defs_[b.id].w||sy>=defs_[b.id].h)return false;
         const auto& d=defs_[b.id];
-        const size_t offset=static_cast<size_t>(d.sy+sy)*atlasw_+(d.sx+sx);
+        const size_t offset=static_cast<size_t>(d.sy+sy)*atlasw_+
+                             (d.sx+(b.hflip?d.w-1-sx:sx));
         return offset<mask_.size()&&mask_[offset]!=0;
     }
     bool solid_at(float px,float py) const {
