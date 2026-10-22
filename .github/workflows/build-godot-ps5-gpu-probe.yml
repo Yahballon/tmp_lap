@@ -51,7 +51,7 @@ jobs:
           j['contentVersion']='01.000.001'
           j['localizedParameters']['en-US']['titleName']='Godot GPU Probe'
           p.write_text(json.dumps(j,indent=2)+'\n')
-          assert len(j['contentId'].split('-00-')[1]) == 16
+          assert len(j['contentId'].split('_00-')[1]) == 16
           PY
       - name: Prepare original verified OpenGL SDK via DevBridge
         run: |
