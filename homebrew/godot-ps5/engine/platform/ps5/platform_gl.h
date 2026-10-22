@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: MIT
 #pragma once
-// Isolated archive-only stage: use Godot 4.7.2's own pinned GLAD headers.
-// The actual EGL/GL implementation is NOT initialized by this header.
+// PS5 Mesa AGC exposes desktop OpenGL 4.6 Core Profile.
+// Use upstream GLAD desktop GL, NOT the GLES2 loader: its optional
+// gladLoaderLoadGLES2 symbol was undefined during native PS5 linking.
+// The GLES3 renderer still runs its GL-over-GLES compatibility path.
 #ifndef GL_API_ENABLED
 #define GL_API_ENABLED
-#endif
-#ifndef GLES_API_ENABLED
-#define GLES_API_ENABLED
-#endif
-#ifndef GLAD_GLES2
-#define GLAD_GLES2
 #endif
 #include <thirdparty/glad/glad/gl.h>
