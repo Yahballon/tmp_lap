@@ -106,6 +106,10 @@ jobs:
              "$app_src/runtime/"
           test -s "$app_src/platform/ps5/display_egl.cpp"
           test -s "$app_src/runtime/app_heap.c"
+          # The Godot native runtime and the separate GL preview must
+          # compile against EXACTLY the same five-argument callback ABI.
+          cp homebrew/godot-ps5/engine/platform/ps5/scene_frame_hooks_ps5.h "$app_src/"
+          test -s "$app_src/scene_frame_hooks_ps5.h"
           # The full Godot PS5 runtime already supplies syslog/openlog through
           # libc.a. The smaller standalone GPU template only needs its no-op
           # openlog() shim because it does not link all of Godot's libc users.

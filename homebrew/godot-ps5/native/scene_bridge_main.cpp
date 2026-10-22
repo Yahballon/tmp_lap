@@ -12,9 +12,9 @@
 #include <sys/stat.h>
 #include <cstdint>
 #include <time.h>
+#include "scene_frame_hooks_ps5.h"
 
 extern "C" int godot_ps5_run_pack(const char *pack);
-extern "C" void godot_ps5_set_scene_frame_callback(void (*)(float, float, int));
 
 namespace {
 constexpr char kLog[]="/data/GodotPS5/scene-bridge.log";

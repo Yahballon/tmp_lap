@@ -24,6 +24,14 @@ assert "DRAW_MAX_US=" in native and "SWAP_MAX_US=" in native
 assert "profile_snapshot();" in native and "last_presses=presses" in native
 assert 'print("GODOT_PS5_REAL_2D_CROSS_PRESSED")' not in scene
 assert "main_loop_us, pad_poll_us" in os
+hooks=(p/"engine/platform/ps5/scene_frame_hooks_ps5.h").read_text()
+assert "GodotPS5SceneFrameCallback" in hooks
+assert "uint32_t main_loop_us, uint32_t pad_poll_us" in hooks
+assert '"scene_frame_hooks_ps5.h"' in os and '"scene_frame_hooks_ps5.h"' in native
+assert "GodotPS5SceneFrameCallback" in os
+assert "extern \"C\" void godot_ps5_set_scene_frame_callback(void (*)(float, float, int));" not in native
+wf=(p.parent.parent/".github/workflows/build-godot-ps5-scene-bridge.yml").read_text()
+assert "scene_frame_hooks_ps5.h" in wf
 assert "get_ticks_usec()" in os
 assert 'BOOT_FRAME_PRESENTED' in native and 'BOOT_FRAME_GL_ERROR' in native
 assert native.index('scene.boot_frame()') < native.index('const int result=godot_ps5_run_pack(')

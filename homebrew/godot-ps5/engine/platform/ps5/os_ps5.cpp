@@ -9,14 +9,12 @@
 #ifdef GODOT_PS5_SCENE_PREVIEW
 #include "scene/main/scene_tree.h"
 #include "scene/2d/node_2d.h"
+#include "scene_frame_hooks_ps5.h"
 #include <cstdio>
-// Registered by a DIFFERENT PS5 experimental title (PPSA99845); NOT the
-// Godot rendering server. Sends *real* GDScript-updated Node2D state to
-// the stand-alone native EGL framebuffer. Safe stable-title default is off.
-using SceneFrameCallback = void (*)(float sprite_x, float angle, int presses,
-        uint32_t main_loop_us, uint32_t pad_poll_us);
-static SceneFrameCallback scene_frame_callback = nullptr;
-extern "C" void godot_ps5_set_scene_frame_callback(SceneFrameCallback cb) {
+// Registered by the experimental PPSA99845 launcher; never used by the
+// real Godot GLES3 backend or the known-good headless title.
+static GodotPS5SceneFrameCallback scene_frame_callback = nullptr;
+extern "C" void godot_ps5_set_scene_frame_callback(GodotPS5SceneFrameCallback cb) {
     scene_frame_callback = cb;
 }
 #endif
