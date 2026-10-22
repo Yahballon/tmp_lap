@@ -128,12 +128,12 @@ public:
     }
     // Original-mask host harness, not compiled into PS5 shipping binaries.
     bool test_setup_loop(size_t index,float speed) {
-        if(index>=loops_.size() || speed<350.f)return false;
+        if(index>=loops_.size() || std::abs(speed)<350.f)return false;
         const auto& ring=loops_[index];
         float r=0.f;
         if(!loop_radius_at(ring,0.f,r))return false;
         if(!loop_center_clear(ring.x,ring.y+r))return false;
-        test_put(ring.x,ring.y+r+16.f,1,true);
+        test_put(ring.x,ring.y+r+16.f,speed>=0.f?1:-1,true);
         vx_=speed;
         return true;
     }
@@ -392,8 +392,8 @@ public:
                 // Jump away from whichever loop surface is beneath Surge.
                 const float nx=std::sin(loop_angle_);
                 const float ny=std::cos(loop_angle_);
-                vx_=loop_speed_*ny-505.f*nx;
-                vy_=-loop_speed_*nx-505.f*ny;
+                vx_=float(loop_direction_)*loop_speed_*ny-505.f*nx;
+                vy_=-float(loop_direction_)*loop_speed_*nx-505.f*ny;
                 x_-=nx*3.f;y_-=ny*3.f;
                 loop_active_=false;ground_=false;
             }else tick_loop(dt);
@@ -997,7 +997,7 @@ private:
         }
     }
     bool try_enter_loop(){
-        if(loop_active_||!rolling_||charging_||vx_<350.f ||
+        if(loop_active_||!rolling_||charging_||std::abs(vx_)<350.f ||
            tube_active_||wall_climb_)return false;
         for(size_t i=0;i<loops_.size();++i){
             const auto& ring=loops_[i];
@@ -1009,7 +1009,8 @@ private:
             const float centre_y=ring.y+r;
             if(!loop_center_clear(ring.x,centre_y))continue;
             loop_active_=true;loop_index_=i;loop_angle_=0.f;
-            loop_speed_=std::abs(vx_);vx_=loop_speed_;
+            loop_direction_=vx_>=0.f?1:-1;
+            loop_speed_=std::abs(vx_);
             x_=ring.x;y_=centre_y+16.f;vy_=0.f;
             ground_=true;wall_climb_=false;
             return true;
@@ -1021,14 +1022,14 @@ private:
         const LoopRing& ring=loops_[loop_index_];
         // Project normal gravity onto tangent, matching the uphill energy
         // penalty and downhill acceleration rather than boosting through.
-        const float incline=std::sin(loop_angle_);
+        const float incline=std::sin(loop_angle_)*float(loop_direction_);
         const float gravity_factor=incline>=0.f?281.25f:1125.f;
         loop_speed_=std::clamp(loop_speed_-gravity_factor*incline*dt,
                                0.f,960.f);
         if(loop_speed_<210.f){
             // Insufficient momentum: detach in the current tangent direction.
-            vx_=loop_speed_*std::cos(loop_angle_);
-            vy_=-loop_speed_*std::sin(loop_angle_);
+            vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+            vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
             loop_active_=false;ground_=false;
             return;
         }
@@ -1039,17 +1040,19 @@ private:
             float radius=0.f;
             if(!loop_radius_at(ring,loop_angle_,radius)){
                 loop_active_=false;ground_=false;
-                vx_=loop_speed_*std::cos(loop_angle_);
-                vy_=-loop_speed_*std::sin(loop_angle_);
+                vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+                vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
                 return;
             }
-            const float advance=ds/std::max(16.f,radius);
-            const float next_angle=std::min(2.f*kPi,loop_angle_+advance);
+            const float advance=float(loop_direction_)*ds/std::max(16.f,radius);
+            const float next_angle=loop_direction_>0?
+                std::min(2.f*kPi,loop_angle_+advance):
+                std::max(-2.f*kPi,loop_angle_+advance);
             float next_radius=0.f;
             if(!loop_radius_at(ring,next_angle,next_radius)){
                 loop_active_=false;ground_=false;
-                vx_=loop_speed_*std::cos(loop_angle_);
-                vy_=-loop_speed_*std::sin(loop_angle_);
+                vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+                vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
                 return;
             }
             const float nx=ring.x+std::sin(next_angle)*next_radius;
@@ -1062,9 +1065,9 @@ private:
             }
             loop_angle_=next_angle;
             x_=nx;y_=ny+16.f;
-            if(loop_angle_>=2.f*kPi-0.0001f){
+            if(std::abs(loop_angle_)>=2.f*kPi-0.0001f){
                 loop_active_=false;++loop_completions_;
-                loop_angle_=0.f;vx_=loop_speed_;vy_=0.f;
+                loop_angle_=0.f;vx_=float(loop_direction_)*loop_speed_;vy_=0.f;
                 ground_=has_foot_support(x_,y_);
                 if(ground_ && !body_hits(x_,y_)){
                     safe_ground_x_=x_;safe_ground_y_=y_;
@@ -1075,8 +1078,8 @@ private:
         }
         // Preserve the rolling speed independently of world X velocity.
         // Sprite/HUD velocity points along the ring tangent.
-        vx_=loop_speed_*std::cos(loop_angle_);
-        vy_=-loop_speed_*std::sin(loop_angle_);
+        vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+        vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
         ground_=true;
     }
     bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
@@ -1254,6 +1257,7 @@ private:
     bool loop_active_=false;
     size_t loop_index_=0;
     float loop_angle_=0.f,loop_speed_=0.f;
+    int loop_direction_=1;
     unsigned loop_completions_=0;
     unsigned blocked_=0,respawns_=0;
     unsigned embedded_frames_=0,solid_recoveries_=0;
