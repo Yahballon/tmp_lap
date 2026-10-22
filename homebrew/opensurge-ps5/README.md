@@ -1,6 +1,6 @@
 # Open Surge PS5 — return to original PS5 homebrew build system
 
-**by YAHBALLON · v0.6.1 transparency + mask-collision test · PPSA99358**
+**by YAHBALLON · v0.6.3 native collision test · PPSA99358**
 
 **Status: first native rendering/movement preview of genuine demo level; the original Open Surge engine is NOT integrated. This revision fixes screenshot magenta-key transparency, adds original-image mask collisions, single-sample controller debouncing and on-screen position/grounding diagnostics.** The experimental Allegro 5 cross-build was not compatible with the desired workflow. The active PS5 test pipeline now uses the **same PS5-DevBridge + ps5-homebrew-ui + native OpenGL** app packaging architecture used by 4 WINS and other working native PS5 homebrew.
 
@@ -20,7 +20,7 @@ It does **not** run SurgeScript gameplay scripts, the original Allegro game loop
 
 ## How to test the native build
 
-**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.6.1**. The release tag is `opensurge-ps5-v0.6.1` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
+**TESTBUILDS:** Refresh the catalog on your PS5 and select **Open Surge PS5 Test v0.6.3**. The release tag is `opensurge-ps5-v0.6.3` and the ZIP is `PPSA99358.zip`. This launches the native terrain preview and diagnostic, **not the original game engine**. The catalog must refresh after the release becomes available.
 
 
 Open GitHub Actions > **Build Open Surge PS5 Legacy Native** > successful run > **PPSA99358 Open Surge LEGACY PORT DIAGNOSTIC**, download the artifact and extract its **PPSA99358.zip**. The containing folder has the usual **eboot.bin**, **sce_sys/** and **sce_module/** layout. This native test artifact is published as an explicitly labeled GitHub **prerelease**, discoverable by TESTBUILDS via version.json. It is **not playable Open Surge**.
@@ -129,3 +129,8 @@ The stage pack already contains authentic pinned upstream `music` metadata, but 
 ## v0.6.2 — Four-stage terrain safety and Spin Dash collision hardening
 
 The user-supplied PS5 recording showed that the older dash implementation could clip into opaque Sunshine blocks at steady 60 FPS and fall beneath them. v0.6.2 improves the contact-safe wall ascent introduced in 0.5.2: **do not consume movement energy while climbing**, terminate horizontal substeps immediately on first solid-wall contact, **do not apply gravity during the same frame**, and revalidate collision at the *exit* above a steep masked crest. Uphill ascent keeps X fixed because the unported four-mode wall sensors would otherwise mark a legitimate cliff-contact as a collision. The in-game fall recovery counter now survives an automatic reset, making logs meaningful. The new host tests use **all four original Sunshine maps** and exercise directional changes, charged roll/dash, jumping, fall recovery, no locked wall climbing, and collision integrity. All v0.6.1 original world maps, music and crossfades, audio SFX, gamepad, stage selector, checkpoints and native enemies are retained. The true 4-mode Open Surge/SurgeScript engine is still not integrated, so some angled loops/tubes and stage logic are approximations. Real PS5 test is still needed.
+
+
+## v0.6.3 — Native landing and stuck collision recovery
+
+Host regressions now reject persistent solid-mask overlaps rather than only printing them. The original Sunshine 3 stress run revealed a 250-tick stuck state at x=1164.3 y=9920, where the previous recovery only detected deep center overlap, not a blocked collision sensor on the player's side. After eight ticks of continuous non-wall overlap, the preview returns to the most recent collision-free grounded location. All stage movement, Spin Dash, music, sound, entities, checkpoints and original asset builds are preserved. This is still a native compatibility preview and not full SurgeScript or original loop physics; real PS5 retesting is needed.
