@@ -1,3 +1,10 @@
-# Open Surge PS5 v0.5.2 – Contact-safe uphill Spin Dash
+# Open Surge PS5 v0.5.3 — Original layer and tube routing
 
-Real user footage showed v0.5.1 able to move forward but falling into solid ground / off the lower screen. This is not an FPS or audio issue. The previous climb helper allowed movement THROUGH an opaque mask while raising player feet gradually. This replacement keeps the collision X fixed during high-energy ascent, moves up against a known reachable actual brick surface, and resumes X only when the next body position is empty. A host C++ regression also checks for solid penetration and falls under the level route, besides crossing the ramp. Existing original music/SFX and gameplay untouched. This is not the full original SurgeScript/Allegro physics system. On-hardware playtest needed.
+Fixes two missing features identified by the user's console report: original per-brick green/yellow collision layers were silently discarded, and all 12 original Tube In/Out entities were ignored.
+
+- Retain and filter the real 11 green/yellow bricks per `obstaclemap.c` default/green/yellow rules.
+- Read original Layer Green / Layer Yellow 32x32 trigger positions.
+- Basic automatic native Tube In/Out transport at 600 units/sec for matching authored routes (controls frozen inside); bidirectional endpoint tests included.
+- Native control/audio and Spin Dash uphill regression preserved.
+- **No complete 360-degree loops yet.** Original `physicsactor.c` rotates six sensors into four movement modes and also handles layers/tubes through SurgeScript. This native preview still lacks that complete engine.
+- On-console feedback requested. Do not describe full tube topology or loops as done.

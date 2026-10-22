@@ -12,7 +12,7 @@ from PIL import Image
 from collections import Counter
 
 BRICK_HEAD = re.compile(r"(?m)^\s*brick\s+(\d+)\s*\{")
-BRICK_INSTANCE = re.compile(r"^\s*brick\s+(\d+)\s+(-?\d+)\s+(-?\d+)(?:\s|$)")
+BRICK_INSTANCE = re.compile(r"^\s*brick\s+(\d+)\s+(-?\d+)\s+(-?\d+)(?:\s+(green|yellow))?\s*$")
 DEF_TYPE = re.compile(r"\btype\s+(PASSABLE|CLOUD|SOLID)\b")
 RECT = re.compile(r"\bsource_rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)")
 SIZE = re.compile(r"\bframe_size\s+(\d+)\s+(\d+)")
@@ -71,12 +71,13 @@ def run(staged: Path, app: Path) -> dict:
     for line in text.splitlines():
         match = BRICK_INSTANCE.match(line)
         if match:
-            ident, x, y = map(int, match.groups())
+            ident, x, y = map(int, match.groups()[:3])
+            layer = match.group(4) or "default"
             if ident not in defs:
                 raise ValueError(f"Unknown brick {ident} in original level")
             if not -1_000_000 < x < 1_000_000 or not -1_000_000 < y < 1_000_000:
                 raise ValueError("Invalid brick world coordinate")
-            items.append((ident, x, y))
+            items.append((ident, x, y, layer))
 
     if not 70 <= len(defs) <= 512 or not 100 <= len(items) <= 40_000:
         raise ValueError("Unexpected brick count; original source may have changed")
@@ -152,9 +153,42 @@ def run(staged: Path, app: Path) -> dict:
     # Native preview render sorts original depth; the true engine uses more
     # complex z-order rules, which are not reproduced here.
     items.sort(key=lambda x: (defs[x[0]][5], x[2], x[1]))
+    # Unlike the original preview, retain the original 11 GREEN/YELLOW
+    # per-brick collision filters. These are essential to tube entrances
+    # and proper paths through loop/intersection geometry.
     (dest / "bricks.txt").write_text(
-        "".join(f"{i} {x} {y}\n" for i,x,y in items), encoding="ascii"
+        "".join(f"{i} {x} {y} {layer}\n" for i,x,y,layer in items), encoding="ascii"
     )
+    route_names={"Layer Green":"green","Layer Yellow":"yellow",
+                 "Tube In":"tube_in","Tube Out":"tube_out"}
+    route_records=[]
+    for line in text.splitlines():
+        match=re.match(r'^\s*entity\s+"([^"]+)"\s+(-?\d+)\s+(-?\d+)\s+"[^"]+"\s*
+    summary = {"definitions": len(defs), "instances": len(items),
+               "spawn": (int(spawn[1]),int(spawn[2])),
+               "theme": theme[1], "atlas": atlas_size, "hero": hero_size,
+               "mask_opaque": solids, "magenta_cleared": True,
+               "surge_frame_pixels": first_frame_alpha}
+    print("Open Surge ORIGINAL data preview:", summary)
+    return summary
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: prepare-level-preview.py <staged-original-game> <app>")
+    run(Path(sys.argv[1]), Path(sys.argv[2]))
+,line)
+        if match and match.group(1) in route_names:
+            route_records.append((route_names[match.group(1)],
+                                  int(match.group(2)),int(match.group(3))))
+    counts=Counter(name for name,_,_ in route_records)
+    assert counts["green"]>=20 and counts["yellow"]>=20, counts
+    assert counts["tube_in"]==6 and counts["tube_out"]==6, counts
+    (dest/"routes.tsv").write_text(
+        "".join(f"{name}\t{x}\t{y}\n" for name,x,y in route_records),
+        encoding="ascii")
+    print("ORIGINAL_LAYERS",Counter(layer for _,_,_,layer in items))
+    print("ORIGINAL_ROUTES",dict(counts))
     summary = {"definitions": len(defs), "instances": len(items),
                "spawn": (int(spawn[1]),int(spawn[2])),
                "theme": theme[1], "atlas": atlas_size, "hero": hero_size,

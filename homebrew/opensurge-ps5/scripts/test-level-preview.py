@@ -14,6 +14,16 @@ instances=[row.split() for row in (root/"bricks.txt").read_text().splitlines()]
 assert len(defs)>=90
 assert len(instances)==meta["instances"][0]
 assert len(instances)>=1000
+assert all(len(item)==4 and item[3] in {"default","green","yellow"}
+           for item in instances)
+layered=[item for item in instances if item[3]!="default"]
+assert len(layered)==11, layered
+assert sum(item[3]=="green" for item in layered)==7
+assert sum(item[3]=="yellow" for item in layered)==4
+routes=[row.split() for row in (root/"routes.tsv").read_text().splitlines()]
+route_kinds=[row[0] for row in routes]
+assert route_kinds.count("tube_in")==6 and route_kinds.count("tube_out")==6
+assert route_kinds.count("green")>=20 and route_kinds.count("yellow")>=20
 assert meta["spawn"]==(176,9792), "Pinned original demo spawn changed"
 for filename,dimension in (("sunshine.rgba",meta["atlas"]),("surge.rgba",meta["hero"])):
     assert (root/filename).stat().st_size==dimension[0]*dimension[1]*4
@@ -43,6 +53,10 @@ assert "floor_pixel(sensor,at)" in native
 native_cpp=(Path(__file__).resolve().parents[1]/"native"/"level_preview.hpp").read_text()
 main_cpp=(Path(__file__).resolve().parents[1]/"native"/"main.cpp").read_text()
 assert "bool build_grid()" in native_cpp
+assert "brick_in_layer(" in native_cpp
+assert "tick_routes()" in native_cpp
+assert "tick_tube(" in native_cpp
+assert "ORIGINAL_TUBE_IN_SCRIPT" in main_cpp
 assert "std::lower_bound(cells_.begin()" in native_cpp
 assert "1.f/120.f" in main_cpp
 assert "frame_elapsed_us<16667u" in main_cpp
