@@ -34,10 +34,32 @@ jobs:
             grep -Fq "$marker" /tmp/external-scene.log
           done
           if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_EXTERNAL_.*FAILED' /tmp/external-scene.log; then exit 1; fi
+      - name: Create checksummed PS5-ready starter ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/godot-m8c-artifacts
+          pck=homebrew/godot-ps5/samples/external-pack-smoke/external-smoke.pck
+          python3 homebrew/godot-ps5/samples/external-pack-smoke/make_ps5_test_bundle.py \
+            "$pck" /tmp/godot-m8c-artifacts | tee /tmp/external-bundle.log
+          grep -Fq GODOT_PS5_EXTERNAL_BUNDLE_READY /tmp/external-bundle.log
+          cp "$pck" /tmp/godot-m8c-artifacts/external-smoke.pck
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          p=Path("/tmp/godot-m8c-artifacts/GodotPS5-M8c-External-PCK-PS5-TEST.zip")
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              assert set(z.namelist()) == {
+                  "GodotPS5/games/external-smoke.pck",
+                  "GodotPS5/launch.txt",
+                  "GodotPS5/README-M8c.txt",
+                  "GodotPS5/external-smoke.sha256"}
+          print("GODOT_PS5_EXTERNAL_BUNDLE_STRUCTURE_OK")
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-External-PCK-Host-Verified-NOT-PS5
-          path: homebrew/godot-ps5/samples/external-pack-smoke/external-smoke.pck
+          name: Godot-PS5-M8c-External-PCK-PS5-READY-HOST-TESTED
+          path: /tmp/godot-m8c-artifacts/*
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
@@ -46,4 +68,5 @@ jobs:
           path: |
             /tmp/external-pack.log
             /tmp/external-scene.log
+            /tmp/external-bundle.log
           if-no-files-found: warn
