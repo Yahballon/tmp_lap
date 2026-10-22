@@ -37,6 +37,14 @@ case "${GODOT_MODULE_SET:-smoke}" in
     exit 2
     ;;
 esac
+# M9b: Default 'smoke' disables all modules except GDScript/TextServer.
+# Without this explicit flag the real GodotPhysics2D factory never registers,
+# and Main::initialize_physics() falls back to PhysicsServer2DDummy.
+# Keep this opt-in to protect confirmed PPSA99843/99845/99847 old builds.
+if [[ "${GODOT_PS5_PHYSICS2D:-0}" == "1" ]]; then
+  module_flags+=(module_godot_physics_2d_enabled=yes disable_physics_2d=no)
+  echo 'GODOT_PS5_M9B_PHYSICS_MODULE_ENABLED=1'
+fi
 # Only CI's opt-in GLES3 archive gate can change this default.
 gl_backend=no
 if [[ "${GODOT_PS5_GLES3_ARCHIVES:-0}" == "1" ]]; then gl_backend=yes; fi
