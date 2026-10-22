@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Headless Godot PS5 platform (no graphics, DualSense or audio backend yet).
 #include "os_ps5.h"
+#include "file_access_ps5.h"
 #include "core/os/main_loop.h"
 #include "core/os/memory.h"
 #include "main/main.h"
 #include "servers/display/display_server.h"
 
-void OS_PS5::initialize() { OS_Unix::initialize_core(); }
+void OS_PS5::initialize() {
+    OS_Unix::initialize_core();
+    // Godot's resource/PCK reads must use the PS5 kernel API rather than
+    // FreeBSD libc fopen/fseeko, which isn't reliable on app0 on hardware.
+    FileAccess::make_default<FileAccessPS5>(FileAccess::ACCESS_RESOURCES);
+    FileAccess::make_default<FileAccessPS5>(FileAccess::ACCESS_FILESYSTEM);
+}
 void OS_PS5::initialize_joypads() {
     // Native pad-to-Godot Input bridge will be implemented later.
 }
