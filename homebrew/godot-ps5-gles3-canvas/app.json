@@ -1,9 +1,9 @@
 {
   "name": "Godot PS5 GLES3 Canvas (EXPERIMENTAL)",
   "slug": "godot-ps5-gles3-canvas",
-  "titleId": "PPSA99846",
+  "titleId": "PPSA99847",
   "version": "0.1.0",
-  "contentId": "UP9000-PPSA99846_00-GODOTGLES3CANVAS",
+  "contentId": "UP9000-PPSA99847_00-GODOTGLES3CANVAS",
   "contentVersion": "01.000.001",
   "developer": "YAHBALLON",
   "description": "Original Godot 4.7.2 GLES3 Canvas2D PS5 integration. GPU output unverified.",

@@ -40,7 +40,7 @@ releases=[release('ps5nesx','1.0.9','PPSA99204'),
           release('godot-ps5-gpu-probe','0.1.1','PPSA99844',True,True),
           release('godot-ps5-scene-bridge','0.1.0','PPSA99845',True),
           release('godot-ps5-scene-bridge','0.1.1','PPSA99845',True,True),
-          release('godot-ps5-gles3-canvas','0.1.0','PPSA99846',True)]
+          release('godot-ps5-gles3-canvas','0.1.0','PPSA99847',True)]
 standalone=[{
     'tag_name':'v0.1.24','prerelease':False,'draft':False,
     'html_url':'https://github.com/Yahballon/PSJukebox/releases/tag/v0.1.24',
@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory() as tmp:
     (bridge/'app.json').write_text(json.dumps({'titleId':'PPSA99845','name':'Godot PS5 Scene Bridge (EXPERIMENTAL)','slug':'godot-ps5-scene-bridge'}))
     gles3=root/'homebrew/godot-ps5-gles3-canvas'
     gles3.mkdir(parents=True)
-    (gles3/'app.json').write_text(json.dumps({'titleId':'PPSA99846','name':'Godot PS5 GLES3 Canvas (EXPERIMENTAL)','slug':'godot-ps5-gles3-canvas'}))
+    (gles3/'app.json').write_text(json.dumps({'titleId':'PPSA99847','name':'Godot PS5 GLES3 Canvas (EXPERIMENTAL)','slug':'godot-ps5-gles3-canvas'}))
     p=root/'homebrew/psjukebox'
     p.mkdir(parents=True)
     (p/'app.json').write_text(json.dumps({'titleId':'PPSA99947','name':'PSJukebox','slug':'psjukebox'}))
@@ -101,7 +101,7 @@ with tempfile.TemporaryDirectory() as tmp:
         assert selected['PPSA99127']=='0.1.0' # Opt-in prototype, never an unlisted prerelease
         assert selected['PPSA99358']=='0.1.1' # Open Surge diagnostic test, not playable
         assert result['app_count']==len(result['apps'])
-        assert selected=={'PPSA99842':'0.1.0','PPSA99844':'0.1.0','PPSA99845':'0.1.0','PPSA99846':'0.1.0','PPSA99127':'0.1.0','PPSA99358':'0.1.1','PPSA99204':'1.0.9','PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
+        assert selected=={'PPSA99842':'0.1.0','PPSA99844':'0.1.0','PPSA99845':'0.1.0','PPSA99847':'0.1.0','PPSA99127':'0.1.0','PPSA99358':'0.1.1','PPSA99204':'1.0.9','PPSA99442':'1.0.0','PPSA99642':'0.1.20','PPSA99784':'0.2.0','PPSA99786':'0.1.0','PPSA99765':'0.1.0','PPSA99793':'0.1.0','PPSA99947':'0.1.24'},selected
         godot_entry=next(e for e in result['apps'] if e['title_id']=='PPSA99842')
         assert godot_entry['name']=='Godot PS5 Probe'
         assert godot_entry['tag']=='godot-ps5-probe-v0.1.0'
@@ -110,9 +110,9 @@ with tempfile.TemporaryDirectory() as tmp:
         assert gpu_entry['name']=='Godot PS5 GPU Probe (EXPERIMENTAL)'
         assert gpu_entry['tag']=='godot-ps5-gpu-probe-v0.1.0'
         assert gpu_entry['zip_url']=='https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gpu-probe-v0.1.0/PPSA99844.zip'
-        gles3_entry=next(e for e in result['apps'] if e['title_id']=='PPSA99846')
+        gles3_entry=next(e for e in result['apps'] if e['title_id']=='PPSA99847')
         assert gles3_entry['tag']=='godot-ps5-gles3-canvas-v0.1.0'
-        assert gles3_entry['zip_url']=='https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gles3-canvas-v0.1.0/PPSA99846.zip'
+        assert gles3_entry['zip_url']=='https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gles3-canvas-v0.1.0/PPSA99847.zip'
         scene_entry=next(e for e in result['apps'] if e['title_id']=='PPSA99845')
         assert scene_entry['tag']=='godot-ps5-scene-bridge-v0.1.0'
         assert scene_entry['zip_url']=='https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-scene-bridge-v0.1.0/PPSA99845.zip'

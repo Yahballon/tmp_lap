@@ -70,7 +70,7 @@ jobs:
           echo "tag=godot-ps5-gles3-canvas-v$version" >> "$GITHUB_OUTPUT"
           mkdir -p /tmp/godot-gles3-release
           gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "$name" --dir /tmp/godot-gles3-release
-          test -s /tmp/godot-gles3-release/PPSA99846.zip
+          test -s /tmp/godot-gles3-release/PPSA99847.zip
       - name: Verify native PS5 signed ZIP and Godot visual scene
         env:
           GLES3_VERSION: ${{ steps.artifact.outputs.version }}
@@ -78,18 +78,18 @@ jobs:
           python3 - <<'PY'
           import zipfile,struct,json,hashlib,os
           from pathlib import Path
-          p=Path('/tmp/godot-gles3-release/PPSA99846.zip')
+          p=Path('/tmp/godot-gles3-release/PPSA99847.zip')
           assert p.stat().st_size>200_000
           with zipfile.ZipFile(p) as z:
               assert z.testzip() is None
               names=z.namelist()
-              assert all(s.startswith('PPSA99846/') and '..' not in Path(s).parts for s in names)
-              assert 'PPSA99846/assets/godot/visual-smoke.pck' in names
-              bin=z.read('PPSA99846/eboot.bin')
+              assert all(s.startswith('PPSA99847/') and '..' not in Path(s).parts for s in names)
+              assert 'PPSA99847/assets/godot/visual-smoke.pck' in names
+              bin=z.read('PPSA99847/eboot.bin')
               assert len(bin)>1_000_000 and bin[:4]==struct.pack('<I',0x1d3d154f)
-              meta=json.loads(z.read('PPSA99846/sce_sys/param.json'))
-              assert meta['titleId']=='PPSA99846'
-              assert meta['contentId']=='UP9000-PPSA99846_00-GODOTGLES3CANVAS'
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentId']=='UP9000-PPSA99847_00-GODOTGLES3CANVAS'
               assert meta['contentVersion']==f"01.000.{int(os.environ['GLES3_VERSION'].split('.')[-1])+1:03d}"
           print('Godot GLES3 package verified SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())
           PY
@@ -104,7 +104,7 @@ jobs:
           cat > /tmp/godot-bridge-notes.md <<'NOTES'
           EXPERIMENTAL PS5 hardware test: real Godot 4.7.2 DisplayServerPS5 + upstream GLES3 Compatibility rasterizer via native PS5 EGL context.
           THIS IS Godot's actual GLES3 renderer, but hardware output remains UNVERIFIED until a PS5 screenshot and logs.
-          Title PPSA99846 is isolated from known-good Godot headless PPSA99843 and GPU PPSA99844.
+          Title PPSA99847 is isolated from known-good Godot headless PPSA99843 and GPU PPSA99844.
           Expected: moving/rotating translucent magenta/cyan checkerboard; press X to change background color through REAL Godot input/GDScript.
           Logs: /data/GodotPS5/gles3-runtime.log, gles3-stdout.log, gles3-stderr.log
           Godot MIT source: https://github.com/Yahballon/tmp_lap/tree/feature/godot-ps5-engine-foundation/homebrew/godot-ps5
@@ -113,14 +113,14 @@ jobs:
           Reuse/redistribution of SDK and GPL components requires corresponding sources/license review.
           NOTES
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99846.zip
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
           else
-            gh release create "$tag" /tmp/godot-gles3-release/PPSA99846.zip \
+            gh release create "$tag" /tmp/godot-gles3-release/PPSA99847.zip \
               --repo "$GITHUB_REPOSITORY" --target main \
               --title "Godot PS5 GLES3 Canvas v$GLES3_VERSION (experimental)" \
               --notes-file /tmp/godot-bridge-notes.md --prerelease
           fi
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99846.zip
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
       - name: Update TESTBUILDS version.json
         env:
           GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
@@ -134,12 +134,12 @@ jobs:
           python3 - <<'PY'
           import json,os
           j=json.load(open('version.json'))
-          entries=[x for x in j['apps'] if x['title_id']=='PPSA99846']
+          entries=[x for x in j['apps'] if x['title_id']=='PPSA99847']
           assert len(entries)==1,entries
           e=entries[0]
           assert e['version']==os.environ['GLES3_VERSION']
           assert e['tag']=='godot-ps5-gles3-canvas-v'+os.environ['GLES3_VERSION']
-          assert e['zip_url'].endswith('/PPSA99846.zip')
+          assert e['zip_url'].endswith('/PPSA99847.zip')
           assert j['app_count']==len(j['apps'])
           print('TESTBUILDS includes signed real Godot GLES3 experiment',e['version'])
           PY
