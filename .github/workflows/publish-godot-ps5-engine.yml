@@ -114,7 +114,7 @@ jobs:
             gh release upload "$TAG" /tmp/godot-release/PPSA99843.zip --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" /tmp/godot-release/PPSA99843.zip \
-              --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
+              --repo "$GITHUB_REPOSITORY" --target main \
               --title "Godot PS5 Engine Smoke v$VERSION (headless test)" \
               --notes "Experimental signed native Godot 4.7.2 PS5 engine. Included smoke.pck; unverified GDScript startup on hardware. No graphics/audio/gameplay. Build commit $SOURCE_SHA. Log: /data/GodotPS5/engine-stderr.log." \
               --prerelease
