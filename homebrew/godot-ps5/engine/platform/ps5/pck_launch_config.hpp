@@ -30,6 +30,7 @@ inline bool trusted_external_path(const std::string &path) {
         if (end == std::string::npos) break;
         start = end + 1;
     }
+    if (!safe_filename(path.substr(path.find_last_of('/') + 1))) return false;
     for (const char *root : {
             "/data/GodotPS5/games/", "/mnt/usb0/godot/",
             "/mnt/usb1/godot/", "/mnt/usb2/godot/",
