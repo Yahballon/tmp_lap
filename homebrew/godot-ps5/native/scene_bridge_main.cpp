@@ -18,8 +18,8 @@ namespace {
 constexpr char kLog[]="/data/GodotPS5/scene-bridge.log";
 void log(const char *name,int value=-1) {
     if(FILE*f=std::fopen(kLog,"ab")){
-        if(value>=0)std::fprintf(f,"[GodotPS5 BRIDGE 0.1.0] %s=%d\n",name,value);
-        else std::fprintf(f,"[GodotPS5 BRIDGE 0.1.0] %s\n",name);
+        if(value>=0)std::fprintf(f,"[GodotPS5 BRIDGE 0.1.1] %s=%d\n",name,value);
+        else std::fprintf(f,"[GodotPS5 BRIDGE 0.1.1] %s\n",name);
         std::fflush(f); std::fclose(f);
     }
 }
@@ -34,7 +34,7 @@ GLuint compile(GLenum type,const char*source){
         char buffer[1024]={};GLsizei size=0;
         glGetShaderInfoLog(shader,sizeof(buffer)-1,&size,buffer);
         if(FILE*f=std::fopen(kLog,"ab")){
-            std::fprintf(f,"[GodotPS5 BRIDGE 0.1.0] SHADER_ERROR=%s\n",buffer);
+            std::fprintf(f,"[GodotPS5 BRIDGE 0.1.1] SHADER_ERROR=%s\n",buffer);
             std::fclose(f);
         }
         glDeleteShader(shader);return 0;
@@ -118,6 +118,24 @@ struct GLScene {
         ready=true;log("SCENE_BRIDGE_GL_READY");
         return true;
     }
+    // Present a visible fallback *before* Godot loads the PCK.
+    // This separates GPU failure from startup/_ready hangs and
+    // prevents a black screen during synchronous GDScript initialization.
+    bool boot_frame() {
+        if (!ready) return false;
+        glViewport(0, 0, display.width(), display.height());
+        glClearColor(0.05f, 0.18f, 0.40f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        const GLenum err=glGetError();
+        log("BOOT_FRAME_GL_ERROR",static_cast<int>(err));
+        if (err!=GL_NO_ERROR || !display.swap()) {
+            log("BOOT_FRAME_SWAP_FAILED");
+            return false;
+        }
+        hui::sys::hide_splash_screen();
+        log("BOOT_FRAME_PRESENTED");
+        return true;
+    }
     void frame(float sprite_x,float angle,int presses){
         if(!ready)return;
         if(presses!=last_presses){
@@ -176,6 +194,7 @@ int main(){
     if(err)setvbuf(stderr,nullptr,_IONBF,0);
     GLScene scene;
     if(!scene.open()){log("GPU_INIT_FAILED");scene.close();hui::sys::quit();}
+    if (!scene.boot_frame()) { log("GPU_BOOT_FRAME_FAILED"); scene.close(); hui::sys::quit(); }
     active=&scene;
     godot_ps5_set_scene_frame_callback(scene_callback);
     log("GODOT_ENGINE_ENTER");

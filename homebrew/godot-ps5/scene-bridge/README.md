@@ -31,3 +31,27 @@ This is an important engine-to-GPU integration test, NOT a complete port.
 
 Hardware test needs console screenshot **and** logs. The GDScript
 input counts and graphics must be observed together for acceptance.
+
+## Firmware 5.10 black-screen fix — v0.1.1 (22 Oct 2026)
+
+The v0.1.0 console TAR `bfpilot-download (15).tar` confirms
+`EGL_OPEN_OK`, `SCENE_BRIDGE_GL_READY`, `GODOT_ENGINE_ENTER`, but
+**no frame presentation** and no GDScript scene-ready marker. The
+`bridge-stderr.log` contained dozens of
+`FreeType: Can't load dynamic font, engine is compiled without FreeType
+support!` errors, traced to `Label.new()` in `res://main.gd:34`.
+This created an error storm before `_ready()` could complete.
+
+v0.1.1 removes the font-requiring `Label` and its updates, without
+changing Sprite2D, ColorRect, Input, or GDScript animation. It **first
+presents a blue boot framebuffer** (`BOOT_FRAME_PRESENTED`) before
+loading Godot, so a pre-scene hang is visible and clearly distinguishable
+from a GPU problem. A second log marker `GODOT_GDSCRIPT_SCENE_FRAME_DRAWN`
+is emitted only when a real Godot scene frame is submitted. The original
+v0.1.0 prerelease remains immutable.
+
+Acceptance: see the blue start background and then moving pink/cyan
+checkerboard controlled by the Godot scene. X should cycle background
+colors. Submit fresh `scene-bridge.log`, `bridge-stdout.log`,
+`bridge-stderr.log`. This remains an independent OpenGL preview,
+**not** Godot's GLES3 renderer.

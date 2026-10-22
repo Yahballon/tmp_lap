@@ -5,7 +5,6 @@ extends Node2D
 var elapsed: float = 0.0
 var previous_cross: bool = false
 var sprite: Sprite2D
-var status_label: Label
 var background: ColorRect
 var count: int = 0
 
@@ -29,11 +28,10 @@ func _ready() -> void:
     sprite.scale = Vector2(7.0, 7.0)
     add_child(sprite)
 
-    status_label = Label.new()
-    status_label.text = "Godot 4.7.2 - REAL PS5 Canvas2D"
-    status_label.position = Vector2(70, 45)
-    status_label.add_theme_font_size_override("font_size", 42)
-    add_child(status_label)
+    # PS5 smoke binaries were built with freetype=no. A Label triggers
+    # repeated TextServerFallback font loading errors during _ready().
+    # Keep this acceptance scene entirely font-free until the text server
+    # is enabled on the native PS5 build.
     print("GODOT_PS5_REAL_2D_SCENE_READY")
 
 func _process(delta: float) -> void:
@@ -44,7 +42,6 @@ func _process(delta: float) -> void:
     if cross and not previous_cross:
         count += 1
         background.color = Color(0.18, 0.07, 0.08, 1.0) if count % 2 == 1 else Color(0.06, 0.10, 0.18, 1.0)
-        status_label.text = "Godot PS5 Canvas2D  X pressed: %d" % count
         print("GODOT_PS5_REAL_2D_CROSS_PRESSED")
     previous_cross = cross
     if elapsed >= 20.0:
