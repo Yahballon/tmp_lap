@@ -26,7 +26,7 @@ int main(int argc,char** argv){
     level.test_put(3704.f,10048.f,1,true);
     unsigned entered=0;
     float miny=1e6f,maxy=-1e6f;
-    unsigned snake_in_solid=0,snake_sampled=0;
+    unsigned snake_in_solid=0,snake_sampled=0,snake_point_masked=0;
     bool done=false;
     for(int i=0;i<900;++i){
         level.update(dt,1,false,true,false);
@@ -54,7 +54,7 @@ int main(int argc,char** argv){
     // ->bottom. The old downward-only gravity wrongly threw us out at top.
     level.test_put(5765.f,9923.f,1,true);
     int orbit_ticks=0,positive=0,negative=0;
-    unsigned ring_in_solid=0,ring_sampled=0,ring_point_masked=0,snake_point_masked=0;
+    unsigned ring_in_solid=0,ring_sampled=0,ring_point_masked=0;
     float mx=1e6f,Mx=-1e6f,my=1e6f,My=-1e6f;
     bool circle_enter=false,circle_finished=false,exited_before_orbit=false;
     const unsigned complete_before=level.curve_completions();
