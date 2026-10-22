@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "fb9e87af85a30507c9b64449604213e0ae892d34d8e4402037cba19df1a25518",
+  "version": "b67c61b2184f0d8b6b0cedce1b31cae21876bc5c827a53e1e75386c0d72fe5eb",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 27,
+  "app_count": 28,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -263,6 +263,19 @@
       "source": "homebrew/godot-ps5-gpu-probe",
       "size_bytes": 6198230,
       "published_at": "2026-10-22T11:38:51Z"
+    },
+    {
+      "name": "Godot PS5 Scene Bridge (EXPERIMENTAL)",
+      "slug": "godot-ps5-scene-bridge",
+      "title_id": "PPSA99845",
+      "version": "0.1.0",
+      "tag": "godot-ps5-scene-bridge-v0.1.0",
+      "zip_name": "PPSA99845.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-scene-bridge-v0.1.0/PPSA99845.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-scene-bridge-v0.1.0",
+      "source": "homebrew/godot-ps5-scene-bridge",
+      "size_bytes": 21099347,
+      "published_at": "2026-10-22T13:12:27Z"
     },
     {
       "name": "Snake",
