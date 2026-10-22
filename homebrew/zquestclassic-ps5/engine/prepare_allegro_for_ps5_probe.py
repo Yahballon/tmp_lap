@@ -21,6 +21,14 @@ assert text.count(condition)==1,"Pinned Allegro OpenGL guard changed"
 assert 'message(FATAL_ERROR "SDL support currently requires OpenGL or OpenGL ES support.")' in text
 assert 'if(OPENGL_opengl_LIBRARY)' in text
 text=text.replace(condition,new_condition,1)
+# Algebra/threads functions are imported through the native PS5 runtime,
+# not through separate Unix libm or libpthread link libraries. Keep the
+# actual source code compiled; only omit those inappropriate UNIX flags.
+unix_libs='list(APPEND PLATFORM_LIBS m ${CMAKE_THREAD_LIBS_INIT})'
+assert text.count(unix_libs)==1,"Pinned Allegro UNIX link flags changed"
+text=text.replace(unix_libs,
+    'if(NOT ZC_PS5_TARGET_ONLY_PROBE)\n        list(APPEND PLATFORM_LIBS m ${CMAKE_THREAD_LIBS_INIT})\n    endif()',1)
+
 start_marker="install(\n  TARGETS ${ALLEGRO_TARGETS}\n  EXPORT ${PKG_TARGETS_NAME}\n)"
 end_marker="#-----------------------------------------------------------------------------#"
 assert text.count(start_marker)==1,"Allegro install/export block changed"
