@@ -102,6 +102,7 @@ public:
             front_floor?1:0,forward,far_floor?1:0,far);
     }
     bool test_inside() const{return body_hits(x_,y_);}
+    void test_enable_routes(bool enabled){routes_enabled_=enabled;}
     void test_put(float x,float y,int facing=1,bool rolling=false){
         x_=x;y_=y;vx_=rolling?(facing>=0?300.f:-300.f):0.f;
         facing_=facing>=0?1:-1;
@@ -595,7 +596,7 @@ private:
         return active_layer_==0||b.layer==0||b.layer==active_layer_;
     }
     void tick_routes(){
-        if(tube_active_)return;
+        if(tube_active_||!routes_enabled_)return;
         for(const auto& route:routes_){
             // Original scripting CollisionBox(32,32) near character center.
             if(std::abs(x_-route.x)>18.f||
@@ -790,6 +791,7 @@ private:
     BrickDef defs_[512]{};
     std::vector<PlacedBrick> placed_;
     std::vector<ScriptRoute> routes_;
+    bool routes_enabled_=true;
     std::vector<BrickCell> cells_;
     std::vector<unsigned char> mask_;
     unsigned atlas_=0,hero_=0;

@@ -15,6 +15,10 @@ int main(int argc,char** argv){
         std::fprintf(stderr,"level load: %s\n",level.error().c_str());
         return 3;
     }
+    // Isolate core slope collision from the new real Layer Green/Yellow
+    // triggers along the traversal. Separate route regression tests cover
+    // those triggers using the actual map and tube endpoints.
+    level.test_enable_routes(false);
     if(!level.test_position(2500.f,10015.f)){
         std::fprintf(stderr,"cannot place grounded player at screenshot x=2500 y~10015\n");
         return 4;
