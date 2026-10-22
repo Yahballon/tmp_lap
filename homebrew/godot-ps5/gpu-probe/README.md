@@ -44,3 +44,16 @@ Do not claim a `PPSA99844.zip` exists or add this probe to TESTBUILDS.
 A byte-identical verified SDK archive from a trustworthy mirror, or a
 reproducible source rebuild with its own provenance, is required to proceed.
 The known-good headless Godot title `PPSA99843` is unaffected.
+
+## SDK mirror recovery (2026-10-22)
+
+The original `blackbearreloaded/ps5-opengl` v1.0.0 download endpoint now
+returns HTTP 404. This CI experiment uses the *unofficial* archival mirror
+`KernelForgeLabs/ps5-opengl-sdk-mirror`, release `sdk-v1.0.2`. Its archive
+is pinned by SHA-256
+`30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4`,
+and its SDK's embedded `manifest.sha256` is verified after extraction.
+The repository's assertion that this is byte-for-byte upstream is **not
+independently verified**, so provenance and licenses remain a pre-release
+review gate. Native build success and actual console graphics are separate
+acceptance gates. The original MIT Godot engine remains separate.

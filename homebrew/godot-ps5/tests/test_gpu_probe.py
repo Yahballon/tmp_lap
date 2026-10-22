@@ -13,4 +13,12 @@ assert "PPSA99844" in wf and "PPSA99844" in readme
 assert "PPSA99843.zip" not in wf
 assert "publish" not in wf.lower().split("jobs:",1)[1].split("name:",1)[0]
 assert "godot_ps5_run_pack" not in src and "os_ps5" not in src
+
+mirror = (root / "gpu-probe/fetch-mirrored-opengl-sdk.sh").read_text()
+assert "30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4" in mirror
+assert "KernelForgeLabs/ps5-opengl-sdk-mirror" in mirror
+assert "sha256sum --check --strict --quiet" in mirror
+assert "manifest.sha256" in mirror
+assert "PS5_OPENGL_PREFIX" in wf and "fetch-mirrored-opengl-sdk.sh" in wf
+assert "ps5-opengl-sdk-mirror" in readme
 print("PASS: isolated GPU probe source & release separation")

@@ -53,13 +53,16 @@ jobs:
           p.write_text(json.dumps(j,indent=2)+'\n')
           assert len(j['contentId'].split('_00-')[1]) == 16
           PY
-      - name: Prepare original verified OpenGL SDK via DevBridge
+      - name: Prepare mirrored checksum-pinned OpenGL SDK and DevBridge
         run: |
           set -euo pipefail
           # Keep the pinned zlib SHA-256 verification, use the maintainer mirror.
           sed -i 's|https://zlib.net/fossils/|https://github.com/madler/zlib/releases/download/v1.3.2/|g' \
             /tmp/godot-gpu-probe/tools/setup-native-dependencies.sh
-          bash /tmp/godot-gpu-probe/tools/prepare-opengl.sh
+          # Original BlackBearReloaded v1.0.0 release is now HTTP 404.
+          # Use a separately hashed v1.0.2 archive; never trust a moving URL.
+          prefix=$(bash homebrew/godot-ps5/gpu-probe/fetch-mirrored-opengl-sdk.sh)
+          env PS5_OPENGL_PREFIX="$prefix" bash /tmp/godot-gpu-probe/tools/prepare-opengl.sh
       - name: Compile native EGL clear-and-swap app
         run: |
           set -euo pipefail
