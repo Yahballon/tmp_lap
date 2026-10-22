@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Open Surge PS5 v0.5.4 - reject unsupported tube exits and prevent loop-area floor dropouts.
+// Open Surge PS5 v0.6.2 - keep high-speed uphill steps mask-safe within one physics frame.
 // This is NOT the original Allegro/SurgeScript gameplay engine.
 #pragma once
 #include "gfx/renderer.hpp"
@@ -357,6 +357,7 @@ public:
         }
         tick_routes();
 
+        if(!wall_climb_) {
         // See upstream physicsactor.c (Open Surge 0.6.1.3):
         // CHARGING: tap fire1 repeatedly to add 0.25 intensity; release DOWN
         // to launch gsp = (12*60/3)*(2+intensity) = 480..720 world px/s.
@@ -419,6 +420,7 @@ public:
             vy_=-505.f;ground_=false;
             rolling_=false;
         }
+        } // Avoid consuming Spin Dash energy or jumping while wall-climbing.
         // Steep original Sunshine bricks have a solid vertical face below
         // their upper surface. Treat a high-speed roll as a WALL-CONTACT
         // traversal, not an invitation to step x INTO opaque terrain.
@@ -426,32 +428,45 @@ public:
         // on reaching the lip, only resume horizontal motion if the next
         // rolling body position is actually free of collision.
         if(wall_climb_){
+            // Never decrease Y through a ceiling or another SOLID mask.
+            // v0.6.1 lifted the actor without checking each intermediate
+            // position and could let a fast dash tunnel through an overhang.
             const float rate=std::clamp(std::abs(vx_)*1.25f,280.f,760.f);
+            const float rise=std::min(rate*dt,std::max(0.f,y_-(wall_top_-3.f)));
             const float previous=y_;
-            y_-=std::min(rate*dt,std::max(0.f,y_-(wall_top_-3.f)));
-            vy_=0.f;
-            ground_=true;last_ground_y_=y_;
+            const bool clear=climb_vertical_mask_safe(rise);
             if(y_<previous-0.25f)++uphill_steps_;
+            vy_=0.f;
+            ground_=has_foot_support(x_,y_);
+            if(!clear){
+                // Ceiling obstructs the ascent. Do not keep an impossible
+                // wall-climb active or move the actor into solid pixels.
+                wall_climb_=false;vx_=0.f;vy_=0.f;
+                elapsed_+=dt;
+                return;
+            }
             if(y_<=wall_top_+1.f){
                 const float next=x_+float(wall_dir_)*1.25f;
-                if(!body_hits(next,y_)){
+                if(!body_hits(next,y_) && !head_hits(next,y_)){
                     wall_climb_=false;
                     x_=next;
                     float floor=y_;
-                    if(find_floor(x_,y_,4,8,floor) && !body_hits(x_,floor)){
+                    if(find_floor(x_,y_,4,10,floor) &&
+                       !body_hits(x_,floor)){
                         y_=floor;ground_=true;last_ground_y_=y_;
                     }else{
-                        // Genuine ledge: fall from ABOVE the solid terrain.
-                        // Never let the former through-wall shortcut push the
-                        // player under the mask before applying gravity.
+                        // No solid support past the crest; fall normally,
+                        // from the safe upper side of the actual tile.
                         ground_=false;vy_=0.f;
                     }
-                }else{
-                    // At most 35px additional overhead clearance. Genuine
-                    // taller walls must still stop the player.
-                    if(y_<=wall_top_-34.f){
-                        wall_climb_=false;vx_=0.f;ground_=false;vy_=0.f;
-                    }else y_-=rate*dt;
+                }else if(y_<=wall_top_-34.f){
+                    // A genuine vertical wall: don't climb it forever.
+                    wall_climb_=false;vx_=0.f;vy_=0.f;
+                    ground_=has_foot_support(x_,y_);
+                }else {
+                    if(!climb_vertical_mask_safe(std::min(2.f,rate*dt))){
+                        wall_climb_=false;vx_=0.f;vy_=0.f;
+                    }
                 }
             }
             elapsed_+=dt;
@@ -508,10 +523,19 @@ public:
             // A high-energy roll can climb the connected masked upper face.
             // Spend kinetic energy on height, move in short continuous steps;
             // never bypass walls too tall for the available momentum.
-            if(roll_uphill_step(nx,dx/float(horizontal_steps)))continue;
+            if(roll_uphill_step(nx,dx/float(horizontal_steps)))break;
+            // Activation is a contact state, not a completed movement.
+            // Do not process more horizontal substeps through the solid lip.
             vx_=0.f;
             if(dir!=0)++blocked_;
             break;
+        }
+        if(wall_climb_){
+            // The climbing state is processed on the NEXT 120 Hz tick.
+            // Applying normal gravity on this tick reintroduces the
+            // exact through-terrain artifact caught by the console video.
+            elapsed_+=dt;
+            return;
         }
         if(!ground_){
             const float prev_feet=y_;
@@ -538,8 +562,9 @@ public:
             // gaps. Respawn from a long fall rather than scrolling the empty
             // sky for seconds without any level or character controls.
             if(y_>last_ground_y_+1050.f || y_>starty_+3000.f){
-                ++respawns_;
+                const unsigned times=respawns_+1;
                 reset();
+                respawns_=times;
             }
         }
         tick_routes();
@@ -761,6 +786,20 @@ private:
             hit=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
         });
         return hit;
+    }
+    bool climb_vertical_mask_safe(float amount){
+        // Do not jump past masked collision samples even at 720 px/s;
+        // inspect every <=1 world pixel between start and destination.
+        amount=std::clamp(amount,0.f,12.f);
+        while(amount>0.0001f){
+            const float dy=std::min(1.f,amount);
+            const float target=y_-dy;
+            if(body_hits(x_,target)||head_hits(x_,target))return false;
+            y_=target;
+            amount-=dy;
+        }
+        last_ground_y_=y_;
+        return true;
     }
     bool roll_uphill_step(float next_x,float /*step_x*/) {
         if(!rolling_||charging_||std::abs(vx_)<305.f)return false;
