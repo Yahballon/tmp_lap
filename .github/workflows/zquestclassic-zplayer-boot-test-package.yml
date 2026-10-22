@@ -6,7 +6,7 @@ on:
         description: "Successful original zplayer PS5 FSELF source build run"
         type: string
         required: true
-        default: "39764121870"
+        default: "39768258792"
   pull_request:
     paths:
       - "homebrew/zquestclassic-ps5/engine/package_engine_boot_test.py"
@@ -30,12 +30,19 @@ jobs:
       - name: Fetch proven source FSELF for original zplayer
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_RUN: ${{ inputs.source_run_id || '39764121870' }}
+          SOURCE_RUN: ${{ inputs.source_run_id || '39768258792' }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_RUN" =~ ^[0-9]{8,}$ ]] || exit 2
           conclusion="$(gh run view "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)"
           test "$conclusion" = success || { echo "Original build did not pass"; exit 3; }
+          source_workflow="$(gh run view "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" --json workflowName --jq .workflowName)"
+          test "$source_workflow" = "ZQuest Original ZPlayer PS5 Cross-Compilation Probe" || {
+            echo "Wrong source workflow: $source_workflow" >&2; exit 3;
+          }
+          source_sha="$(gh run view "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" --json headSha --jq .headSha)"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Bad source commit"; exit 3; }
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
           mkdir -p /tmp/zplayer-source-fself
           gh run download "$SOURCE_RUN" -R "$GITHUB_REPOSITORY" \
             -n ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED \
@@ -79,6 +86,7 @@ jobs:
             --param-template app/sce_sys/param.json \
             --icon app/sce_sys/icon0.png \
             --source-run "$SOURCE_RUN_ID" \
+            --source-sha "$SOURCE_SHA" \
             --output out/PPSA99128-ENGINE-BOOT-TEST.zip
           unzip -l out/PPSA99128-ENGINE-BOOT-TEST.zip
           sha256sum out/PPSA99128-ENGINE-BOOT-TEST.zip > out/sha256sum.txt
