@@ -25,6 +25,8 @@ test -f "$root/homebrew/zquestclassic-ps5/engine/ps5_zplayer_toolchain.cmake"
 test -f "${PS5_PAYLOAD_SDK:?}/target/include/c++/v1/vector"
 test -f "${PS5_DEVBRIDGE_TOOL:?}"
 test -x "$PS5_PAYLOAD_SDK/bin/prospero-lld"
+test -f "$root/app/tooling/native/ps5-pie.ld"
+test -f "$root/app/tooling/native/app-symbols.map"
 test -d "$PS5_PAYLOAD_SDK/target/lib"
 find "$PS5_PAYLOAD_SDK/target/lib" -maxdepth 1 -type f \( -name "*.so" -o -name "*.a" \) | head -n 20
 export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
@@ -81,7 +83,7 @@ echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100 -Wl,--version-script=$root/app/tooling/native/app-symbols.map" \
+  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100 -Wl,--eh-frame-hdr -Wl,-T,$root/app/tooling/native/ps5-pie.ld -Wl,--version-script=$root/app/tooling/native/app-symbols.map" \
   -DCMAKE_HAVE_LIBC_PTHREAD=TRUE \
   -DTHREADS_PREFER_PTHREAD_FLAG=OFF \
   "-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG" \
