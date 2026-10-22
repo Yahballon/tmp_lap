@@ -54,6 +54,27 @@ jobs:
           git -C "$work/ps5-platform" remote add origin https://github.com/mihawk-99/PS5_PayloadSDK.git
           git -C "$work/ps5-platform" fetch --depth 1 origin b5efad528e0ac1b8289f39d72a0e890ff68ff0a6
           git -C "$work/ps5-platform" checkout --detach FETCH_HEAD
+      - name: Stage official LLVM 18 emulated TLS runtime for Mesa
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/zcps5-full-zplayer/compiler-rt"
+          mkdir -p "$dest"
+          base="https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-18.1.8/compiler-rt/lib/builtins"
+          for name in emutls.c int_lib.h int_types.h int_endianness.h int_util.h; do
+            curl -fsSL --retry 3 "$base/$name" -o "$dest/$name"
+            test -s "$dest/$name"
+          done
+          grep -q '__emutls_get_address' "$dest/emutls.c"
+          grep -q 'Apache-2.0 WITH LLVM-exception' "$dest/emutls.c"
+          echo "LLVM18_REAL_EMUTLS_RUNTIME_STAGED"
+      - name: Test Mesa libc compatibility on host
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -D_GNU_SOURCE -DZC_PS5_COMPAT_HOST_TEST=1 \
+            homebrew/zquestclassic-ps5/engine/ps5_mesa_libc.c \
+            homebrew/zquestclassic-ps5/engine/ps5_mesa_libc_test.c \
+            -o /tmp/zcps5-mesa-test
+          /tmp/zcps5-mesa-test
       - name: Stage real PS5 SDK and compiler wrapper
         run: |
           set -euo pipefail
@@ -120,6 +141,8 @@ jobs:
           export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
           export PS5_DEVBRIDGE_TOOL="$GITHUB_WORKSPACE/app/tooling/prospero-clang18"
           export PS5_OPENGL_PREFIX="$GITHUB_WORKSPACE/app/.deps/ps5-opengl/current"
+          export ZC_PS5_MESA_COMPAT_SOURCE="$GITHUB_WORKSPACE/homebrew/zquestclassic-ps5/engine/ps5_mesa_libc.c"
+          export ZC_PS5_EMUTLS_SOURCE="$RUNNER_TEMP/zcps5-full-zplayer/compiler-rt/emutls.c"
           bash homebrew/zquestclassic-ps5/engine/ps5_zplayer_full_probe.sh
       - name: Verify linked original zplayer ELF
         if: success()
