@@ -70,4 +70,7 @@ def configure(env):
             "GLES3_ENABLED", "GLAD_ENABLED", "GL_API_ENABLED",
             "EGL_ENABLED", "EGL_STATIC",
         ])
+        # The upstream glad/gl.c and egl.c use <glad/gl.h> and
+        # <glad/egl.h>, so their parent must be on the include search path.
+        env.Append(CPPPATH=["#thirdparty/glad"])
     env.Append(CPPPATH=["#platform/ps5"])
