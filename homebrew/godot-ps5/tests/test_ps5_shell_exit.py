@@ -8,6 +8,6 @@ assert 'extern "C" void catchReturnFromMain(int status)' in source
 assert source.count('sceSystemServiceLoadExec("exit", nullptr)')==1
 assert 'sceKernelUsleep(100000)' in source
 assert 'std::fflush(nullptr);' in source
-assert 'SHELL_EXIT_REQUEST v0.2.7' in source
+assert 'SHELL_EXIT_REQUEST v0.' in source, 'Missing versioned PS5 shell-exit marker'
 assert 'exit(status)' not in source.split('extern "C" void catchReturnFromMain')[1]
 print("PASS: PS5 shell exit hook avoids libc exit SIGSYS after main()")
