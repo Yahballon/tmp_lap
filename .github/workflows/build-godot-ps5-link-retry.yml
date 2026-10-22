@@ -11,6 +11,9 @@ on:
       - 'homebrew/godot-ps5/scripts/resolve_weak_tls.py'
       - 'homebrew/godot-ps5/tests/test_resolve_weak_tls.py'
       - 'homebrew/godot-ps5/native/engine_smoke_main.cpp'
+      - 'homebrew/godot-ps5/engine/platform/ps5/pck_launch_config.hpp'
+      - 'homebrew/godot-ps5/tests/pck_launch_test.cpp'
+      - 'homebrew/godot-ps5/tests/pck_launch_native_mock_test.cpp'
       - '.github/workflows/build-godot-ps5-link-retry.yml'
 
 permissions:
@@ -33,10 +36,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/godot /tmp/godot-engine-input /tmp/godot-smoke-pck
-          gh run download 39738604027 --repo Yahballon/tmp_lap \
+          gh run download 39755185338 --repo Yahballon/tmp_lap \
             --name godot-ps5-complete-static-archives-NOT-PLAYABLE \
             --dir /tmp/godot-engine-input
-          gh run download 39738604027 --repo Yahballon/tmp_lap \
+          gh run download 39755185338 --repo Yahballon/tmp_lap \
             --name godot-4-gdscript-smoke-pck-NOT-PS5 \
             --dir /tmp/godot-smoke-pck
           unzip -q /tmp/godot-engine-input/Godot-PS5-FULL-STATIC-ENGINE-NOT-PLAYABLE.zip -d /tmp/godot
@@ -74,7 +77,11 @@ jobs:
         run: |
           set -euo pipefail
           python3 homebrew/godot-ps5/tests/test_native_link_stage.py
-          g++ -std=c++17 -fsyntax-only homebrew/godot-ps5/native/engine_smoke_main.cpp
+          g++ -std=c++17 -fsyntax-only -Ihomebrew/godot-ps5/engine/platform/ps5 homebrew/godot-ps5/native/engine_smoke_main.cpp
+          g++ -std=c++17 -Wall -Wextra -Werror homebrew/godot-ps5/tests/pck_launch_test.cpp -o /tmp/pck-launch-host
+          /tmp/pck-launch-host
+          g++ -std=c++17 -Wall -Wextra -Werror homebrew/godot-ps5/tests/pck_launch_native_mock_test.cpp -o /tmp/pck-launch-ps5-mock
+          /tmp/pck-launch-ps5-mock
           python3 homebrew/godot-ps5/tests/test_ps5_shell_exit.py
           python3 homebrew/godot-ps5/tests/test_resolve_weak_tls.py
           grep -Fq 'A-Za-z0-9_.+-' /tmp/godot-link-app/tools/build.sh
@@ -146,7 +153,7 @@ jobs:
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99843'
           assert meta['contentId']=='UP9000-PPSA99843_00-GODOTPS5HEADLESS'
-          assert meta['contentVersion']=='01.000.008'
+          assert meta['contentVersion']=='01.000.013'
           with zipfile.ZipFile(root.parent/'PPSA99843.zip') as z:
               assert z.testzip() is None
               assert 'PPSA99843/eboot.bin' in z.namelist()
@@ -157,7 +164,7 @@ jobs:
         if: steps.link.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-Engine-Smoke-v0.2.7-PPSA99843-UNTESTED
+          name: Godot-PS5-GDScript-Engine-Smoke-v0.3.0-UNVERIFIED-ON-CONSOLE
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
       # This workflow is a linker diagnostic; it only uploads immutable CI
