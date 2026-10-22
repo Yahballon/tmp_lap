@@ -110,7 +110,11 @@ public:
             front_floor?1:0,forward,far_floor?1:0,far);
     }
     bool test_inside() const{return body_hits(x_,y_);}
-    bool test_point_masked() const{return solid_at(x_,y_);}
+    bool test_point_masked() const{
+        const bool snake=curves_.active() &&
+          curves_.mode()==StageCurves::Mode::Serpentine;
+        return solid_at(x_,y_-(snake?16.f:0.f));
+    }
     void test_scan_column(float px,int y0,int y1,int step=8) const{
         std::string line;
         for(int yy=y0;yy<=y1;yy+=step)

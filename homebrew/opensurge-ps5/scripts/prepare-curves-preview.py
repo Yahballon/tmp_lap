@@ -74,8 +74,11 @@ def main(app:Path)->None:
         # Native rolling probes cover foot-25..foot-8.
         # Put those probes IN the original free passage, directly above its
         # bottom surface. This is physical geometry, not a graphic sinusoid.
-        feet=bottom+8
-        assert not any(solid(x,feet-h) for h in (25,16,8)), (x,top,bottom)
+        # Keep the rolling player at the CENTER of the actual hollow passage
+        # (a 29px ball cannot stand upright against the interior edge).
+        # The native sprite hotspot sits roughly 16px below its body center.
+        feet=(top+bottom)*0.5+16
+        assert not solid(x,feet-16), (x,top,bottom)
         snake.append((x,float(feet)))
     if len(missing)>14:
         raise AssertionError(f"Too many missing original snake mask samples: {missing[:30]}")

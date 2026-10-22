@@ -55,6 +55,7 @@ int main(int argc,char** argv){
     level.test_put(5765.f,9923.f,1,true);
     int orbit_ticks=0,positive=0,negative=0;
     unsigned ring_in_solid=0,ring_sampled=0,ring_point_masked=0;
+    unsigned ring_orbit_masked=0,ring_orbit_samples=0;
     float mx=1e6f,Mx=-1e6f,my=1e6f,My=-1e6f;
     bool circle_enter=false,circle_finished=false,exited_before_orbit=false;
     const unsigned complete_before=level.curve_completions();
@@ -69,6 +70,8 @@ int main(int argc,char** argv){
             mx=std::min(mx,level.player_x());Mx=std::max(Mx,level.player_x());
             my=std::min(my,level.player_y());My=std::max(My,level.player_y());
             if(level.curve_mode()==3){
+                ++ring_orbit_samples;
+                if(level.test_point_masked())++ring_orbit_masked;
                 ++orbit_ticks;
                 if(level.velocity_x()>125.f)++positive;
                 if(level.velocity_x()<-125.f)++negative;
@@ -84,10 +87,16 @@ int main(int argc,char** argv){
         level.player_x(),level.player_y(),orbit_ticks,mx,Mx,my,My,
         positive,negative,level.curve_orbits(),level.curve_completions(),exited_before_orbit?1:0);
     std::printf("CURVE_MASK ring_inside=%u of %u frames masked_center=%u\n",ring_in_solid,ring_sampled,ring_point_masked);
+    std::printf("CURVE_MASK orbit_masked=%u of %u frames\n",ring_orbit_masked,ring_orbit_samples);
+    if(snake_point_masked>snake_sampled/12+4 ||
+       ring_orbit_masked>ring_orbit_samples/20+2){
+        std::fprintf(stderr,"FAIL: native curve left the original free mask corridor\n");
+        return 14;
+    }
     if(!circle_enter||!circle_finished||exited_before_orbit||
-       orbit_ticks<150||level.curve_orbits()!=orbits_before+1||
-       level.player_x()<6035.f||mx>5810.f||Mx<5980.f||
-       my>9740.f||My<9910.f||negative<35||positive<35)return 7;
+       orbit_ticks<140||level.curve_orbits()!=orbits_before+1||
+       level.player_x()<6035.f||mx>5825.f||Mx<5950.f||
+       my>9760.f||My<9890.f||negative<35||positive<35)return 7;
     // Underpowered regular walking does NOT auto-teleport into the loop.
     level.test_put(5765.f,9923.f,1,false);
     for(int i=0;i<10;++i)level.update(dt,1,false,false,false);

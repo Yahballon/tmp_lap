@@ -105,7 +105,7 @@ public:
            x<=snake_x_+50.f &&
            std::abs(y-snake_path_y(x))<92.f){
             mode_=Mode::Serpentine;speed_=std::clamp(std::abs(vx),340.f,725.f);
-            pos_x_=x;pos_y_=y;elapsed_=0.f;++entries_;
+            pos_x_=x;pos_y_=y;entry_y_=y;elapsed_=0.f;++entries_;
             return true;
         }
         if(ring_available_ && x>=ring_x_-135.f &&
@@ -133,8 +133,15 @@ public:
             pos_x_+=speed_*dt/std::sqrt(1.f+dydx*dydx);
             pos_x_=std::min(pos_x_,snake_x_+768.f);
             const float wanted=snake_path_y(pos_x_);
-            // No instantaneous 60px vertical teleport on rail entry.
-            pos_y_=wanted+(old_y-wanted)*std::max(0.f,1.f-22.f*dt);
+            // Follow the TRUE corridor centre at every physics step.
+            // The former exponential follower trailed steep S-turns by many
+            // pixels, entering the wall although its targets were clear.
+            // Blend only during the initial 45ms of tube-entry transition.
+            if(elapsed_<0.045f){
+                const float u=std::clamp(elapsed_/0.045f,0.f,1.f);
+                const float smooth=u*u*(3.f-2.f*u);
+                pos_y_=entry_y_+(wanted-entry_y_)*smooth;
+            }else pos_y_=wanted;
             if(pos_x_>=snake_x_+768.f-0.1f){
                 mode_=Mode::None;++completions_;r.completed=true;
             }
@@ -185,7 +192,7 @@ private:
     Mode mode_=Mode::None;
     bool snake_available_=false,ring_available_=false;
     float snake_x_=0.f,snake_y_=0.f,ring_x_=0.f,ring_y_=0.f;
-    float speed_=0.f,pos_x_=0.f,pos_y_=0.f,angle_=0.f,elapsed_=0.f;
+    float speed_=0.f,pos_x_=0.f,pos_y_=0.f,angle_=0.f,elapsed_=0.f,entry_y_=0.f;
     float min_y_=1.e8f,max_y_=-1.e8f;
     unsigned entries_=0,completions_=0,orbit_cycles_=0;
     std::vector<std::pair<float,float>> snake_points_;
