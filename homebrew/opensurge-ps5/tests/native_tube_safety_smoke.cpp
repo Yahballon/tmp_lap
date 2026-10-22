@@ -16,6 +16,10 @@ int main(int argc,char** argv){
     }
     constexpr float dt=1.f/120.f;
     level.test_put(3728.f,10072.f,1,true);
+    level.test_probe(768.f);
+    level.test_probe(756.f);
+    level.test_pixel(4496.f,10048.f);
+    level.test_pixel(4496.f,10072.f);
     level.update(dt,0,false);
     std::printf("TUBE_INITIAL in=%d entries=%u rejected=%u x=%.1f y=%.1f\n",
         int(level.in_tube()),level.tube_entries(),
