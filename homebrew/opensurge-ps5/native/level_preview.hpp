@@ -127,6 +127,9 @@ public:
             front_floor?1:0,forward,far_floor?1:0,far);
     }
     // Original-mask host harness, not compiled into PS5 shipping binaries.
+    void test_set_rolling_speed(float value){
+        vx_=value;rolling_=true;facing_=value>=0.f?1:-1;
+    }
     bool test_setup_loop(size_t index,float speed) {
         if(index>=loops_.size() || std::abs(speed)<350.f)return false;
         const auto& ring=loops_[index];
