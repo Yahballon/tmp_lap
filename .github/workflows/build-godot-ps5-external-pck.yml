@@ -1,0 +1,49 @@
+name: Build External Godot PS5 PCK (host acceptance)
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/external-pack-smoke/**'
+      - '.github/workflows/build-godot-ps5-external-pck.yml'
+permissions:
+  contents: read
+jobs:
+  external-pack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official Godot 4.7.2 binary
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot-linux.zip
+          unzip -q /tmp/godot-linux.zip -d /tmp/
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+      - name: Build and validate independent game PCK
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/external-pack-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/external-pack.log
+          grep -Fq GODOT_PS5_EXTERNAL_PCK_WRITTEN /tmp/external-pack.log
+          test -s "$project/external-smoke.pck"
+          # --quit-after is a safety net; verify the second scene completed.
+          "$godot" --headless --main-pack "$project/external-smoke.pck" --quit-after 500 2>&1 | tee /tmp/external-scene.log
+          for marker in GODOT_PS5_EXTERNAL_MAIN_READY GODOT_PS5_EXTERNAL_ASSET_OK GODOT_PS5_EXTERNAL_SCENE_CHANGE_REQUESTED GODOT_PS5_EXTERNAL_SECOND_SCENE_READY GODOT_PS5_EXTERNAL_FINISHED; do
+            grep -Fq "$marker" /tmp/external-scene.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_EXTERNAL_.*FAILED' /tmp/external-scene.log; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-External-PCK-Host-Verified-NOT-PS5
+          path: homebrew/godot-ps5/samples/external-pack-smoke/external-smoke.pck
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-External-PCK-Host-Logs
+          path: |
+            /tmp/external-pack.log
+            /tmp/external-scene.log
+          if-no-files-found: warn
