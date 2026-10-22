@@ -1,0 +1,152 @@
+name: Publish Godot PS5 TESTBUILD
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-godot-ps5-engine.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Trusted Godot PS5 build run ID, zero for rescue'
+        required: false
+        default: '0'
+  workflow_run:
+    workflows: ['Validate Godot PS5 Engine Foundation']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-godot-ps5-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'feature/godot-ps5-engine-foundation' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Validate and download engine artifact
+        id: engine
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          if [ "$run" = 0 ]; then run=39742420919; fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >/tmp/godot-upstream-run.json
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          r=json.loads(Path('/tmp/godot-upstream-run.json').read_text())
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='feature/godot-ps5-engine-foundation'
+          assert r['name']=='Validate Godot PS5 Engine Foundation'
+          assert r['event']=='push'
+          assert r['conclusion']=='success' or r['id']==39742420919
+          print('Trusted Godot engine build:',r['id'],r['head_sha'])
+          PY
+          sha=$(python3 -c 'import json;print(json.load(open("/tmp/godot-upstream-run.json"))["head_sha"])')
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/godot-artifacts.json
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          data=json.loads(Path('/tmp/godot-artifacts.json').read_text())
+          good=[a for a in data['artifacts'] if not a['expired'] and re.fullmatch(
+              r'Godot-PS5-GDScript-Engine-Smoke-v\d+\.\d+\.\d+-UNVERIFIED-ON-CONSOLE',a['name'])]
+          assert len(good)==1, f'Expected one signed engine artifact, got {len(good)}'
+          Path('/tmp/godot-artifact-name').write_text(good[0]['name'])
+          PY
+          name=$(cat /tmp/godot-artifact-name)
+          version=$(echo "$name" | sed -E 's/^Godot-PS5-GDScript-Engine-Smoke-v([0-9]+\.[0-9]+\.[0-9]+)-UNVERIFIED-ON-CONSOLE$/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tag=godot-ps5-engine-smoke-v$version" >> "$GITHUB_OUTPUT"
+          mkdir -p /tmp/godot-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "$name" --dir /tmp/godot-release
+          test -s /tmp/godot-release/PPSA99843.zip
+      - name: Verify real PS5 installer and pinned v0.2.8 rescue SHA256
+        env:
+          VERSION: ${{ steps.engine.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,struct,zipfile
+          p=pathlib.Path('/tmp/godot-release/PPSA99843.zip')
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          version=os.environ['VERSION']
+          if version=='0.2.8':
+              assert digest=='ebd1d87dedba7438003a2bb51b0f1d9acd4644b027348821d15a2ae1b4cedfc0', 'Rescue SHA256 mismatch'
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              assert len(names)<1000 and z.testzip() is None
+              assert all(not n.startswith('/') and '..' not in pathlib.PurePosixPath(n).parts for n in names)
+              assert 'PPSA99843/eboot.bin' in names
+              assert 'PPSA99843/assets/godot/smoke.pck' in names
+              binary=z.read('PPSA99843/eboot.bin')
+              assert len(binary)>4096 and binary[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99843/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99843'
+              assert meta['contentId']=='UP9000-PPSA99843_00-GODOTPS5HEADLESS'
+              if version=='0.2.8': assert meta['contentVersion']=='01.000.009'
+          print('Verified signed PS5 engine test v'+version+' SHA256='+digest)
+          PY
+      - name: Create engine prerelease using default-branch permissions
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          TAG: ${{ steps.engine.outputs.tag }}
+          SOURCE_SHA: ${{ steps.engine.outputs.sha }}
+          VERSION: ${{ steps.engine.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" /tmp/godot-release/PPSA99843.zip --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" /tmp/godot-release/PPSA99843.zip \
+              --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
+              --title "Godot PS5 Engine Smoke v$VERSION (headless test)" \
+              --notes "Experimental signed native Godot 4.7.2 PS5 engine. Included smoke.pck; unverified GDScript startup on hardware. No graphics/audio/gameplay. Build commit $SOURCE_SHA. Log: /data/GodotPS5/engine-stderr.log." \
+              --prerelease
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99843.zip
+      - name: Refresh TESTBUILDS catalog on main
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          VERSION: ${{ steps.engine.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json,os
+          j=json.load(open('version.json'))
+          entry=next(x for x in j['apps'] if x['title_id']=='PPSA99843')
+          assert entry['version']==os.environ['VERSION'],entry
+          assert entry['zip_url'].endswith('/PPSA99843.zip')
+          print('TESTBUILDS Godot:',entry['version'])
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add version.json
+            git commit -m "chore(testbuilds): Godot PS5 v$VERSION [skip ci]"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
