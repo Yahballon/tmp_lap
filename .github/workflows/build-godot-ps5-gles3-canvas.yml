@@ -9,6 +9,7 @@ on:
       - 'homebrew/godot-ps5/tests/test_native_gles3_hooks.py'
       - 'homebrew/godot-ps5/tests/test_native_gles3_canvas.py'
       - 'homebrew/godot-ps5/samples/visual-smoke/**'
+      - 'homebrew/godot-ps5/samples/pong-smoke/**'
       - 'homebrew/godot-ps5/gles3-canvas/**'
       - '.github/workflows/build-godot-ps5-gles3-canvas.yml'
 permissions:
@@ -36,6 +37,22 @@ jobs:
           grep -Fq GODOT_PS5_VISUAL_PCK_WRITTEN /tmp/pack.log
           "$godot" --headless --main-pack "$project/visual-smoke.pck" --quit-after 60 2>&1 | tee /tmp/scene.log
           grep -Fq GODOT_PS5_REAL_2D_SCENE_READY /tmp/scene.log
+      - name: Generate playable, font-free Godot 4.7.2 Pong PCK
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/pong-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/pong-pack.log
+          grep -Fq GODOT_PS5_PONG_PCK_WRITTEN /tmp/pong-pack.log
+          test -s "$project/pong.pck"
+          "$godot" --headless --main-pack "$project/pong.pck" --quit-after 80 2>&1 | tee /tmp/pong-scene.log
+          grep -Fq GODOT_PS5_PONG_READY /tmp/pong-scene.log
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/pong-scene.log; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GodotPS5-GLES3-Pong-Godot4-PCK-NOT-PS5
+          path: homebrew/godot-ps5/samples/pong-smoke/pong.pck
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: GodotPS5-GLES3-Genuine-Visual-PCK-NOT-PS5
@@ -87,12 +104,19 @@ jobs:
         with:
           name: GodotPS5-GLES3-Genuine-Visual-PCK-NOT-PS5
           path: /tmp/godot-visual-pck
+      - uses: actions/download-artifact@v4
+        with:
+          name: GodotPS5-GLES3-Pong-Godot4-PCK-NOT-PS5
+          path: /tmp/godot-pong-pck
       - name: Stage graphics + native Godot in an isolated PPSA99847 install
         run: |
           set -euo pipefail
           cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-scene-app
           mkdir -p /tmp/godot-scene-app/assets/godot
-          cp /tmp/godot-visual-pck/visual-smoke.pck /tmp/godot-scene-app/assets/godot/visual-smoke.pck
+          # Keep the known-good v0.1.1 GLES3 launcher unchanged. The new
+          # default pack is a REAL Godot 2D game, not a native GL sprite.
+          cp /tmp/godot-pong-pck/pong.pck /tmp/godot-scene-app/assets/godot/visual-smoke.pck
+          test -s /tmp/godot-scene-app/assets/godot/visual-smoke.pck
           python3 homebrew/godot-ps5/scripts/stage_native_link.py \
             --godot /tmp/godot --app /tmp/godot-scene-app \
             --entry homebrew/godot-ps5/native/gles3_canvas_main.cpp
@@ -135,7 +159,7 @@ jobs:
           data=json.loads((root/'sce_sys/param.json').read_text())
           data.update(titleId='PPSA99847',conceptId='99847',
                       contentId='UP9000-PPSA99847_00-GODOTGLES3CANVAS',
-                      contentVersion='01.000.002')
+                      contentVersion='01.000.003')
           data['localizedParameters']['en-US']['titleName']='Godot PS5 GLES3 Canvas'
           assert len(data['contentId'].split('_00-')[1])==16
           (root/'sce_sys/param.json').write_text(json.dumps(data,indent=2)+'\n')
@@ -187,12 +211,12 @@ jobs:
               assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
               meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
               assert meta['titleId']=='PPSA99847'
-              assert meta['contentVersion']=='01.000.002'
+              assert meta['contentVersion']=='01.000.003'
           print('SIGNED GODOT GLES3 TEST BUILT; HARDWARE OUTPUT STILL UNVERIFIED')
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-REAL-GLES3-Canvas-v0.1.1-UNVERIFIED-ON-PS5
+          name: Godot-PS5-REAL-GLES3-Canvas-v0.1.2-UNVERIFIED-ON-PS5
           path: /tmp/godot-scene-app/dist/PPSA99847.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

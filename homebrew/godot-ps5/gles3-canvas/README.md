@@ -51,3 +51,25 @@ bundled scene, but **external game compatibility has not yet been
 tested on PS5**. Only run projects you trust. The combined GPL/MIT
 binary and unofficial third-party SDK mirror require license and
 source provenance review before broader distribution.
+
+## v0.1.2 — bundled native Godot Pong 2D gameplay
+
+The **default** internal `visual-smoke.pck` now contains a complete
+font-free, Godot-authored Pong game from `samples/pong-smoke/`. Unlike the
+previous checkerboard this exercises real Godot Canvas2D primitive draw calls,
+paddle movement, a scripted ball/bot and scoring. DualSense controls:
+
+- Left stick / D-pad up and down to move paddle
+- **X** to serve, **Circle** to reset, **Options** to exit
+- Auto exit after 180 seconds for repeatable PS5 test
+
+Remove `/data/GodotPS5/launch.txt` to select the bundled Pong game.
+External configured PCK paths still take precedence, exactly as in v0.1.1.
+The launcher intentionally retains the old internal file name
+`visual-smoke.pck` for binary compatibility.
+
+This is a *new, unverified game fixture*; the real GLES3 renderer had
+previously been confirmed with the checkerboard v0.1.0, but this Pong
+scene and its full input mapping need on-console confirmation.
+The v0.1.1 release remains available for regression comparison.
+See `samples/pong-smoke/README.md` for expected log markers.
