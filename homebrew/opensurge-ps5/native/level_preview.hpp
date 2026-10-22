@@ -1080,8 +1080,21 @@ private:
                 vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
                 return;
             }
-            const float nx=ring.x+std::sin(next_angle)*next_radius;
-            const float ny=ring.y+std::cos(next_angle)*next_radius;
+            float nx=ring.x+std::sin(next_angle)*next_radius;
+            float ny=ring.y+std::cos(next_angle)*next_radius;
+            // At the authored Green/Yellow transition, a neighbouring mask
+            // can reach into the inside of an otherwise valid ring contour.
+            // Make a bounded inward contact correction, never tunnel outwards
+            // through the SOLID ring just to maintain the angular path.
+            if(!loop_center_clear(nx,ny)){
+                for(int shrink=1;shrink<=20;++shrink){
+                    const float radius=next_radius-float(shrink);
+                    if(radius<12.f)break;
+                    const float sx=ring.x+std::sin(next_angle)*radius;
+                    const float sy=ring.y+std::cos(next_angle)*radius;
+                    if(loop_center_clear(sx,sy)){nx=sx;ny=sy;break;}
+                }
+            }
             if(!loop_center_clear(nx,ny)){
 #ifdef SURGEPREVIEW_HOST_TEST
                 std::printf("LOOP_DETACH_BODY angle=%.3f layer=%d x=%.1f y=%.1f\n",
