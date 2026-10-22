@@ -9,12 +9,12 @@ the last observed v0.2.8 diagnostic.
 from pathlib import Path
 import sys
 
-MARKER = "GodotPS5 NEXT 0.2.9"
+MARKER = "GodotPS5 NEXT 0.2.10"
 HEADER = r'''
 #if defined(PS5_ENABLED)
 #include <cstdio>
 #define PS5_NEXT_TRACE(stage) do { \
-    std::fprintf(stderr, "[GodotPS5 NEXT 0.2.9] %s\n", stage); \
+    std::fprintf(stderr, "[GodotPS5 NEXT 0.2.10] %s\n", stage); \
     std::fflush(stderr); \
 } while (0)
 #else
@@ -128,7 +128,7 @@ def main() -> None:
         original=path.read_text()
         changed=fn(original)
         if changed!=original: path.write_text(changed)
-        print("Godot PS5 0.2.9 tracing:",path.relative_to(root))
+        print("Godot PS5 0.2.10 tracing:",path.relative_to(root))
 
 if __name__ == '__main__':
     main()
