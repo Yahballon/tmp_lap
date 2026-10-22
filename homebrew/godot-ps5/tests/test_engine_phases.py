@@ -16,5 +16,5 @@ for pre, post, call in phase_pairs:
     assert text.count(call) == 1, call
     assert text.index(pre) < text.index(call) < text.index(post), (pre, post)
 assert text.count("std::fflush(stderr);") >= len(phase_pairs) * 2
-assert '0.2.5' in text
+assert '0.2.6' in text
 print("PASS: real PS5 Godot engine phase markers surround runtime initialization")
