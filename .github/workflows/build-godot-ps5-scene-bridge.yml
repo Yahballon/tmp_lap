@@ -1,0 +1,167 @@
+name: Build Godot PS5 Same-Process Scene GPU Bridge
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/engine/**'
+      - 'homebrew/godot-ps5/native/scene_bridge_main.cpp'
+      - 'homebrew/godot-ps5/tests/test_scene_bridge.py'
+      - 'homebrew/godot-ps5/samples/visual-smoke/**'
+      - 'homebrew/godot-ps5/scene-bridge/**'
+      - '.github/workflows/build-godot-ps5-scene-bridge.yml'
+permissions:
+  contents: read
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify scene bridge uses real GDScript data
+        run: |
+          set -euo pipefail
+          python3 homebrew/godot-ps5/tests/test_scene_bridge.py
+          python3 homebrew/godot-ps5/scripts/check_overlay.py
+      - name: Pack actual Godot 4.7.2 Sprite2D fixture
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot-linux.zip
+          unzip -q /tmp/godot-linux.zip -d /tmp/
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          chmod +x "$godot"
+          project=homebrew/godot-ps5/samples/visual-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/pack.log
+          grep -Fq GODOT_PS5_VISUAL_PCK_WRITTEN /tmp/pack.log
+          "$godot" --headless --main-pack "$project/visual-smoke.pck" --quit-after 60 2>&1 | tee /tmp/scene.log
+          grep -Fq GODOT_PS5_REAL_2D_SCENE_READY /tmp/scene.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GodotPS5-SceneBridge-Genuine-Visual-PCK-NOT-PS5
+          path: homebrew/godot-ps5/samples/visual-smoke/visual-smoke.pck
+          if-no-files-found: error
+  native-ps5-build:
+    needs: host-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install compiler and packager prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 \
+            scons git make pkg-config python3 unzip wget ca-certificates
+      - name: Clone pinned native Godot 4.7.2 and DevBridge
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch 4.7.2-stable https://github.com/godotengine/godot.git /tmp/godot
+          git clone https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          git -C /tmp/devbridge checkout ce6178ed7b7668a4686e5368971ca567b33d394b
+      - name: Set up audited digest-pinned PS5 graphics + SDK toolchain
+        run: |
+          set -euo pipefail
+          sed -i 's|https://zlib.net/fossils/|https://github.com/madler/zlib/releases/download/v1.3.2/|g' \
+            /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+          prefix=$(bash homebrew/godot-ps5/gpu-probe/fetch-mirrored-opengl-sdk.sh)
+          env PS5_OPENGL_PREFIX="$prefix" \
+            bash /tmp/devbridge/templates/simple-calc/tools/prepare-opengl.sh
+      - name: Build genuine Godot scene-state callback into PS5 engine archives
+        env:
+          GODOT_SOURCE: /tmp/godot
+          PS5_PAYLOAD_SDK: /tmp/devbridge/templates/simple-calc/.deps/native/ps5-payload-sdk
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          GODOT_MODULE_SET: smoke
+          GODOT_PS5_SCENE_PREVIEW: '1'
+        run: |
+          set -euo pipefail
+          bash homebrew/godot-ps5/scripts/build-engine.sh
+          python3 homebrew/godot-ps5/scripts/package_static_engine.py \
+            /tmp/godot /tmp/godot-scene-bridge-engine-archives.zip --min-archives 8
+          llvm-nm-18 /tmp/godot/bin/libgodot_ps5.ps5.template_debug.x86_64.a | \
+            grep -F 'godot_ps5_set_scene_frame_callback'
+      - uses: actions/download-artifact@v4
+        with:
+          name: GodotPS5-SceneBridge-Genuine-Visual-PCK-NOT-PS5
+          path: /tmp/godot-visual-pck
+      - name: Stage graphics + native Godot in an isolated PPSA99845 install
+        run: |
+          set -euo pipefail
+          cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-scene-app
+          mkdir -p /tmp/godot-scene-app/assets/godot
+          cp /tmp/godot-visual-pck/visual-smoke.pck /tmp/godot-scene-app/assets/godot/visual-smoke.pck
+          python3 homebrew/godot-ps5/scripts/stage_native_link.py \
+            --godot /tmp/godot --app /tmp/godot-scene-app \
+            --entry homebrew/godot-ps5/native/scene_bridge_main.cpp
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/godot-scene-app')
+          data=json.loads((root/'sce_sys/param.json').read_text())
+          data.update(titleId='PPSA99845',conceptId='99845',
+                      contentId='UP9000-PPSA99845_00-GODOTSCENEBRIDGE',
+                      contentVersion='01.000.001')
+          data['localizedParameters']['en-US']['titleName']='Godot PS5 Scene Bridge'
+          assert len(data['contentId'].split('_00-')[1])==16
+          (root/'sce_sys/param.json').write_text(json.dumps(data,indent=2)+'\n')
+          # Keep DevBridge's EGL/GL include and import settings together
+          # with the native Godot archive group from stage_native_link.py.
+          base=(Path('/tmp/devbridge/templates/simple-calc/GNUmakefile')).read_text().splitlines()
+          original=(root/'GNUmakefile').read_text()
+          flags=[line for line in base if line.startswith(
+              ('APP_DEFINITIONS :=','APP_INCLUDE_PATHS :=',
+               'APP_IMPORT_STUBS :=','APP_WRAP_SYMBOLS :='))]
+          assert len(flags)==4
+          original=original.replace('APP_STATIC_ARCHIVES := ',
+                                    'APP_STATIC_ARCHIVES := .deps/ps5-opengl/libps5opengl-group.a ',1)
+          (root/'GNUmakefile').write_text('\n'.join(flags)+'\n'+original)
+          print('Staged PPSA99845 with REAL Godot 4 engine and independent GPU shader runtime')
+          PY
+      - name: Native ELF link, weak-TLS fallback and signed PS5 installation ZIP
+        run: |
+          set -euo pipefail
+          (
+            cd /tmp/godot-scene-app
+            env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+              make USE_CCACHE=0 BUILD_JOBS=4 app
+          ) 2>&1 | tee /tmp/godot-scene-bridge-link.log || {
+            test -s /tmp/godot-scene-app/build/llvm-pie.elf
+            python3 homebrew/godot-ps5/scripts/resolve_weak_tls.py \
+              --elf /tmp/godot-scene-app/build/llvm-pie.elf \
+              --build-sh /tmp/godot-scene-app/tools/build.sh
+            (
+              cd /tmp/godot-scene-app
+              env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+                make USE_CCACHE=0 BUILD_JOBS=4 app
+            ) 2>&1 | tee -a /tmp/godot-scene-bridge-link.log
+          }
+      - name: Validate signed composite title and PCK (unverified on PS5 console)
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,json,struct
+          p=Path('/tmp/godot-scene-app/dist/PPSA99845.zip')
+          assert p.is_file() and p.stat().st_size>100_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              paths=z.namelist()
+              assert all(name.startswith('PPSA99845/') and '..' not in Path(name).parts for name in paths)
+              assert 'PPSA99845/eboot.bin' in paths
+              assert 'PPSA99845/assets/godot/visual-smoke.pck' in paths
+              elf=z.read('PPSA99845/eboot.bin')
+              assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99845/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99845'
+              assert meta['contentVersion']=='01.000.001'
+          print('SIGNED SAME-PROCESS GODOT-GDSCRIPT-TO-PS5-OPENGL TEST READY')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-Scene-Bridge-v0.1.0-GDSCRIPT-TO-GPU-UNVERIFIED-ON-PS5
+          path: /tmp/godot-scene-app/dist/PPSA99845.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-Scene-Bridge-Link-Diagnostics
+          path: /tmp/godot-scene-bridge-link.log
+          if-no-files-found: warn
