@@ -357,10 +357,27 @@ int main(){
           const bool was_charging=level.charging();
           const bool was_rolling=level.rolling();
           const unsigned releases_before=level.dash_releases();
+          const bool was_looping=level.looping();
+          const int old_loop_mode=level.movement_mode();
+          const unsigned previous_loops=level.loop_completions();
           if(!hazards_ready || !hazards.game_over())
             level.update(step,dir,jump,
                          (held&hui::pad_bits::kDown)!=0,
                          (held&hui::pad_bits::kUp)!=0);
+          if(level.looping() && (!was_looping ||
+              level.movement_mode()!=old_loop_mode)){
+            static constexpr const char* modes[]={
+              "FLOOR","RIGHTWALL","CEILING","LEFTWALL"
+            };
+            log_message(std::string("LOOP_PHASE ")+
+              modes[level.movement_mode()]+
+              " x="+std::to_string(int(level.player_x()))+
+              " y="+std::to_string(int(level.player_y())));
+          }
+          if(level.loop_completions()!=previous_loops)
+            log_message("LOOP_COMPLETE full original-mask circuit");
+          else if(was_looping && !level.looping())
+            log_message("LOOP_DETACH speed too low or contact lost");
           if(!was_charging && level.charging())
           {
              log_message("MOVE_SPINDASH_CHARGE started DOWN+X");
@@ -556,9 +573,12 @@ int main(){
         ui.rounded_rect({1208,198,656,64},12,C(0x103f3b,.92f));
         txt(ui,font,atlas,charge_line,1225,240,21,GOLD);
       }else if(level.rolling()){
-        ui.rounded_rect({1490,198,374,58},12,C(0x103f3b,.92f));
-        txt(ui,font,atlas,"ROLLING",1512,237,23,ACCENT);
-      }
+         ui.rounded_rect({1390,198,474,58},12,C(0x103f3b,.92f));
+         const char* loop_modes[]={"FLOOR","RIGHT WALL","CEILING","LEFT WALL"};
+         const std::string label=level.looping()?
+             std::string("LOOP  ")+loop_modes[level.movement_mode()]:"ROLLING";
+         txt(ui,font,atlas,label,1412,237,23,ACCENT);
+       }
       if(entities_ready){
         char hud[140];
         std::snprintf(hud,sizeof(hud),"COLLECTIBLES %03d     %s",
