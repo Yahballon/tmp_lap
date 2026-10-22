@@ -24,8 +24,9 @@ mkdir -p "$host/usr/include" "$host/usr/lib"
 host_library="$(gcc -print-file-name=libz.a)"
 test -f "$host_library" || { echo "Missing host libz.a: apt install zlib1g-dev" >&2; exit 5; }
 test -f /usr/include/zlib.h
-test -f /usr/include/x86_64-linux-gnu/zconf.h
-cp /usr/include/zlib.h /usr/include/x86_64-linux-gnu/zconf.h "$host/usr/include/"
+zconf="$(find /usr/include -type f -name zconf.h -print -quit)"
+test -n "$zconf" && test -s "$zconf" || { echo "Missing host zconf.h from zlib1g-dev" >&2; exit 6; }
+cp /usr/include/zlib.h "$zconf" "$host/usr/include/"
 cp "$host_library" "$host/usr/lib/libz.a"
 printf 'Using verified PS5 SDK v0.42, Ubuntu host libz.a for packaging tools only\n'
 
