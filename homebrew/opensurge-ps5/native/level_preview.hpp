@@ -1040,6 +1040,10 @@ private:
         loop_speed_=std::clamp(loop_speed_-gravity_factor*incline*dt,
                                0.f,960.f);
         if(loop_speed_<210.f){
+#ifdef SURGEPREVIEW_HOST_TEST
+            std::printf("LOOP_DETACH_SPEED angle=%.3f speed=%.1f layer=%d x=%.1f y=%.1f\n",
+                loop_angle_,loop_speed_,active_layer_,x_,y_);
+#endif
             // Insufficient momentum: detach in the current tangent direction.
             vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
             vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
@@ -1052,6 +1056,10 @@ private:
             remaining-=ds;
             float radius=0.f;
             if(!loop_radius_at(ring,loop_angle_,radius)){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("LOOP_DETACH_CONTACT angle=%.3f layer=%d x=%.1f y=%.1f\n",
+                   loop_angle_,active_layer_,x_,y_);
+#endif
                 loop_active_=false;ground_=false;
                 vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
                 vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
@@ -1063,6 +1071,10 @@ private:
                 std::max(-2.f*kPi,loop_angle_+advance);
             float next_radius=0.f;
             if(!loop_radius_at(ring,next_angle,next_radius)){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("LOOP_DETACH_MASK angle=%.3f layer=%d x=%.1f y=%.1f\n",
+                   next_angle,active_layer_,x_,y_);
+#endif
                 loop_active_=false;ground_=false;
                 vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
                 vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
@@ -1071,6 +1083,10 @@ private:
             const float nx=ring.x+std::sin(next_angle)*next_radius;
             const float ny=ring.y+std::cos(next_angle)*next_radius;
             if(!loop_center_clear(nx,ny)){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("LOOP_DETACH_BODY angle=%.3f layer=%d x=%.1f y=%.1f\n",
+                   next_angle,active_layer_,nx,ny);
+#endif
                 loop_active_=false;ground_=false;
                 vx_=loop_speed_*std::cos(loop_angle_);
                 vy_=-loop_speed_*std::sin(loop_angle_);
