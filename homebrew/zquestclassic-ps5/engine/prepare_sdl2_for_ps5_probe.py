@@ -25,6 +25,22 @@ source = source.replace(needle,
     "  elseif(WIN32)\n    set(SDL_CMAKE_PLATFORM WINDOWS)", 1)
 platform.write_text(source)
 
+# PS5 libc supplies mathematical functions in libSceLibcInternal, not
+# libm. SDL2's generic UNIX probe finds math.h and appends a nonexistent
+# '-lm' linker dependency. Retain real math calls, replace only the
+# platform library list entry when compiling for the actual PS5 backend.
+cmake=args.source/"CMakeLists.txt"
+text=cmake.read_text()
+old="list(APPEND EXTRA_LIBS m)"
+assert text.count(old)==1, "Pinned SDL2 libm logic changed"
+text=text.replace(old, """if(PS5)
+          list(APPEND EXTRA_LIBS SceLibcInternal)
+        else()
+          list(APPEND EXTRA_LIBS m)
+        endif()""",1)
+cmake.write_text(text)
+
+
 # The PS5 SDK provides C math/thread APIs through system imports; it does
 # not package separate Linux/BSD libm or libpthread linker archives.
 # Strip only those *link options*, not source code or unresolved symbols.
