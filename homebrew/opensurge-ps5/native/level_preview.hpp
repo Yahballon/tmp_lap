@@ -126,6 +126,17 @@ public:
             solid_at(nx+7.f,(support?floor:y_)-26.f)?1:0,
             front_floor?1:0,forward,far_floor?1:0,far);
     }
+    // Original-mask host harness, not compiled into PS5 shipping binaries.
+    bool test_setup_loop(size_t index,float speed) {
+        if(index>=loops_.size() || speed<350.f)return false;
+        const auto& ring=loops_[index];
+        float r=0.f;
+        if(!loop_radius_at(ring,0.f,r))return false;
+        if(!loop_center_clear(ring.x,ring.y+r))return false;
+        test_put(ring.x,ring.y+r+16.f,1,true);
+        vx_=speed;
+        return true;
+    }
     bool test_inside() const{return body_hits(x_,y_);}
     float test_safe_x() const{return safe_ground_x_;}
     float test_safe_y() const{return safe_ground_y_;}
