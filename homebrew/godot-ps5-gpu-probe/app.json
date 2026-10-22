@@ -1,0 +1,13 @@
+{
+  "name": "Godot PS5 GPU Probe (EXPERIMENTAL)",
+  "slug": "godot-ps5-gpu-probe",
+  "titleId": "PPSA99844",
+  "version": "0.1.0",
+  "contentId": "UP9000-PPSA99844_00-GODOTGPUPROBE000",
+  "contentVersion": "01.000.001",
+  "developer": "YAHBALLON",
+  "gameplaySupported": false,
+  "engineIntegrated": false,
+  "releaseStage": "Experimental GPU clear-and-swap, firmware 5.10 unverified",
+  "license": "GPL-3.0-or-later"
+}

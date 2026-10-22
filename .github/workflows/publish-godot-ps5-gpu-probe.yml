@@ -1,0 +1,151 @@
+name: Publish Godot PS5 GPU TESTBUILD
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-godot-ps5-gpu-probe.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Successful GPU compile run (first working build by default)'
+        required: false
+        default: '39767154442'
+  workflow_run:
+    workflows: ['Godot PS5 Isolated GPU Probe (NOT A GODOT RENDERER)']
+    types: [completed]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-godot-ps5-gpu
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'feature/godot-ps5-engine-foundation' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Download artifact from verified native GPU build
+        id: selected
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          if [ "$run" = 0 ]; then run=39767154442; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/gpu-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/gpu-artifacts.json
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          r=json.load(open('/tmp/gpu-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='feature/godot-ps5-engine-foundation'
+          assert r['name']=='Godot PS5 Isolated GPU Probe (NOT A GODOT RENDERER)'
+          assert r['event']=='push' and r['conclusion']=='success' and r['status']=='completed'
+          a=json.load(open('/tmp/gpu-artifacts.json'))['artifacts']
+          good=[x for x in a if not x['expired'] and re.fullmatch(
+              r'Godot-PS5-Isolated-GPU-Probe-v\d+\.\d+\.\d+-UNVERIFIED-ON-CONSOLE',
+              x['name']) and x.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(good)==1, f'Expected one GPU artifact, got {len(good)}'
+          Path('/tmp/gpu-artifact-name').write_text(good[0]['name'])
+          version=re.search(r'-v(\d+\.\d+\.\d+)-UNVERIFIED-',good[0]['name']).group(1)
+          Path('/tmp/gpu-version').write_text(version)
+          PY
+          name=$(cat /tmp/gpu-artifact-name)
+          version=$(cat /tmp/gpu-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=godot-ps5-gpu-probe-v$version" >> "$GITHUB_OUTPUT"
+          mkdir -p /tmp/gpu-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "$name" --dir /tmp/gpu-release
+          test -s /tmp/gpu-release/PPSA99844.zip
+      - name: Validate PS5 signed game folder
+        env:
+          VERSION: ${{ steps.selected.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,struct,zipfile
+          p=pathlib.Path('/tmp/gpu-release/PPSA99844.zip')
+          assert p.is_file() and 4096<p.stat().st_size<200_000_000
+          assert re.fullmatch(r'0\.1\.\d+',os.environ['VERSION'])
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              assert len(names)<500 and z.testzip() is None
+              assert all(n.startswith('PPSA99844/') and '..' not in pathlib.PurePosixPath(n).parts for n in names)
+              elf=z.read('PPSA99844/eboot.bin')
+              assert len(elf)>4096 and elf[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99844/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99844'
+              assert meta['contentId']=='UP9000-PPSA99844_00-GODOTGPUPROBE000'
+              assert re.fullmatch(r'01\.000\.\d{3}',meta['contentVersion'])
+          print('Verified signed GPU ZIP',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Publish experimental GitHub prerelease
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          VERSION: ${{ steps.selected.outputs.version }}
+          TAG: ${{ steps.selected.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/gpu-notes.md <<'EOF'
+          EXPERIMENTAL GPU CLEAR/SWAP PROBE — NOT GODOT GAMEPLAY.
+          Firmware 5.10 GPU output has not yet been verified on PS5 hardware.
+          X changes fullscreen colors. Circle exits.
+          Log: /data/GodotPS5/graphics-probe.log
+          GPL source: https://github.com/Yahballon/tmp_lap/tree/feature/godot-ps5-engine-foundation/homebrew/godot-ps5/gpu-probe
+          EGL/GL source: https://github.com/Yahballon/PS5-DevBridge
+          Unofficial checksum-pinned SDK mirror (origin not independently verified): https://github.com/KernelForgeLabs/ps5-opengl-sdk-mirror
+          Dependency license/source distribution review remains open.
+          EOF
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99844.zip
+          else
+            gh release create "$TAG" /tmp/gpu-release/PPSA99844.zip \
+              --repo "$GITHUB_REPOSITORY" --target main \
+              --title "Godot PS5 GPU Probe v$VERSION (experimental)" \
+              --notes-file /tmp/gpu-notes.md --prerelease
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99844.zip
+      - name: Refresh TESTBUILDS version.json
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          VERSION: ${{ steps.selected.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json,os
+          j=json.load(open('version.json'))
+          e=[x for x in j['apps'] if x['title_id']=='PPSA99844']
+          assert len(e)==1 and e[0]['version']==os.environ['VERSION'],e
+          assert e[0]['zip_url'].endswith('/PPSA99844.zip')
+          assert j['app_count']==len(j['apps'])
+          print('Godot GPU available in TESTBUILD:',e[0]['version'])
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add version.json
+            git commit -m "chore(testbuilds): GPU Probe v$VERSION [skip ci]"
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
