@@ -31,7 +31,7 @@ assert len("ZQUESTBOOTTEST00") == 16
 assert args.fself.stat().st_size > 1024 * 1024, "Missing full zplayer FSELF"
 assert args.fself.read_bytes()[:4] == struct.pack("<I", 0x1D3D154F), "Not a PS5 FSELF"
 assert args.runtime_prx.stat().st_size > 100_000
-assert args.runtime_prx.read_bytes()[:4] == struct.pack("<I", 0x1D3D154F)
+assert args.runtime_prx.read_bytes()[:4] in (struct.pack("<I", 0x1D3D154F), struct.pack("<I", 0xEEF51454)), "Expected signed PS5 runtime format"
 assert (args.upstream / "LICENSE").is_file()
 assert (args.upstream / "resources" / "allegro5.cfg").is_file()
 assert (args.upstream / "src" / "zc" / "zelda.cpp").is_file()
