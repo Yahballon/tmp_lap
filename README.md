@@ -4,6 +4,12 @@
 </p>
 This repository hosts **multiple independent native PlayStation 5 homebrew applications**. Each app keeps its source code, build assets, and documentation in its own folder under `homebrew/`. GitHub Actions workflows remain in the repository-wide `.github/workflows/` directory (as GitHub requires).
 
+## Godot 4.7.2 PS5 – Meilensteine & Roadmap
+
+**Stand 22.10.2026:** Die originale Godot-GLES3-/Canvas2D-Engine wurde bereits mit einer sichtbaren 2D-Szene auf einer echten PS5 bestätigt. Das aktuelle experimentelle TESTBUILD **`PPSA99847 v0.1.2`** enthält Pong (CI-/Release-Build erfolgreich, Pong-Hardwaretest noch offen).
+
+**[Godot-Meilensteine und nächste Aufgaben lesen](https://github.com/Yahballon/tmp_lap/blob/feature/godot-ps5-engine-foundation/homebrew/godot-ps5/MILESTONES.md)** · [Entwicklungsbranch](https://github.com/Yahballon/tmp_lap/tree/feature/godot-ps5-engine-foundation/homebrew/godot-ps5) · [Aktueller Godot-TESTBUILD](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.2)
+
 ## Projects
 
 | Application | Source | Build | Release |
