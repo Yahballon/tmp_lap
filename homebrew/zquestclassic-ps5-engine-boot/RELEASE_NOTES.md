@@ -1,23 +1,48 @@
-# ZQuest Engine BOOT TEST v0.0.1 (PPSA99128)
+# ZQuest Engine BOOT TEST v0.0.2 — Persistent startup/crash logs (PPSA99128)
 
-**EXPERIMENTAL / NOT PLAYABLE / HARDWARE-UNVERIFIED.** This separate app is an opt-in boot test of the **original upstream ZQuestClassic `zplayer`** cross-compiled as a native PS5 FSELF. It is not the existing v0.1.5 quest browser.
+**EXPERIMENTAL / NOT PLAYABLE / PS5 boot still under investigation.**
 
-## What is real
-- Original `zplayer` C++ engine and its original `main`, linked against PS5-specific SDL2/Allegro and ps5-opengl.
-- Real PS5-DevBridge CRT and `_start`, real SDK import modules, converted/signed `eboot.bin`.
-- Clean-room PS5 `sce_module/libc.prx`, verified with its upstream digest.
-- Upstream GPL-3.0-or-later license and redistributable ZQuestClassic resources, excluding bundled quest files and NSF examples.
+v0.0.1 was tested on a jailbroken PS5 and immediately crashed with
+`SIGSEGV`, fault address `0x0` and `RIP 0x0`. The first reported
+backtrace address was `0x9980e3`. This alone does not identify the
+specific null call. v0.0.2 therefore instruments the **original**
+`zplayer` engine and the original PS5-DevBridge CRT to capture early stages.
 
-## What is unverified
-- Console startup, display, gamepad, Quest loading, any audio, ZScript VM at runtime, saves, and exit.
-- The original player has **not** been observed running on PS5 hardware.
+## New PS5 log files
 
-## Testing
-1. Install this **separate** PPSA99128 homebrew from TESTBUILDS. Keep PPSA99127 v0.1.5 installed.
-2. Launch it on a jailbroken PS5. Report the **first screen/error**, or the point where it freezes or exits.
-3. Do not expect that your `.qst` files will automatically launch; the upstream engine currently receives the normal application arguments. Quest selection is not yet wired to the native browser.
-4. If needed, uninstall only PPSA99128; your `/data/ZQuestClassic/quests` files are not touched.
+- **Startup trace:** `/data/ZQuestEngineBoot/logs/boot.log`
+- **Fatal signal trace:** `/data/ZQuestEngineBoot/logs/crash.log`
+- **Fallback** (if the separate directory is inaccessible):
+  `/data/ZQuestClassic/logs/engine-boot.log` and
+  `/data/ZQuestClassic/logs/engine-crash.log`.
 
-The first goal is a **real hardware boot signal**, not pretending a successful link equals gameplay. Source: https://github.com/ZQuestClassic/ZQuestClassic (GPLv3), PS5 platform: https://github.com/Yahballon/PS5-DevBridge.
+Files are written in append mode; existing logs are not removed. The
+boot logger initializes immediately *after* the PS5 runtime's `_init_env`
+and writes startup progress **before C++ static constructors**. It records
+individual initializer positions and addresses, thread start, original
+`zplayer` main, Allegro setup, bitmap buffers and original loop entry.
+Null entries in the initializer arrays are skipped instead of being called.
+Signal handlers attempt to record SIGSEGV/SIGBUS/SIGILL/SIGABRT, then
+restore default handling to preserve the console crash report.
 
-**Separate Title-ID intentionally protects the working TESTBUILDS v0.1.5.**
+Because logging starts after `_init_env`, crashes inside the loader or
+before runtime initialization can still leave both files absent. Signal
+logging is best-effort and may be preempted by the platform crash handler.
+A log does **not** prove the whole engine is bootable or playable.
+
+## Test procedure
+
+1. Install this **separate** PPSA99128 v0.0.2 test build. Keep the
+   functional PPSA99127 v0.1.5 Quest Browser installed.
+2. Launch the engine boot test once.
+3. If it crashes/black-screens, open the log files with PS5-DevBridge,
+   FTP or another trusted homebrew file manager.
+4. Send `boot.log` and `crash.log` (including the last `STATIC_CTOR`
+   or `BEFORE_...` line), together with a screenshot of the console error.
+   If the files are missing, say so explicitly.
+5. Do not expect `.qst` gameplay yet. The original Quest Browser is not
+   connected to this direct engine boot.
+
+No proprietary Nintendo game assets, commercial quest files or ROMs are
+bundled. Original GPL-3.0-or-later source:
+https://github.com/ZQuestClassic/ZQuestClassic.

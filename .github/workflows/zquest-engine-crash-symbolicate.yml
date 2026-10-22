@@ -1,0 +1,63 @@
+name: Diagnose ZQuest PPSA99128 SIGSEGV RIP zero
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/zquest-engine-crash-symbolicate.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  symbolize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 ELF symbol tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-18
+      - name: Download original zplayer ELF for v0.0.1
+        uses: actions/download-artifact@v4
+        with:
+          repository: Yahballon/tmp_lap
+          run-id: 39755653005
+          name: ZQuest-Original-ZPlayer-PS5-Linked-ELF-NOT-PLAYABLE-OR-INSTALLABLE
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/zc-old-linked
+      - name: Download original FSELF-linked ELF for v0.0.1
+        uses: actions/download-artifact@v4
+        with:
+          repository: Yahballon/tmp_lap
+          run-id: 39755653005
+          name: ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/zc-old-fself
+      - name: Look up screenshot backtrace address in original symbols
+        run: |
+          mkdir -p /tmp/symbols
+          {
+            echo 'Screenshot: SIGSEGV fault address=0, RIP=0, backtrace[0]=0x9980e3'
+            echo 'This is only a return address candidate, not a confirmed function.'
+            echo 'PS5 ASLR and FSELF relocation may move addresses.'
+            for f in /tmp/zc-old-linked/zplayer /tmp/zc-old-fself/eboot.elf; do
+              [[ -f "$f" ]] || continue
+              echo "=== $f ==="
+              llvm-readelf-18 -h "$f" | grep -E 'Type:|Machine:|Entry point address:' || true
+              llvm-addr2line-18 -a -f -C -e "$f" 0x9980e3 0x9980e2 || true
+              llvm-nm-18 -n -C "$f" 2>/dev/null | python3 -c '
+import sys
+x = 0x9980e3
+matches = []
+for line in sys.stdin:
+    p = line.split(maxsplit=2)
+    if len(p) != 3: continue
+    try: addr = int(p[0],16)
+    except ValueError: continue
+    if addr <= x and p[1].lower() in ("t","w"): matches.append((addr,p[2]))
+for addr,name in matches[-7:]: print(hex(addr), "delta", hex(x-addr), name)
+' || true
+            done
+          } | tee /tmp/symbols/report.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-PPSA99128-v001-NULL-RIP-return-address-hypotheses
+          path: /tmp/symbols/report.txt
