@@ -229,14 +229,14 @@
       "name": "Godot PS5 Engine Smoke",
       "slug": "godot-ps5-engine-smoke",
       "title_id": "PPSA99843",
-      "version": "0.2.4",
-      "tag": "godot-ps5-engine-smoke-v0.2.4",
+      "version": "0.2.5",
+      "tag": "godot-ps5-engine-smoke-v0.2.5",
       "zip_name": "PPSA99843.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-engine-smoke-v0.2.4/PPSA99843.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-engine-smoke-v0.2.4",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-engine-smoke-v0.2.5/PPSA99843.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-engine-smoke-v0.2.5",
       "source": "homebrew/godot-ps5-engine-smoke",
-      "size_bytes": 15540446,
-      "published_at": "2026-10-22T05:43:30Z"
+      "size_bytes": 15539596,
+      "published_at": "2026-10-22T06:47:35Z"
     },
     {
       "name": "Snake",
