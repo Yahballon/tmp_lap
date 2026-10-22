@@ -74,6 +74,23 @@ The full player ELF's link status must still be confirmed by the latest CI
 run, followed by correct PS5 FSELF packaging, runtime initialization, and
 actual quest gameplay testing. Do not put the diagnostic target in TESTBUILDS.
 
+## Original zplayer now links on PS5 toolchain (22 Oct 2026)
+
+**First successful full original player link:** [GitHub Actions 39738727477](https://github.com/Yahballon/tmp_lap/actions/runs/39738727477), pinned upstream ZQuestClassic and SDL2 PS5 sources. Both the CMake compile/link and resulting ELF header checks passed. The genuine `zplayer` binary is archived in the workflow artifacts.
+
+**Not bootable yet:** `llvm-readelf -h` identifies the link artifact as
+`ELF64 x86-64`, type `DYN`, but with **entry point `0x0`**. The linker
+warned that `_start` was missing. This is not a PS5 SELF/FSELF or a usable
+`eboot.bin`. The new `check_ps5_boot_contract.py` reports these precise
+remaining blockers in an archived `zplayer-boot-readiness.json`.
+
+Next is integration of the existing PS5-DevBridge `app_crt.cpp` startup
+(and its native `_init_env`/runtime), proper PIE linker script, import
+module conversion, loader-compatible entry, `-standalone` quest argv and
+legally redistributable engine resources. A nonzero ELF entry would not
+alone prove that the program can execute on PS5. Console testing of real
+video, audio, controls, gameplay and saving must follow.
+
 ## Current proven on hardware
 
 v0.1.5 in TESTBUILDS: both quests discovered and fully read, and the
