@@ -80,7 +80,11 @@ def patch_project(s: str) -> str:
     end = 'Error ProjectSettings::setup('
     start = s.index(entry)
     stop = s.index(end, start)
-    part = s[start:stop]
+    entire_setup = s[start:stop]
+    # Only the --main-pack branch: other Godot fallback paths contain
+    # identical project.godot load calls and must remain untouched.
+    cut = entire_setup.index('\tString exec_path = OS::get_singleton()->get_executable_path();')
+    part, other_paths = entire_setup[:cut], entire_setup[cut:]
     part = once(part, '\tif (!p_main_pack.is_empty()) {',
         '\tif (!p_main_pack.is_empty()) {\n\t\tPS5_NEXT_TRACE("ENTER_MAIN_PACK_SETTINGS");')
     target = '\t\tbool ok = _load_resource_pack(p_main_pack, false, 0, true);'
@@ -96,11 +100,8 @@ def patch_project(s: str) -> str:
         '\t\t\t\tPS5_NEXT_TRACE("BEFORE_PACK_OVERRIDE");\n' +target+
         '\n\t\t\t\tPS5_NEXT_TRACE("AFTER_PACK_OVERRIDE");')
     target='\t\treturn err;'
-    # Exactly one return inside main-pack branch.
-    section_end=part.index('\tString exec_path = OS::get_singleton()->get_executable_path();')
-    left,right=part[:section_end],part[section_end:]
-    left=once(left,target,'\t\tPS5_NEXT_TRACE("RETURN_MAIN_PACK_SETUP");\n'+target)
-    s=s[:start]+left+right+s[stop:]
+    part=once(part,target,'\t\tPS5_NEXT_TRACE("RETURN_MAIN_PACK_SETUP");\n'+target)
+    s=s[:start]+part+other_paths+s[stop:]
     start=s.index(end)
     stop=s.index('bool ProjectSettings::has_setting(',start)
     section=s[start:stop]
