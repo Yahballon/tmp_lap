@@ -92,7 +92,7 @@ int main() {
     assert(x.source == PackSource::AutoScan);
     assert(x.path == "/mnt/usb0/godot/Demo.pck");
     // A user can still explicitly select the external smoke pack.
-    selected_config = "/mnt/usb0/godot/smoke.pck\\n";
+    selected_config = "/mnt/usb0/godot/smoke.pck\n";
     config_present = true;
     x = select_runtime_pack();
     assert(x.source == PackSource::Config);
