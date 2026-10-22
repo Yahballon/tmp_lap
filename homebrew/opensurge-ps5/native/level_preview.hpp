@@ -417,7 +417,10 @@ public:
             const float delta=friction*dt;
             if(std::abs(vx_)<=delta)vx_=0.f;
             else vx_-=std::copysign(delta,vx_);
-            if(ground_ && std::abs(vx_)<30.f)rolling_=false;
+            // Do not enlarge the rolling capsule to the standing collision
+            // shape while its upper corner is still embedded in terrain.
+            if(ground_ && std::abs(vx_)<30.f &&
+               !standing_body_hits(x_,y_))rolling_=false;
         }else{
             slope_grade_=0.f;
             const float target=(down && ground_)?0.f:dir*310.f;
@@ -593,7 +596,8 @@ public:
             }
         }else embedded_frames_=0;
         if(ground_ && !wall_climb_ && !tube_active_ &&
-           !body_hits(x_,y_) && has_foot_support(x_,y_)){
+           !standing_body_hits(x_,y_) && !body_hits(x_,y_) &&
+           has_foot_support(x_,y_)){
             safe_ground_x_=x_;safe_ground_y_=y_;
         }
         elapsed_+=dt;
@@ -698,21 +702,44 @@ private:
     }
     void restore_safe_ground(){
         tube_active_=wall_climb_=false;
-        x_=safe_ground_x_;y_=safe_ground_y_;
         vx_=vy_=0.f;rolling_=charging_=false;
-        ground_=has_foot_support(x_,y_);
-        if(!ground_){
-            float floor=y_;
-            if(find_floor(x_,y_,32,32,floor) && !body_hits(x_,floor)){
-                y_=floor;ground_=true;
+        // Rolling probes are narrower than standing probes; a saved rolling
+        // location can be solid for the standing player. Never revive at a
+        // location which only has foot support but intersects the terrain.
+        const float saved_x=safe_ground_x_,saved_y=safe_ground_y_;
+        auto try_ground=[&](float px,float feet){
+            if(!std::isfinite(px)||!std::isfinite(feet))return false;
+            float floor=feet;
+            if(!find_floor(px,feet,16,24,floor) ||
+               std::abs(floor-feet)>24.f ||
+               body_hits(px,floor) || !has_foot_support(px,floor))
+                return false;
+            x_=px;y_=floor;ground_=true;
+            return true;
+        };
+        bool restored=try_ground(saved_x,saved_y);
+        if(!restored){
+            // Emergency fallback, bounded to 96px around the last proven
+            // ground contact. Never used for ordinary player movement.
+            for(int dist=8;dist<=96&&!restored;dist+=8)
+                restored=try_ground(saved_x-float(dist),saved_y) ||
+                         try_ground(saved_x+float(dist),saved_y);
+        }
+        if(!restored){
+            reset();
+            ground_=has_foot_support(x_,y_)&&!body_hits(x_,y_);
+            if(!ground_){
+                for(int n=1;n<=80&&!ground_;++n){
+                    if(try_ground(startx_,starty_-float(n)))break;
+                    if(try_ground(startx_,starty_+float(n)))break;
+                }
             }
         }
-        if(!ground_){
-            // Fallback is an authored, previously verified game spawn,
-            // never a blind reappearance inside a solid tube tile.
-            reset();
-        }
         last_ground_y_=y_;
+        if(ground_&&!body_hits(x_,y_)){
+            safe_ground_x_=x_;safe_ground_y_=y_;
+        }
+        embedded_frames_=0;
         tube_cooldown_=2.f;tube_guard_=0.f;
     }
     void tick_routes(){
@@ -843,6 +870,12 @@ private:
         ++wall_climbs_;
         return true; // we did NOT move x or punch through the solid mask
     }
+    bool standing_body_hits(float px,float feet) const {
+        for(const float yy:{feet-38.f,feet-22.f,feet-8.f}){
+            if(solid_at(px-12.f,yy)||solid_at(px+12.f,yy))return true;
+        }
+        return false;
+    }
     bool body_hits(float px,float feet) const {
         // Open Surge rolls with a 15px width, ~29px height sensor (original
         // physicsactor.c), NOT its normal standing 24x38 probe. This is vital
@@ -852,11 +885,7 @@ private:
             for(const float yy:{feet-25.f,feet-16.f,feet-8.f}){
                 if(solid_at(px-7.f,yy)||solid_at(px+7.f,yy))return true;
             }
-        }else{
-            for(const float yy:{feet-38.f,feet-22.f,feet-8.f}){
-                if(solid_at(px-12.f,yy)||solid_at(px+12.f,yy))return true;
-            }
-        }
+        }else return standing_body_hits(px,feet);
         return false;
     }
     bool torso_deep_inside_solid() const {
