@@ -1,5 +1,8 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
+> **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 22.10.2026.
+> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer auf PS5 bestätigt; `PPSA99847 v0.1.2` (Pong) erfolgreich gebaut, **Pong-Hardwaretest noch offen**.
+
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
 ## Breakthrough: Real Godot 4.7.2 GLES3 Canvas2D on PS5 hardware
