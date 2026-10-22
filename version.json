@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "2c387a4344118dfdeb5b586f0f91281b5585d8cdfe674473097871933d7b7621",
+  "version": "0b13e575b19fe02eeedfcb54eb3b00959d65c173519a96d582e22f0fb660dfb9",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 28,
+  "app_count": 29,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -289,6 +289,19 @@
       "source": "homebrew/snake",
       "size_bytes": 6218260,
       "published_at": "2026-10-20T13:05:50Z"
+    },
+    {
+      "name": "Godot PS5 GLES3 Canvas (EXPERIMENTAL)",
+      "slug": "godot-ps5-gles3-canvas",
+      "title_id": "PPSA99847",
+      "version": "0.1.0",
+      "tag": "godot-ps5-gles3-canvas-v0.1.0",
+      "zip_name": "PPSA99847.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gles3-canvas-v0.1.0/PPSA99847.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.0",
+      "source": "homebrew/godot-ps5-gles3-canvas",
+      "size_bytes": 21789943,
+      "published_at": "2026-10-22T18:51:54Z"
     },
     {
       "name": "4 WINS",
