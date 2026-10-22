@@ -22,9 +22,12 @@ p.add_argument("--libc", required=True, type=Path)
 p.add_argument("--param-template", required=True, type=Path)
 p.add_argument("--icon", required=True, type=Path)
 p.add_argument("--source-run", required=True, type=str)
+p.add_argument("--source-sha", required=True, type=str)
 p.add_argument("--output", required=True, type=Path)
 a = p.parse_args()
 
+if len(a.source_sha) != 40 or any(c not in "0123456789abcdef" for c in a.source_sha):
+    raise SystemExit("Expected exact GitHub source commit SHA-1 hex")
 if not a.source_run.isdigit() or len(a.source_run) < 8:
     raise SystemExit("Invalid source GitHub Actions run ID")
 for source in (a.fself, a.libc, a.param_template, a.icon):
@@ -55,6 +58,7 @@ manifest = {
     "title_id": TITLE_ID,
     "test_kind": "original-zplayer-boot-only",
     "source_run_id": a.source_run,
+    "source_commit_sha": a.source_sha,
     "upstream_source": PROVENANCE,
     "eboot_sha256": sha,
     "gameplay_verified": False,
