@@ -1,9 +1,3 @@
-# Open Surge PS5 v0.5.1 — Spin Dash uphill fix
+# Open Surge PS5 v0.5.2 – Contact-safe uphill Spin Dash
 
-Hardware screenshots show **60 FPS and VX=0** around world x=2500/y=10015 on the Sunshine slope. This is a mask/body collision problem, not a performance issue.
-
-- Roll uses a narrow and lower ~15x29 collision sensor (as in original physicsactor.c), not the upright character's sensor against a steep hill.
-- Derive uphill/downhill forces from original collision mask heights at the player's feet and use original rolling hill strength (281.25 uphill and 1125 downhill world units/s²).
-- Keep the earlier v0.2.4 buffered controller fix and 120Hz simulation, native terrain, collectibles, enemies, sound and music unchanged.
-- New host C++ regression reproduces the recorded x=2500/y=10015 grounded state, charges a Spin Dash, and asserts actual forward/uphill travel rather than camera-only movement.
-- Original physics is still an approximation, full SurgeScript engine remains unlinked.
+Real user footage showed v0.5.1 able to move forward but falling into solid ground / off the lower screen. This is not an FPS or audio issue. The previous climb helper allowed movement THROUGH an opaque mask while raising player feet gradually. This replacement keeps the collision X fixed during high-energy ascent, moves up against a known reachable actual brick surface, and resumes X only when the next body position is empty. A host C++ regression also checks for solid penetration and falls under the level route, besides crossing the ramp. Existing original music/SFX and gameplay untouched. This is not the full original SurgeScript/Allegro physics system. On-hardware playtest needed.

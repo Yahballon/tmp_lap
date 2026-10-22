@@ -87,6 +87,7 @@ public:
             solid_at(nx+7.f,(support?floor:y_)-26.f)?1:0,
             front_floor?1:0,forward,far_floor?1:0,far);
     }
+    bool test_inside() const{return body_hits(x_,y_);}
     bool test_position(float px,float feet){
         x_=px;y_=feet;vx_=vy_=0;
         rolling_=charging_=false;charge_=0.f;
