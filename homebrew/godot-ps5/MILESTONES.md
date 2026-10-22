@@ -76,10 +76,11 @@ PS5 / Firmware 5.10
 
 ## M8c – Independent external PCK acceptance fixture (23 October 2026)
 
-**Status: 🟡 Sources and CI test workflow committed; host workflow and physical PS5 results not yet verified.** Pong v0.1.2 is now visibly running on PS5 (video supplied); individual gameplay/control/exit logs are still pending.
+**Status: 🟡 Source, host regression checks and PS5 installation ZIP workflow committed; green Godot-host CI result and physical PS5 M8c results not yet verified.** Pong v0.1.2 is now visibly running on PS5 (video supplied); individual gameplay/control/exit logs are still pending.
 
 - New standalone project: [`samples/external-pack-smoke/`](samples/external-pack-smoke/README.md), deliberately **not** linked into the native PPSA99847 binary.
-- New [`build-godot-ps5-external-pck.yml`](../../.github/workflows/build-godot-ps5-external-pck.yml) generates `external-smoke.pck` using official Godot 4.7.2, then performs a Linux/headless PCK runtime check. The expected downloadable artifact is `Godot-PS5-External-PCK-Host-Verified-NOT-PS5` **only after the workflow succeeds**.
+- New [`build-godot-ps5-external-pck.yml`](../../.github/workflows/build-godot-ps5-external-pck.yml) produces a genuine `external-smoke.pck` with official Godot 4.7.2, verifies markers in a Linux/headless game run, then runs strict PCK-header/ZIP checks. A passing workflow uploads artifact **`Godot-PS5-M8c-External-PCK-PS5-READY-HOST-TESTED`**, containing `external-smoke.pck` and nested **`GodotPS5-M8c-External-PCK-PS5-TEST.zip`**. Successful CI is not yet confirmed.
+- The nested PS5-ready ZIP maps `GodotPS5/launch.txt`, `GodotPS5/games/external-smoke.pck`, instructions and SHA-256 so the user can copy its `GodotPS5` contents to `/data/GodotPS5` without modifying the known-good native runner. Packager [`make_ps5_test_bundle.py`](samples/external-pack-smoke/make_ps5_test_bundle.py) and mock regression [`test_external_pck_bundle.py`](tests/test_external_pck_bundle.py) are committed. Branch pushes invoke the workflow automatically; workflow_dispatch may not appear until the YAML is on the default branch.
 - The PCK contains two `Node2D` scenes, their GDScripts and a `res://palette.json` resource. It tests **real** `FileAccess.open`, `JSON.parse_string`, scene switching, CanvasItem primitive rendering, X input and clean engine exit.
 - Use `PPSA99847 v0.1.2` unchanged: copy artifact `external-smoke.pck` to `/data/GodotPS5/games/external-smoke.pck`; create `/data/GodotPS5/launch.txt` containing `external-smoke.pck`. Remove `launch.txt` afterward to restore the bundled Pong game.
 - Expected `gles3-runtime.log`: `PACK_SOURCE=CONFIG`, `GODOT_SWAP_FIRST`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`.
