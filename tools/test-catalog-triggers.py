@@ -24,6 +24,12 @@ assert "Publish PS5DreamcastX Release" in names, "DreamcastX standalone release 
 assert "Publish PS5DreamcastX TESTBUILD" in names
 assert "Publish Godot PS5 GPU TESTBUILD" in names
 assert "Publish Godot PS5 Scene Bridge TESTBUILD" in names
+assert "Publish Godot PS5 Real GLES3 TESTBUILD" in names
+gles3_publisher=(workflow_dir / "publish-godot-ps5-gles3-canvas.yml").read_text()
+assert "gh release create" in gles3_publisher
+assert "PPSA99846.zip" in gles3_publisher
+assert "tools/update-version.py" in gles3_publisher
+assert "Build Godot PS5 Real GLES3 Canvas2D (EXPERIMENTAL)" in gles3_publisher
 scene_publisher=(workflow_dir / "publish-godot-ps5-scene-bridge.yml").read_text()
 assert "gh release create" in scene_publisher
 assert "PPSA99845.zip" in scene_publisher
