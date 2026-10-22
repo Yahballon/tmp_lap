@@ -32,6 +32,7 @@ jobs:
           python3 homebrew/godot-ps5/tests/test_patch_ps5_kvm.py
           python3 homebrew/godot-ps5/tests/test_engine_phases.py
           python3 homebrew/godot-ps5/tests/test_patch_ps5_setup_trace.py
+          python3 homebrew/godot-ps5/tests/test_ps5_path_override.py
       - name: Produce and execute genuine Godot 4.7.2 smoke PCK on Linux
         run: |
           set -euo pipefail
