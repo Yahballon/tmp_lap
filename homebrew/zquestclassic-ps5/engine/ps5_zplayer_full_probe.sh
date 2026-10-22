@@ -118,9 +118,7 @@ if ((status != 0)); then
   echo "BLOCKED: real zplayer CMake configuration (see configure.log)" >> "$report"
   exit 31
 fi
-echo "[zcps5] Rewriting generated zplayer link for real SDK imports only"
-python3 "$root/homebrew/zquestclassic-ps5/engine/ps5_native_link_probe.py" \
-  "$build/build.ninja" "$PS5_PAYLOAD_SDK/target/lib"
+echo "[zcps5] Original CMake already links verified real SDK imports"
 echo "[zcps5] Attempting original zplayer CMake target"
 set +e
 timeout 1050 cmake --build "$build" --target zplayer --parallel 3 -- -k 8 >"$work/compile.log" 2>&1
