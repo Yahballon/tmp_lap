@@ -50,7 +50,10 @@ jobs:
           gh run download 39738727477 -R "$GITHUB_REPOSITORY" \
             -n ZQuest-Original-ZPlayer-PS5-Linked-ELF-NOT-PLAYABLE-OR-INSTALLABLE \
             -D /tmp/zquest-elf
-          test -s /tmp/zquest-elf/zplayer
+          # Uploaded Actions archive preserves the parent "build/" path
+          # because the source workflow included multiple report files.
+          test -s /tmp/zquest-elf/build/zplayer
+          cp /tmp/zquest-elf/build/zplayer /tmp/zquest-elf/zplayer
           file /tmp/zquest-elf/zplayer
           llvm-readelf-18 -h -l -d /tmp/zquest-elf/zplayer \
             > /tmp/zquest-elf/source-elf-report.txt
