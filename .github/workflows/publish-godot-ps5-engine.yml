@@ -10,7 +10,7 @@ on:
         required: false
         default: '0'
   workflow_run:
-    workflows: ['Validate Godot PS5 Engine Foundation']
+    workflows: ['Validate Godot PS5 Engine Foundation', 'Godot PS5 Native Engine Link Retry']
     types: [completed]
 
 permissions:
@@ -54,7 +54,7 @@ jobs:
           assert r['repository']['full_name']=='Yahballon/tmp_lap'
           assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
           assert r['head_branch']=='feature/godot-ps5-engine-foundation'
-          assert r['name']=='Validate Godot PS5 Engine Foundation'
+          assert r['name'] in ('Validate Godot PS5 Engine Foundation', 'Godot PS5 Native Engine Link Retry')
           assert r['event']=='push'
           assert r['conclusion']=='success' or r['id']==39742420919
           print('Trusted Godot engine build:',r['id'],r['head_sha'])
