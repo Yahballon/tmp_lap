@@ -105,7 +105,10 @@ jobs:
           EXPERIMENTAL PS5 hardware test: real Godot 4.7.2 DisplayServerPS5 + upstream GLES3 Compatibility rasterizer via native PS5 EGL context.
           REAL Godot GLES3 Canvas2D already verified on physical PS5 firmware 5.10 with v0.1.0 screenshot and 4 clean sessions (4388 Godot swaps). Custom external PCK support in v0.1.1 remains experimentally unverified.
           Title PPSA99847 is isolated from known-good Godot headless PPSA99843 and GPU PPSA99844.
-          Expected: moving/rotating translucent magenta/cyan checkerboard; press X to change background color through REAL Godot input/GDScript.
+          Versions v0.1.0 and v0.1.1: moving magenta/cyan checkerboard, X changes background through Godot GDScript.
+          Version v0.1.2: Godot-authored Pong mini-game rendered entirely through genuine GLES3 Canvas2D; left stick or D-pad moves paddle, X serves, Circle resets, Options quits.
+          Remove /data/GodotPS5/launch.txt to run the bundled demo; an explicit external PCK still takes precedence.
+          Pong gameplay and native controller mappings have NOT yet been confirmed on PS5 hardware.
           Logs: /data/GodotPS5/gles3-runtime.log, gles3-stdout.log, gles3-stderr.log
           Godot MIT source: https://github.com/Yahballon/tmp_lap/tree/feature/godot-ps5-engine-foundation/homebrew/godot-ps5
           GPU glue GPL-3.0-or-later: https://github.com/Yahballon/PS5-DevBridge
