@@ -262,3 +262,19 @@ original='al_show_native_message_box(all_get_display(), "ZQuest Classic: I AM ER
 assert error_cpp.count(original)==1, "Upstream fatal-error dialog changed"
 error_cpp=error_cpp.replace(original, 'fputs(buf, stderr); fputc(10, stderr); fflush(stderr);',1)
 error_dialog.write_text(error_cpp)
+
+
+# The official optional upstream websocket_pool_unsupported.cpp fallback
+# deliberately ignores arguments; unlike its network-enabled counterpart it
+# cannot use them. The upstream's strict -Wunused-parameter-as-error prevents
+# this valid source compiling. Scope the warning exception to THIS FILE ONLY,
+# retaining all other compiler diagnostics for the full zplayer project.
+cmake=a.cmake_root/"CMakeLists.txt"
+source=cmake.read_text()
+marker="target_sources(websocket INTERFACE src/zc/websocket_pool_unsupported.cpp)"
+assert source.count(marker)==1,"Pinned websocket fallback CMake changed"
+source=source.replace(marker,marker+"\n\tif(ZC_PS5_TARGET_ONLY_PROBE)\n"
+    "\t\tset_source_files_properties(src/zc/websocket_pool_unsupported.cpp"
+    " PROPERTIES COMPILE_OPTIONS \"-Wno-unused-parameter\")\n"
+    "\tendif()",1)
+cmake.write_text(source)
