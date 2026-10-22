@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "b67c61b2184f0d8b6b0cedce1b31cae21876bc5c827a53e1e75386c0d72fe5eb",
+  "version": "d0e159ee81b5cbc0f3bee31413065ebefbde0e475dca1194be10bd355e9669c5",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 28,
+  "app_count": 26,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -55,19 +55,6 @@
       "source": "homebrew/opensurge-ps5",
       "size_bytes": 49570406,
       "published_at": "2026-10-22T12:03:14Z"
-    },
-    {
-      "name": "Crypto Tracker",
-      "slug": "crypto-tracker",
-      "title_id": "PPSA99442",
-      "version": "0.3.0",
-      "tag": "v0.3.0",
-      "zip_name": "PPSA99442.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/v0.3.0/PPSA99442.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/v0.3.0",
-      "source": "homebrew/crypto-tracker",
-      "size_bytes": 10254350,
-      "published_at": "2026-10-12T21:48:50Z"
     },
     {
       "name": "WWW SPEEDTEST",
@@ -302,19 +289,6 @@
       "source": "homebrew/4wins",
       "size_bytes": 7549193,
       "published_at": "2026-10-21T10:19:43Z"
-    },
-    {
-      "name": "Payload LauncherX",
-      "slug": "payload-launcher",
-      "title_id": "PPSA99873",
-      "version": "0.2.4",
-      "tag": "payload-launcher-v0.2.4",
-      "zip_name": "PPSA99873.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/payload-launcher-v0.2.4/PPSA99873.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/payload-launcher-v0.2.4",
-      "source": "homebrew/payload-launcher",
-      "size_bytes": 6258612,
-      "published_at": "2026-10-13T07:46:14Z"
     },
     {
       "name": "ThemeChanger",
