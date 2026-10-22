@@ -230,7 +230,7 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
       sscanf_l snprintf_l asprintf_l __runes_for_locale
       strftime_l mbsrtowcs_l wcsnrtombs_l wcrtomb_l mbsnrtowcs_l
       catopen catgets catclose
-      mbtowc_l ___mb_cur_max_l mbrlen_l freelocale strtoull_l)
+      mbtowc_l ___mb_cur_max_l mbrlen_l mbrtowc_l freelocale strtoull_l)
     target_link_options(zplayer PRIVATE
         "-Wl,--defsym,@@{_name}=ps5_@@{_name}")
   endforeach()
@@ -242,7 +242,7 @@ if(ZC_PS5_TARGET_ONLY_PROBE)
   foreach(_zc_locale_symbol IN ITEMS
       strftime_l mbsrtowcs_l wcsnrtombs_l wcrtomb_l mbsnrtowcs_l
       catopen catgets catclose
-      mbtowc_l ___mb_cur_max_l mbrlen_l freelocale strtoull_l)
+      mbtowc_l ___mb_cur_max_l mbrlen_l mbrtowc_l freelocale strtoull_l)
     target_link_options(zplayer PRIVATE
         "-Wl,--undefined=ps5_${_zc_locale_symbol}")
   endforeach()
@@ -278,3 +278,21 @@ source=source.replace(marker,marker+"\n\tif(ZC_PS5_TARGET_ONLY_PROBE)\n"
     " PROPERTIES COMPILE_OPTIONS \"-Wno-unused-parameter\")\n"
     "\tendif()",1)
 cmake.write_text(source)
+
+
+# Allegro-Legacy's generic FreeBSD '~otheruser' expansion enumerates passwd
+# entries using setpwent/getpwent/endpwent. A PS5 homebrew title has no Unix
+# passwd database; the existing behavior is to leave '~name' literal if no
+# user was found. Preserve plain '~/' and absolute/relative paths, while
+# omitting only the unsupported enumeration branch in the staged PS5 build.
+legacy_file=a.cmake_root/"third_party/allegro_legacy/src/file.c"
+lf=legacy_file.read_text()
+begin="\t else {\n\t    /* harder */\n"
+assert lf.count(begin)==1,"Pinned Allegro-Legacy passwd branch changed"
+end="\n\t }\n\n\t /* If we got a home directory"
+assert lf.count(end)==1, "Pinned Allegro-Legacy passwd branch end changed"
+first=lf.index(begin)
+last=lf.index(end,first)
+assert all(x in lf[first:last] for x in ("setpwent();","getpwent()","endpwent();"))
+lf=lf[:first]+('\t else {\n\t    /* PS5: no other-user account database; keep ~user path literal. */')+lf[last:]
+legacy_file.write_text(lf)
