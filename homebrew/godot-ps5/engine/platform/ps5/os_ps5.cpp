@@ -6,6 +6,19 @@
 #include "core/os/memory.h"
 #include "main/main.h"
 #include "servers/display/display_server.h"
+#ifdef GODOT_PS5_SCENE_PREVIEW
+#include "scene/main/scene_tree.h"
+#include "scene/2d/node_2d.h"
+#include <cstdio>
+// Registered by a DIFFERENT PS5 experimental title (PPSA99845); NOT the
+// Godot rendering server. Sends *real* GDScript-updated Node2D state to
+// the stand-alone native EGL framebuffer. Safe stable-title default is off.
+using SceneFrameCallback = void (*)(float sprite_x, float angle, int presses);
+static SceneFrameCallback scene_frame_callback = nullptr;
+extern "C" void godot_ps5_set_scene_frame_callback(SceneFrameCallback cb) {
+    scene_frame_callback = cb;
+}
+#endif
 #ifdef GODOT_PS5_DISPLAY_EXPERIMENT
 #include "display_server_ps5.h"
 #endif
@@ -64,7 +77,23 @@ void OS_PS5::run() {
         controller.poll();
         if (DisplayServer::get_singleton())
             DisplayServer::get_singleton()->process_events();
-        if (Main::iteration()) break;
+        const bool done = Main::iteration();
+#ifdef GODOT_PS5_SCENE_PREVIEW
+        if (scene_frame_callback) {
+            SceneTree *tree = Object::cast_to<SceneTree>(main_loop);
+            Node *scene = tree ? tree->get_current_scene() : nullptr;
+            if (scene) {
+                Node2D *sprite = Object::cast_to<Node2D>(
+                    scene->get_node_or_null(NodePath("PreviewSprite")));
+                if (sprite) {
+                    const int presses = int(scene->get("count"));
+                    scene_frame_callback(sprite->get_position().x,
+                                         sprite->get_rotation(), presses);
+                }
+            }
+        }
+#endif
+        if (done) break;
     }
     main_loop->finalize();
 }

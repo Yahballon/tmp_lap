@@ -22,6 +22,7 @@ func _ready() -> void:
             var checker: bool = ((x / 8 + y / 8) % 2) == 0
             img.set_pixel(x, y, Color(1.0, 0.10, 0.70, 0.65) if checker else Color(0.05, 0.95, 0.95, 0.65))
     sprite = Sprite2D.new()
+    sprite.name = "PreviewSprite"
     sprite.texture = ImageTexture.create_from_image(img)
     sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     sprite.position = Vector2(960, 520)

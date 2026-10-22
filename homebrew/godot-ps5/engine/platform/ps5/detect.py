@@ -53,4 +53,6 @@ def configure(env):
                            "GODOT_PS5_NATIVE_IO", ("_FILE_OFFSET_BITS", 64)])
     if os.environ.get("GODOT_PS5_DISPLAY_EXPERIMENT") == "1":
         env.Append(CPPDEFINES=["GODOT_PS5_DISPLAY_EXPERIMENT"])
+    if os.environ.get("GODOT_PS5_SCENE_PREVIEW") == "1":
+        env.Append(CPPDEFINES=["GODOT_PS5_SCENE_PREVIEW"])
     env.Append(CPPPATH=["#platform/ps5"])
