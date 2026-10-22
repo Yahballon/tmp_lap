@@ -26,8 +26,14 @@ test -f "${PS5_PAYLOAD_SDK:?}/target/include/c++/v1/vector"
 test -f "${PS5_DEVBRIDGE_TOOL:?}"
 test -x "$PS5_PAYLOAD_SDK/bin/prospero-lld"
 test -f "$root/app/tooling/native/ps5-pie.ld"
-export PS5_APP_CRT_SOURCE="$root/app/tooling/native/app_crt.cpp"
-test -f "$PS5_APP_CRT_SOURCE"
+# Real PS5-DevBridge CRT uses an optional weak callback that the
+# original zplayer does not provide. Stage only a copy with optional
+# breadcrumbs omitted; keep actual _start, constructors, main and exit.
+export PS5_APP_CRT_SOURCE="$work/ps5_zplayer_app_crt.cpp"
+python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_app_crt_for_ps5_zplayer.py" \
+  "$root/app/tooling/native/app_crt.cpp" "$PS5_APP_CRT_SOURCE"
+test -s "$PS5_APP_CRT_SOURCE"
+! grep -q 'jb_startup_mark' "$PS5_APP_CRT_SOURCE"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_ps5_linker_layout.py" "$root/app/tooling/native/ps5-pie.ld"
 test -f "$root/app/tooling/native/app-symbols.map"
 test -d "$PS5_PAYLOAD_SDK/target/lib"
