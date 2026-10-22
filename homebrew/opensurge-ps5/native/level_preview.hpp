@@ -178,7 +178,7 @@ public:
         if(!ready())return;
         vx_=(x_>=source_x?1.f:-1.f)*210.f;
         vy_=-280.f;
-        ground_=false;
+        ground_=false;loop_active_=false;
         charging_=rolling_=false;
         charge_=0.f;
         y_-=4.f;
@@ -186,7 +186,7 @@ public:
     void spring_bounce(float strength) {
         if(!ready()||strength<100.f||strength>1400.f)return;
         vy_=-strength;
-        ground_=false;spring_anim_=0.32f;
+        ground_=false;loop_active_=false;spring_anim_=0.32f;
         charging_=false;charge_=0.f;rolling_=false;
         y_-=3.f; // free the player's feet from the spring platform
     }
@@ -388,7 +388,15 @@ public:
             return;
         }
         if(loop_active_){
-            tick_loop(dt);
+            if(jump){
+                // Jump away from whichever loop surface is beneath Surge.
+                const float nx=std::sin(loop_angle_);
+                const float ny=std::cos(loop_angle_);
+                vx_=loop_speed_*ny-505.f*nx;
+                vy_=-loop_speed_*nx-505.f*ny;
+                x_-=nx*3.f;y_-=ny*3.f;
+                loop_active_=false;ground_=false;
+            }else tick_loop(dt);
             elapsed_+=dt;
             return;
         }
@@ -750,7 +758,7 @@ private:
         return true;
     }
     void restore_safe_ground(){
-        tube_active_=wall_climb_=false;
+        tube_active_=wall_climb_=loop_active_=false;
         tube_track_.clear();tube_track_index_=0;tube_track_length_=0.f;
         vx_=vy_=0.f;rolling_=charging_=false;
         // Rolling probes are narrower than standing probes; a saved rolling
@@ -1013,7 +1021,9 @@ private:
         const LoopRing& ring=loops_[loop_index_];
         // Project normal gravity onto tangent, matching the uphill energy
         // penalty and downhill acceleration rather than boosting through.
-        loop_speed_=std::clamp(loop_speed_-1200.f*std::sin(loop_angle_)*dt,
+        const float incline=std::sin(loop_angle_);
+        const float gravity_factor=incline>=0.f?281.25f:1125.f;
+        loop_speed_=std::clamp(loop_speed_-gravity_factor*incline*dt,
                                0.f,960.f);
         if(loop_speed_<210.f){
             // Insufficient momentum: detach in the current tangent direction.
