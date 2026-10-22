@@ -25,10 +25,15 @@ Expected PS5 logs in `/data/GodotPS5/gles3-stdout.log`:
 `gles3-runtime.log` must show `GODOT_SWAP_FIRST` and
 `NORMAL_SHUTDOWN`.
 
-Godot's GLES3 Canvas2D has already been demonstrated by another
-checkerboard scene, but **this Pong fixture has not been hardware tested**.
-Passing cross-compilation alone does not confirm playable framerate or
-input response. Known-good v0.1.1 release remains available.
+**Hardware update (23 October 2026):** User reports Pong works on a real
+PS5 and supplied a 13.88-second gameplay video named
+`20261022_234930_00248487(1).webm`. Review confirms visible moving ball,
+changing paddle positions, pitch, and vector scoreboard. Therefore **visual
+Pong gameplay is PS5-confirmed**, not merely CI-tested. This short video
+does not independently verify every control mapping, paddle/ball collision,
+score transition, frame pacing or clean engine exit. Preserve those as
+outstanding acceptance checks until the three GLES3 logs and/or longer
+hardware evidence are available. Known-good v0.1.1 remains for regression.
 
 Technical caveats: hand-coded paddle/ball collisions only;
 no claim that native Godot physics, fonts, 3D, audio, or
