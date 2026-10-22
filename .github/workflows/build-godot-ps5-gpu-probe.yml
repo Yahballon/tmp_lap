@@ -42,13 +42,15 @@ jobs:
           cp homebrew/godot-ps5/gpu-probe/main.cpp /tmp/godot-gpu-probe/src/main.cpp
           python3 - <<'PY'
           from pathlib import Path
-          import json
+          import json,os
+          patch=int(os.environ['GITHUB_RUN_NUMBER'])
+          assert 1 <= patch <= 998
           p=Path('/tmp/godot-gpu-probe/sce_sys/param.json')
           j=json.loads(p.read_text())
           j['titleId']='PPSA99844'
           j['conceptId']='99844'
           j['contentId']='UP9000-PPSA99844_00-GODOTGPUPROBE000'
-          j['contentVersion']='01.000.001'
+          j['contentVersion']=f'01.000.{patch+1:03d}'
           j['localizedParameters']['en-US']['titleName']='Godot GPU Probe'
           p.write_text(json.dumps(j,indent=2)+'\n')
           assert len(j['contentId'].split('_00-')[1]) == 16
@@ -81,6 +83,8 @@ jobs:
           meta=json.loads((p/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99844'
           assert meta['contentId']=='UP9000-PPSA99844_00-GODOTGPUPROBE000'
+          import os
+          assert meta['contentVersion']==f"01.000.{int(os.environ['GITHUB_RUN_NUMBER'])+1:03d}"
           archive=root/'PPSA99844.zip'
           with zipfile.ZipFile(archive) as z:
               assert z.testzip() is None
@@ -90,6 +94,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-Isolated-GPU-Probe-v0.1.0-UNVERIFIED-ON-CONSOLE
+          name: Godot-PS5-Isolated-GPU-Probe-v0.1.${{ github.run_number }}-UNVERIFIED-ON-CONSOLE
           path: /tmp/godot-gpu-probe/dist/PPSA99844.zip
           if-no-files-found: error

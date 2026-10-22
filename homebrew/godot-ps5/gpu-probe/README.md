@@ -63,3 +63,15 @@ The repository's assertion that this is byte-for-byte upstream is **not
 independently verified**, so provenance and licenses remain a pre-release
 review gate. Native build success and actual console graphics are separate
 acceptance gates. The original MIT Godot engine remains separate.
+
+## Automatic TESTBUILD publishing
+
+The first hardware-unverified standalone v0.1.0 GPU test was published as a
+GitHub prerelease and added to `version.json` for PPSA99844.
+Successful **future** native GPU CI builds produce unique
+`0.1.<github.run_number>` versions and matching PS5 `contentVersion`.
+The default-branch `Publish Godot PS5 GPU TESTBUILD` workflow verifies
+the signed ZIP, creates a tagged GitHub prerelease and updates
+`version.json` automatically. No manual Actions artifact download is
+required for new builds. This remains an experimental GPU probe until
+hardware validates actual display frames; provenance review is still open.

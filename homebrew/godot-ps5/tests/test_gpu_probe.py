@@ -21,4 +21,7 @@ assert "sha256sum --check --strict --quiet" in mirror
 assert "manifest.sha256" in mirror
 assert "PS5_OPENGL_PREFIX" in wf and "fetch-mirrored-opengl-sdk.sh" in wf
 assert "ps5-opengl-sdk-mirror" in readme
+assert "Godot-PS5-Isolated-GPU-Probe-v0.1.${{ github.run_number }}-UNVERIFIED-ON-CONSOLE" in wf
+assert "j['contentVersion']=f'01.000.{patch+1:03d}'" in wf
+assert "github.run_number" in wf
 print("PASS: isolated GPU probe source & release separation")
