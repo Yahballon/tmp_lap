@@ -45,6 +45,35 @@ The next experimental native cross-build changes **only build configuration**:
 original `zplayer` binary links or runs.** Do not substitute dummy video,
 audio or input implementations. On-console validation is mandatory.
 
+## PS5 libc and Mesa/OpenGL link compatibility
+
+Run [39732505692](https://github.com/Yahballon/tmp_lap/actions/runs/39732505692)
+compiled the complete original `zplayer` source tree through the final
+link, but showed unresolved SDK/SDL2/Mesa interfaces. After the first
+round of corrections, run
+[39734560074](https://github.com/Yahballon/tmp_lap/actions/runs/39734560074)
+had **only** the three Mesa imports
+`mkstemps`, `openlog` and `__emutls_get_address` left unresolved.
+
+The staged PS5-only build now:
+
+- Selects SDL2's existing portable wide-string implementations for PS5
+  libc functions that are declared but not exported.
+- Links Mihawk PS5's real `ps5_mbrtowc_l` locale function.
+- Disables Unix `~otheruser` password-file lookup on a console with no
+  passwd database; ordinary `~/`, absolute and relative paths remain.
+- Provides a native `mkstemps` backed by `O_CREAT|O_EXCL`, restrictive
+  permissions, and a host regression test; Mesa diagnostics go to stderr
+  instead of an unsupported Unix syslog daemon.
+- Compiles the **original LLVM 18 Compiler-RT emulated TLS runtime**
+  (`__emutls_get_address`), retaining pthread-key per-thread storage,
+  rather than masking a vital OpenGL function with a zero-address symbol.
+
+These are source and build corrections, **not on-console validation**.
+The full player ELF's link status must still be confirmed by the latest CI
+run, followed by correct PS5 FSELF packaging, runtime initialization, and
+actual quest gameplay testing. Do not put the diagnostic target in TESTBUILDS.
+
 ## Current proven on hardware
 
 v0.1.5 in TESTBUILDS: both quests discovered and fully read, and the
