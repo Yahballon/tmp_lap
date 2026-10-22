@@ -26,6 +26,9 @@ struct BrickCell {std::uint64_t key=0;std::uint32_t index=0;};
 // Tube In/Out are control locks in original tubes.ss, not teleporters.
 // Follow the original brick collision corridor while input is locked.
 struct TubeTrackPoint {float x=0.f,y=0.f,distance=0.f;};
+// Native loop compatibility sensor. Geometry is discovered from the original
+// paired Sunshine ring bricks; radius is read from their actual collision mask.
+struct LoopRing {float x=0.f,y=0.f,radius=0.f;};
 
 class LevelPreview {
 public:
@@ -44,7 +47,20 @@ public:
     unsigned tube_track_samples() const {return unsigned(tube_track_.size());}
     float tube_track_distance() const {return tube_track_length_;}
     float tube_track_y_span() const {return tube_track_y_max_-tube_track_y_min_;}
-    bool loop_mode_ready() const {return false;} // Original MM_* physics not yet linked
+    bool loop_mode_ready() const {return !loops_.empty();}
+    size_t loop_count() const {return loops_.size();}
+    bool looping() const {return loop_active_;}
+    unsigned loop_completions() const {return loop_completions_;}
+    // Floor, right wall, ceiling, left wall. Angles advance clockwise
+    // around an interior ring, as in original physicsactor.c MM_*.
+    int movement_mode() const {
+        if(!loop_active_)return 0;
+        const float a=std::fmod(loop_angle_+6.28318530718f,6.28318530718f);
+        if(a<.78539816f||a>=5.49778714f)return 0;
+        if(a<2.35619449f)return 1;
+        if(a<3.92699082f)return 2;
+        return 3;
+    }
 
     int visible() const {return visible_;}
     float player_x() const {return x_;}
@@ -291,6 +307,7 @@ public:
             error_="ORIGINAL COLLISION MASK MISSING";return false;
         }
         mask_.assign(collision.begin(),collision.end());
+        build_loop_rings();
         atlas_=renderer.batch().create_texture(atlasw,atlash,
                              reinterpret_cast<const unsigned char*>(bg.data()));
         hero_=renderer.batch().create_texture(herow,heroh,
@@ -316,6 +333,7 @@ public:
         unsafe_tube_exits_=loop_safety_recoveries_=0;
         safe_ground_x_=x_;safe_ground_y_=y_;
         tube_guard_=0.f;
+        loop_active_=false;loop_angle_=loop_speed_=0.f;loop_index_=0;loop_completions_=0;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -355,6 +373,11 @@ public:
         tube_guard_=std::max(0.f,tube_guard_-dt);
         if(tube_active_){
             tick_tube(dt);
+            elapsed_+=dt;
+            return;
+        }
+        if(loop_active_){
+            tick_loop(dt);
             elapsed_+=dt;
             return;
         }
@@ -496,6 +519,13 @@ public:
             if(find_floor(x_,y_,6,18,floor) && !body_hits(x_,floor)){
                 y_=floor;vy_=0.f;last_ground_y_=y_;
             }else ground_=false;
+        }
+        // Full loop motion is not horizontal: the tangent rotates into the
+        // right wall, ceiling and left wall. Do this before floor/wall sweeps.
+        if(try_enter_loop()){
+            tick_loop(dt);
+            elapsed_+=dt;
+            return;
         }
         const float dx=vx_*dt;
         const int horizontal_steps=std::max(1,int(std::ceil(std::abs(dx)/2.f)));
@@ -893,6 +923,141 @@ private:
             rolling_=true;
         }
     }
+
+    static constexpr float kPi=3.14159265358979323846f;
+    // Distance from the ring's empty center to an actual SOLID mask pixel.
+    // Prevents hard-coded circular teleports through solid terrain.
+    bool loop_radius_at(const LoopRing& ring,float angle,float& radius) const {
+        const float nx=std::sin(angle),ny=std::cos(angle);
+        if(solid_at(ring.x+nx*8.f,ring.y+ny*8.f))return false;
+        for(int dist=20;dist<=128;++dist){
+            if(solid_at(ring.x+nx*float(dist),ring.y+ny*float(dist))){
+                radius=float(dist)-16.f;
+                return radius>=12.f && radius<=112.f;
+            }
+        }
+        return false;
+    }
+    bool loop_center_clear(float px,float py) const {
+        // Do not use upright wall sensors in rotated contact states.
+        return !solid_at(px,py) && !solid_at(px-5.f,py) &&
+               !solid_at(px+5.f,py) && !solid_at(px,py-5.f) &&
+               !solid_at(px,py+5.f);
+    }
+    void build_loop_rings(){
+        loops_.clear();
+        // Original demo's Loop In/Out art is built from lower Bricks 37/38
+        // and upper Bricks 41/42. Derive positions instead of baking x=5888.
+        for(const auto& left:placed_){
+            if(left.id!=37)continue;
+            bool right=false,upper_left=false,upper_right=false;
+            for(const auto& candidate:placed_){
+                if(candidate.id==38 && candidate.x==left.x+128 &&
+                   candidate.y==left.y)right=true;
+                if(candidate.id==41 && candidate.x==left.x &&
+                   candidate.y==left.y-160)upper_left=true;
+                if(candidate.id==42 && candidate.x==left.x+128 &&
+                   candidate.y==left.y-160)upper_right=true;
+            }
+            if(!right||!upper_left||!upper_right)continue;
+            LoopRing ring{float(left.x+128),float(left.y-16),0.f};
+            if(solid_at(ring.x,ring.y))continue;
+            float total=0.f;
+            bool valid=true;
+            for(int i=0;i<8;++i){
+                float radius=0.f;
+                if(!loop_radius_at(ring,float(i)*(kPi/4.f),radius)){
+                    valid=false;break;
+                }
+                total+=radius;
+            }
+            if(valid){
+                ring.radius=total/8.f;
+                loops_.push_back(ring);
+            }
+        }
+    }
+    bool try_enter_loop(){
+        if(loop_active_||!rolling_||charging_||vx_<350.f ||
+           tube_active_||wall_climb_)return false;
+        for(size_t i=0;i<loops_.size();++i){
+            const auto& ring=loops_[i];
+            if(std::abs(x_-ring.x)>16.f)continue;
+            float r=0.f;
+            if(!loop_radius_at(ring,0.f,r))continue;
+            const float foot=ring.y+r+16.f;
+            if(std::abs(y_-foot)>45.f)continue;
+            const float centre_y=ring.y+r;
+            if(!loop_center_clear(ring.x,centre_y))continue;
+            loop_active_=true;loop_index_=i;loop_angle_=0.f;
+            loop_speed_=std::abs(vx_);vx_=loop_speed_;
+            x_=ring.x;y_=centre_y+16.f;vy_=0.f;
+            ground_=true;wall_climb_=false;
+            return true;
+        }
+        return false;
+    }
+    void tick_loop(float dt){
+        if(!loop_active_||loop_index_>=loops_.size())return;
+        const LoopRing& ring=loops_[loop_index_];
+        // Project normal gravity onto tangent, matching the uphill energy
+        // penalty and downhill acceleration rather than boosting through.
+        loop_speed_=std::clamp(loop_speed_-1200.f*std::sin(loop_angle_)*dt,
+                               0.f,960.f);
+        if(loop_speed_<210.f){
+            // Insufficient momentum: detach in the current tangent direction.
+            vx_=loop_speed_*std::cos(loop_angle_);
+            vy_=-loop_speed_*std::sin(loop_angle_);
+            loop_active_=false;ground_=false;
+            return;
+        }
+        float remaining=loop_speed_*dt;
+        while(remaining>0.0001f){
+            const float ds=std::min(remaining,3.f);
+            remaining-=ds;
+            float radius=0.f;
+            if(!loop_radius_at(ring,loop_angle_,radius)){
+                loop_active_=false;ground_=false;
+                vx_=loop_speed_*std::cos(loop_angle_);
+                vy_=-loop_speed_*std::sin(loop_angle_);
+                return;
+            }
+            const float advance=ds/std::max(16.f,radius);
+            const float next_angle=std::min(2.f*kPi,loop_angle_+advance);
+            float next_radius=0.f;
+            if(!loop_radius_at(ring,next_angle,next_radius)){
+                loop_active_=false;ground_=false;
+                vx_=loop_speed_*std::cos(loop_angle_);
+                vy_=-loop_speed_*std::sin(loop_angle_);
+                return;
+            }
+            const float nx=ring.x+std::sin(next_angle)*next_radius;
+            const float ny=ring.y+std::cos(next_angle)*next_radius;
+            if(!loop_center_clear(nx,ny)){
+                loop_active_=false;ground_=false;
+                vx_=loop_speed_*std::cos(loop_angle_);
+                vy_=-loop_speed_*std::sin(loop_angle_);
+                return;
+            }
+            loop_angle_=next_angle;
+            x_=nx;y_=ny+16.f;
+            if(loop_angle_>=2.f*kPi-0.0001f){
+                loop_active_=false;++loop_completions_;
+                loop_angle_=0.f;vx_=loop_speed_;vy_=0.f;
+                ground_=has_foot_support(x_,y_);
+                if(ground_ && !body_hits(x_,y_)){
+                    safe_ground_x_=x_;safe_ground_y_=y_;
+                    last_ground_y_=y_;
+                }
+                return;
+            }
+        }
+        // Preserve the rolling speed independently of world X velocity.
+        // Sprite/HUD velocity points along the ring tangent.
+        vx_=loop_speed_*std::cos(loop_angle_);
+        vy_=-loop_speed_*std::sin(loop_angle_);
+        ground_=true;
+    }
     bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
         if(sx<0||sy<0||sx>=defs_[b.id].w||sy>=defs_[b.id].h)return false;
         const auto& d=defs_[b.id];
@@ -1064,6 +1229,11 @@ private:
     unsigned wall_climbs_=0;
     unsigned dash_releases_=0;
     float last_ground_y_=0.f;
+    std::vector<LoopRing> loops_;
+    bool loop_active_=false;
+    size_t loop_index_=0;
+    float loop_angle_=0.f,loop_speed_=0.f;
+    unsigned loop_completions_=0;
     unsigned blocked_=0,respawns_=0;
     unsigned embedded_frames_=0,solid_recoveries_=0;
     std::string error_;
