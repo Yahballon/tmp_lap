@@ -46,6 +46,14 @@ test -f "$PS5_PAYLOAD_SDK/target/lib/libScePad.so"
 test -f "$PS5_PAYLOAD_SDK/target/lib/libSceSystemService.so"
 
 test -f "$PS5_OPENGL_PREFIX/include/GL/glcorearb.h"
+# Do not rely on host library search paths for Sony import stubs.
+for module in SceSystemService ScePad SceUserService; do
+  test -s "$PS5_PAYLOAD_SDK/target/lib/lib${module}.so" || {
+    echo "Missing PS5 SDK import stub lib${module}.so" >&2
+    exit 35
+  }
+done
+echo "PS5 SDK import stubs verified: SystemService, Pad, UserService" >> "$report"
 # Native PS5 SDK provides linkable system imports as .so files. The generic
 # CMake clang driver does not add this directory automatically. Never
 # substitute dummy ScePad/UserService/SystemService libraries.
@@ -96,6 +104,7 @@ echo "[zcps5] Actual upstream CMake configure, not a dummy target"
 set +e
 timeout 600 cmake -S "$upstream" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
+  "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib" \
   "-DCMAKE_EXE_LINKER_FLAGS=-L$PS5_PAYLOAD_SDK/target/lib -Wl,--error-limit=100 -Wl,--eh-frame-hdr -Wl,-T,$root/app/tooling/native/ps5-pie.ld -Wl,--version-script=$root/app/tooling/native/app-symbols.map" \
   -DCMAKE_HAVE_LIBC_PTHREAD=TRUE \
   -DTHREADS_PREFER_PTHREAD_FLAG=OFF \
