@@ -54,6 +54,31 @@ int main(int argc,char** argv){
         std::fprintf(stderr,"MISSING ORIGINAL LOOP TESTS expected >=8 got %u\n",completed);
         return 9;
     }
+    // Firmware 5.10 footage at ~6.5s: player was rolling RIGHT at
+    // x=5689, feet=9922, VX~597 immediately before the x5888 ring.
+    // Do not pass this regression by teleporting to the ring center.
+    map.reset();
+    map.test_put(5689.f,9922.f,1,true);
+    map.test_set_rolling_speed(597.f);
+    bool video_entered=false,video_complete=false;
+    unsigned video_modes=0;
+    for(int frame=0;frame<500;++frame){
+        map.update(dt,1,false);
+        if(map.looping()){
+            video_entered=true;
+            video_modes|=1u<<map.movement_mode();
+        }
+        if(map.loop_completions()>0){
+            video_complete=true;break;
+        }
+    }
+    if(!video_entered || !video_complete || video_modes!=15u){
+        std::fprintf(stderr,"FAIL PS5 VIDEO LOOP at x5689,9922: entered=%d completed=%d modes=%u final=(%.1f,%.1f) blocked=%u\n",
+            video_entered,video_complete,video_modes,map.player_x(),map.player_y(),
+            map.collision_blocks());
+        return 10;
+    }
+    std::puts("PASS PS5 VIDEO LOOP: rolling at x5689,9922 enters and completes original ring");
     std::printf("PASS MASKED LOOP: rings=%zu two-way-four-mode-completions=%u\n",
         map.loop_count(),completed);
     return 0;
