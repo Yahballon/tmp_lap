@@ -18,7 +18,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make git ccache ca-certificates \
-            pkg-config python3 python3-pip curl unzip tar python3-pil libfmt-dev nlohmann-json3-dev
+            pkg-config python3 python3-pip curl unzip tar python3-pil libfmt-dev nlohmann-json3-dev zlib1g-dev
           python3 -m pip install --break-system-packages 'cmake>=3.29,<4.1'
           cmake --version
       - name: Restore PS5 compiler cache
@@ -80,10 +80,25 @@ jobs:
           set -euo pipefail
           git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
-          bash app/tools/setup-native-dependencies.sh
+          bash homebrew/zquestclassic-ps5/engine/prepare_boot_probe_deps.sh
           chmod +x app/tooling/prospero-clang18
           test -x app/tooling/prospero-clang18
           test -f app/.deps/native/ps5-payload-sdk/target/include/c++/v1/vector
+      - name: Validate engine boot-log injection before native build
+        run: |
+          set -euo pipefail
+          staged="$RUNNER_TEMP/zquest-bootlog-test"
+          mkdir -p "$staged"
+          python3 homebrew/zquestclassic-ps5/engine/prepare_app_crt_for_ps5_zplayer.py \
+            app/tooling/native/app_crt.cpp "$staged/app_crt.cpp"
+          cp "$RUNNER_TEMP/zcps5-full-zplayer/upstream/src/zc/zelda.cpp" "$staged/zelda.cpp"
+          python3 homebrew/zquestclassic-ps5/engine/instrument_engine_bootlog.py \
+            --crt "$staged/app_crt.cpp" --zelda "$staged/zelda.cpp"
+          grep -Fq '/data/ZQuestEngineBoot/logs/boot.log' "$staged/app_crt.cpp"
+          grep -Fq '/data/ZQuestEngineBoot/logs/crash.log' "$staged/app_crt.cpp"
+          grep -Fq 'BEFORE_ALLEGRO_SETUP' "$staged/zelda.cpp"
+          grep -Fq 'ZPLAYER_MAIN_ENTER' "$staged/zelda.cpp"
+          python3 -m py_compile homebrew/zquestclassic-ps5/engine/instrument_engine_bootlog.py
       - name: Pin tested PS5 OpenGL native SDK
         run: |
           python3 - <<'PY'
@@ -150,6 +165,9 @@ jobs:
           set -euo pipefail
           binary="$RUNNER_TEMP/zcps5-full-zplayer/build/zplayer"
           test -s "$binary"
+          grep -aFq '/data/ZQuestEngineBoot/logs/boot.log' "$binary"
+          grep -aFq 'ZPLAYER_MAIN_ENTER' "$binary"
+          grep -aFq 'BEFORE_STATIC_CONSTRUCTORS' "$binary"
           file "$binary"
           llvm-readelf-18 -h "$binary" | tee "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
           grep -q 'Machine:.*Advanced Micro Devices X86-64' "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
