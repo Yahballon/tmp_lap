@@ -84,6 +84,10 @@ python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_upstream_cmake_for_ps5.
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_zconsole_for_ps5.py" "$upstream"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_allegro_for_ps5_probe.py" "$allegro"
 python3 "$root/homebrew/zquestclassic-ps5/engine/prepare_sdl2_for_ps5_probe.py" "$sdl"
+python3 "$root/homebrew/zquestclassic-ps5/engine/instrument_engine_bootlog.py" \
+  --crt "$PS5_APP_CRT_SOURCE" --zelda "$upstream/src/zc/zelda.cpp"
+grep -q "BOOT_LOG_READY_AFTER_INIT_ENV" "$PS5_APP_CRT_SOURCE"
+grep -q "ZPLAYER_MAIN_ENTER" "$upstream/src/zc/zelda.cpp"
 echo "PS5 adaptations: portable stduuid; WANT_NFD=OFF" >> "$report"
 # The generator must receive every -D flag as a single shell command.
 # Avoid accidental blank lines after a continuation backslash.
