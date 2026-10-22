@@ -14,6 +14,7 @@ protected:
     void delete_main_loop() override;
     void set_main_loop(MainLoop *loop) override;
 public:
+    OS_PS5();
     // PS5 sandbox: avoid unsupported libc getcwd and FreeBSD sysctl.
     String get_cwd() const override;
     Error set_cwd(const String &path) override;

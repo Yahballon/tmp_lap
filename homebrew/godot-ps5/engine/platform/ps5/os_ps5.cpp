@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: MIT
-// Headless Godot PS5 platform (no graphics, DualSense or audio backend yet).
+// Native Godot runtime + DualSense. Graphics remain opt-in and experimental.
 #include "os_ps5.h"
 #include "file_access_ps5.h"
 #include "core/os/main_loop.h"
 #include "core/os/memory.h"
 #include "main/main.h"
 #include "servers/display/display_server.h"
+#ifdef GODOT_PS5_DISPLAY_EXPERIMENT
+#include "display_server_ps5.h"
+#endif
+
+OS_PS5::OS_PS5() {
+#ifdef GODOT_PS5_DISPLAY_EXPERIMENT
+    // Godot registers graphical backends in the platform OS constructor,
+    // before Main::setup() picks the display driver.
+    DisplayServerPS5::register_ps5_driver();
+#endif
+}
 
 void OS_PS5::initialize() {
     OS_Unix::initialize_core();

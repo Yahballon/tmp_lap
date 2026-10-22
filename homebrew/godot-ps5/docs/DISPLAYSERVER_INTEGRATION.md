@@ -80,3 +80,21 @@ licenses and corresponding sources. Review the OpenGL SDK mirror first.
 `GL_TRIANGLE_SUBMITTED` and `SPRITE_2D_DRAW_SUBMITTED` from the
 stand-alone GPU probe alone are **not** evidence of a functional Godot
 DisplayServer.
+
+## Stage 1 committed: native DisplayServerPS5 ABI scaffold
+
+`display_server_ps5.h/.cpp` now implements an **opt-in, genuinely
+Godot-derived** display backend for the first Godot 4.7.2 cross-compile.
+`OS_PS5` registers the driver in its constructor (matching upstream
+LinuxBSD driver registration timing). The new platform code declares a
+logical 1920×1080 single-window screen, but **rejects all non-dummy
+renderers and reports `window_can_draw=false`** until a real EGL
+context is owned by Godot.
+
+The production/headless `PPSA99843` binary is unaffected. Enabling
+`GODOT_PS5_DISPLAY_EXPERIMENT=1` only adds the display backend and
+compiles the real upstream Godot static archives. The separate
+`Validate Godot PS5 DisplayServer ABI` workflow performs this isolated
+cross-compile; it does **not** publish a TESTBUILD or claim Godot 2D
+works. Next stage will replace RasterizerDummy with actual Godot GLES3
+and transfer EGL ownership via native PS5 glue.

@@ -1,0 +1,76 @@
+name: Validate Godot PS5 DisplayServer ABI (NO GRAPHICS YET)
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/engine/platform/ps5/display_server_ps5.*'
+      - 'homebrew/godot-ps5/engine/platform/ps5/SCsub'
+      - 'homebrew/godot-ps5/engine/platform/ps5/detect.py'
+      - 'homebrew/godot-ps5/engine/platform/ps5/os_ps5.*'
+      - 'homebrew/godot-ps5/tests/test_displayserver_ps5.py'
+      - '.github/workflows/validate-godot-ps5-displayserver.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  host-guards:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm display backend opt-in and no fake GL support
+        run: |
+          python3 homebrew/godot-ps5/tests/test_displayserver_ps5.py
+          python3 homebrew/godot-ps5/scripts/check_overlay.py
+
+  real-engine-cross-compile:
+    needs: host-guards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SCons and pinned LLVM/PS5 compiler prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 llvm-18 lld-18 scons git make pkg-config python3 \
+            unzip wget ca-certificates
+      - name: Clone upstream Godot 4.7.2 and pinned DevBridge
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch 4.7.2-stable https://github.com/godotengine/godot.git /tmp/godot
+          git clone https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          git -C /tmp/devbridge checkout ce6178ed7b7668a4686e5368971ca567b33d394b
+      - name: Install PS5 payload SDK
+        run: |
+          set -euo pipefail
+          sed -i 's|https://zlib.net/fossils/|https://github.com/madler/zlib/releases/download/v1.3.2/|g' \
+            /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+          bash /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+      - name: Cross compile upstream Godot with experimental PS5 DisplayServer
+        env:
+          GODOT_SOURCE: /tmp/godot
+          PS5_PAYLOAD_SDK: /tmp/devbridge/templates/simple-calc/.deps/native/ps5-payload-sdk
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          GODOT_PS5_DISPLAY_EXPERIMENT: '1'
+          GODOT_MODULE_SET: smoke
+        run: |
+          set -euo pipefail
+          bash homebrew/godot-ps5/scripts/build-engine.sh 2>&1 | tee /tmp/displayserver-compile.log
+          echo 'ENGINE_PS5_DISPLAYSERVER_COMPILE_SUCCESS'
+          python3 homebrew/godot-ps5/scripts/package_static_engine.py \
+            /tmp/godot /tmp/Godot-PS5-DISPLAYSERVER-DUMMY-EXPERIMENT.zip --min-archives 8
+          # Ensure actual compilation, not just successful host-side string tests.
+          find /tmp/godot/platform/ps5 -type f -name '*display_server_ps5*.o' -print | tee /tmp/displayserver-objects.txt
+          test -s /tmp/displayserver-objects.txt
+      - name: Upload compile diagnostics only (no signed installable title)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-ps5-displayserver-abi-build-log-NO-GRAPHICS
+          path: |
+            /tmp/displayserver-compile.log
+            /tmp/displayserver-objects.txt
+          if-no-files-found: warn

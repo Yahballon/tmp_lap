@@ -51,4 +51,6 @@ def configure(env):
     env.Append(CCFLAGS=["-include", str(Path("platform/ps5/compat.h").resolve())])
     env.Append(CPPDEFINES=["PTHREAD_NO_RENAME", "PS5_ENABLED", "UNIX_ENABLED",
                            "GODOT_PS5_NATIVE_IO", ("_FILE_OFFSET_BITS", 64)])
+    if os.environ.get("GODOT_PS5_DISPLAY_EXPERIMENT") == "1":
+        env.Append(CPPDEFINES=["GODOT_PS5_DISPLAY_EXPERIMENT"])
     env.Append(CPPPATH=["#platform/ps5"])
