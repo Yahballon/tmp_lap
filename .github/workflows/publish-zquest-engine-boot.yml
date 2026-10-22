@@ -28,7 +28,7 @@ jobs:
         with:
           name: ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED
           repository: Yahballon/tmp_lap
-          run-id: 39755653005
+          run-id: 39764121870
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: /tmp/zc-engine-fself
       - name: Validate real signed FSELF before packaging
@@ -36,6 +36,11 @@ jobs:
           set -euo pipefail
           test -s /tmp/zc-engine-fself/eboot.bin
           test -s /tmp/zc-engine-fself/inspect.txt
+          test -s /tmp/zc-engine-fself/eboot.elf
+          grep -aFq '/data/ZQuestEngineBoot/logs/boot.log' /tmp/zc-engine-fself/eboot.elf
+          grep -aFq '/data/ZQuestEngineBoot/logs/crash.log' /tmp/zc-engine-fself/eboot.elf
+          grep -aFq 'ZPLAYER_MAIN_ENTER' /tmp/zc-engine-fself/eboot.elf
+          grep -aFq 'STATIC_CTOR index=' /tmp/zc-engine-fself/eboot.elf
           test "$(cat /tmp/zc-engine-fself/status.txt)" = "PS5_FSELF_BUILT_BUT_BOOT_UNVERIFIED"
           python3 - <<'PY'
           import struct
@@ -92,13 +97,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=zquestclassic-ps5-engine-boot-v0.0.1
+          tag=zquestclassic-ps5-engine-boot-v0.0.2
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Existing immutable release; not overwriting."
             exit 0
           fi
           gh release create "$tag" /tmp/zc-boot-dist/PPSA99128.zip \
             --target "$GITHUB_SHA" \
-            --title "ZQuest REAL Engine BOOT TEST v0.0.1 (NOT PLAYABLE)" \
+            --title "ZQuest REAL Engine BOOT TEST v0.0.2 (NOT PLAYABLE)" \
             --notes-file homebrew/zquestclassic-ps5-engine-boot/RELEASE_NOTES.md \
             --prerelease
