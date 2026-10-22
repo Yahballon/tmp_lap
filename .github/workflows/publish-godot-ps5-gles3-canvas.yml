@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: 'Successful signed same-process GPU scene bridge build run'
+        description: 'Successful signed native Godot GLES3 renderer test build run'
         required: true
   workflow_run:
     workflows: ['Build Godot PS5 Real GLES3 Canvas2D (EXPERIMENTAL)']
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Validate trusted native PS5 bridge build
+      - name: Validate trusted native Godot GLES3 build
         id: artifact
         env:
           GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
@@ -56,13 +56,13 @@ jobs:
           found=[a for a in files if not a['expired'] and re.fullmatch(
               r'Godot-PS5-REAL-GLES3-Canvas-v\d+\.\d+\.\d+-UNVERIFIED-ON-PS5',
               a['name']) and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
-          assert len(found)==1, f'Signed bridge artifact not found: {len(found)}'
+          assert len(found)==1, f'Signed GLES3 artifact not found: {len(found)}'
           name=found[0]['name']
           v=re.search(r'-v(\d+\.\d+\.\d+)-UNVERIFIED-',name).group(1)
           assert re.fullmatch(r'0\.1\.\d+',v),v
           Path('/tmp/gles3-artifact-name').write_text(name)
           Path('/tmp/gles3-artifact-version').write_text(v)
-          print('Verified trusted bridge build',r['id'],r['head_sha'])
+          print('Verified trusted GLES3 build',r['id'],r['head_sha'])
           PY
           name=$(cat /tmp/gles3-artifact-name)
           version=$(cat /tmp/gles3-artifact-version)
@@ -91,7 +91,7 @@ jobs:
               assert meta['titleId']=='PPSA99846'
               assert meta['contentId']=='UP9000-PPSA99846_00-GODOTGLES3CANVAS'
               assert meta['contentVersion']==f"01.000.{int(os.environ['GLES3_VERSION'].split('.')[-1])+1:03d}"
-          print('Bridge verified SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())
+          print('Godot GLES3 package verified SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())
           PY
       - name: Create immutable experimental GitHub prerelease
         env:
@@ -106,7 +106,7 @@ jobs:
           THIS IS Godot's actual GLES3 renderer, but hardware output remains UNVERIFIED until a PS5 screenshot and logs.
           Title PPSA99846 is isolated from known-good Godot headless PPSA99843 and GPU PPSA99844.
           Expected: moving/rotating translucent magenta/cyan checkerboard; press X to change background color through REAL Godot input/GDScript.
-          Logs: /data/GodotPS5/gles3-canvas.log, bridge-stdout.log, bridge-stderr.log
+          Logs: /data/GodotPS5/gles3-runtime.log, gles3-stdout.log, gles3-stderr.log
           Godot MIT source: https://github.com/Yahballon/tmp_lap/tree/feature/godot-ps5-engine-foundation/homebrew/godot-ps5
           GPU glue GPL-3.0-or-later: https://github.com/Yahballon/PS5-DevBridge
           Unofficial pinned GPU SDK: https://github.com/KernelForgeLabs/ps5-opengl-sdk-mirror
@@ -141,7 +141,7 @@ jobs:
           assert e['tag']=='godot-ps5-gles3-canvas-v'+os.environ['GLES3_VERSION']
           assert e['zip_url'].endswith('/PPSA99846.zip')
           assert j['app_count']==len(j['apps'])
-          print('TESTBUILDS includes signed real Godot scene GPU bridge',e['version'])
+          print('TESTBUILDS includes signed real Godot GLES3 experiment',e['version'])
           PY
           if [ -n "$(git status --porcelain -- version.json)" ]; then
             git config user.name "github-actions[bot]"
