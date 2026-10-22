@@ -3,6 +3,7 @@
 // the physics implementation. Pure C++ host test, does not ship in FSELF.
 #define SURGEPREVIEW_HOST_TEST 1
 #include "level_preview.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -21,7 +22,7 @@ int main(int argc,char** argv){
         }
         map.test_enable_routes(false);
         unsigned wall_ticks=0,max_wall_ticks=0;
-        unsigned penetrations=0;
+        unsigned penetrations=0,consecutive=0,max_consecutive=0;
         for(int frame=0;frame<1140;++frame){
             const int phase=frame%380;
             // Walking, charge/release, idle, jump and reversing to cross
@@ -46,16 +47,32 @@ int main(int argc,char** argv){
                              stages[stage],frame,map.player_x(),map.player_y());
                 return 5;
             }
-            if(map.test_inside()){
-                ++penetrations;
-                // Original MM_WALL rotated sensors are not linked. The
-                // upright box may overlap a cliff face while X is held
-                // still; assert stability and no long-running wall lock.
+            if(stage==3 && frame>=880 && frame<=924 &&
+               (frame<899||frame%4==0)){
+                std::printf("SUN3_TRACE frame=%d pos=(%.1f,%.1f) ground=%d roll=%d overlap=%d"
+                            " embedded=%u recover=%u safe=(%.1f,%.1f) safe_hit=%d safe_support=%d\n",
+                     frame,map.player_x(),map.player_y(),map.grounded()?1:0,
+                     map.rolling()?1:0,map.test_inside()?1:0,
+                     map.test_embed_ticks(),map.solid_recoveries(),
+                     map.test_safe_x(),map.test_safe_y(),
+                     map.test_safe_body()?1:0,map.test_safe_support()?1:0);
             }
+            if(map.test_inside() && !map.wall_climbing()){
+                ++penetrations;++consecutive;
+                max_consecutive=std::max(max_consecutive,consecutive);
+                if(penetrations<=10)
+                    std::printf("TERRAIN_OVERLAP stage=%s frame=%d x=%.1f y=%.1f rolling=%d\n",
+                        stages[stage],frame,map.player_x(),map.player_y(),map.rolling()?1:0);
+            }else consecutive=0;
         }
         std::printf("TERRAIN_STRESS_PASS stage=%s x=%.1f y=%.1f grounded=%d max_wall_ticks=%u penetration_samples=%u\n",
                     stages[stage],map.player_x(),map.player_y(),map.grounded()?1:0,
                     max_wall_ticks,penetrations);
+        if(max_consecutive>12){
+            std::fprintf(stderr,"FAILED PERSISTENT SOLID OVERLAP stage=%s ticks=%u samples=%u\n",
+                         stages[stage],max_consecutive,penetrations);
+            return 6;
+        }
         // Repeated pit recovery must be reflected in the diagnostics.
         // Prior reset() zeroed the increment, making respawn logs useless.
         const unsigned before=map.auto_respawns();
