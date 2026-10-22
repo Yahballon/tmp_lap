@@ -23,6 +23,9 @@ struct ScriptRoute {
     float x=0,y=0;
 };
 struct BrickCell {std::uint64_t key=0;std::uint32_t index=0;};
+// Tube In/Out are control locks in original tubes.ss, not teleporters.
+// Follow the original brick collision corridor while input is locked.
+struct TubeTrackPoint {float x=0.f,y=0.f,distance=0.f;};
 
 class LevelPreview {
 public:
@@ -38,6 +41,9 @@ public:
     unsigned unsafe_tube_exits() const {return unsafe_tube_exits_;}
     unsigned loop_safety_recoveries() const {return loop_safety_recoveries_;}
     bool in_tube() const {return tube_active_;}
+    unsigned tube_track_samples() const {return unsigned(tube_track_.size());}
+    float tube_track_distance() const {return tube_track_length_;}
+    float tube_track_y_span() const {return tube_track_y_max_-tube_track_y_min_;}
     bool loop_mode_ready() const {return false;} // Original MM_* physics not yet linked
 
     int visible() const {return visible_;}
@@ -305,6 +311,8 @@ public:
         embedded_frames_=solid_recoveries_=0;
         active_layer_=0;layer_switches_=0;tube_entries_=tube_exits_=0;
         tube_active_=false;tube_timer_=tube_cooldown_=0.f;
+        tube_track_.clear();tube_track_index_=0;tube_track_length_=0.f;
+        tube_track_y_min_=tube_track_y_max_=y_;
         unsafe_tube_exits_=loop_safety_recoveries_=0;
         safe_ground_x_=x_;safe_ground_y_=y_;
         tube_guard_=0.f;
@@ -702,6 +710,7 @@ private:
     }
     void restore_safe_ground(){
         tube_active_=wall_climb_=false;
+        tube_track_.clear();tube_track_index_=0;tube_track_length_=0.f;
         vx_=vy_=0.f;rolling_=charging_=false;
         // Rolling probes are narrower than standing probes; a saved rolling
         // location can be solid for the standing player. Never revive at a
@@ -777,12 +786,19 @@ private:
                 if(ground_ && !body_hits(x_,y_)){
                     safe_ground_x_=x_;safe_ground_y_=y_;
                 }
+                // v0.6.3 linearly interpolated Tube In -> Tube Out. The S
+                // tunnel then traversed with Y frozen at ~10064, visibly
+                // crossing solid waves. Build an actual mask-following
+                // trajectory before locking input; reject missing tracks.
+                if(!build_tube_track(selected->x,support)){
+                    ++unsafe_tube_exits_;
+                    tube_cooldown_=0.3f;
+                    break;
+                }
                 tube_active_=true;tube_from_x_=x_;tube_from_y_=y_;
                 tube_to_x_=selected->x;tube_to_y_=support;
                 tube_timer_=0.f;
-                const float distance=std::hypot(tube_to_x_-tube_from_x_,
-                                                 tube_to_y_-tube_from_y_);
-                tube_duration_=std::max(0.05f,distance/600.f);
+                tube_duration_=std::max(0.05f,tube_track_length_/600.f);
                 ++tube_entries_;
                 rolling_=true;charging_=false;ground_=false;
                 vy_=0.f;
@@ -790,18 +806,76 @@ private:
             break;
         }
     }
+
+    bool nearest_tube_floor(float px,float prev_feet,float& out) const {
+        // Follow an actual opaque-mask floor with transparent space above it,
+        // rather than invent a sine curve from the artwork. Bounded local
+        // scan prevents jumping to an unrelated level/platform at a seam.
+        float best=1000.f;
+        for(int d=-90;d<=90;++d){
+            const float row=std::floor(prev_feet)+float(d);
+            if(!floor_pixel(px,row) || floor_pixel(px,row-1.f))continue;
+            if(solid_at(px,row-8.f) || solid_at(px,row-16.f))continue;
+            const float delta=std::abs(row-prev_feet);
+            if(delta<best){best=delta;out=row;}
+        }
+        return best<=25.f;
+    }
+    bool build_tube_track(float target_x,float target_y) {
+        tube_track_.clear();tube_track_length_=0.f;tube_track_index_=0;
+        tube_track_y_min_=tube_track_y_max_=y_;
+        const float delta=target_x-x_;
+        if(std::abs(delta)<30.f || std::abs(delta)>1300.f)return false;
+        const float sign=delta>0.f?1.f:-1.f;
+        tube_track_.push_back({x_,y_,0.f});
+        // Original tubes.ss only locks input while physics moves the hero:
+        // stepping along the source mask approximates that guided rolling.
+        const float distance=std::abs(delta);
+        for(float step=4.f;step<distance;step+=4.f){
+            const auto& prev=tube_track_.back();
+            const float px=x_+sign*step;
+            float foot=prev.y;
+            if(!nearest_tube_floor(px,prev.y,foot) ||
+               std::abs(foot-prev.y)>25.f){
+                tube_track_.clear();return false;
+            }
+            tube_track_length_+=std::hypot(px-prev.x,foot-prev.y);
+            tube_track_.push_back({px,foot,tube_track_length_});
+            tube_track_y_min_=std::min(tube_track_y_min_,foot);
+            tube_track_y_max_=std::max(tube_track_y_max_,foot);
+        }
+        const auto& prev=tube_track_.back();
+        if(std::abs(prev.y-target_y)>32.f){
+            tube_track_.clear();return false;
+        }
+        tube_track_length_+=std::hypot(target_x-prev.x,target_y-prev.y);
+        tube_track_.push_back({target_x,target_y,tube_track_length_});
+        tube_track_y_min_=std::min(tube_track_y_min_,target_y);
+        tube_track_y_max_=std::max(tube_track_y_max_,target_y);
+        return tube_track_.size()>=5 && tube_track_length_>30.f;
+    }
     void tick_tube(float dt){
         if(!tube_active_)return;
+        if(tube_track_.size()<2 || tube_track_length_<=0.f){
+            ++unsafe_tube_exits_;
+            restore_safe_ground();
+            return;
+        }
         tube_timer_=std::min(tube_duration_,tube_timer_+dt);
-        const float t=tube_timer_/tube_duration_;
-        // This animation may pass through terrain ONLY while the destination
-        // has a validated physical landing. Don't let it silently hand the
-        // character back to normal gravity under the solid floor.
-        x_=tube_from_x_+(tube_to_x_-tube_from_x_)*t;
-        y_=tube_from_y_+(tube_to_y_-tube_from_y_)*t;
+        const float travel=std::min(tube_track_length_,tube_timer_*600.f);
+        while(tube_track_index_+2<tube_track_.size() &&
+              tube_track_[tube_track_index_+1].distance<travel)
+            ++tube_track_index_;
+        const auto& a=tube_track_[tube_track_index_];
+        const auto& b=tube_track_[tube_track_index_+1];
+        const float segment=std::max(0.001f,b.distance-a.distance);
+        const float t=std::clamp((travel-a.distance)/segment,0.f,1.f);
+        x_=a.x+(b.x-a.x)*t;
+        y_=a.y+(b.y-a.y)*t;
         vx_=0.f;vy_=0.f;
-        if(t>=1.f){
+        if(tube_timer_>=tube_duration_){
             tube_active_=false;
+            tube_track_.clear();tube_track_index_=0;
             float floor=y_;
             if(!tube_exit_usable(x_,y_,floor)){
                 ++unsafe_tube_exits_;
@@ -979,6 +1053,9 @@ private:
     bool tube_active_=false;
     float tube_from_x_=0.f,tube_from_y_=0.f,tube_to_x_=0.f,tube_to_y_=0.f;
     float tube_timer_=0.f,tube_duration_=0.f,tube_cooldown_=0.f;
+    std::vector<TubeTrackPoint> tube_track_;
+    size_t tube_track_index_=0;
+    float tube_track_length_=0.f,tube_track_y_min_=0.f,tube_track_y_max_=0.f;
     float tube_guard_=0.f,safe_ground_x_=0.f,safe_ground_y_=0.f;
     unsigned unsafe_tube_exits_=0,loop_safety_recoveries_=0;
     bool wall_climb_=false;
