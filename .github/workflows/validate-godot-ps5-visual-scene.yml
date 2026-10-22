@@ -1,0 +1,40 @@
+name: Validate Genuine Godot PS5 2D Scene Fixture
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/visual-smoke/**'
+      - '.github/workflows/validate-godot-ps5-visual-scene.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install official Godot 4.7.2 Linux binary
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot.zip
+          mkdir -p /tmp/godot-bin
+          unzip -q /tmp/godot.zip -d /tmp/godot-bin
+          chmod +x /tmp/godot-bin/Godot_v4.7.2-stable_linux.x86_64
+      - name: Generate real PCK and load scene in upstream Godot
+        run: |
+          set -euo pipefail
+          project=homebrew/godot-ps5/samples/visual-smoke
+          godot=/tmp/godot-bin/Godot_v4.7.2-stable_linux.x86_64
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/pack.log
+          grep -Fq GODOT_PS5_VISUAL_PCK_WRITTEN /tmp/pack.log
+          test -s "$project/visual-smoke.pck"
+          "$godot" --headless --main-pack "$project/visual-smoke.pck" --quit-after 70 2>&1 | tee /tmp/scene.log
+          grep -Fq GODOT_PS5_REAL_2D_SCENE_READY /tmp/scene.log
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/scene.log; then exit 1; fi
+      - name: Upload genuine Godot PCK (not a PS5 executable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Godot-4.7.2-PS5-Visual-Scene-PCK-NOT-PS5
+          path: homebrew/godot-ps5/samples/visual-smoke/visual-smoke.pck
+          if-no-files-found: error
