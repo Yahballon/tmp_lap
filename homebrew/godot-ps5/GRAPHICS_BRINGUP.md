@@ -33,11 +33,17 @@ public graphics stacks to investigate:
 
 **Candidate B: OpenGL compatibility renderer.** Godot's compatibility
 renderer depends on a working OpenGL context + EGL window and Godot
-DisplayServer integration. A previously indexed
-`blackbearreloaded/ps5-opengl` repository currently returns GitHub 404,
-so **do not pin a CI dependency to this unavailable URL**. Locate a live,
-audited SDK with a demonstrably supported PS5 EGL/GL context before
-enabling `opengl3=yes`. The current PS5 SCons target intentionally
+DisplayServer integration. A live experimental PS5 EGL/OpenGL stack now exists at
+[blackbearreloaded/ps5-opengl](https://github.com/blackbearreloaded/ps5-opengl),
+with a published **OpenGL 4.6 SDK v1.0.2**, SDL2 bridge and native
+1080p/1440p/4K display modes. Its own tests report native console results;
+**these do not prove it works with Godot or firmware 5.10**. The stack is
+**GPL-3.0-or-later** and includes dependencies with their own notices: do
+not silently link its binaries into this currently MIT-licensed PS5 port
+without an explicit compatible distribution/licensing decision. First
+validate a separate GL/EGL display probe against one pinned release,
+then assess Godot Compatibility RenderingDevice's API/context requirements
+and core profile compatibility before enabling `opengl3=yes`. The current PS5 SCons target intentionally
 sets `vulkan=no opengl3=no` to keep GDScript bring-up stable.
 
 ## Hardware-gated implementation steps
@@ -85,3 +91,27 @@ sets `vulkan=no opengl3=no` to keep GDScript bring-up stable.
   experimental PS5 Vulkan implementation (GPL-3.0).
 - [ps5link-sdk](https://github.com/Rufidj/ps5link-sdk) — PS5 GPU, VideoOut,
   and DualSense working examples; GPL-3.0.
+
+## Graphics implementation decision (October 2026)
+
+**Candidate chosen for first isolated PS5 framebuffer test:** the OpenGL
+SDK v1.0.2 path, because the upstream release advertises a real EGL
+context/SDL2 bridge and multiple tested native display modes. This is
+**not** a claim that Godot's 2D renderer is already ported. Keep the existing
+Godot headless `PPSA99843` operational while bringing up a separate
+GPU-probe application; build and test against a frozen SDK hash. Do not
+package any GPL graphics SDK binaries or source into the MIT port until
+licensing and attribution are reviewed.
+
+A later option is Mesa RADV/Vulkan 1.4 via
+[mihawk-99/PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan),
+which reports native PS5 VideoOut/Winsys and Vulkan compliance test data.
+That route still needs a Godot Vulkan RenderingDevice implementation and a
+DisplayServer; it is not a substitute for a PS5-native surface/swapchain.
+
+**Next PS5 firmware 5.10 acceptance steps:** (1) verify open pad bridge
+through the `GODOT_PS5_DUALSENSE_CROSS_PRESSED` GDScript log; (2) in an
+isolated graphics title, create EGL context and clear/swap one frame;
+(3) add a true `DisplayServerPS5` implementation and platform rendering
+hooks; (4) show a native Godot 2D scene with a visual screenshot and
+controller interactions; (5) audio and project persistence.
