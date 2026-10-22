@@ -128,6 +128,8 @@ assert "ORIGINAL_LOOP_360_COMPLETE" in main_cpp
 curve_cpp=(Path(__file__).resolve().parents[1]/"native"/"level_curves.hpp").read_text()
 assert "Mode::LoopOrbit" in curve_cpp and "kRingRadius" in curve_cpp
 assert "snake_path_y" in curve_cpp
+assert (root/"curves.tsv").is_file()
+assert len((root/"curves.tsv").read_text().splitlines())>=440
 catalog=(app/"assets"/"stages"/"catalog.tsv").read_text().splitlines()
 assert [row.split("\t")[0] for row in catalog]==[
     "demo-1","sunshine-1","sunshine-2","sunshine-3"]

@@ -34,6 +34,8 @@ required = [
     "assets/level-preview/bricks.txt", "assets/level-preview/sunshine.rgba",
     "assets/level-preview/surge.rgba",
     "assets/level-preview/collision.bin",
+    "assets/level-preview/curves.tsv",
+    "assets/stages/demo-1/curves.tsv",
     "assets/level-preview/entities.tsv",
     "assets/level-preview/collectibles.rgba",
     "assets/level-preview/springs.rgba",

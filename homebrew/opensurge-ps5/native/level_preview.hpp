@@ -110,6 +110,7 @@ public:
             front_floor?1:0,forward,far_floor?1:0,far);
     }
     bool test_inside() const{return body_hits(x_,y_);}
+    bool test_point_masked() const{return solid_at(x_,y_);}
     void test_scan_column(float px,int y0,int y1,int step=8) const{
         std::string line;
         for(int yy=y0;yy<=y1;yy+=step)
@@ -304,6 +305,17 @@ public:
             error_="ORIGINAL COLLISION MASK MISSING";return false;
         }
         mask_.assign(collision.begin(),collision.end());
+        if(snake && loop_left && loop_right){
+            // Authored demo-1 curves are enabled only for exact original
+            // 50/53 and 41/42 tile placements validated above.
+            const auto points=read(visual+"curves.tsv",256*1024);
+            if(!points.empty() && !curves_.load_cache(points)){
+                error_="ORIGINAL CURVE MASK CACHE INVALID";return false;
+            }
+        }
+        if((stage.empty() || stage=="demo-1") && !curves_.ready()){
+            error_="ORIGINAL CURVE MASK ROUTE MISSING";return false;
+        }
         atlas_=renderer.batch().create_texture(atlasw,atlash,
                              reinterpret_cast<const unsigned char*>(bg.data()));
         hero_=renderer.batch().create_texture(herow,heroh,

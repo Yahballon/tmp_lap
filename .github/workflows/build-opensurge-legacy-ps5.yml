@@ -62,6 +62,7 @@ jobs:
             homebrew/opensurge-ps5/.work/legacy-stage app
           python3 homebrew/opensurge-ps5/scripts/prepare-stage-pack.py \
             homebrew/opensurge-ps5/.work/legacy-stage app
+          python3 homebrew/opensurge-ps5/scripts/prepare-curves-preview.py app
           python3 homebrew/opensurge-ps5/scripts/test-native-audio.py app
           python3 homebrew/opensurge-ps5/scripts/test-level-preview.py app
       - name: Test actual native physics class against original level data
