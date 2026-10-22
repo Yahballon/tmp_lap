@@ -58,6 +58,9 @@ int main(int argc,char** argv){
     // x=5689, feet=9922, VX~597 immediately before the x5888 ring.
     // Do not pass this regression by teleporting to the ring center.
     map.reset();
+    // The actual demo engages Layer Green at x5744 on approach.
+    // Unlike the synthetic ring test, retain original scripted layer events.
+    map.test_enable_routes(true);
     map.test_put(5689.f,9922.f,1,true);
     map.test_set_rolling_speed(597.f);
     bool video_entered=false,video_complete=false;
