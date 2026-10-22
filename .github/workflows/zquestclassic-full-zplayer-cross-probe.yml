@@ -169,6 +169,42 @@ jobs:
           assert result["ready_for_testbuilds"] is False
           print("ELF validated as engine milestone; PS5 FSELF/boot verification still required")
           PY
+      - name: Attempt PS5 FSELF conversion of actual zplayer (not hardware verified)
+        if: success()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/zcps5-full-zplayer/fself"
+          mkdir -p "$out"
+          binary="$RUNNER_TEMP/zcps5-full-zplayer/build/zplayer"
+          tool="$GITHUB_WORKSPACE/app/build/host/ps5-native-tool"
+          sdk="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          bash app/tools/build-host-tools.sh
+          test -x "$tool"
+          llvm-readelf-18 -W -S "$binary" > "$out/sections.txt"
+          "$tool" link --in "$binary" --out "$out/eboot.elf" \
+            --stub-dir "$sdk/target/lib" \
+            --module-sdk 0x02000009 --companion-sdk 0x08050001 \
+            --heap-size 0xffffffffffffffff --file-name eboot.elf \
+            > "$out/link.log" 2>&1 || { cat "$out/link.log"; exit 1; }
+          "$tool" self --sign --in "$out/eboot.elf" \
+            --out "$out/eboot.bin" --magic 0x1D3D154F \
+            > "$out/sign.log" 2>&1 || { cat "$out/sign.log"; exit 1; }
+          "$tool" self --inspect --file "$out/eboot.bin" > "$out/inspect.txt"
+          test -s "$out/eboot.bin"
+          echo "PS5_FSELF_BUILT_BUT_BOOT_UNVERIFIED" | tee "$out/status.txt"
+      - name: Preserve real zplayer FSELF conversion diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED
+          path: |
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/sections.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/link.log
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/sign.log
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/inspect.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/status.txt
+          if-no-files-found: warn
       - name: Save original PS5 zplayer link artifact
         if: success()
         uses: actions/upload-artifact@v4
