@@ -957,13 +957,26 @@ private:
     }
 
     static constexpr float kPi=3.14159265358979323846f;
+    // The ring's authored outline is persistent across Green/Yellow visual
+    // occlusion switches. Ordinary movement still uses active_layer_.
+    bool loop_solid_at(float px,float py) const {
+        bool hit=false;
+        candidates(px,py,[&](const PlacedBrick& b){
+            if(hit)return;
+            const auto& d=defs_[b.id];
+            if(!d.solid || px<float(b.x)||py<float(b.y)||
+               px>=float(b.x+d.w)||py>=float(b.y+d.h))return;
+            hit=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
+        });
+        return hit;
+    }
     // Distance from the ring's empty center to an actual SOLID mask pixel.
     // Prevents hard-coded circular teleports through solid terrain.
     bool loop_radius_at(const LoopRing& ring,float angle,float& radius) const {
         const float nx=std::sin(angle),ny=std::cos(angle);
-        if(solid_at(ring.x+nx*8.f,ring.y+ny*8.f))return false;
+        if(loop_solid_at(ring.x+nx*8.f,ring.y+ny*8.f))return false;
         for(int dist=20;dist<=128;++dist){
-            if(solid_at(ring.x+nx*float(dist),ring.y+ny*float(dist))){
+            if(loop_solid_at(ring.x+nx*float(dist),ring.y+ny*float(dist))){
                 radius=float(dist)-16.f;
                 return radius>=12.f && radius<=112.f;
             }
@@ -972,9 +985,9 @@ private:
     }
     bool loop_center_clear(float px,float py) const {
         // Do not use upright wall sensors in rotated contact states.
-        return !solid_at(px,py) && !solid_at(px-5.f,py) &&
-               !solid_at(px+5.f,py) && !solid_at(px,py-5.f) &&
-               !solid_at(px,py+5.f);
+        return !loop_solid_at(px,py) && !loop_solid_at(px-5.f,py) &&
+               !loop_solid_at(px+5.f,py) && !loop_solid_at(px,py-5.f) &&
+               !loop_solid_at(px,py+5.f);
     }
     void build_loop_rings(){
         loops_.clear();
