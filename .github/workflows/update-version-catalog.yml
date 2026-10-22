@@ -27,6 +27,7 @@ on:
       - Validate Godot PS5 Engine Foundation
       - Godot PS5 Native Engine Link Retry
       - Publish Godot PS5 GPU TESTBUILD
+      - Publish Godot PS5 Scene Bridge TESTBUILD
       - Build ZQuest Classic PS5 (Port Prototype)
       - Publish ZQuest Engine BOOT TESTBUILD
       - Build Open Surge PS5 Legacy Native (non-playable test)

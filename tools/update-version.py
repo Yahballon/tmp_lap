@@ -28,6 +28,7 @@ def main():
                 re.fullmatch(r"godot-ps5-probe-v\d+\.\d+\.\d+",tag) or
                 re.fullmatch(r"godot-ps5-engine-smoke-v\d+\.\d+\.\d+",tag) or
                 re.fullmatch(r"godot-ps5-gpu-probe-v\d+\.\d+\.\d+",tag) or
+                re.fullmatch(r"godot-ps5-scene-bridge-v\d+\.\d+\.\d+",tag) or
                 re.fullmatch(r"opensurge-ps5-v\d+\.\d+\.\d+",tag)
             )
             if release.get("prerelease") and not allowed_prerelease:continue

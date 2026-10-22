@@ -1,0 +1,147 @@
+name: Publish Godot PS5 Scene Bridge TESTBUILD
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Successful signed same-process GPU scene bridge build run'
+        required: true
+  workflow_run:
+    workflows: ['Build Godot PS5 Same-Process Scene GPU Bridge']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-godot-ps5-scene-bridge
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'feature/godot-ps5-engine-foundation' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Validate trusted native PS5 bridge build
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/godot-scene-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/godot-scene-artifacts.json
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          r=json.load(open('/tmp/godot-scene-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='feature/godot-ps5-engine-foundation'
+          assert r['name']=='Build Godot PS5 Same-Process Scene GPU Bridge'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          assert r['event']=='push'
+          files=json.load(open('/tmp/godot-scene-artifacts.json'))['artifacts']
+          found=[a for a in files if not a['expired'] and re.fullmatch(
+              r'Godot-PS5-Scene-Bridge-v\d+\.\d+\.\d+-GDSCRIPT-TO-GPU-UNVERIFIED-ON-PS5',
+              a['name']) and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(found)==1, f'Signed bridge artifact not found: {len(found)}'
+          name=found[0]['name']
+          v=re.search(r'-v(\d+\.\d+\.\d+)-GDSCRIPT-',name).group(1)
+          assert v=='0.1.0',v
+          Path('/tmp/scene-artifact-name').write_text(name)
+          print('Verified trusted bridge build',r['id'],r['head_sha'])
+          PY
+          name=$(cat /tmp/scene-artifact-name)
+          mkdir -p /tmp/godot-scene-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "$name" --dir /tmp/godot-scene-release
+          test -s /tmp/godot-scene-release/PPSA99845.zip
+      - name: Verify native PS5 signed ZIP and Godot visual scene
+        run: |
+          python3 - <<'PY'
+          import zipfile,struct,json,hashlib
+          from pathlib import Path
+          p=Path('/tmp/godot-scene-release/PPSA99845.zip')
+          assert p.stat().st_size>200_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert all(s.startswith('PPSA99845/') and '..' not in Path(s).parts for s in names)
+              assert 'PPSA99845/assets/godot/visual-smoke.pck' in names
+              bin=z.read('PPSA99845/eboot.bin')
+              assert len(bin)>1_000_000 and bin[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99845/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99845'
+              assert meta['contentId']=='UP9000-PPSA99845_00-GODOTSCENEBRIDGE'
+              assert meta['contentVersion']=='01.000.001'
+          print('Bridge verified SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Create immutable experimental GitHub prerelease
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-scene-bridge-v0.1.0
+          cat > /tmp/godot-bridge-notes.md <<'NOTES'
+          EXPERIMENTAL PS5 hardware integration test: Real Godot 4.7.2 scene/GDScript drives an independent native EGL/OpenGL preview in one process.
+          NOT Godot's own GLES3 RenderingServer or CanvasItem renderer. Hardware output NOT VERIFIED.
+          Title PPSA99845 is isolated from known-good Godot headless PPSA99843 and GPU PPSA99844.
+          Expected: moving/rotating translucent magenta/cyan checkerboard; press X to change background color through REAL Godot input/GDScript.
+          Logs: /data/GodotPS5/scene-bridge.log, bridge-stdout.log, bridge-stderr.log
+          Godot MIT source: https://github.com/Yahballon/tmp_lap/tree/feature/godot-ps5-engine-foundation/homebrew/godot-ps5
+          GPU glue GPL-3.0-or-later: https://github.com/Yahballon/PS5-DevBridge
+          Unofficial pinned GPU SDK: https://github.com/KernelForgeLabs/ps5-opengl-sdk-mirror
+          Reuse/redistribution of SDK and GPL components requires corresponding sources/license review.
+          NOTES
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99845.zip
+          else
+            gh release create "$tag" /tmp/godot-scene-release/PPSA99845.zip \
+              --repo "$GITHUB_REPOSITORY" --target main \
+              --title "Godot PS5 Scene Bridge v0.1.0 (experimental)" \
+              --notes-file /tmp/godot-bridge-notes.md --prerelease
+          fi
+      - name: Update TESTBUILDS version.json
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json
+          j=json.load(open('version.json'))
+          entries=[x for x in j['apps'] if x['title_id']=='PPSA99845']
+          assert len(entries)==1,entries
+          e=entries[0]
+          assert e['version']=='0.1.0'
+          assert e['tag']=='godot-ps5-scene-bridge-v0.1.0'
+          assert e['zip_url'].endswith('/PPSA99845.zip')
+          assert j['app_count']==len(j['apps'])
+          print('TESTBUILDS includes signed real Godot scene GPU bridge',e['version'])
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add version.json
+            git commit -m "chore(testbuilds): publish native Godot Scene Bridge v0.1.0 [skip ci]"
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi

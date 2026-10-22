@@ -23,6 +23,12 @@ assert "Build Open Surge PS5 Legacy Native (non-playable test)" in names, "Open 
 assert "Publish PS5DreamcastX Release" in names, "DreamcastX standalone release publisher not subscribed"
 assert "Publish PS5DreamcastX TESTBUILD" in names
 assert "Publish Godot PS5 GPU TESTBUILD" in names
+assert "Publish Godot PS5 Scene Bridge TESTBUILD" in names
+scene_publisher=(workflow_dir / "publish-godot-ps5-scene-bridge.yml").read_text()
+assert "gh release create" in scene_publisher
+assert "PPSA99845.zip" in scene_publisher
+assert "tools/update-version.py" in scene_publisher
+assert "Build Godot PS5 Same-Process Scene GPU Bridge" in scene_publisher
 gpu_publisher=(workflow_dir / "publish-godot-ps5-gpu-probe.yml").read_text()
 assert "gh release create" in gpu_publisher
 assert "PPSA99844.zip" in gpu_publisher
