@@ -42,7 +42,8 @@ func _process(delta: float) -> void:
     if cross and not previous_cross:
         count += 1
         background.color = Color(0.18, 0.07, 0.08, 1.0) if count % 2 == 1 else Color(0.06, 0.10, 0.18, 1.0)
-        print("GODOT_PS5_REAL_2D_CROSS_PRESSED")
+        # No unbuffered file write per Cross: native bridge samples the
+        # GDScript-owned 'count' property and writes periodic perf snapshots.
     previous_cross = cross
     if elapsed >= 20.0:
         print("GODOT_PS5_REAL_2D_SCENE_FINISHED")

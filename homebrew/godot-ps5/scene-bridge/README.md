@@ -82,3 +82,30 @@ so `NORMAL_SHUTDOWN` cannot yet be claimed. Two recoverable warnings
 remain (optional project.binary and global script cache, plus dummy 2D
 physics). The scene is a real Godot scene, but the GL bridge remains
 a separate preview rasterizer, *not* Godot's own RendererGLES3.
+
+## v0.1.2: Cross-button hitch diagnostics and reduced hot-path I/O
+
+Hardware tester reports the first `PPSA99845 v0.1.1` launch was very
+laggy on X but the second launch improved. This **may** be cache
+warm-up, but the native bridge's shader was already compiled in
+`GLScene::open()` and is **not** recompiled on every button press.
+The old app also opened/flushed/closed `scene-bridge.log` for **each**
+Cross count change, and GDScript's per-button `print()` wrote to a
+deliberately unbuffered redirected PS5 file. These synchronous writes
+are a plausible competing explanation, not a proven root cause.
+
+`v0.1.2` removes per-X stdout and file writes, keeps the input count
+in RAM, and emits low-frequency, single-write performance snapshots
+in `/data/GodotPS5/scene-bridge.log` at frames 240, 600 and cleanup:
+
+```text
+PERF_SAMPLE_FRAMES=... CROSS_COUNT=...
+PAD_MAX_US=... MAIN_MAX_US=... DRAW_MAX_US=... SWAP_MAX_US=...
+PAD_HITCHES=... MAIN_HITCHES=... DRAW_HITCHES=... SWAP_HITCHES=...
+```
+
+Each hitch is a measured section exceeding 33,000 microseconds. The
+new metrics help distinguish native controller polling, Godot
+`Main::iteration()`, direct OpenGL drawing and `eglSwapBuffers` stalls.
+They are diagnostics, **not proof** that shader caching was responsible.
+The real GLES3/Canvas2D test is a separate title `PPSA99847`.

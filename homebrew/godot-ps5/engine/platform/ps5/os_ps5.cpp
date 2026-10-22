@@ -13,7 +13,8 @@
 // Registered by a DIFFERENT PS5 experimental title (PPSA99845); NOT the
 // Godot rendering server. Sends *real* GDScript-updated Node2D state to
 // the stand-alone native EGL framebuffer. Safe stable-title default is off.
-using SceneFrameCallback = void (*)(float sprite_x, float angle, int presses);
+using SceneFrameCallback = void (*)(float sprite_x, float angle, int presses,
+        uint32_t main_loop_us, uint32_t pad_poll_us);
 static SceneFrameCallback scene_frame_callback = nullptr;
 extern "C" void godot_ps5_set_scene_frame_callback(SceneFrameCallback cb) {
     scene_frame_callback = cb;
@@ -74,10 +75,24 @@ void OS_PS5::run() {
     if (!main_loop) return;
     main_loop->initialize();
     while (true) {
+#ifdef GODOT_PS5_SCENE_PREVIEW
+        // Capture *real* frame costs without synchronous per-button logging.
+        const uint64_t frame_start_us = get_ticks_usec();
+#endif
         controller.poll();
+#ifdef GODOT_PS5_SCENE_PREVIEW
+        const uint64_t after_pad_us = get_ticks_usec();
+#endif
         if (DisplayServer::get_singleton())
             DisplayServer::get_singleton()->process_events();
         const bool done = Main::iteration();
+#ifdef GODOT_PS5_SCENE_PREVIEW
+        const uint64_t after_main_us = get_ticks_usec();
+        const uint32_t pad_poll_us = static_cast<uint32_t>(
+                MIN(after_pad_us - frame_start_us, uint64_t(10000000)));
+        const uint32_t main_loop_us = static_cast<uint32_t>(
+                MIN(after_main_us - after_pad_us, uint64_t(10000000)));
+#endif
 #ifdef GODOT_PS5_SCENE_PREVIEW
         if (scene_frame_callback) {
             SceneTree *tree = Object::cast_to<SceneTree>(main_loop);
@@ -88,7 +103,8 @@ void OS_PS5::run() {
                 if (sprite) {
                     const int presses = int(scene->get("count"));
                     scene_frame_callback(sprite->get_position().x,
-                                         sprite->get_rotation(), presses);
+                                         sprite->get_rotation(), presses,
+                                         main_loop_us, pad_poll_us);
                 }
             }
         }

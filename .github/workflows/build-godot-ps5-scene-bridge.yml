@@ -130,7 +130,7 @@ jobs:
           data=json.loads((root/'sce_sys/param.json').read_text())
           data.update(titleId='PPSA99845',conceptId='99845',
                       contentId='UP9000-PPSA99845_00-GODOTSCENEBRIDGE',
-                      contentVersion='01.000.002')
+                      contentVersion='01.000.003')
           data['localizedParameters']['en-US']['titleName']='Godot PS5 Scene Bridge'
           assert len(data['contentId'].split('_00-')[1])==16
           (root/'sce_sys/param.json').write_text(json.dumps(data,indent=2)+'\n')
@@ -182,12 +182,12 @@ jobs:
               assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
               meta=json.loads(z.read('PPSA99845/sce_sys/param.json'))
               assert meta['titleId']=='PPSA99845'
-              assert meta['contentVersion']=='01.000.002'
+              assert meta['contentVersion']=='01.000.003'
           print('SIGNED SAME-PROCESS GODOT-GDSCRIPT-TO-PS5-OPENGL TEST READY')
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-Scene-Bridge-v0.1.1-GDSCRIPT-TO-GPU-UNVERIFIED-ON-PS5
+          name: Godot-PS5-Scene-Bridge-v0.1.2-GDSCRIPT-TO-GPU-UNVERIFIED-ON-PS5
           path: /tmp/godot-scene-app/dist/PPSA99845.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4

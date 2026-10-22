@@ -10,16 +10,23 @@
 #include <cstdio>
 #include <cmath>
 #include <sys/stat.h>
+#include <cstdint>
+#include <time.h>
 
 extern "C" int godot_ps5_run_pack(const char *pack);
 extern "C" void godot_ps5_set_scene_frame_callback(void (*)(float, float, int));
 
 namespace {
 constexpr char kLog[]="/data/GodotPS5/scene-bridge.log";
+uint64_t monotonic_us() {
+    struct timespec ts = {};
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return uint64_t(ts.tv_sec) * 1000000ULL + uint64_t(ts.tv_nsec) / 1000ULL;
+}
 void log(const char *name,int value=-1) {
     if(FILE*f=std::fopen(kLog,"ab")){
-        if(value>=0)std::fprintf(f,"[GodotPS5 BRIDGE 0.1.1] %s=%d\n",name,value);
-        else std::fprintf(f,"[GodotPS5 BRIDGE 0.1.1] %s\n",name);
+        if(value>=0)std::fprintf(f,"[GodotPS5 BRIDGE 0.1.2] %s=%d\n",name,value);
+        else std::fprintf(f,"[GodotPS5 BRIDGE 0.1.2] %s\n",name);
         std::fflush(f); std::fclose(f);
     }
 }
@@ -34,7 +41,7 @@ GLuint compile(GLenum type,const char*source){
         char buffer[1024]={};GLsizei size=0;
         glGetShaderInfoLog(shader,sizeof(buffer)-1,&size,buffer);
         if(FILE*f=std::fopen(kLog,"ab")){
-            std::fprintf(f,"[GodotPS5 BRIDGE 0.1.1] SHADER_ERROR=%s\n",buffer);
+            std::fprintf(f,"[GodotPS5 BRIDGE 0.1.2] SHADER_ERROR=%s\n",buffer);
             std::fclose(f);
         }
         glDeleteShader(shader);return 0;
@@ -65,6 +72,21 @@ struct GLScene {
     GLuint program=0,vao=0,vbo=0,texture=0;
     GLint position=-1,rotation=-1,sampler=-1;
     int frames=0, last_presses=-1;
+    uint32_t max_pad_us=0, max_main_us=0, max_draw_us=0, max_swap_us=0;
+    uint32_t pad_hitches=0, main_hitches=0, draw_hitches=0, swap_hitches=0;
+    void profile_snapshot() {
+        // One single append for each infrequent sample, not a file open
+        // and flush on every Cross press. The latter can stall frame pacing.
+        if (FILE *f=std::fopen(kLog,"ab")) {
+            std::fprintf(f,
+                "[GodotPS5 BRIDGE 0.1.2] PERF_SAMPLE_FRAMES=%d CROSS_COUNT=%d "
+                "PAD_MAX_US=%u MAIN_MAX_US=%u DRAW_MAX_US=%u SWAP_MAX_US=%u "
+                "PAD_HITCHES=%u MAIN_HITCHES=%u DRAW_HITCHES=%u SWAP_HITCHES=%u\\n",
+                frames,last_presses,max_pad_us,max_main_us,max_draw_us,max_swap_us,
+                pad_hitches,main_hitches,draw_hitches,swap_hitches);
+            std::fclose(f);
+        }
+    }
     bool ready=false;
     bool open(){
         if(!display.open(1920,1080)){log("EGL_OPEN_FAILED",display.last_error());return false;}
@@ -136,11 +158,17 @@ struct GLScene {
         log("BOOT_FRAME_PRESENTED");
         return true;
     }
-    void frame(float sprite_x,float angle,int presses){
+    void frame(float sprite_x,float angle,int presses,
+               uint32_t main_loop_us,uint32_t pad_poll_us){
         if(!ready)return;
-        if(presses!=last_presses){
-            log("GDSCRIPT_CROSS_COUNT",presses);last_presses=presses;
-        }
+        // Track Cross in memory. No synchronous filesystem write on button
+        // input; on the previous build that I/O coincided with user hitches.
+        last_presses=presses;
+        if(main_loop_us>max_main_us)max_main_us=main_loop_us;
+        if(pad_poll_us>max_pad_us)max_pad_us=pad_poll_us;
+        if(main_loop_us>33000)++main_hitches;
+        if(pad_poll_us>33000)++pad_hitches;
+        const uint64_t draw_begin_us=monotonic_us();
         // Count is read directly from a live Godot GDScript scene property;
         // NO independent native pad polling or second animation clock.
         const bool red=(presses&1)!=0;
@@ -165,12 +193,30 @@ struct GLScene {
             log("GODOT_GDSCRIPT_SCENE_FRAME_DRAWN");
             log("FIRST_DRAW_GL_ERROR",(int)glGetError());
         }
+        const uint64_t draw_end_us=monotonic_us();
+        if (draw_begin_us && draw_end_us>=draw_begin_us) {
+            const uint64_t elapsed=draw_end_us-draw_begin_us;
+            const uint32_t us=static_cast<uint32_t>(elapsed>10000000?10000000:elapsed);
+            if(us>max_draw_us)max_draw_us=us;
+            if(us>33000)++draw_hitches;
+        }
+        const uint64_t swap_begin_us=monotonic_us();
         if(!display.swap()){log("EGL_SWAP_FAILED",display.last_error());ready=false;return;}
+        const uint64_t swap_end_us=monotonic_us();
+        if(swap_begin_us&&swap_end_us>=swap_begin_us){
+            const uint64_t elapsed=swap_end_us-swap_begin_us;
+            const uint32_t us=static_cast<uint32_t>(elapsed>10000000?10000000:elapsed);
+            if(us>max_swap_us)max_swap_us=us;
+            if(us>33000)++swap_hitches;
+        }
         ++frames;
         if(frames==1){log("FIRST_FRAME_PRESENTED");hui::sys::hide_splash_screen();}
         if(frames==60||frames==600)log("PRESENTED_FRAME_COUNT",frames);
+        if(frames==240||frames==600)profile_snapshot();
     }
     void close(){
+        profile_snapshot();
+        log("GDSCRIPT_CROSS_COUNT",last_presses);
         log("TOTAL_PRESENTED",frames);
         if(vbo)glDeleteBuffers(1,&vbo);
         if(vao)glDeleteVertexArrays(1,&vao);
@@ -181,8 +227,9 @@ struct GLScene {
     }
 };
 GLScene* active=nullptr;
-void scene_callback(float x,float rotation,int count){
-    if(active)active->frame(x,rotation,count);
+void scene_callback(float x,float rotation,int count,
+                    uint32_t main_loop_us,uint32_t pad_poll_us){
+    if(active)active->frame(x,rotation,count,main_loop_us,pad_poll_us);
 }
 } // namespace
 int main(){

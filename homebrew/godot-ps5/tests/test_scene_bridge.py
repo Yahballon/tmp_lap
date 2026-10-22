@@ -17,6 +17,14 @@ assert "GODOT_PS5_REAL_2D_SCENE_READY" in scene
 for token in ("godot_ps5_run_pack(", "godot_ps5_set_scene_frame_callback", "GODOT_GDSCRIPT_SCENE_FRAME_DRAWN","GDSCRIPT_CROSS_COUNT","GL_TRIANGLE_STRIP","glTexImage2D","GL_SRC_ALPHA","TOTAL_PRESENTED","GPU_SHUTDOWN"):
     assert token in native,token
 assert "NOT Godot's GLES3" in native
+assert "profile_snapshot()" in native
+assert "GDSCRIPT_CROSS_COUNT" in native
+assert "PAD_MAX_US=" in native and "MAIN_MAX_US=" in native
+assert "DRAW_MAX_US=" in native and "SWAP_MAX_US=" in native
+assert "profile_snapshot();" in native and "last_presses=presses" in native
+assert 'print("GODOT_PS5_REAL_2D_CROSS_PRESSED")' not in scene
+assert "main_loop_us, pad_poll_us" in os
+assert "get_ticks_usec()" in os
 assert 'BOOT_FRAME_PRESENTED' in native and 'BOOT_FRAME_GL_ERROR' in native
 assert native.index('scene.boot_frame()') < native.index('const int result=godot_ps5_run_pack(')
 
