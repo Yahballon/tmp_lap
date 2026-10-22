@@ -1,6 +1,7 @@
 # Godot 4.7.2 → PS5 EGL/GLES3 integration contract
 
-**Status: planned engineering steps, not a working Godot renderer.**
+**Status: PS5 v0.1.1 hardware-proven GDScript → native GL bridge; Godot's
+own GLES3 renderer is not running yet.**
 
 Two independent console-tested paths now exist:
 
@@ -116,3 +117,27 @@ weak TLS fix, but its metadata verification still expected
 The test now matches staging, and a host regression test prevents that
 specific mismatch from recurring. Neither result establishes Godot GLES3
 rendering; the native DisplayServer is still dummy-only.
+
+
+## 22 October 2026: Same-process scene + GPU accepted
+
+`PPSA99845 v0.1.1` runs native Godot 4.7.2 and PS5 OpenGL 4.6 together.
+The user saw the checkerboard and background color change from X.
+`bfpilot-download (16).tar` confirms 24 GDScript X press events,
+`BOOT_FRAME_PRESENTED`, `GODOT_GDSCRIPT_SCENE_FRAME_DRAWN`,
+`FIRST_DRAW_GL_ERROR=0` and at least 600 presented frames.
+Because logs were captured during gameplay, normal shutdown is still
+unverified. The source remains under GPL-3.0-or-later+MIT obligations
+and an unofficial GPU SDK mirror requires provenance review.
+
+### Next real renderer gate: upstream GLES3 archive cross-compilation
+
+`GODOT_PS5_GLES3_ARCHIVES=1` is an experimental **CI-only** switch
+for compiling Godot's actual `drivers/gles3` and `drivers/egl` sources
+together with the upstream GLAD loaders. It does not install an app or
+turn on a rendering backend on existing title IDs.
+The normal PS5 archive build still has `opengl3=no`.
+The experimental compile must establish and validate native PS5
+`libdrivers` GLES3 objects **before** DisplayServer ownership,
+EGL context creation, texture uploads, GLAD pointer initialization,
+Canvas rendering or an installable graphical Godot title is attempted.

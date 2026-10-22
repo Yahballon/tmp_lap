@@ -9,3 +9,10 @@ sources = ["os_ps5.cpp", "godot_ps5.cpp", "file_access_ps5.cpp", "pad_ps5.cpp", 
 if os.environ.get("GODOT_PS5_DISPLAY_EXPERIMENT") == "1":
     sources.append("display_server_ps5.cpp")
 env.add_library("#bin/godot_ps5", sources)
+if os.environ.get("GODOT_PS5_GLES3_ARCHIVES") == "1":
+    # Build the upstream GLAD loader functions as a separate PS5-native
+    # archive. No app or GPL graphics stack is linked into the default title.
+    env.add_library("#bin/godot_ps5_glad", [
+        "#thirdparty/glad/gl.c",
+        "#thirdparty/glad/egl.c",
+    ])

@@ -1,0 +1,78 @@
+name: Cross-compile Godot 4.7.2 PS5 GLES3 Archives (NO EXECUTABLE)
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/engine/platform/ps5/detect.py'
+      - 'homebrew/godot-ps5/engine/platform/ps5/SCsub'
+      - 'homebrew/godot-ps5/engine/platform/ps5/platform_gl.h'
+      - 'homebrew/godot-ps5/engine/platform/ps5/platform_egl.h'
+      - 'homebrew/godot-ps5/scripts/build-engine.sh'
+      - 'homebrew/godot-ps5/tests/test_gles3_archive_gate.py'
+      - '.github/workflows/validate-godot-ps5-gles3-archives.yml'
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify isolated opt-in configuration
+        run: |
+          set -euo pipefail
+          python3 homebrew/godot-ps5/scripts/check_overlay.py
+          python3 homebrew/godot-ps5/tests/test_displayserver_ps5.py
+          python3 homebrew/godot-ps5/tests/test_gles3_archive_gate.py
+  ps5-archives:
+    needs: host
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native compile toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 llvm-18 lld-18 scons git make python3 \
+            pkg-config unzip wget ca-certificates
+      - name: Clone upstream Godot 4.7.2 and pinned native PS5 SDK recipe
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch 4.7.2-stable https://github.com/godotengine/godot.git /tmp/godot
+          git clone https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          git -C /tmp/devbridge checkout ce6178ed7b7668a4686e5368971ca567b33d394b
+          sed -i 's|https://zlib.net/fossils/|https://github.com/madler/zlib/releases/download/v1.3.2/|g' \
+            /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+          bash /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+      - name: Cross-compile REAL upstream Godot GLES3/EGL + GLAD object archives
+        env:
+          GODOT_SOURCE: /tmp/godot
+          PS5_PAYLOAD_SDK: /tmp/devbridge/templates/simple-calc/.deps/native/ps5-payload-sdk
+          PS5_CLANG: clang-18
+          BUILD_JOBS: "4"
+          GODOT_MODULE_SET: smoke
+          GODOT_PS5_GLES3_ARCHIVES: "1"
+          GODOT_PS5_DISPLAY_EXPERIMENT: "1"
+        run: |
+          set -euo pipefail
+          bash homebrew/godot-ps5/scripts/build-engine.sh 2>&1 | tee /tmp/gles3-compile.log
+          archive=/tmp/godot/bin/libdrivers.ps5.template_debug.x86_64.a
+          test -s "$archive"
+          llvm-ar-18 t "$archive" > /tmp/gles3-objects.txt
+          grep -F 'rasterizer_gles3' /tmp/gles3-objects.txt
+          grep -F 'canvas_gles3' /tmp/gles3-objects.txt
+          loader=/tmp/godot/bin/libgodot_ps5_glad.ps5.template_debug.x86_64.a
+          test -s "$loader"
+          llvm-ar-18 t "$loader" > /tmp/glad-objects.txt
+          grep -E 'gl\.c|egl\.c|gl\.os|egl\.os|gl\.o|egl\.o' /tmp/glad-objects.txt
+          echo 'REAL_GODOT_PS5_GLES3_ARCHIVES_COMPILED'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PS5-Godot-GLES3-CrossCompile-Diagnostics-NO-INSTALLER
+          path: |
+            /tmp/gles3-compile.log
+            /tmp/gles3-objects.txt
+            /tmp/glad-objects.txt
+          if-no-files-found: warn

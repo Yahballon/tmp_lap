@@ -18,7 +18,11 @@ def get_opts():
 def get_flags():
     return {
         "arch": "x86_64", "target": "template_debug",
-        "vulkan": False, "opengl3": False, "d3d12": False,
+        "vulkan": False,
+        # Still false by default. The separate GLES3 *archive-only* CI test
+        # explicitly opts in; PPSA99843 and PPSA99845 do not.
+        "opengl3": os.environ.get("GODOT_PS5_GLES3_ARCHIVES") == "1",
+        "d3d12": False,
         "metal": False, "accesskit": False, "sdl": False,
         "builtin_pcre2_with_jit": False,
         "supported": ["library"],
@@ -55,4 +59,15 @@ def configure(env):
         env.Append(CPPDEFINES=["GODOT_PS5_DISPLAY_EXPERIMENT"])
     if os.environ.get("GODOT_PS5_SCENE_PREVIEW") == "1":
         env.Append(CPPDEFINES=["GODOT_PS5_SCENE_PREVIEW"])
+    if os.environ.get("GODOT_PS5_GLES3_ARCHIVES") == "1":
+        # Compile the REAL upstream GLES3 driver + GLAD + EGL code against
+        # Godot's pinned loader headers. No DisplayServer or EGL presentation
+        # is claimed by this compilation gate.
+        if not env["opengl3"]:
+            print_error("PS5 GLES3 archives opt-in requires opengl3=yes")
+            raise SystemExit(2)
+        env.Append(CPPDEFINES=[
+            "GLES3_ENABLED", "GLAD_ENABLED", "GL_API_ENABLED",
+            "EGL_ENABLED", "EGL_STATIC",
+        ])
     env.Append(CPPPATH=["#platform/ps5"])

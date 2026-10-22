@@ -24,7 +24,9 @@ assert 'DisplayServerPS5::register_ps5_driver()' in os_src
 assert '#ifdef GODOT_PS5_DISPLAY_EXPERIMENT' in os_src
 assert 'GODOT_PS5_DISPLAY_EXPERIMENT' in detect
 assert 'GODOT_PS5_DISPLAY_EXPERIMENT' in scons
-assert 'opengl3": False' in detect
+# The normal PS5 build remains headless without the explicit opt-in.
+assert 'os.environ.get("GODOT_PS5_GLES3_ARCHIVES") == "1"' in detect
+assert "GODOT_PS5_GLES3_ARCHIVES" in scons
 assert 'return false;' in header
 assert 'EGL' not in (overlay / "os_ps5.h").read_text()
 print("PASS: isolated DisplayServerPS5 ABI target does not claim OpenGL.")

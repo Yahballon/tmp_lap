@@ -37,7 +37,10 @@ case "${GODOT_MODULE_SET:-smoke}" in
     exit 2
     ;;
 esac
+# Only CI's opt-in GLES3 archive gate can change this default.
+gl_backend=no
+if [[ "${GODOT_PS5_GLES3_ARCHIVES:-0}" == "1" ]]; then gl_backend=yes; fi
 scons platform=ps5 target=template_debug library_type=static_library \
-    arch=x86_64 lto=none vulkan=no opengl3=no d3d12=no metal=no \
+    arch=x86_64 lto=none vulkan=no opengl3="$gl_backend" d3d12=no metal=no \
     module_mono_enabled=no use_llvm=yes disable_path_overrides=no "${module_flags[@]}" -j"$jobs"
 echo 'Engine archive build completed: NOT an installable PS5 title.'

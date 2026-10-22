@@ -55,3 +55,30 @@ checkerboard controlled by the Godot scene. X should cycle background
 colors. Submit fresh `scene-bridge.log`, `bridge-stdout.log`,
 `bridge-stderr.log`. This remains an independent OpenGL preview,
 **not** Godot's GLES3 renderer.
+
+## v0.1.1 hardware accepted — 22 October 2026
+
+User reports a visible pink/cyan checkerboard and DualSense X changing
+the background color. In uploaded `bfpilot-download (16).tar`, the third
+(0.1.1) run in `scene-bridge.log` contains:
+
+```text
+BOOT_FRAME_GL_ERROR=0
+BOOT_FRAME_PRESENTED
+GODOT_ENGINE_ENTER
+GDSCRIPT_CROSS_COUNT=1
+GODOT_GDSCRIPT_SCENE_FRAME_DRAWN
+FIRST_DRAW_GL_ERROR=0
+FIRST_FRAME_PRESENTED
+GDSCRIPT_CROSS_COUNT=24
+PRESENTED_FRAME_COUNT=600
+```
+
+`bridge-stdout.log` prints `GODOT_PS5_REAL_2D_SCENE_READY` followed
+by **24** `GODOT_PS5_REAL_2D_CROSS_PRESSED` lines. No FreeType errors
+occur in that latest run, although older failed runs are appended in
+`bridge-stderr.log`. The newest run was captured **before automatic exit**
+so `NORMAL_SHUTDOWN` cannot yet be claimed. Two recoverable warnings
+remain (optional project.binary and global script cache, plus dummy 2D
+physics). The scene is a real Godot scene, but the GL bridge remains
+a separate preview rasterizer, *not* Godot's own RendererGLES3.
