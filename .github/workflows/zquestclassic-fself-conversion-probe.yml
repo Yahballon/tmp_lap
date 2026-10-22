@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/zquest-elf
-          gh run download 39738727477 -R "$GITHUB_REPOSITORY" \
+          gh run download 39743865567 -R "$GITHUB_REPOSITORY" \
             -n ZQuest-Original-ZPlayer-PS5-Linked-ELF-NOT-PLAYABLE-OR-INSTALLABLE \
             -D /tmp/zquest-elf
           # Uploaded Actions archive preserves the parent "build/" path
@@ -55,6 +55,7 @@ jobs:
           test -s /tmp/zquest-elf/build/zplayer
           cp /tmp/zquest-elf/build/zplayer /tmp/zquest-elf/zplayer
           file /tmp/zquest-elf/zplayer
+          echo 'SOURCE_BUILD_RUN=39743865567' > /tmp/zquest-elf/source-build.txt
           llvm-readelf-18 -h -l -d /tmp/zquest-elf/zplayer \
             > /tmp/zquest-elf/source-elf-report.txt
       - name: Attempt native PS5 module conversion (diagnostic, never publish)
