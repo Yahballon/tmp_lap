@@ -62,6 +62,8 @@ Look for `PACK_SOURCE=CONFIG`, `PACK_SOURCE=AUTOSCAN` or
 `PACK_SOURCE=BUNDLED_SMOKE` to confirm which PCK was selected. Look for
 `GODOT_PS5_SMOKE_READY` **only** when the bundled smoke script runs.
 
+Read [GRAPHICS_BRINGUP.md](GRAPHICS_BRINGUP.md) for the concrete DisplayServer, Vulkan/OpenGL, DualSense, audio and hardware-verification roadmap.
+
 ## Engineering roadmap
 
 1. **Real Godot VM and PCK I/O:** proven for the built-in v0.2.11 smoke test;
