@@ -1,0 +1,95 @@
+name: ZQuest ZPlayer PS5 FSELF Conversion Diagnostic
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/zquestclassic-fself-conversion-probe.yml'
+permissions:
+  actions: read
+  contents: read
+jobs:
+  ps5-fself-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 native packager prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 \
+            ninja-build cmake python3 git unzip zlib1g-dev curl ca-certificates
+      - name: Prepare PS5 SDK and official DevBridge converter
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/zquest-devbridge
+          cp -a /tmp/zquest-devbridge/templates/simple-calc ./app
+          bash app/tools/setup-native-dependencies.sh
+          bash app/tools/build-host-tools.sh
+          test -x app/build/host/ps5-native-tool
+          test -f app/.deps/native/ps5-payload-sdk/target/lib/libSceLibcInternal.so
+      - name: Download proven original zplayer ELF (not installable)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/zquest-elf
+          gh run download 39738727477 -R "$GITHUB_REPOSITORY" \
+            -n ZQuest-Original-ZPlayer-PS5-Linked-ELF-NOT-PLAYABLE-OR-INSTALLABLE \
+            -D /tmp/zquest-elf
+          test -s /tmp/zquest-elf/zplayer
+          file /tmp/zquest-elf/zplayer
+          llvm-readelf-18 -h -l -d /tmp/zquest-elf/zplayer \
+            > /tmp/zquest-elf/source-elf-report.txt
+      - name: Attempt native PS5 module conversion (diagnostic, never publish)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          tool=app/build/host/ps5-native-tool
+          sdk=app/.deps/native/ps5-payload-sdk
+          mkdir -p /tmp/zquest-conversion
+          echo "Original upstream zplayer — PS5 boot unverified" > /tmp/zquest-conversion/results.txt
+          set +e
+          "$tool" link --in /tmp/zquest-elf/zplayer \
+            --out /tmp/zquest-conversion/eboot.elf \
+            --stub-dir "$sdk/target/lib" \
+            --module-sdk 0x02000009 --companion-sdk 0x08050001 \
+            --heap-size 0xffffffffffffffff --file-name eboot.elf \
+            > /tmp/zquest-conversion/link.log 2>&1
+          status=$?
+          set -e
+          echo "MODULE_CONVERSION_EXIT=$status" >> /tmp/zquest-conversion/results.txt
+          cat /tmp/zquest-conversion/link.log
+          if (( status != 0 )); then
+            echo "BOOT_READY=NO (conversion failed)" >> /tmp/zquest-conversion/results.txt
+            exit "$status"
+          fi
+          set +e
+          "$tool" self --sign --in /tmp/zquest-conversion/eboot.elf \
+            --out /tmp/zquest-conversion/eboot.bin --magic 0x1D3D154F \
+            > /tmp/zquest-conversion/self.log 2>&1
+          status=$?
+          set -e
+          echo "FSELF_SIGN_EXIT=$status" >> /tmp/zquest-conversion/results.txt
+          if (( status != 0 )); then
+            cat /tmp/zquest-conversion/self.log
+            exit "$status"
+          fi
+          "$tool" self --inspect --file /tmp/zquest-conversion/eboot.bin \
+            > /tmp/zquest-conversion/self-inspect.txt 2>&1
+          echo "FSELF_CREATED=YES" >> /tmp/zquest-conversion/results.txt
+          echo "BOOT_READY=UNPROVEN (CRT, imports, resources, console hardware)" >> /tmp/zquest-conversion/results.txt
+          echo "DO_NOT_INSTALL_YET" >> /tmp/zquest-conversion/results.txt
+      - name: Export FSELF diagnostic logs (not an app release)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-PS5-FSELF-Conversion-Diagnostic-NOT-INSTALLABLE
+          path: |
+            /tmp/zquest-elf/source-elf-report.txt
+            /tmp/zquest-conversion/results.txt
+            /tmp/zquest-conversion/link.log
+            /tmp/zquest-conversion/self.log
+            /tmp/zquest-conversion/self-inspect.txt
+          if-no-files-found: warn
+# Linked ELF does not imply playable PS5 homebrew. No TESTBUILDS mutation.
