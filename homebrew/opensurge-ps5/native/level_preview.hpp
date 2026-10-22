@@ -679,8 +679,7 @@ private:
                 const float exit_feet=selected->y+24.f;
                 if(!tube_exit_usable(selected->x,exit_feet,support)){
                     ++unsafe_tube_exits_;
-                    tube_cooldown_=2.f;
-                    vx_=0.f;rolling_=false;charging_=false;
+                    restore_safe_ground();
                     // Do not start a teleport that would deposit the player
                     // in midair or inside the original tile collision.
                     break;
