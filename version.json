@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "0cad5dd6276a31b8705a70e27d4e308bd2575b92aaa987b4b564730a6724e455",
+  "version": "6db69410a03cd29bb05a61e24523ef37fd75ce91503a94a06ce3321a7690b5e9",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 25,
+  "app_count": 26,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -16,6 +16,19 @@
       "source": "homebrew/zquestclassic-ps5",
       "size_bytes": 6066690,
       "published_at": "2026-10-21T10:13:02Z"
+    },
+    {
+      "name": "ZQuest Engine BOOT TEST (not playable)",
+      "slug": "zquestclassic-ps5-engine-boot",
+      "title_id": "PPSA99128",
+      "version": "0.0.1",
+      "tag": "zquestclassic-ps5-engine-boot-v0.0.1",
+      "zip_name": "PPSA99128.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/zquestclassic-ps5-engine-boot-v0.0.1/PPSA99128.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/zquestclassic-ps5-engine-boot-v0.0.1",
+      "source": "homebrew/zquestclassic-ps5-engine-boot",
+      "size_bytes": 11072363,
+      "published_at": "2026-10-22T09:52:02Z"
     },
     {
       "name": "NESYX",
