@@ -85,7 +85,7 @@ inline PackSelection select_runtime_pack() {
             "/data/GodotPS5/games", "/mnt/usb0/godot",
             "/mnt/usb1/godot", "/mnt/usb2/godot",
             "/mnt/usb3/godot", "/mnt/usb0/GodotPS5/games"}) {
-        const std::string found = first_pack_in(root);
+        const std::string found = first_pack_in(root, true);
         if (!found.empty() && trusted_external_path(found))
             return {found, PackSource::AutoScan};
     }

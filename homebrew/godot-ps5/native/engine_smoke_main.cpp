@@ -17,7 +17,7 @@ extern "C" int sceSystemServiceLoadExec(const char *path, const char *const *arg
 extern "C" int sceKernelUsleep(unsigned int microseconds);
 extern "C" void catchReturnFromMain(int status) {
     char message[96]{};
-    std::snprintf(message, sizeof(message), "SHELL_EXIT_REQUEST v0.3.0 status=%d", status);
+    std::snprintf(message, sizeof(message), "SHELL_EXIT_REQUEST v0.3.2 status=%d", status);
     log_message(message);
     std::fflush(nullptr);
     (void)sceSystemServiceLoadExec("exit", nullptr);
@@ -27,12 +27,12 @@ extern "C" void catchReturnFromMain(int status) {
 }
 int main() {
     mkdir("/data/GodotPS5",0755);
-    log_message("MAIN_ENTER_BEFORE_REDIRECT v0.3.0");
+    log_message("MAIN_ENTER_BEFORE_REDIRECT v0.3.2");
     FILE *out=freopen("/data/GodotPS5/engine-stdout.log","ab",stdout);
     FILE *err=freopen("/data/GodotPS5/engine-stderr.log","ab",stderr);
     if(out) setvbuf(stdout,nullptr,_IONBF,0);
     if(err) setvbuf(stderr,nullptr,_IONBF,0);
-    log_message("NATIVE_GODOT_ENTRY_START v0.3.0 ENGINE_PHASE_TRACE");
+    log_message("NATIVE_GODOT_ENTRY_START v0.3.2 ENGINE_PHASE_TRACE");
     // External Godot 4 project packs take priority over the bundled smoke
     // fixture. The PS5 kernel screens config and USB paths before launching.
     const godot_ps5::PackSelection selected = godot_ps5::select_runtime_pack();

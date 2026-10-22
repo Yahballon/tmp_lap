@@ -153,7 +153,7 @@ jobs:
           meta=json.loads((root/'sce_sys/param.json').read_text())
           assert meta['titleId']=='PPSA99843'
           assert meta['contentId']=='UP9000-PPSA99843_00-GODOTPS5HEADLESS'
-          assert meta['contentVersion']=='01.000.014'
+          assert meta['contentVersion']=='01.000.015'
           with zipfile.ZipFile(root.parent/'PPSA99843.zip') as z:
               assert z.testzip() is None
               assert 'PPSA99843/eboot.bin' in z.namelist()
@@ -164,7 +164,7 @@ jobs:
         if: steps.link.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-GDScript-Engine-Smoke-v0.3.1-UNVERIFIED-ON-CONSOLE
+          name: Godot-PS5-GDScript-Engine-Smoke-v0.3.2-UNVERIFIED-ON-CONSOLE
           path: /tmp/godot-link-app/dist/PPSA99843.zip
           if-no-files-found: error
       # This workflow is a linker diagnostic; it only uploads immutable CI

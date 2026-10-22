@@ -67,7 +67,19 @@ inline bool valid_godot4_pack(const std::string &path) {
     return pack_header_compatible(header, n);
 #endif
 }
-inline std::string first_pack_in(const char *root) {
+// Do not let a stale external smoke.pck silently override the bundled
+// controller acceptance fixture. Explicit launch.txt may still select it.
+inline bool is_legacy_smoke_pack(const std::string &name) {
+    constexpr char expected[] = "smoke.pck";
+    if (name.size() != sizeof(expected) - 1) return false;
+    for (size_t i = 0; i < sizeof(expected) - 1; ++i) {
+        char c = name[i];
+        if (c >= 'A' && c <= 'Z') c = char(c + ('a' - 'A'));
+        if (c != expected[i]) return false;
+    }
+    return true;
+}
+inline std::string first_pack_in(const char *root, bool skip_legacy_smoke = false) {
     std::vector<std::string> found;
     constexpr size_t max_entries = 2048, max_pcks = 256;
 #if defined(GODOT_PS5_NATIVE_IO)
@@ -92,7 +104,7 @@ inline std::string first_pack_in(const char *root) {
             const std::string name(reinterpret_cast<const char *>(p+8), namelen);
             at += reclen;
             if (type != 0 && type != 8) continue; // DT_UNKNOWN or DT_REG
-            if (!safe_filename(name)) continue;
+            if (!safe_filename(name) || (skip_legacy_smoke && is_legacy_smoke_pack(name))) continue;
             const auto path = std::string(root)+"/"+name;
             if (valid_godot4_pack(path)) found.push_back(path);
             if (found.size() >= max_pcks) break;
@@ -107,7 +119,7 @@ inline std::string first_pack_in(const char *root) {
     while (dirent *entry = readdir(dir)) {
         if (++scanned > max_entries) break;
         const std::string name(entry->d_name);
-        if (!safe_filename(name)) continue;
+        if (!safe_filename(name) || (skip_legacy_smoke && is_legacy_smoke_pack(name))) continue;
         const auto path = std::string(root)+"/"+name;
         if (valid_godot4_pack(path)) found.push_back(path);
         if (found.size() >= max_pcks) break;

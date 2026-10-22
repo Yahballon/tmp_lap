@@ -22,7 +22,25 @@ DisplayServer, Vulkan or OpenGL renderer, audio driver, or DualSense-to-Godot
 Input bridge. The built-in `smoke.pck` exits after printing the verification
 marker. PS5 console behavior of each new release must be tested separately.
 
-## Next native milestone: DualSense → Godot Input (v0.3.1 candidate)
+## PS5 hardware discovery and v0.3.2 fix
+
+User's 22 Oct 2026 PS5 console log (TAR #13) confirms native
+`[GodotPS5 PAD] CONNECTED dev=0` and `[GodotPS5 PAD] CROSS_DOWN`.
+However its selected pack is `PACK_SOURCE=AUTOSCAN PACK=/mnt/usb0/godot/smoke.pck`.
+That USB fixture is older and prints only `GODOT_PS5_SMOKE_READY`:
+it has no `GODOT_PS5_DUALSENSE_TEST_WAITING` marker. Thus the native button
+is demonstrated, but its forwarding to *GDScript* is not yet proven.
+
+v0.3.2 fixes the test collision: automatic discovery ignores a file named
+`smoke.pck` (case insensitive) in external folders, but still launches real
+external games such as `Demo.pck`. The bundled current smoke pack then
+runs when no other game PCK is detected. A user may explicitly select an
+external `smoke.pck` with `/data/GodotPS5/launch.txt` if desired.
+Run the bundled smoke and check for `GODOT_PS5_DUALSENSE_TEST_WAITING`,
+`GODOT_PS5_DUALSENSE_CONNECTED`, and
+`GODOT_PS5_DUALSENSE_CROSS_PRESSED` before claiming success.
+
+## Next native milestone: DualSense → Godot Input (v0.3.2 test)
 
 The **experimental** controller bridge now uses the native PS5 `scePad` and
 user-service interfaces to pass controller input to the real Godot
@@ -44,10 +62,10 @@ press X (Cross) on the DualSense and read these console logs:
 ```
 
 A headless test has **no display output**; the logs are the acceptance
-criteria, not a visible controller UI. If an external PCK is selected through
-`launch.txt` or USB autoscan, that project runs instead of the bundled
-controller fixture. To test the bundled fixture, remove the external selection
-and temporarily move other PCKs out of the scanned folders.
+criteria, not a visible controller UI. If an external PCK is explicitly selected by `launch.txt`, or a non-smoke
+external game is auto-detected, it runs instead of the bundled controller test.
+To test the bundled fixture, remove `launch.txt` and temporarily move all
+external `.pck` files other than old `smoke.pck` out of the scanned folders.
 
 The **graphics** milestone is next: an isolated GPU/display probe and then a
 real Godot DisplayServer / renderer. DualSense events do not by themselves

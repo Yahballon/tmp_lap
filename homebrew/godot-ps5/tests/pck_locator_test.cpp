@@ -30,6 +30,12 @@ int main() {
     assert(!godot_ps5::valid_godot4_pack(bad));
     assert(!godot_ps5::valid_godot4_pack(future));
     assert(godot_ps5::first_pack_in(dir)==one);
+    const std::string stale=base+"/smoke.PCK";
+    save(stale,header,sizeof(header));
+    assert(godot_ps5::is_legacy_smoke_pack("smoke.pck"));
+    assert(godot_ps5::is_legacy_smoke_pack("SMOKE.PCK"));
+    assert(!godot_ps5::is_legacy_smoke_pack("smoke2.pck"));
+    assert(godot_ps5::first_pack_in(dir,true)==one);
     assert(godot_ps5::choose_pack(one.c_str())==one);
     assert(godot_ps5::choose_pack(bad.c_str()).empty());
     assert(godot_ps5::choose_pack("../a.pck").empty());
@@ -37,6 +43,9 @@ int main() {
     assert(symlink(one.c_str(),link.c_str())==0);
     assert(!godot_ps5::valid_godot4_pack(link));
     unlink(link.c_str());unlink(one.c_str());unlink(two.c_str());
+    assert(godot_ps5::first_pack_in(dir)==stale);
+    assert(godot_ps5::first_pack_in(dir,true).empty());
+    unlink(stale.c_str());
     unlink(bad.c_str());unlink(future.c_str());rmdir(dir);
     puts("PASS: Godot4 PCK host/native discovery and path screening");
 }
