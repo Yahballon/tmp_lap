@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "0b13e575b19fe02eeedfcb54eb3b00959d65c173519a96d582e22f0fb660dfb9",
+  "version": "5dffaa861306bbab255da5b076d298aa2563455bae50f5638bc194838f9be033",
   "repository": "Yahballon/tmp_lap",
   "app_count": 29,
   "apps": [
@@ -268,14 +268,14 @@
       "name": "Godot PS5 Scene Bridge (EXPERIMENTAL)",
       "slug": "godot-ps5-scene-bridge",
       "title_id": "PPSA99845",
-      "version": "0.1.1",
-      "tag": "godot-ps5-scene-bridge-v0.1.1",
+      "version": "0.1.2",
+      "tag": "godot-ps5-scene-bridge-v0.1.2",
       "zip_name": "PPSA99845.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-scene-bridge-v0.1.1/PPSA99845.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-scene-bridge-v0.1.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-scene-bridge-v0.1.2/PPSA99845.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-scene-bridge-v0.1.2",
       "source": "homebrew/godot-ps5-scene-bridge",
-      "size_bytes": 21098378,
-      "published_at": "2026-10-22T17:53:43Z"
+      "size_bytes": 21099949,
+      "published_at": "2026-10-22T20:08:05Z"
     },
     {
       "name": "Snake",
