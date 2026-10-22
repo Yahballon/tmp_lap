@@ -98,3 +98,21 @@ compiles the real upstream Godot static archives. The separate
 cross-compile; it does **not** publish a TESTBUILD or claim Godot 2D
 works. Next stage will replace RasterizerDummy with actual Godot GLES3
 and transfer EGL ownership via native PS5 glue.
+
+## 22 October 2026: ABI builder diagnostics fixed
+
+[ABI run 39774451360](https://github.com/Yahballon/tmp_lap/actions/runs/39774451360)
+compiled the *real upstream Godot 4.7.2 sources* and
+`platform/ps5/display_server_ps5.cpp` successfully; it created 10 actual
+PS5 static archives. The job's final assertion failed because it searched
+for the SCons object under `/tmp/godot/platform/ps5`, but the platform
+library is at `/tmp/godot/bin/libgodot_ps5.ps5.template_debug.x86_64.a`.
+CI now checks its object members with `llvm-ar-18 t` instead.
+
+The separate headless full-engine build [39774451141](https://github.com/Yahballon/tmp_lap/actions/runs/39774451141)
+linked and signed a native PS5 binary after applying the known optional
+weak TLS fix, but its metadata verification still expected
+`contentVersion=01.000.014` instead of the staged `01.000.015`.
+The test now matches staging, and a host regression test prevents that
+specific mismatch from recurring. Neither result establishes Godot GLES3
+rendering; the native DisplayServer is still dummy-only.

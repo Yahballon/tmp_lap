@@ -62,9 +62,14 @@ jobs:
           echo 'ENGINE_PS5_DISPLAYSERVER_COMPILE_SUCCESS'
           python3 homebrew/godot-ps5/scripts/package_static_engine.py \
             /tmp/godot /tmp/Godot-PS5-DISPLAYSERVER-DUMMY-EXPERIMENT.zip --min-archives 8
-          # Ensure actual compilation, not just successful host-side string tests.
-          find /tmp/godot/platform/ps5 -type f -name '*display_server_ps5*.o' -print | tee /tmp/displayserver-objects.txt
-          test -s /tmp/displayserver-objects.txt
+          # SCons puts PS5 objects in bin/obj, not platform/ps5.
+          # Require the actual new DisplayServer object inside the
+          # statically linked native platform archive (no log-only success).
+          archive=/tmp/godot/bin/libgodot_ps5.ps5.template_debug.x86_64.a
+          test -s "$archive"
+          llvm-ar-18 t "$archive" | tee /tmp/displayserver-objects.txt
+          grep -F 'display_server_ps5' /tmp/displayserver-objects.txt
+          echo 'GODOT_PS5_DISPLAYSERVER_NATIVE_OBJECT_VERIFIED'
       - name: Upload compile diagnostics only (no signed installable title)
         if: always()
         uses: actions/upload-artifact@v4
