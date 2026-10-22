@@ -11,6 +11,7 @@ egl=(platform/"platform_egl.h").read_text()
 workflow=(p.parent.parent/".github/workflows/validate-godot-ps5-gles3-archives.yml").read_text()
 assert 'GODOT_PS5_GLES3_ARCHIVES' in detect and 'GLES3_ENABLED' in detect
 assert 'GLAD_ENABLED' in detect and 'EGL_ENABLED' in detect
+assert '"EGL_STATIC"' not in detect, "GLAD dynamic EGL and static declarations clash"
 assert 'opengl3="$gl_backend"' in build and 'gl_backend=no' in build
 assert '"#thirdparty/glad/gl.c"' in scsub and '"#thirdparty/glad/egl.c"' in scsub
 assert '<thirdparty/glad/glad/gl.h>' in gl

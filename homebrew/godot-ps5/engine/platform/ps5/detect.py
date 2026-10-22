@@ -60,15 +60,16 @@ def configure(env):
     if os.environ.get("GODOT_PS5_SCENE_PREVIEW") == "1":
         env.Append(CPPDEFINES=["GODOT_PS5_SCENE_PREVIEW"])
     if os.environ.get("GODOT_PS5_GLES3_ARCHIVES") == "1":
-        # Compile the REAL upstream GLES3 driver + GLAD + EGL code against
-        # Godot's pinned loader headers. No DisplayServer or EGL presentation
-        # is claimed by this compilation gate.
+        # Compile upstream GLES3 with GLAD's DYNAMIC EGL function table.
+        # EGL_STATIC redeclares eglGetPlatformDisplayEXT as a function,
+        # conflicting with GLAD's variable of that name. PS5 runtime
+        # integration will load symbols from eglGetProcAddress instead.
         if not env["opengl3"]:
             print_error("PS5 GLES3 archives opt-in requires opengl3=yes")
             raise SystemExit(2)
         env.Append(CPPDEFINES=[
             "GLES3_ENABLED", "GLAD_ENABLED", "GL_API_ENABLED",
-            "EGL_ENABLED", "EGL_STATIC",
+            "EGL_ENABLED",
         ])
         # The upstream glad/gl.c and egl.c use <glad/gl.h> and
         # <glad/egl.h>, so their parent must be on the include search path.

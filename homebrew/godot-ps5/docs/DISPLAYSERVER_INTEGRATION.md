@@ -141,3 +141,13 @@ The experimental compile must establish and validate native PS5
 `libdrivers` GLES3 objects **before** DisplayServer ownership,
 EGL context creation, texture uploads, GLAD pointer initialization,
 Canvas rendering or an installable graphical Godot title is attempted.
+
+### Dynamic EGL loader correction — 2026-10-22
+
+[Native GLES3 compile 39828096451](https://github.com/Yahballon/tmp_lap/actions/runs/39828096451)
+compiled most upstream renderer objects but failed in `egl_manager.cpp`:
+`eglSetBlobCacheFuncsANDROID` and `eglGetPlatformDisplayEXT` were
+redeclared by `EGL_STATIC` as C functions, conflicting with GLAD's
+function-pointer globals. The CI-only GLES3 mode now uses
+`EGL_ENABLED + GLAD_ENABLED` **without** `EGL_STATIC`, leaving
+actual EGL function loading for the later DisplayServer runtime stage.
