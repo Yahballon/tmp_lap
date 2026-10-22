@@ -24,6 +24,7 @@ def main():
             allowed_prerelease=(
                 re.fullmatch(r"starbound-rebased-v\d+\.\d+\.\d+",tag) or
                 re.fullmatch(r"zquestclassic-ps5-v\d+\.\d+\.\d+",tag) or
+                re.fullmatch(r"zquestclassic-ps5-engine-boot-v\d+\.\d+\.\d+",tag) or
                 re.fullmatch(r"godot-ps5-probe-v\d+\.\d+\.\d+",tag) or
                 re.fullmatch(r"godot-ps5-engine-smoke-v\d+\.\d+\.\d+",tag) or
                 re.fullmatch(r"opensurge-ps5-v\d+\.\d+\.\d+",tag)
