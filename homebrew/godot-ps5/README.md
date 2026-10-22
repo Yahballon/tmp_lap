@@ -22,6 +22,37 @@ DisplayServer, Vulkan or OpenGL renderer, audio driver, or DualSense-to-Godot
 Input bridge. The built-in `smoke.pck` exits after printing the verification
 marker. PS5 console behavior of each new release must be tested separately.
 
+## Next native milestone: DualSense → Godot Input (v0.3.1 candidate)
+
+The **experimental** controller bridge now uses the native PS5 `scePad` and
+user-service interfaces to pass controller input to the real Godot
+`Input` singleton. Cross/Circle/Square/Triangle, D-pad, L1/R1, L3/R3,
+Options, touchpad click, dual analog sticks and analog triggers are mapped.
+Native samples are consumed in batches to preserve short presses.
+Connection, disconnection, short-lived controller interception and retry
+are handled without using the app's UI-specific pad classes.
+
+Host mapping and 120-byte sample ABI tests are present. **This is not yet
+proven on PS5 hardware**. The built-in `smoke.pck` still immediately prints
+`GODOT_PS5_SMOKE_READY`, then waits up to **20 seconds** for a controller:
+press X (Cross) on the DualSense and read these console logs:
+
+```text
+/data/GodotPS5/engine-stderr.log   # [GodotPS5 PAD] CONNECTED / CROSS_DOWN
+/data/GodotPS5/engine-stdout.log   # GODOT_PS5_DUALSENSE_CONNECTED
+                                   # GODOT_PS5_DUALSENSE_CROSS_PRESSED
+```
+
+A headless test has **no display output**; the logs are the acceptance
+criteria, not a visible controller UI. If an external PCK is selected through
+`launch.txt` or USB autoscan, that project runs instead of the bundled
+controller fixture. To test the bundled fixture, remove the external selection
+and temporarily move other PCKs out of the scanned folders.
+
+The **graphics** milestone is next: an isolated GPU/display probe and then a
+real Godot DisplayServer / renderer. DualSense events do not by themselves
+enable visual gameplay.
+
 ## Next milestone: universal PCK launcher (v0.3.0 test)
 
 The experimental launcher now supports **standalone Godot 4 .pck projects**
