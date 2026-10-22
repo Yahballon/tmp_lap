@@ -68,3 +68,17 @@ assert "SDL_AUDIO_DRIVER_PS5" in text
 assert "SDL_VIDEO_DRIVER_PS5" in text
 assert "SDL_FILESYSTEM_PS5" in text
 print("PS5 SDL2 CMake platform selection enabled: real audio/video/pad backend")
+
+
+# PS5's libc headers advertise several BSD wchar APIs which are not exported
+# by the actual firmware import stubs. SDL already has portable implementations
+# for these four functions. Select SDL's real fallback implementation rather
+# than fabricating missing libc symbols.
+strings=args.source/"src/stdlib/SDL_string.c"
+content=strings.read_text()
+for macro in ("HAVE_WCSLCPY","HAVE_WCSLCAT","HAVE_WCSCASECMP","HAVE_WCSNCASECMP"):
+    original=f"#if defined({macro})"
+    assert content.count(original)==1, f"Pinned SDL wchar guard changed: {macro}"
+    content=content.replace(original, f"#if defined({macro}) && !defined(ZC_PS5_WCHAR_FALLBACK)",1)
+strings.write_text(content)
+print("PS5 SDL wchar functions use genuine SDL fallback implementations")
