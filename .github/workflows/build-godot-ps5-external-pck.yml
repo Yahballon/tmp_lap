@@ -5,6 +5,7 @@ on:
     branches: [feature/godot-ps5-engine-foundation]
     paths:
       - 'homebrew/godot-ps5/samples/external-pack-smoke/**'
+      - 'homebrew/godot-ps5/tests/test_external_pck_bundle.py'
       - '.github/workflows/build-godot-ps5-external-pck.yml'
 permissions:
   contents: read
@@ -14,6 +15,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Check PS5 ZIP packager (host mocks, not a Godot runtime test)
+        run: python3 homebrew/godot-ps5/tests/test_external_pck_bundle.py
       - name: Download official Godot 4.7.2 binary
         run: |
           set -euo pipefail
