@@ -1,0 +1,45 @@
+name: Open Surge PS5 — quick native physics regressions
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/opensurge-ps5/native/**'
+      - 'homebrew/opensurge-ps5/tests/**'
+      - '.github/workflows/test-opensurge-native-physics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  masked-physics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned v0.6.3 original PS5 level assets
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 \
+            "https://github.com/Yahballon/tmp_lap/releases/download/opensurge-ps5-v0.6.3/PPSA99358.zip" \
+            -o /tmp/opensurge-v063.zip
+          echo "6f9c567d2eac4ef410996ac714fd03b49939f7ce90e152697af9b98f2f8ca481  /tmp/opensurge-v063.zip" | sha256sum -c -
+          mkdir -p /tmp/opensurge-qa
+          unzip -q /tmp/opensurge-v063.zip -d /tmp/opensurge-qa
+          find /tmp/opensurge-qa -name surge.cfg -print
+          printf '%s\n' "All staged original masks must come from the verified v0.6.3 ZIP"
+      - name: Run actual original-mask physics regressions
+        run: |
+          set -euo pipefail
+          game_file=$(find /tmp/opensurge-qa -path '*/assets/game/surge.cfg' -type f | head -n 1)
+          test -n "$game_file"
+          game_dir="${game_file%surge.cfg}"
+          echo "GAME ROOT: $game_dir"
+          for name in native_tube_safety_smoke native_routes_smoke native_loop_smoke native_uphill_smoke native_terrain_stress; do
+            g++ -std=c++17 -O2 -Wall -Wextra \
+              -I homebrew/opensurge-ps5/tests/mocks \
+              -I homebrew/opensurge-ps5/native \
+              "homebrew/opensurge-ps5/tests/${name}.cpp" -o "/tmp/${name}"
+            echo "::group::${name}"
+            "/tmp/${name}" "$game_dir"
+            echo "::endgroup::"
+          done
