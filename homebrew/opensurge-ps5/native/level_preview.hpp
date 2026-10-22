@@ -68,7 +68,10 @@ public:
         float surface=feet;
         if(!find_floor(px,feet,24,24,surface))return false;
         y_=surface;ground_=true;last_ground_y_=y_;
-        return !body_hits(x_,y_);
+        // The PS5 screenshot reproduces an initial body/terrain overlap:
+        // that's precisely what the rolling sensor update should resolve.
+        // Ground placement must not reject it before exercising the dash.
+        return true;
     }
 #endif
     // Experimental native spring velocity hook from original 'Spring
