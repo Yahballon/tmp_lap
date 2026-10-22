@@ -47,6 +47,16 @@ int main(int argc,char** argv){
                              stages[stage],frame,map.player_x(),map.player_y());
                 return 5;
             }
+            if(stage==3 && frame>=880 && frame<=924 &&
+               (frame<899||frame%4==0)){
+                std::printf("SUN3_TRACE frame=%d pos=(%.1f,%.1f) ground=%d roll=%d overlap=%d"
+                            " embedded=%u recover=%u safe=(%.1f,%.1f) safe_hit=%d safe_support=%d\n",
+                     frame,map.player_x(),map.player_y(),map.grounded()?1:0,
+                     map.rolling()?1:0,map.test_inside()?1:0,
+                     map.test_embed_ticks(),map.solid_recoveries(),
+                     map.test_safe_x(),map.test_safe_y(),
+                     map.test_safe_body()?1:0,map.test_safe_support()?1:0);
+            }
             if(map.test_inside() && !map.wall_climbing()){
                 ++penetrations;++consecutive;
                 max_consecutive=std::max(max_consecutive,consecutive);

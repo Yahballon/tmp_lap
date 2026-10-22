@@ -105,6 +105,12 @@ public:
             front_floor?1:0,forward,far_floor?1:0,far);
     }
     bool test_inside() const{return body_hits(x_,y_);}
+    float test_safe_x() const{return safe_ground_x_;}
+    float test_safe_y() const{return safe_ground_y_;}
+    bool test_safe_body() const{return body_hits(safe_ground_x_,safe_ground_y_);}
+    bool test_safe_support() const{return has_foot_support(safe_ground_x_,safe_ground_y_);}
+    unsigned test_embed_ticks() const{return embedded_frames_;}
+
     void test_enable_routes(bool enabled){routes_enabled_=enabled;}
     void test_put(float x,float y,int facing=1,bool rolling=false){
         x_=x;y_=y;vx_=rolling?(facing>=0?300.f:-300.f):0.f;
