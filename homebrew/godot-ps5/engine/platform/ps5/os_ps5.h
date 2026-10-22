@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "drivers/unix/os_unix.h"
+#include "pad_ps5.h"
 
 class OS_PS5 final : public OS_Unix {
     MainLoop *main_loop = nullptr;
+    ps5_pad::Bridge controller;
 protected:
     void initialize() override;
     void finalize() override;
