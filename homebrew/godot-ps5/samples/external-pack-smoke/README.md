@@ -8,7 +8,7 @@ native executable**. It packages two Godot scenes, two GDScripts and
 ## Build / download
 
 Open [Build External Godot PS5 PCK](https://github.com/Yahballon/tmp_lap/actions/workflows/build-godot-ps5-external-pck.yml)
-and download the **Godot-PS5-External-PCK-Host-Verified** artifact from
+and download the **Godot-PS5-External-PCK-Host-Verified-NOT-PS5** artifact from
 a green run. Green CI means only the desktop/headless Godot test passed.
 
 Or use official Godot 4.7.2 on a PC:
