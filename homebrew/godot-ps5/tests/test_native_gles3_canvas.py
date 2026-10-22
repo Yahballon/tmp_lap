@@ -14,4 +14,11 @@ for token in ("GODOT_PS5_NATIVE_GLES3: '1'","GODOT_PS5_GLES3_ARCHIVES: '1'",
 assert "glDrawArrays(" not in native
 assert "glTexImage2D(" not in native
 assert "gh release create" not in workflow
+for symbol in ('#include "pck_launch_config.hpp"', 'read_launch_txt()',
+               'trusted_external_path(requested)', 'valid_godot4_pack(requested)',
+               'PACK_SOURCE=%s PACK=%s', 'BUNDLED_VISUAL', 'visual-smoke.pck'):
+    assert symbol in native, symbol
+assert 'first_pack_in(' not in native, "Do not auto-load stale external content"
+assert "Godot-PS5-REAL-GLES3-Canvas-v0.1.1-" in workflow
+assert "contentVersion='01.000.002'" in workflow
 print("PASS: true Godot GLES3 Canvas2D PS5 title source/build isolated")

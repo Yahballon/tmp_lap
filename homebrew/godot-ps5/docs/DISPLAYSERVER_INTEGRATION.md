@@ -175,3 +175,20 @@ in `gles3-stderr.log`, `GODOT_PS5_REAL_2D_SCENE_READY` in
 `gles3-stdout.log`, button-driven background transitions, and
 normal engine+GPU shutdown. If only the blue boot background shows,
 EGL setup is proven but Godot's Canvas2D is not.
+
+
+## 22 Oct 2026: REAL Godot GLES3 + Canvas2D works on PS5
+
+PS5 test `PPSA99847 v0.1.0` passed with an independently supplied
+screenshot of upstream Godot's Canvas2D Sprite2D checkerboard.
+User's `bfpilot-download (18).tar`: four complete sessions with
+1001/1145/1136/1106 Godot swaps, normal shutdown and 223
+real GDScript X press markers. No standalone native renderer exists
+in the GLES3 title; actual GLES3 frames are presented through
+DisplayServerPS5 and the PS5 EGL graphics callbacks.
+
+**v0.1.1** adds explicit external Godot 4 PCK selection via
+`/data/GodotPS5/launch.txt`, preserving the known-good bundled
+visual PCK by default. External game support is not yet hardware
+verified; text fonts, audio, physics and advanced features remain
+porting targets.

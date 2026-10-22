@@ -135,7 +135,7 @@ jobs:
           data=json.loads((root/'sce_sys/param.json').read_text())
           data.update(titleId='PPSA99847',conceptId='99847',
                       contentId='UP9000-PPSA99847_00-GODOTGLES3CANVAS',
-                      contentVersion='01.000.001')
+                      contentVersion='01.000.002')
           data['localizedParameters']['en-US']['titleName']='Godot PS5 GLES3 Canvas'
           assert len(data['contentId'].split('_00-')[1])==16
           (root/'sce_sys/param.json').write_text(json.dumps(data,indent=2)+'\n')
@@ -187,12 +187,12 @@ jobs:
               assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
               meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
               assert meta['titleId']=='PPSA99847'
-              assert meta['contentVersion']=='01.000.001'
+              assert meta['contentVersion']=='01.000.002'
           print('SIGNED GODOT GLES3 TEST BUILT; HARDWARE OUTPUT STILL UNVERIFIED')
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Godot-PS5-REAL-GLES3-Canvas-v0.1.0-UNVERIFIED-ON-PS5
+          name: Godot-PS5-REAL-GLES3-Canvas-v0.1.1-UNVERIFIED-ON-PS5
           path: /tmp/godot-scene-app/dist/PPSA99847.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
