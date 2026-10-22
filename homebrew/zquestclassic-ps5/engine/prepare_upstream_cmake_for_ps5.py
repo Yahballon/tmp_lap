@@ -296,3 +296,24 @@ last=lf.index(end,first)
 assert all(x in lf[first:last] for x in ("setpwent();","getpwent()","endpwent();"))
 lf=lf[:first]+('\t else {\n\t    /* PS5: no other-user account database; keep ~user path literal. */')+lf[last:]
 legacy_file.write_text(lf)
+
+# Link real Mesa support and LLVM compiler-rt emulated TLS, not zero-address
+# symbol aliases. LLVM emutls.c uses pthread keys so each PS5 worker gets its
+# own OpenGL thread-local storage with correct destructor handling.
+cmake=a.cmake_root/"CMakeLists.txt"
+code=cmake.read_text()
+support=r"""
+if(ZC_PS5_TARGET_ONLY_PROBE)
+  set(_zc_mesa_libc "$ENV{ZC_PS5_MESA_COMPAT_SOURCE}")
+  set(_zc_emutls "$ENV{ZC_PS5_EMUTLS_SOURCE}")
+  if(NOT EXISTS "${_zc_mesa_libc}" OR NOT EXISTS "${_zc_emutls}")
+    message(FATAL_ERROR "PS5 Mesa libc or official compiler-rt TLS source is missing")
+  endif()
+  get_filename_component(_zc_emutls_directory "${_zc_emutls}" DIRECTORY)
+  target_sources(zplayer PRIVATE "${_zc_mesa_libc}" "${_zc_emutls}")
+  target_include_directories(zplayer PRIVATE "${_zc_emutls_directory}")
+  message(STATUS "LLVM compiler-rt pthread-key emulated TLS and Mesa libc enabled")
+endif()
+"""
+assert "target_link_libraries(zplayer PRIVATE core zcsound" in code
+cmake.write_text(code+support)
