@@ -62,6 +62,17 @@ public:
 #ifdef SURGEPREVIEW_HOST_TEST
     // Host-only way to reproduce the exact slope position from a PS5 user
     // screenshot (x=2500,y=10015); this is absent from the shipping FSELF.
+    void test_pixel(float px,float py) const {
+        std::printf("PIXEL world=%.1f,%.1f\n",px,py);
+        candidates(px,py,[&](const PlacedBrick& b){
+            const auto& d=defs_[b.id];
+            if(px<float(b.x)||py<float(b.y)||px>=float(b.x+d.w)||
+               py>=float(b.y+d.h))return;
+            const bool opaque=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
+            std::printf("   BRICK id=%d pos=(%d,%d) size=(%d,%d) z=%.2f solid=%d cloud=%d mask=%d\n",
+                 b.id,b.x,b.y,d.w,d.h,d.z,d.solid?1:0,d.cloud?1:0,opaque?1:0);
+        });
+    }
     void test_probe(float dx) const {
         const float nx=x_+dx;
         float floor=y_;

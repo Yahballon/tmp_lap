@@ -36,6 +36,8 @@ int main(int argc,char** argv){
         launch,level.rolling()?1:0,level.dash_releases(),level.grounded()?1:0,
         level.player_y(),level.collision_blocks());
     for(float off:{0.f,1.f,2.f,4.f,7.f,10.f,16.f,24.f,36.f})level.test_probe(off);
+    for(float yy:{9900.f,9930.f,9950.f,9970.f,9980.f,9990.f,10000.f,10012.f})
+        level.test_pixel(2517.f,yy);
     if(level.dash_releases()!=1 || !level.rolling())return 6;
     float maxx=level.player_x(), minvx=launch;
     for(int i=0;i<190;++i){
