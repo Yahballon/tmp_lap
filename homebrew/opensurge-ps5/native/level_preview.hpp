@@ -476,7 +476,7 @@ public:
         // in mask height instead of falling and re-landing each single frame.
         if(ground_){
             float floor=0.f;
-            if(find_floor(x_,y_,6,18,floor)){
+            if(find_floor(x_,y_,6,18,floor) && !body_hits(x_,floor)){
                 y_=floor;vy_=0.f;last_ground_y_=y_;
             }else ground_=false;
         }
@@ -506,7 +506,7 @@ public:
                     if(body_hits(nx,ytry))continue;
                     float floor=0.f;
                     if(find_floor(nx,ytry,1,3,floor) &&
-                       std::abs(floor-ytry)<3.f){
+                       std::abs(floor-ytry)<3.f && !body_hits(nx,floor)){
                         if(floor<y_-0.5f && rolling_)++uphill_steps_;
                         x_=nx;y_=floor;last_ground_y_=y_;
                         stepped=true;break;
@@ -548,12 +548,16 @@ public:
                 if(step>=0.f){
                     float floor=0.f;
                     if(find_floor(x_,candidate,3,1,floor) &&
-                       floor>=y_-1.f && floor<=candidate+1.f){
+                       floor>=y_-1.f && floor<=candidate+1.f &&
+                       !body_hits(x_,floor)){
                         y_=floor;vy_=0.f;ground_=true;
                         last_ground_y_=y_;
                         break;
                     }
-                }else if(head_hits(x_,candidate)){
+                    if(body_hits(x_,candidate)){
+                        vy_=0.f;break;
+                    }
+                }else if(head_hits(x_,candidate)||body_hits(x_,candidate)){
                     vy_=0.f;break;
                 }
                 y_=candidate;
