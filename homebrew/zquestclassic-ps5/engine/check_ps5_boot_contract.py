@@ -25,7 +25,7 @@ result = subprocess.run([args.readelf, "-h", str(args.binary)],
                         check=True, capture_output=True, text=True)
 header = result.stdout
 def read_field(label: str) -> str:
-    match = re.search(r"^\\s*" + re.escape(label) + r":\\s*(.+)$",
+    match = re.search(r"^\s*" + re.escape(label) + r":\s*(.+)$",
                       header, re.MULTILINE)
     if not match:
         raise SystemExit(f"Missing ELF header field: {label}")
