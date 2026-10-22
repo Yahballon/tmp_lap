@@ -21,7 +21,7 @@ assert 'DIR_FAILED' in fixed and 'DIR_OK' in fixed and 'UNSAFE_PATH' in fixed
 assert 'get_user_data_dir()' in fixed
 assert 'Ref<DirAccess> da' in fixed, "non-PS5 implementation preserved"
 assert 'get_user_data_dir()' in fixed
-assert '0.2.10' in fixed
+assert '0.2.11' in fixed
 try:
     m.patch(fixture.replace("make_dir_recursive(dd)", "make_dir(dd)"))
 except ValueError:

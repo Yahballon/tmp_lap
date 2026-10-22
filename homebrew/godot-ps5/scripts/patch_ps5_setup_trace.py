@@ -7,12 +7,12 @@ known source anchors, fail closed on drift and retain all normal behavior.
 from pathlib import Path
 import sys
 
-MARKER = "GodotPS5 SETUP 0.2.10"
+MARKER = "GodotPS5 SETUP 0.2.11"
 MACRO = r'''
 #if defined(PS5_ENABLED)
 #include <cstdio>
 #define PS5_SETUP_TRACE(step) do { \
-    std::fprintf(stderr, "[GodotPS5 SETUP 0.2.10] %s\n", step); \
+    std::fprintf(stderr, "[GodotPS5 SETUP 0.2.11] %s\n", step); \
     std::fflush(stderr); \
 } while (0)
 #else

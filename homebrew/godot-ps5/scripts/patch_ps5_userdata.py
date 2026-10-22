@@ -34,7 +34,7 @@ NATIVE = r"""void OS::ensure_user_data_dir() {
 			(requested[root_len] != '\0' && requested[root_len] != '/') ||
 			std::strstr(requested, "/../") || std::strstr(requested, "/./") ||
 			(count >= 3 && std::strcmp(requested + count - 3, "/..") == 0)) {
-		std::fprintf(stderr, "[GodotPS5 USERDATA 0.2.10] UNSAFE_PATH %s\n", requested);
+		std::fprintf(stderr, "[GodotPS5 USERDATA 0.2.11] UNSAFE_PATH %s\n", requested);
 		std::fflush(stderr);
 		return;
 	}
@@ -53,12 +53,12 @@ NATIVE = r"""void OS::ensure_user_data_dir() {
 		const int make_result = sceKernelMkdir(current, 0755);
 		const int fd = sceKernelOpen(current, O_RDONLY | O_DIRECTORY, 0);
 		if (fd < 0) {
-			std::fprintf(stderr, "[GodotPS5 USERDATA 0.2.10] DIR_FAILED %s mkdir=%d\n", current, make_result);
+			std::fprintf(stderr, "[GodotPS5 USERDATA 0.2.11] DIR_FAILED %s mkdir=%d\n", current, make_result);
 			std::fflush(stderr);
 			return;
 		}
 		sceKernelClose(fd);
-		std::fprintf(stderr, "[GodotPS5 USERDATA 0.2.10] DIR_OK %s\n", current);
+		std::fprintf(stderr, "[GodotPS5 USERDATA 0.2.11] DIR_OK %s\n", current);
 		std::fflush(stderr);
 		current[end] = saved;
 	}
@@ -86,7 +86,7 @@ extern "C" int sceKernelClose(int);
 '''
 
 def patch(contents: str) -> str:
-    if "[GodotPS5 USERDATA 0.2.10]" in contents:
+    if "[GodotPS5 USERDATA 0.2.11]" in contents:
         if "sceKernelMkdir(current, 0755)" not in contents:
             raise ValueError("Partial PS5 userdata source patch")
         return contents
