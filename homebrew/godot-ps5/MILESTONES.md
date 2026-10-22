@@ -3,7 +3,7 @@
 **Projekt:** PS5-Godot-Homebrew-Port von YAHBALLON  
 **Stand:** 23. Oktober 2026 · PS5 Firmware **5.10** · Entwicklungsbranch `feature/godot-ps5-engine-foundation` · [PR #207](https://github.com/Yahballon/tmp_lap/pull/207)
 
-> **Aktueller Meilenstein: M8c AUF PS5 BESTÄTIGT (Nutzerbericht, 23.10.2026).** `PPSA99847 v0.1.2` lädt ein unabhängiges, auf dem PC erstelltes Godot-4.7.2-PCK **ohne neues eboot.bin**. Der Nutzer hat nach dem M8c-Hardwaretest ausdrücklich bestätigt, dass beide Szenen und der X-Farbwechsel „alles wie es soll“ funktionieren. Host-CI [#39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380) hatte zuvor PCK, Asset und Szenenwechsel validiert. **Kein neues Konsolenlog oder M8c-Video eingereicht**, daher Logmarker, FPS und Exit nicht unabhängig gemessen. **Nächster Meilenstein: M9 – native Godot 2D-Physik.**
+> **Aktueller Meilenstein: M8c AUF PS5 BESTÄTIGT (Nutzerbericht, 23.10.2026).** `PPSA99847 v0.1.2` lädt ein unabhängiges, auf dem PC erstelltes Godot-4.7.2-PCK **ohne neues eboot.bin**. Der Nutzer hat nach dem M8c-Hardwaretest ausdrücklich bestätigt, dass beide Szenen und der X-Farbwechsel „alles wie es soll“ funktionieren. Host-CI [#39866584380](https://github.com/Yahballon/tmp_lap/actions/runs/39866584380) hatte zuvor PCK, Asset und Szenenwechsel validiert. **Kein neues Konsolenlog oder M8c-Video eingereicht**, daher Logmarker, FPS und Exit nicht unabhängig gemessen. **Nächster Meilenstein: M9a – real Godot 2D physics hardware acceptance.** Independent CharacterBody2D/StaticBody2D/CollisionShape2D PCK and green host test are ready; **native PS5 physics is not yet proven**.
 
 ## Bedeutung der Statusangaben
 
@@ -28,6 +28,7 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M8a | Fremde Godot-PCK explizit auswählen | `PPSA99847 v0.1.2`: Externes `external-smoke.pck` über `launch.txt` auf PS5 geladen; Nutzer bestätigt Szenen und X-Interaktion | ✅ Auf PS5 vom Nutzer bestätigt (M8c) |
 | M8b | Erstes Godot-Spiel als Hardwaretest | `PPSA99847 v0.1.2`: **Pong** läuft sichtbar auf echter PS5; Video zeigt Ballbewegung, Schläger und Punktestand. Individuelle Eingaben/Punkte/sauberer Exit ohne neue Pong-Logs nicht unabhängig nachgewiesen. | ✅ Auf PS5 sichtbar/laufend; 🟡 Detailabnahme offen |
 | M8c | Eigenes externes Godot-4.7.2-PCK ohne eboot.bin-Neubau | Zwei Szenen, `res://palette.json`, GDScript, Canvas2D, DualSense-X; grüner CI-Lauf **39866584380** und Nutzerbericht „geht auch alles wie es soll“ | ✅ PS5-Funktion vom Nutzer bestätigt; 🟡 Hardware-Logs noch ausstehend |
+| M9a | **Real PhysicsServer2D collision PCK** | Separate native-engine acceptance PCK with CharacterBody2D, StaticBody2D, CollisionShape2D, real `move_and_collide()` contact (`x=1093.984375`, normal `(-1,0)`), host CI [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs/39869677215) succeeded, PR [#236](https://github.com/Yahballon/tmp_lap/pull/236) merged | 🟡 Host CI ✅, **PS5 test still OPEN** |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -89,6 +90,18 @@ PS5 / Firmware 5.10
 - **Acceptance result:** user confirms PS5 display, independent PCK loading, scenes and X behavior. **Hardware logs and independent video remain optional follow-up evidence** for accurate frame-time, resource-open and exit diagnostics. Do not relabel those measurements as proven without logs.
 - No claims yet for broad Godot compatibility, saving, text rendering, PhysicsServer2D, audio or 3D.
 
+## M9a – Real upstream GodotPhysics2D collision acceptance (23 October 2026)
+
+**Status: 🟡 Real Godot 4.7.2 host collision verified; PS5 physics hardware test required.**
+Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs/39869677215) is **SUCCESS**. [PR #236](https://github.com/Yahballon/tmp_lap/pull/236) merged to this branch as \`83fa6e4a6f2018ee04e4df659886c9fb1a7ad761\`. Existing known-good \`PPSA99847 v0.1.2\` native executable was **not changed**.
+
+- New [\`samples/physics-smoke/\`](samples/physics-smoke/README.md) contains a true Godot \`CharacterBody2D\` moving with \`move_and_collide()\`, a \`StaticBody2D\` wall, and engine \`CollisionShape2D/RectangleShape2D\` geometry. There is **no hand-coded contact/bounce**.
+- Desktop Godot reported \`GODOT_PS5_M9_REAL_COLLISION_OK x=1093.984375 normal=(-1.0, 0.0)\` and \`GODOT_PS5_M9_TEST_PASS physics_frames=369\`, then exited successfully. Earlier first run [39869575617](https://github.com/Yahballon/tmp_lap/actions/runs/39869575617) correctly failed because its \`--quit-after\` cap was too short after actual contact; [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs/39869677215) corrected the cap and passed all host steps.
+- Download [M9a test artifact](https://github.com/Yahballon/tmp_lap/actions/runs/39869677215/artifacts/12466240152) named \`Godot-PS5-M9a-REAL-PHYSICS-Host-Validated-PS5-UNTESTED\`; extract the nested \`GodotPS5-M9a-REAL-PHYSICS-TEST.zip\`. The \`physics-smoke.pck\` is 5,440 bytes, **SHA-256 \`414583c3e2cd79de23d9344df0b8b44c1cd15aaa76961327e919214add2c5ea1\`**. The ZIP includes \`GodotPS5/launch.txt\` with \`physics-smoke.pck\`.
+- Copy the nested ZIP's \`GodotPS5/\` contents under \`/data/GodotPS5/\`. This **replaces the selected launch.txt**, but leaves Pong, M8c, and native PS5 title unchanged. Open \`PPSA99847 v0.1.2\`.
+- **Success criterion on PS5:** cyan CharacterBody2D moves right and physically stops at magenta StaticBody2D wall; visual body turns green only after real \`move_and_collide()\` returns matching collider and normal; logs contain \`GODOT_PS5_M9_REAL_COLLISION_OK\` and \`GODOT_PS5_M9_TEST_PASS\`. Also check native \`gles3-runtime.log\` for \`PACK_SOURCE=CONFIG\`, \`GODOT_RETURN=0\`, \`NORMAL_SHUTDOWN\`, and \`EGL_CLOSED\`.
+- **Failure diagnostic:** if the square passes through the wall or prints \`GODOT_PS5_M9_NO_COLLISION_PHYSICS_UNAVAILABLE\`, the PS5 executable still needs native PhysicsServer2D support. **Do not mark M9 passed** simply because the desktop workflow or visible squares succeed. Capture \`gles3-stdout.log\`, \`gles3-stderr.log\`, and \`gles3-runtime.log\` before deciding whether to rebuild the native engine.
+
 ## Roadmap: Was als Nächstes zu tun ist
 
 ### P0 – M8c bestätigt; M9 Godot-PhysicsServer2D prüfen (nächster Schritt)
@@ -99,7 +112,8 @@ PS5 / Firmware 5.10
 - [x] M8c-GitHub Actions erfolgreich: Original-Godot-4.7.2-PCK erzeugt und auf Linux/headless vollständig durch zwei Szenen getestet. Run `39866584380`; PCK 4,828 Bytes, PCK format 4, engine 4.7, SHA-256 `137f4c5722e385c04c4f36a84fcd8548e5038a348f68d91ca2c3310c21527591` verified from downloaded Actions artifact.
 - [x] **M8c physical PS5 test**: user reports the externally selected PCK works, both scenes switch correctly and X changes their colors, without rebuilding `PPSA99847 v0.1.2`.
 - [ ] Supplement M8c with `PACK_SOURCE=CONFIG`, `GODOT_PS5_EXTERNAL_*` markers and `NORMAL_SHUTDOWN` console logs if further diagnostic evidence is needed; no logs uploaded for this run.
-- [ ] **M9a:** Design a separate `CharacterBody2D` + `StaticBody2D` + `CollisionShape2D` acceptance project and validate real `PhysicsServer2D` collisions on device; a host-only build or scripted Pong bounce is insufficient.
+- [x] **M9a host acceptance:** standalone `CharacterBody2D` + `StaticBody2D` + `CollisionShape2D` real Godot 4.7.2 collision test built, executed, signed-off by CI run `39869677215`, and ready-to-copy external PCK produced.
+- [ ] **M9a PS5 hardware acceptance:** run the PCK with `PPSA99847 v0.1.2`, verify **real** collision, expected logs and successful shutdown; a host-only build or scripted Pong bounce is insufficient.
 - [ ] **M9b:** If physics is unavailable in current `PPSA99847`, enable and link the original Godot 2D physics backend in the PS5 engine, build a separate version and repeat the exact scene with logs.
 
 ### P1 – Echte eigene Godot-4-PCKs laden
