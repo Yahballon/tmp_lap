@@ -33,3 +33,14 @@ notices must be reviewed before any broad public release.
 
 Next milestone after hardware success: implement real `DisplayServerPS5`
 and connect to the upstream Godot 4.7.2 OpenGL compatibility renderer.
+
+## Current build gate (2026-10-22)
+
+The first GPU-probe GitHub Actions attempt passed the isolated host tests.
+The native compile is **blocked before linking**: the existing DevBridge
+pin to `blackbearreloaded/ps5-opengl` SDK `v1.0.0` receives **HTTP 404**
+for its release archive. See [CI run 39765770533](https://github.com/Yahballon/tmp_lap/actions/runs/39765770533).
+Do not claim a `PPSA99844.zip` exists or add this probe to TESTBUILDS.
+A byte-identical verified SDK archive from a trustworthy mirror, or a
+reproducible source rebuild with its own provenance, is required to proceed.
+The known-good headless Godot title `PPSA99843` is unaffected.
