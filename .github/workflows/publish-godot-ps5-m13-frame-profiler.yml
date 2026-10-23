@@ -1,0 +1,154 @@
+name: Publish Godot PS5 M13 Frame Profiler TESTBUILD
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful signed M13 native frame profiler build from trusted feature branch"
+        required: true
+  workflow_run:
+    workflows: ['Godot PS5 M13 Native CPU versus EGL Frame Profiler v0.1.7 (experimental)']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-godot-ps5-m13-freetype
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'feature/godot-ps5-m13-native-frame-profiler' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Strictly verify successful signed native build from trusted branch
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/m13-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/m13-artifacts.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('/tmp/m13-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='feature/godot-ps5-m13-native-frame-profiler'
+          assert r['name']=='Godot PS5 M13 Native CPU versus EGL Frame Profiler v0.1.7 (experimental)'
+          assert r['event']=='push'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          matches=[a for a in json.load(open('/tmp/m13-artifacts.json'))['artifacts']
+            if a['name']=='Godot-PS5-M13-NATIVE-FRAME-PROFILER-v0.1.7-PS5-HARDWARE-UNTESTED'
+            and not a['expired'] and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(matches)==1, f'M13 signed native profiler artifact missing: {matches}'
+          Path('/tmp/m13-build-sha').write_text(r['head_sha'])
+          print('GODOT_PS5_M10C_SIGNED_RELEASE_SOURCE_VERIFIED',r['id'],r['head_sha'])
+          PY
+          mkdir -p /tmp/m13-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" \
+            --name Godot-PS5-M13-NATIVE-FRAME-PROFILER-v0.1.7-PS5-HARDWARE-UNTESTED \
+            --dir /tmp/m13-release
+          test -s /tmp/m13-release/PPSA99847.zip
+      - name: Independently validate installable PS5 signed AudioOut title
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,struct,zipfile
+          p=Path('/tmp/m13-release/PPSA99847.zip')
+          assert p.stat().st_size>1_000_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert all(n.startswith('PPSA99847/') and '..' not in Path(n).parts for n in names)
+              for name in ('eboot.bin','assets/godot/visual-smoke.pck',
+                    'assets/godot/physics-smoke.pck','assets/godot/m10b-font-ui.pck'):
+                  assert 'PPSA99847/'+name in names
+              data=z.read('PPSA99847/eboot.bin')
+              assert len(data)>5_000_000 and data[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentId']=='UP9000-PPSA99847_00-GODOTGLES3CANVAS'
+              assert meta['contentVersion']=='01.000.008'
+          print('GODOT_PS5_M10C_SIGNED_ZIP_OK',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Publish v0.1.7 PS5 native frame-profiler TESTBUILD (experimental)
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-gles3-canvas-v0.1.7
+          cat > /tmp/m13-notes.md <<'NOTES'
+          Godot PS5 GLES3 v0.1.7 – EXPERIMENTAL NATIVE FRAME PROFILER
+          
+          This diagnostic build investigates intermittent frame hitches in the original G2P Studios Godot 4.7 2D Platformer (Asset Library #2201). On real PS5, v0.1.6 with M12d starts the game and AudioOut works, but freezes intermittently for 133–150ms despite usually 60 FPS.
+          
+          v0.1.7 timestamps the real PS5 EGL display.swap() path with a monotonic native timer to measure the CPU-before-swap interval separately from egl_swap_ms. Native diagnostic output is bounded to eight large-hitch lines per 5s and one periodic 5s summary.
+          
+          New stdout markers: GODOT_PS5_M13_NATIVE_FRAME_PROFILER_READY, GODOT_PS5_M13_FRAME_SPIKE (cpu_before_swap_ms / egl_swap_ms), GODOT_PS5_M13_FRAME_5S (averages / maximum / hitch count).
+          
+          IMPORTANT: THE STUTTER IS NOT YET FIXED OR HARDWARE-PROVEN IN v0.1.7. This is a profiler to identify whether CPU physics/scene/render submission or EGL/vsync/Mesa GPU work dominates. GodotPhysics2D, GDScript, FreeType, native AudioOut and external PCK loading are retained, but verify on PS5.
+          
+          Keep /data/GodotPS5/launch.txt selecting m12d-platformer-asset2201.pck. Play both levels, reproduce the stutters both moving and idle, export /data/GodotPS5/gles3-stdout.log, gles3-stderr.log, gles3-runtime.log. Preserve v0.1.6 as rollback.
+          
+          Original Godot 4.7.2, public PS5 homebrew SDK imports, no proprietary runtime redistributed.
+          Source: https://github.com/Yahballon/tmp_lap/tree/feature/godot-ps5-m13-native-frame-profiler/homebrew/godot-ps5
+
+          NOTES
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
+          else
+            gh release create "$tag" /tmp/m13-release/PPSA99847.zip \
+              --repo "$GITHUB_REPOSITORY" --target feature/godot-ps5-m13-native-frame-profiler \
+              --title 'Godot PS5 GLES3 Canvas v0.1.7 – Native Frame Profiler (experimental)' \
+              --notes-file /tmp/m13-notes.md --prerelease
+          fi
+      - name: Update TESTBUILDS version.json with verified release
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json
+          j=json.load(open('version.json'))
+          matches=[x for x in j['apps'] if x['title_id']=='PPSA99847']
+          assert len(matches)==1
+          app=matches[0]
+          assert app['version']=='0.1.7'
+          assert app['tag']=='godot-ps5-gles3-canvas-v0.1.7'
+          assert app['zip_url'].endswith('/PPSA99847.zip')
+          assert j['app_count']==len(j['apps'])
+          print('GODOT_PS5_M10C_TESTBUILD_CATALOG_OK')
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add version.json
+            git commit -m 'chore(testbuilds): publish Godot GLES3 frame profiler v0.1.7 [skip ci]'
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
