@@ -14,6 +14,23 @@ ASSET_REPO = "https://github.com/AdilDevStuff/2D-Platformer-Starter-Kit"
 SOURCE = Path(__file__).resolve().parent
 
 def prepare(project: Path) -> None:
+    # PS5 hardware diagnostic bfpilot-download (28).tar:
+    # platformPack_tilesheet.png and all other .ctex assets failed at
+    # compressed_texture.cpp:343 because PS5 Godot has no usable PNG/WebP
+    # Image unpacker. Original .png.import uses compress/mode=0 (lossless
+    # PNG or WebP payload). Mode 3 is upstream 'VRAM Uncompressed':
+    # CompressedTexture2D::DATA_FORMAT_IMAGE stores raw Image pixel data,
+    # requiring NO PNG, WebP, BasisU, or GPU block decompressor on PS5.
+    import_files = sorted(project.rglob("*.png.import"))
+    if not import_files:
+        raise RuntimeError("Original Godot PNG import descriptors not found")
+    for import_file in import_files:
+        cfg = import_file.read_text(encoding="utf-8")
+        if 'importer="texture"' not in cfg or "compress/mode=0" not in cfg:
+            raise RuntimeError("Unexpected Godot image import config: " + str(import_file))
+        cfg = cfg.replace("compress/mode=0", "compress/mode=3")
+        import_file.write_text(cfg, encoding="utf-8")
+    print("GODOT_PS5_M12B_RAW_TEXTURE_IMPORT_SET files=", len(import_files))
     config = project / "project.godot"
     raw = config.read_text(encoding="utf-8")
     assert 'config_version=5' in raw
@@ -90,6 +107,21 @@ def manifest(project: Path) -> int:
         if relative.suffix in (".tmp", ".lock"):
             continue
         files.append(relative.as_posix())
+    import struct
+    raw_count = 0
+    for rel in files:
+        if not rel.endswith(".ctex"):
+            continue
+        blob = (project / rel).read_bytes()
+        if len(blob) < 48 or blob[:4] != b"GST2":
+            raise RuntimeError("Bad native CompressedTexture2D header: " + rel)
+        payload_format = struct.unpack_from("<I", blob, 36)[0]
+        if payload_format != 0:
+            raise RuntimeError("PS5-incompatible PNG/WebP/Basis texture payload " + rel + " = " + str(payload_format))
+        raw_count += 1
+    print("GODOT_PS5_M12B_RAW_CTEXTURES_VERIFIED", raw_count)
+    if raw_count < 6:
+        raise RuntimeError("Expected at least six PS5-compatible raw textures")
     if not any(x.endswith(".ctex") for x in files):
         raise RuntimeError("No imported Godot .ctex textures found")
     if not any(x.endswith(".sample") for x in files):
