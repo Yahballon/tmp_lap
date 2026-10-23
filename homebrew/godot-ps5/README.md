@@ -1,9 +1,37 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** GDScript, GLES3/Canvas2D, Pong, externe PCKs, CharacterBody2D-, RigidBody2D- und Area2D-Physik auf PS5 belegt. **M10b:** echte Godot-4.7.2-`TileMapLayer`-Kollisionen und `FontFile`/fünf `Label`-Nodes in zwei eigenständigen PCKs erfolgreich **auf Host geprüft** (Actions #39878279649), beide **noch auf PS5 zu testen**. Kein neues natives eboot.bin nötig. Audio, Savegames und breitere Kompatibilität weiterhin offen.
+> **Aktuell:** Godot 4.7.2 GDScript, GLES3/Canvas2D, Pong, externe PCKs, `CharacterBody2D`, `RigidBody2D`, `Area2D` und `TileMapLayer` sind auf PS5 getestet. **M10b Font/TrueType fehlgeschlagen auf v0.1.3**: reales TTF korrekt aus PCK geladen, aber natives FreeType-Modul fehlte (`FONT_FAIL_GLYPH_A`, Exit 93, `bfpilot-download (23).tar`). **M10c v0.1.4**: separater Native-FreeType-/TextServerFallback-Build in PR #243, PS5-Test noch offen. Audio, Saves, allgemeine Kompatibilität bleiben ausstehend.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M10c FreeType/Label native engine repair (23 October 2026)
+
+**PS5 diagnostic:** User-provided `bfpilot-download (23).tar` contains two
+failed Label test runs; `m10b-font-ui.pck` loads correctly
+(`FONT_RESOURCE_OK size=118204`), yet `FontFile.has_char(65)` fails
+(`FONT_FAIL_GLYPH_A`; `GODOT_RETURN=93`). Godot stderr explains:
+`FreeType: Can't load dynamic font, engine is compiled without FreeType support!`.
+This is a **missing native PS5 module**, not an incorrect PCK.
+
+The **real TileMapLayer test passed on the same hardware**:
+`TILE_CONTACT_OK normal=(0,-1) y=742.984375`,
+`TILE_TEST_PASS tick=139`, `GODOT_RETURN=0`.
+
+A new isolated [M10c pull request](https://github.com/Yahballon/tmp_lap/pull/243)
+enables official upstream Godot 4.7.2 FreeType and TextServerFallback, builds
+signed `PPSA99847 v0.1.4` while retaining v0.1.3 Physics2D, and verifies
+the genuine FreeType and fallback text libraries are in the PS5 link
+manifest. [M10c native build](https://github.com/Yahballon/tmp_lap/actions/runs/39879701956).
+
+**Current status:** host tests successful; native compiled package and actual
+PS5 visible text acceptance are independent steps. Once the signed native
+installer is available, leave `/data/GodotPS5/launch.txt` selecting
+`m10b-font-ui.pck` and inspect visible Labels/umlauts, PS5 log markers
+and graceful return. Only then mark native font rendering supported.
+A trusted GitHub publisher was added on the default branch to release
+`v0.1.4` into the TESTBUILDS catalog **after successful branch build**.
+The previous v0.1.3 native installer remains a rollback candidate.
 
 ## M10b independent tile physics and real Label/TTF (23 October 2026)
 

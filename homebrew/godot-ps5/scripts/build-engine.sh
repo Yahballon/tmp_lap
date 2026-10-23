@@ -45,6 +45,21 @@ if [[ "${GODOT_PS5_PHYSICS2D:-0}" == "1" ]]; then
   module_flags+=(module_godot_physics_2d_enabled=yes disable_physics_2d=no)
   echo 'GODOT_PS5_M9B_PHYSICS_MODULE_ENABLED=1'
 fi
+# M10c: Support genuine TrueType/OpenType glyph rendering through the
+# upstream FreeType module plus the existing TextServerFallback backend.
+# Without this, FontFile.load_dynamic_font() can read a .ttf but has_char()
+# returns false and Godot reports "engine is compiled without FreeType".
+# Keep old v0.1.3 and other PS5 titles unchanged unless explicitly enabled.
+if [[ "${GODOT_PS5_FREETYPE:-0}" == "1" ]]; then
+  if [[ "${GODOT_MODULE_SET:-smoke}" != "smoke" ]]; then
+    echo 'GODOT_PS5_FREETYPE requires the fallback-text smoke module set' >&2
+    exit 2
+  fi
+  module_flags+=(module_freetype_enabled=yes builtin_freetype=yes
+                module_text_server_fb_enabled=yes
+                module_text_server_adv_enabled=no)
+  echo 'GODOT_PS5_M10C_FREETYPE_MODULE_ENABLED=1'
+fi
 # Only CI's opt-in GLES3 archive gate can change this default.
 gl_backend=no
 if [[ "${GODOT_PS5_GLES3_ARCHIVES:-0}" == "1" ]]; then gl_backend=yes; fi
