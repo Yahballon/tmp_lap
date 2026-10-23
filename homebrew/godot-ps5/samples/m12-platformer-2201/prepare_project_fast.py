@@ -79,8 +79,10 @@ def prepare(project: Path) -> None:
     config.write_text(raw, encoding="utf-8")
     shutil.copy2(SOURCE / "PS5ControlsFast.gd", project / "PS5Controls.gd")
     shutil.copy2(SOURCE / "pack_m12_fast.gd", project / "pack_m12.gd")
-    for name in ["PS5BootFast.gd", "PS5BootFast.tscn", "AudioManagerPS5.gd",
-                 "SceneTransitionPS5.gd"]:
+    for name in ["PS5BootFast.gd", "PS5BootFast.tscn", "SceneTransitionPS5.gd"]:
+        shutil.copy2(SOURCE / name, project / name)
+    shutil.copy2(SOURCE / "AudioManagerFast.gd", project / "AudioManagerPS5.gd")
+    for name in []:
         shutil.copy2(SOURCE / name, project / name)
     # Replace desktop-only tutorial hints; preserve the actual level scenes.
     level1 = project / "Scenes/Levels/Level_01.tscn"
