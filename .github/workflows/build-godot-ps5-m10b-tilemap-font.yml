@@ -1,0 +1,103 @@
+name: Godot PS5 M10b TileMapLayer + Label/TTF independent PCKs
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/m10b-tilemap/**'
+      - 'homebrew/godot-ps5/samples/m10b-font-ui/**'
+      - 'homebrew/godot-ps5/scripts/package_m10b_external_pcks.py'
+      - 'homebrew/godot-ps5/tests/test_m10b_external_pcks.py'
+      - '.github/workflows/build-godot-ps5-m10b-tilemap-font.yml'
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/m10b-tilemap/**'
+      - 'homebrew/godot-ps5/samples/m10b-font-ui/**'
+      - 'homebrew/godot-ps5/scripts/package_m10b_external_pcks.py'
+      - 'homebrew/godot-ps5/tests/test_m10b_external_pcks.py'
+      - '.github/workflows/build-godot-ps5-m10b-tilemap-font.yml'
+permissions:
+  contents: read
+jobs:
+  tilemap-font-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regression-check independent PCK sources and ZIPs
+        run: python3 homebrew/godot-ps5/tests/test_m10b_external_pcks.py
+      - name: Download original Godot 4.7.2
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot47.zip
+          unzip -q /tmp/godot47.zip -d /tmp
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+      - name: Package and host-test original Godot TileMapLayer physics
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/m10b-tilemap
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m10b-tile-pack.log
+          grep -Fq GODOT_PS5_M10B_TILE_PCK_WRITTEN /tmp/m10b-tile-pack.log
+          test -s "$project/m10b-tilemap.pck"
+          "$godot" --headless --main-pack "$project/m10b-tilemap.pck" --quit-after 1200 2>&1 | tee /tmp/m10b-tile-run.log
+          for m in GODOT_PS5_M10B_TILE_BOOT GODOT_PS5_M10B_TILEMAP_READY GODOT_PS5_M10B_TILE_BODY_READY GODOT_PS5_M10B_TILE_CONTACT_OK GODOT_PS5_M10B_TILE_TEST_PASS; do
+            grep -Fq "$m" /tmp/m10b-tile-run.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M10B_TILE_FAIL_' /tmp/m10b-tile-run.log; then exit 1; fi
+      - name: Download pinned OFL font + original license for UI test
+        run: |
+          set -euo pipefail
+          font=homebrew/godot-ps5/samples/m10b-font-ui
+          rev=92345ac0dbb28d27dbd32f3a782e84c55eaac214
+          for name in PressStart2P-Regular.ttf OFL.txt FONTLOG.txt; do
+            curl -fLsS --retry 3 "https://raw.githubusercontent.com/google/fonts/${rev}/ofl/pressstart2p/${name}" -o "$font/$name"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("homebrew/godot-ps5/samples/m10b-font-ui")
+          font=(p/"PressStart2P-Regular.ttf").read_bytes()
+          assert len(font)>50000 and font[:4]==b"\x00\x01\x00\x00", "missing actual TrueType binary"
+          assert "SIL Open Font License, Version 1.1" in (p/"OFL.txt").read_text()
+          print("GODOT_PS5_M10B_OFL_FONT_VERIFIED",len(font))
+          PY
+      - name: Package and host-test Label and font metrics
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/m10b-font-ui
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m10b-font-pack.log
+          grep -Fq GODOT_PS5_M10B_FONT_PCK_WRITTEN /tmp/m10b-font-pack.log
+          test -s "$project/m10b-font-ui.pck"
+          "$godot" --headless --main-pack "$project/m10b-font-ui.pck" --quit-after 1100 2>&1 | tee /tmp/m10b-font-run.log
+          for m in GODOT_PS5_M10B_FONT_BOOT GODOT_PS5_M10B_FONT_RESOURCE_OK GODOT_PS5_M10B_FONT_TTF_LOADED GODOT_PS5_M10B_FONT_METRICS_OK GODOT_PS5_M10B_LABEL_TREE_READY GODOT_PS5_M10B_FONT_TEST_FINISHED; do
+            grep -Fq "$m" /tmp/m10b-font-run.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M10B_FONT_FAIL_' /tmp/m10b-font-run.log; then exit 1; fi
+      - name: Assemble TWO separate ready-to-copy PS5 installer ZIPs
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/m10b-ready
+          tool=homebrew/godot-ps5/scripts/package_m10b_external_pcks.py
+          python3 "$tool" tilemap homebrew/godot-ps5/samples/m10b-tilemap/m10b-tilemap.pck /tmp/m10b-ready | tee /tmp/m10b-package.log
+          python3 "$tool" font-ui homebrew/godot-ps5/samples/m10b-font-ui/m10b-font-ui.pck /tmp/m10b-ready | tee -a /tmp/m10b-package.log
+          test -s /tmp/m10b-ready/GodotPS5-M10b-TILEMAP-PS5-TEST.zip
+          test -s /tmp/m10b-ready/GodotPS5-M10b-FONT-UI-PS5-TEST.zip
+          grep -Fq GODOT_PS5_M10B_BUNDLE_OK /tmp/m10b-package.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-M10b-TILEMAP-FONT-Host-Validated-PS5-UNTESTED
+          path: /tmp/m10b-ready/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-M10b-Host-Diagnostics
+          path: |
+            /tmp/m10b-tile-pack.log
+            /tmp/m10b-tile-run.log
+            /tmp/m10b-font-pack.log
+            /tmp/m10b-font-run.log
+            /tmp/m10b-package.log
+          if-no-files-found: warn
