@@ -65,13 +65,21 @@ def prepare(project: Path) -> None:
     raw = raw.replace(
         'AudioManager="*res://Scenes/Managers/AudioManager.tscn"',
         'AudioManager="*res://AudioManagerPS5.gd"')
+    # The boot splash and game icons are not used after launch and make up
+    # >9 MiB (70%) of M12b raw .ctex payload. Do not ask Godot to import
+    # or load them in the external console-focused game.
+    raw = raw.replace('config/icon="res://Icon.png"', '')
+    raw = raw.replace('run/main_scene="res://PS5Boot.tscn"',
+                      'run/main_scene="res://PS5BootFast.tscn"')
+    assert 'run/main_scene="res://PS5BootFast.tscn"' in raw
+    assert 'config/icon="res://Icon.png"' not in raw
     assert 'boot_splash/show_image=false' in raw
     assert 'SceneTransition="*res://SceneTransitionPS5.gd"' in raw
     assert 'AudioManager="*res://AudioManagerPS5.gd"' in raw
     config.write_text(raw, encoding="utf-8")
     shutil.copy2(SOURCE / "PS5Controls.gd", project / "PS5Controls.gd")
     shutil.copy2(SOURCE / "pack_m12.gd", project / "pack_m12.gd")
-    for name in ["PS5Boot.gd", "PS5Boot.tscn", "AudioManagerPS5.gd",
+    for name in ["PS5BootFast.gd", "PS5BootFast.tscn", "AudioManagerPS5.gd",
                  "SceneTransitionPS5.gd"]:
         shutil.copy2(SOURCE / name, project / name)
     # Replace desktop-only tutorial hints; preserve the actual level scenes.
@@ -83,19 +91,37 @@ def prepare(project: Path) -> None:
     level1.write_text(scene, encoding="utf-8")
     print("GODOT_PS5_M12_UPSTREAM_PREPARED", ASSET_COMMIT)
     print("GODOT_PS5_M12B_VISIBLE_BOOT_PREPARED", ASSET_COMMIT)
+    print("GODOT_PS5_M12C_FASTBOOT_PREPARED", ASSET_COMMIT)
 
 def manifest(project: Path) -> int:
     imported = project / ".godot/imported"
     if not imported.is_dir() or not any(imported.iterdir()):
         raise RuntimeError("headless Godot editor did NOT import images, fonts and WAV: cannot package unimported game")
     files = []
+    excluded_unused_raw_bytes = 0
+    # Confirmed against original Level_01/Level_02/Coin/Player .tscn:
+    # Splash.png, Icon.png and icon.svg are unreferenced by gameplay scenes.
+    # Their VRAM-uncompressed imports take ~9.3 MiB of M12b's 13.3 MiB PCK.
+    # Exclude only these three non-game textures, preserving six gameplay .ctex.
+    unused_icon_files = {"Icon.png", "Icon.png.import", "icon.svg", "icon.svg.import"}
+    unused_ctex_prefixes = ("2D Platformer Starter Kit Splash.png-",
+                           "Icon.png-", "icon.svg-")
     for file in sorted(project.rglob("*")):
         if not file.is_file():
             continue
         relative = file.relative_to(project)
         if relative.parts[0] == ".git":
             continue
-        if relative.name in ("m12-platformer-asset2201.pck", "m12b-platformer-asset2201.pck", "ps5_m12_manifest.txt"):
+        if relative.as_posix().startswith("Assets/Splash/"):
+            excluded_unused_raw_bytes += file.stat().st_size
+            continue
+        if relative.name in unused_icon_files:
+            excluded_unused_raw_bytes += file.stat().st_size
+            continue
+        if relative.parts[:2] == (".godot", "imported") and relative.name.startswith(unused_ctex_prefixes):
+            excluded_unused_raw_bytes += file.stat().st_size
+            continue
+        if relative.name in ("m12-platformer-asset2201.pck", "m12b-platformer-asset2201.pck", "m12c-platformer-asset2201.pck", "ps5_m12_manifest.txt"):
             continue
         # Editor shader cache and internal per-host binary data are not game assets.
         if relative.parts[:2] == (".godot", "editor"):
@@ -120,6 +146,10 @@ def manifest(project: Path) -> int:
             raise RuntimeError("PS5-incompatible PNG/WebP/Basis texture payload " + rel + " = " + str(payload_format))
         raw_count += 1
     print("GODOT_PS5_M12B_RAW_CTEXTURES_VERIFIED", raw_count)
+    print("GODOT_PS5_M12C_GAMEPLAY_TEXTURES_ONLY count=", raw_count,
+          " excluded_unused_bytes=", excluded_unused_raw_bytes)
+    if raw_count != 6:
+        raise RuntimeError("Expected exactly six real gameplay textures after excluding three unused boot/icon atlases")
     if raw_count < 6:
         raise RuntimeError("Expected at least six PS5-compatible raw textures")
     if not any(x.endswith(".ctex") for x in files):
@@ -131,6 +161,7 @@ def manifest(project: Path) -> int:
         print("GODOT_PS5_M12_FONT_DIRECT_TTF")
     (project / "ps5_m12_manifest.txt").write_text("\n".join(files) + "\n", encoding="utf-8")
     print("GODOT_PS5_M12_MANIFEST_OK", len(files))
+    print("GODOT_PS5_M12C_MANIFEST_LIGHT", len(files))
     return len(files)
 
 if __name__ == "__main__":
