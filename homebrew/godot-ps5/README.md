@@ -1,7 +1,7 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** Godot 4.7.2 GDScript, GLES3/Canvas2D, Pong, externe PCKs, `CharacterBody2D`, `RigidBody2D`, `Area2D` und `TileMapLayer` sind auf PS5 getestet. **M10b Font/TrueType fehlgeschlagen auf v0.1.3**: reales TTF korrekt aus PCK geladen, aber natives FreeType-Modul fehlte (`FONT_FAIL_GLYPH_A`, Exit 93, `bfpilot-download (23).tar`). **M10c v0.1.4**: separater Native-FreeType-/TextServerFallback-Build in PR #243, PS5-Test noch offen. Audio, Saves, allgemeine Kompatibilität bleiben ausstehend.
+> **Aktuell:** Original Godot 4.7.2 GDScript, GLES3/Canvas2D, Pong, externe PCKs, CharacterBody2D, RigidBody2D, Area2D, TileMapLayer **und echte FreeType/TrueType-Fonts mit fünf Godot-Label-Elementen auf PS5 bestätigt**. Nutzer-Screenshot `20261023_083016_00527039.png` zeigt Press Start 2P, fünf Textzeilen, Zahlen, Farben und `Ä Ö Ü ß` in `PPSA99847 v0.1.4` (M10c). **X-Textwechsel und sauberer Font-Szenen-Exit wurden noch nicht durch separate Logs belegt.** Audio, Savegames und allgemeine Godot-Kompatibilität bleiben offen.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
@@ -24,10 +24,10 @@ signed `PPSA99847 v0.1.4` while retaining v0.1.3 Physics2D, and verifies
 the genuine FreeType and fallback text libraries are in the PS5 link
 manifest. [M10c native build](https://github.com/Yahballon/tmp_lap/actions/runs/39879701956).
 
-**Current status:** Signed native **PPSA99847 v0.1.4 FreeType installer published** as [GitHub prerelease](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.4) on 23 October 2026 at 01:30 UTC and indexed in TESTBUILD `version.json` on `main`. The actual **PS5 visible text/Unicode acceptance is STILL OPEN**; a green host build and signed native package do not prove glyph rendering. Once the signed native
+**Current status:** Signed native **PPSA99847 v0.1.4 FreeType installer published** as [GitHub prerelease](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.4) on 23 October 2026 at 01:30 UTC and indexed in TESTBUILD `version.json` on `main`. **Physical PS5 visible text/Unicode acceptance has now PASSED (23 October 2026):** the user screenshot `20261023_083016_00527039.png` shows the actual external `m10b-font-ui.pck` with five distinct Godot Labels in the Press Start 2P TrueType font, valid colored glyphs, numbers and `Ä Ö Ü ß`. The v0.1.3 FreeType-disabled failure is resolved for this sample. X interaction and final `GODOT_RETURN=0`/`EGL_CLOSED` markers are **not established by a static screenshot**, so full lifecycle acceptance remains open. Once the signed native
 installer is available, leave `/data/GodotPS5/launch.txt` selecting
 `m10b-font-ui.pck` and inspect visible Labels/umlauts, PS5 log markers
-and graceful return. Only then mark native font rendering supported.
+and graceful return. Visible native FreeType/Label rendering is now confirmed; continue testing X input, shutdown logs and further font/script coverage separately.
 A trusted GitHub publisher was added on the default branch to release
 `v0.1.4` into the TESTBUILDS catalog **after successful branch build**.
 The previous v0.1.3 native installer remains a rollback candidate.
