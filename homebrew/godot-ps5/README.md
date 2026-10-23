@@ -1,9 +1,40 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** Godot 4.7.2 GDScript, GLES3/Canvas2D, Pong, externe PCKs, 2D-Physik, TileMapLayer und sichtbare FreeType/Label-TTFs auf PS5 bestätigt (v0.1.4). **M11**: zwei zusätzliche eigenständige PCKs für `AudioStreamPlayer` und `user://`-Savegames sind auf original Godot 4.7.2 **host-bestätigt** ([Actions #39911102004](https://github.com/Yahballon/tmp_lap/actions/runs/39911102004)); Audio-Hörtest und Save-Persistenz über zwei PS5-App-Starts **noch offen**. Für Tests bleibt `PPSA99847 v0.1.4` unverändert.
+> **Aktuell:** GDScript/Canvas2D/DualSense, Godot Physics2D/TileMapLayer und FreeType/Label-TTF auf PS5 bestätigt. M11 durch echte PS5-Logs `bfpilot-download (24).tar` geprüft: **Audio bleibt stumm** trotz erfolgreichem AudioStreamPlayer-Start (kein registrierter nativer PS5-Audiotreiber), **Save-Datei wird tatsächlich geschrieben** und ist im TAR enthalten, allerdings erkennt die ursprüngliche Szene sie nach dem Neustart nicht (`FileAccessUnix::file_exists()`-/stat-Problem). **M11b2** korrigiert die Szene mit direktem Lesen und sichtbarem Spielstand, original Godot 4.7.2 Host-CI [#39913555804](https://github.com/Yahballon/tmp_lap/actions/runs/39913555804) grün. PS5-Save-Hardwaretest folgt; v0.1.4 bleibt unverändert.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M11 PS5 result + M11b2 save direct-open repair (23 October 2026)
+
+User TAR `bfpilot-download (24).tar` contains one M11a audio session and
+two distinct M11b save sessions. Godot PCM and `AudioStreamPlayer` ran
+successfully, with two X replay markers and clean `GODOT_RETURN=0`, but
+the **user did not hear any sound**. The native `OS_PS5` currently
+registers no real AudioDriver so Godot's sound output cannot be considered
+implemented. Requires an independent native AudioOut integration.
+
+M11b is subtler: both on-console sessions wrote and immediately reread
+`user://m11-save-v1.txt` successfully, but each reported `new=1` as
+if starting fresh. The same archive contains the physical
+`userdata/GodotPS5M11Saves/m11-save-v1.txt` with correct
+`GODOT_PS5_M11_SAVE_V1|1|960` content, proving writes and storage are
+available. The PS5 `ACCESS_USERDATA` route currently remains
+`FileAccessUnix`, whose `file_exists` checks POSIX `stat/access`
+that are unreliable in this homebrew environment.
+
+**M11b2 standalone external PCK fix:** [PR #246](https://github.com/Yahballon/tmp_lap/pull/246)
+and [green Actions #39913555804](https://github.com/Yahballon/tmp_lap/actions/runs/39913555804).
+It bypasses the brittle existence check, attempts a direct read before
+writing, fails closed if an existing save cannot be read or fails checksum,
+and visibly shows a **green SAVE RESTORED** label with old/new counts
+using original Godot FreeType. Two separate host Godot processes genuinely
+confirm `FIRST_LAUNCH_PASS new=1` followed by
+`RESTART_PERSISTENCE_PASS old=1 new=2`.
+The installed `PPSA99847 v0.1.4` requires **no native update** for this
+standalone diagnostic. `GodotPS5-M11b2-SAVES-VISIBLE-FIX.zip` is a
+new PCK/launch configuration; it preserves the previous user data.
+**Real PS5 persistence acceptance still awaits the user test.**
 
 ## M11 AudioStreamPlayer and user:// savegames (23 October 2026)
 
