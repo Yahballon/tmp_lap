@@ -41,7 +41,9 @@ func _physics_process(_delta: float) -> void:
         if player is CharacterBody2D:
             print("GODOT_PS5_M12_PLAYER_FOUND position=", player.global_position)
         else:
-            print("GODOT_PS5_M12_PLAYER_NOT_FOUND_IN_CURRENT_SCENE")
+            # Valid during PS5Boot and during SceneTree quit/level swaps.
+            # Only the actual Level_01 player-found marker is an acceptance gate.
+            print("GODOT_PS5_M12_SCENE_NO_PLAYER_EXPECTED scene=", _previous_scene)
     if Input.is_action_just_pressed("Jump"):
         print("GODOT_PS5_M12_CROSS_JUMP")
     if _ticks % 180 == 0:

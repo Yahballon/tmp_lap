@@ -2,6 +2,15 @@
 
 **Upstream original game:** [2D Platformer – Starter Kit 1.1.1](https://godotengine.org/asset-library/asset/2201), by **G2P Studios / AdilDevStuff**, original [GitHub repository](https://github.com/AdilDevStuff/2D-Platformer-Starter-Kit), pinned to commit `a48fc994cbcb168be472df84f2e13b55d2a2792f`, **MIT license**. Original 2D sprite assets credited to Kenney.nl, sound FX credited to Gdfxr. The original MIT license is preserved **inside the test installer ZIP and PCK**.
 
+## M12b real PS5 texture failure and fixed PCK (2026-10-23)
+
+Original M12 PCK is proven **incompatible** with the current PS5 engine: screenshot shows stuck original splash, TAR `bfpilot-download (28).tar` shows missing PNG/WebP decoders for original lossless `.ctex` files in `scene/resources/compressed_texture.cpp:343`, preventing `Level_01.tscn` from loading (`GODOT_RETURN=1`). Original Godot host success DID NOT predict this PS5 failure.
+
+**M12b is the replacement external PS5 test PCK.** Reproducible Godot 4.7.2 import changes only 9 texture import configurations (8 PNG + 1 SVG) to `compress/mode=3`, causing raw `CompressedTexture2D::DATA_FORMAT_IMAGE` payload instead of embedded PNG/WebP. Each `.ctex` header is checked for `GST2` magic and data-format 0 at offset 36. PCK also disables original splash and displays staged boot diagnostics while loading original textures, font, player scene, and Level_01. Original player/coin/level gameplay code remains unchanged.
+
+[GitHub Actions #39933593514](https://github.com/Yahballon/tmp_lap/actions/runs/39933593514) PASSED: 9 raw image payloads, 99 bundled source/import files, complete original Level_01, grounded player physics and original `.wav` sounds. Real PS5 hardware test for this replacement is pending.
+
+Install **GodotPS5-M12b-Platformer-SplashFix-PS5-TEST.zip** (625858 bytes): merge inner `GodotPS5/` contents into `/data/GodotPS5/`. It adds `games/m12b-platformer-asset2201.pck` (13271676 bytes, SHA256 `d2b62dd7c26dc77f8d187c05973e8aaba0da4335e73c2c6e9cec1ec121f4f7b7`), and changes only `launch.txt`. Existing native `PPSA99847 v0.1.6`, old PCKs and savegames remain untouched. During physical testing expect `GODOT_PS5_M12B_BOOT_READY`, `GODOT_PS5_M12B_PROBE_OK`, `GODOT_PS5_M12B_LEVEL_SWITCH_OK`, `GODOT_PS5_M12_SCENE_READY Level_01`; then confirm true visible sprites/coin UI, DualSense movement/X jump, audible original SFX. Send new three `gles3-*.log` files and screenshot/video. Do not claim hardware success until confirmed.
 ## Why this is a milestone
 
 This is **not** a new trivial Godot smoke scene. It imports and runs the
