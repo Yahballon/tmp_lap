@@ -1,0 +1,88 @@
+name: Godot PS5 M11b2 Direct-open Save Persistence
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/m11-saves-v2/**'
+      - 'homebrew/godot-ps5/scripts/package_m11_external_pcks.py'
+      - '.github/workflows/build-godot-ps5-m11b-save-v2.yml'
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/m11-saves-v2/**'
+      - 'homebrew/godot-ps5/scripts/package_m11_external_pcks.py'
+      - '.github/workflows/build-godot-ps5-m11b-save-v2.yml'
+permissions:
+  contents: read
+jobs:
+  restart-save-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate M11b2 uses direct file-open and preserves save contents
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('homebrew/godot-ps5/samples/m11-saves-v2/main.gd').read_text()
+          assert 'FileAccess.open(FILE, FileAccess.READ)' in src
+          assert 'FileAccess.get_open_error()' in src
+          assert 'if err != ERR_FILE_NOT_FOUND:' in src
+          assert 'GODOT_PS5_M11B2_RESTART_PERSISTENCE_PASS' in src
+          assert 'GODOT_PS5_M11B2_VISIBLE_STATUS_READY' in src
+          assert 'GodotPS5M11Saves' in Path('homebrew/godot-ps5/samples/m11-saves-v2/project.godot').read_text()
+          print('GODOT_PS5_M11B2_SOURCE_VALID')
+          PY
+      - name: Download Godot 4.7.2 and licensed TrueType font
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+          font=homebrew/godot-ps5/samples/m11-saves-v2
+          rev=92345ac0dbb28d27dbd32f3a782e84c55eaac214
+          for name in PressStart2P-Regular.ttf OFL.txt FONTLOG.txt; do
+            curl -fLsS --retry 3 "https://raw.githubusercontent.com/google/fonts/${rev}/ofl/pressstart2p/${name}" -o "$font/$name"
+          done
+          test "$(wc -c < "$font/PressStart2P-Regular.ttf")" -gt 100000
+      - name: Build real external PCK and verify two cold starts
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/m11-saves-v2
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m11b2-pack.log
+          grep -Fq GODOT_PS5_M11B2_PCK_WRITTEN /tmp/m11b2-pack.log
+          test -s "$project/m11-saves-v2.pck"
+          export XDG_DATA_HOME=/tmp/m11b2-isolated-data
+          export XDG_CONFIG_HOME=/tmp/m11b2-isolated-config
+          mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
+          "$godot" --headless --main-pack "$project/m11-saves-v2.pck" --quit-after 850 2>&1 | tee /tmp/m11b2-first.log
+          grep -Fq GODOT_PS5_M11B2_FIRST_LAUNCH_PASS /tmp/m11b2-first.log
+          grep -Fq GODOT_PS5_M11B2_VISIBLE_STATUS_READY /tmp/m11b2-first.log
+          "$godot" --headless --main-pack "$project/m11-saves-v2.pck" --quit-after 850 2>&1 | tee /tmp/m11b2-second.log
+          grep -Fq GODOT_PS5_M11B2_DIRECT_READ_OK /tmp/m11b2-second.log
+          grep -Fq GODOT_PS5_M11B2_RESTART_PERSISTENCE_PASS /tmp/m11b2-second.log
+          grep -Fq GODOT_PS5_M11B2_TEST_FINISHED /tmp/m11b2-second.log
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M11B2_FAIL_' /tmp/m11b2-first.log /tmp/m11b2-second.log; then exit 1; fi
+      - name: Create independent, checksum-verified PS5 fix ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/m11b2-ready
+          python3 homebrew/godot-ps5/scripts/package_m11_external_pcks.py             saves-v2 homebrew/godot-ps5/samples/m11-saves-v2/m11-saves-v2.pck /tmp/m11b2-ready | tee /tmp/m11b2-zip.log
+          test -s /tmp/m11b2-ready/GodotPS5-M11b2-SAVES-VISIBLE-FIX.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-M11b2-SAVE-DIRECTOPEN-HOST-VERIFIED-PS5-UNTESTED
+          path: /tmp/m11b2-ready/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-M11b2-Host-Logs
+          path: |
+            /tmp/m11b2-pack.log
+            /tmp/m11b2-first.log
+            /tmp/m11b2-second.log
+            /tmp/m11b2-zip.log
+          if-no-files-found: warn
