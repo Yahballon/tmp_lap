@@ -3,7 +3,7 @@
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
 > **Currently (2026-10-23):** Godot v0.1.6 on real PS5 confirms original 2D physics, GDScript/GLES3, DualSense, TTF, saves, and audible AudioOut. Original G2P Studios Platformer Asset #2201 now loads both levels with M12d and native sound. PS5 TAR #31 confirms *faster Level_01 setup* (27.0→5.7s from test bootstrap) but sporadic **133–150ms frames** remain. M13 independent native v0.1.7 profiler branch instruments CPU-before-swap and EGL-swap times to locate rendering stalls. **M13 v0.1.7 is now signed and in TESTBUILD** ([native CI #39945288503](https://github.com/Yahballon/tmp_lap/actions/runs/39945288503), [official release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.7), [merged PR #254](https://github.com/Yahballon/tmp_lap/pull/254)). Hardware perf trace and actual hitch fix remain OPEN; keep previously audible/playable v0.1.6 for rollback.
 
-**by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+**by YAHBALLON** · AudioOut/GLES3 hardware test title ID `PPSA99847` · original Godot Engine (MIT)
 
 ## M13 Native profiler: why a real Godot platformer still has severe frame spikes (2026-10-23)
 
