@@ -24,8 +24,7 @@ signed `PPSA99847 v0.1.4` while retaining v0.1.3 Physics2D, and verifies
 the genuine FreeType and fallback text libraries are in the PS5 link
 manifest. [M10c native build](https://github.com/Yahballon/tmp_lap/actions/runs/39879701956).
 
-**Current status:** host tests successful; native compiled package and actual
-PS5 visible text acceptance are independent steps. Once the signed native
+**Current status:** Signed native **PPSA99847 v0.1.4 FreeType installer published** as [GitHub prerelease](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.4) on 23 October 2026 at 01:30 UTC and indexed in TESTBUILD `version.json` on `main`. The actual **PS5 visible text/Unicode acceptance is STILL OPEN**; a green host build and signed native package do not prove glyph rendering. Once the signed native
 installer is available, leave `/data/GodotPS5/launch.txt` selecting
 `m10b-font-ui.pck` and inspect visible Labels/umlauts, PS5 log markers
 and graceful return. Only then mark native font rendering supported.
