@@ -2,7 +2,7 @@ name: Godot PS5 M13 Native CPU versus EGL Frame Profiler v0.1.7 (experimental)
 on:
   workflow_dispatch:
   pull_request:
-    branches: [feature/godot-ps5-m13-native-frame-profiler]
+    branches: [feature/godot-ps5-engine-foundation]
     paths:
       - 'homebrew/godot-ps5/native/gles3_canvas_main.cpp'
       - 'homebrew/godot-ps5/tests/test_m13_native_frame_profiler.py'
@@ -337,7 +337,7 @@ jobs:
               meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
               assert meta['titleId']=='PPSA99847'
               assert meta['contentVersion']=='01.000.008'
-          print('SIGNED GODOT M11D AUDIOOUT THREAD FIX TEST BUILT; AUDIBLE PS5 SOUND STILL UNVERIFIED')
+          print('SIGNED GODOT M13 NATIVE FRAME PROFILER BUILT; PS5 PERFORMANCE NOT YET TESTED')
           PY
       - uses: actions/upload-artifact@v4
         with:
