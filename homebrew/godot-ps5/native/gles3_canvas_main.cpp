@@ -75,7 +75,7 @@ void load_present_mode() {
     const char *conf="/data/GodotPS5/present_mode.txt";
     const int fd=sceKernelOpen(conf,O_RDONLY | O_NOFOLLOW,0);
     if(fd<0) {
-        std::printf("GODOT_PS5_M14_CONFIG file=absent mode=immediate (experimental_default)\\n");
+        std::printf("GODOT_PS5_M14_CONFIG file=absent mode=immediate (experimental_default)\n");
         return;
     }
     char data[32]{};
@@ -83,16 +83,16 @@ void load_present_mode() {
     sceKernelClose(fd);
     if(n<=0 || static_cast<size_t>(n)>=sizeof(data)) {
         perf_present_mode=PS5PresentMode::VSync;
-        std::printf("GODOT_PS5_M14_CONFIG file=invalid mode=vsync\\n");
+        std::printf("GODOT_PS5_M14_CONFIG file=invalid mode=vsync\n");
         return;
     }
     std::string mode(data,static_cast<size_t>(n));
-    const size_t first=mode.find_first_not_of(" \\t\\r\\n");
+    const size_t first=mode.find_first_not_of(" \t\r\n");
     if(first==std::string::npos)mode.clear();
-    else mode=mode.substr(first,mode.find_last_not_of(" \\t\\r\\n")-first+1);
+    else mode=mode.substr(first,mode.find_last_not_of(" \t\r\n")-first+1);
     if(mode=="immediate")perf_present_mode=PS5PresentMode::Immediate;
     else perf_present_mode=PS5PresentMode::VSync;
-    std::printf("GODOT_PS5_M14_CONFIG file=present mode=%s\\n",perf_present_mode_name(perf_present_mode));
+    std::printf("GODOT_PS5_M14_CONFIG file=present mode=%s\n",perf_present_mode_name(perf_present_mode));
 }
 void apply_present_mode() {
     // The DevBridge Display::open has already established VSync=1. Only
@@ -110,7 +110,7 @@ void apply_present_mode() {
         }
     }
     const char *effective=request_fast && changed ? "immediate" : "vsync";
-    std::printf("GODOT_PS5_M14_PRESENT_MODE requested=%s effective=%s egl_error=0x%x\\n",
+    std::printf("GODOT_PS5_M14_PRESENT_MODE requested=%s effective=%s egl_error=0x%x\n",
         perf_present_mode_name(perf_present_mode),effective,static_cast<unsigned>(error));
 }
 
