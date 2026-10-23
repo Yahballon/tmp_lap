@@ -39,9 +39,9 @@ def prepare(project: Path) -> None:
     # Replace desktop-only tutorial hints; preserve the actual level scenes.
     level1 = project / "Scenes/Levels/Level_01.tscn"
     scene = level1.read_text(encoding="utf-8")
-    original = 'A & D To Move\\nSpacebar To Jump'
+    original = 'A & D To Move\nSpacebar To Jump'
     assert original in scene, "Original Level_01 tutorial text changed"
-    scene = scene.replace(original, 'LEFT STICK / D-PAD\\nX TO JUMP')
+    scene = scene.replace(original, 'LEFT STICK / D-PAD\nX TO JUMP')
     level1.write_text(scene, encoding="utf-8")
     print("GODOT_PS5_M12_UPSTREAM_PREPARED", ASSET_COMMIT)
 
