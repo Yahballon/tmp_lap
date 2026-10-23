@@ -3,7 +3,7 @@
 **Projekt:** PS5-Godot-Homebrew-Port von YAHBALLON  
 **Stand:** 23. Oktober 2026 · PS5 Firmware **5.10** · Entwicklungsbranch `feature/godot-ps5-engine-foundation` · [PR #207](https://github.com/Yahballon/tmp_lap/pull/207)
 
-> **Current milestone (2026-10-23): M12 original Asset 2201 platformer FAILED on real PS5 due PNG/WebP imported texture decoder; M12b host-fixed and PS5 retest pending.** User screenshot 20261023_114546_00353738.png shows startup splash stuck. TAR bfpilot-download (28).tar confirms PS5 v0.1.6 successfully opens the external PCK and GLES3, but original lossless .ctex images (tiles, player, clouds, coins) cannot decode: compressed_texture.cpp:343 reports img.is_null(), then Level_01.tscn fails and GODOT_RETURN=1. Root cause: upstream import compress/mode=0 stores PNG/WebP inside .ctex requiring decoders not usable in the native PS5 build. M12b sets all 8 original PNG and 1 SVG texture import descriptors to compress/mode=3 VRAM Uncompressed, which stores raw DATA_FORMAT_IMAGE=0, requiring no PNG/WebP decoder on PS5. A visible staged loader and deferred managers replace the opaque splash. Official Godot 4.7.2 Actions #39933593514 PASSED: nine GST2 .ctex files with data_format=0, 99 project/import files packed, stage-wise loading, original Level_01 with grounded physics, genuine WAV load and no script errors. Installer GodotPS5-M12b-Platformer-SplashFix-PS5-TEST.zip (625,858 bytes) with PCK SHA256 d2b62dd7c26dc77f8d187c05973e8aaba0da4335e73c2c6e9cec1ec121f4f7b7. Original M12 is not hardware-compatible; M12b PS5 retest is OPEN. PPSA99847 v0.1.6 engine unchanged.
+> **Current milestone (2026-10-23): M12b real PS5 third-party Platformer gameplay now WORKS, but cold startup takes 30–60 s; M12c host-tested fast PCK ready for device performance retest.** User confirms original G2P Studios game eventually starts and can be controlled on PPSA99847 v0.1.6 (M12b). The exact bottleneck is not known without new per-stage logs. Binary analysis of the delivered M12b 13,271,676-byte PCK revealed 5.93 MiB unnecessary disabled splash and 3.34 MiB obsolete game icon plus SVG. M12c is a separate variant preserving M12b: excludes three unreferenced icons/splash, keeps six raw gameplay `.ctex` and true levels and sound, removes repetitive startup resource probes, and adds monotonic millisecond load/player/audio timing. [Official Godot 4.7.2 CI #39936285140](https://github.com/Yahballon/tmp_lap/actions/runs/39936285140) SUCCEEDED: 87 packed files, **3,323,440-byte PCK** versus 13,271,676 (75% smaller), authentic Level_01 and physics/sounds pass, desktop boot-to-player 17 ms (HOST ONLY). PCK SHA256 a44b5c60b613e770ffd1b7a277c30e410310a58eade3cf0935c89deff80ab551. Hardware startup improvement remains UNVERIFIED. Previous M12b remains installed as fallback.
 
 ## Bedeutung der Statusangaben
 
@@ -40,7 +40,8 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M11c | **Erste Native AudioDriverPS5/libSceAudioOut-Integration (v0.1.5)** | Cross-Link und signierter Build liefen, echte PS5 `AUDIOOUT_INIT=0`, `OPEN handle=536870912`, aber `Thread::start()`-ID fälschlich als Fehler behandelt, Port geschlossen, Dummy-Fallback. Durch M11d v0.1.6 repariert | ❌ v0.1.5 Audio stumm (behoben in M11d) |
 | M11d | **Godot AudioDriverPS5 / libSceAudioOut mit funktionierendem Thread (v0.1.6)** | **Echte PS5, `bfpilot-download (27).tar`:** Nutzer hört Töne und X-Replay. `THREAD_STARTED`, `AUDIOOUT_READY 48000 Hz stereo`, `OUTPUT_OK blocks=1/2048`, `CLOSE rc=0 blocks=2831 errors=0`, neun X-Replays, `GODOT_RETURN=0`, `EGL_CLOSED`, `NORMAL_SHUTDOWN`. [CI #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575) signiert; [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt | ✅ **PS5-Hardware-Audio und X-Replay bestätigt** |
 | M12 | **Original third-party Asset #2201 platformer** | PS5 bfpilot-download (28).tar: lossless .ctex fails to decode (missing PNG/WebP unpacker), no original Level_01; GODOT_RETURN=1 | ❌ PS5 hardware FAILED; superseded by M12b |
-| M12b | **Native PS5-compatible raw image Platformer** | Original 8 PNG + SVG imported as Godot VRAM Uncompressed, verified 9 GST2 payloads with data_format=0, staged visible loader, real original Level_01 and WAV on host; [Actions #39933593514](https://github.com/Yahballon/tmp_lap/actions/runs/39933593514) green; PCK SHA256 d2b62dd7c26dc77f8d187c05973e8aaba0da4335e73c2c6e9cec1ec121f4f7b7 | 🟡 HOST PASS, PS5 retest OPEN |
+| M12b | **Real third-party Platformer with raw textures** | User now confirms actual original Level_01 on PS5 v0.1.6 starts and is controllable; **30–60 s startup** from launch to control; full game/audio/level2 still separately unverified | ✅ PS5 Level_01 playability confirmed, slow loading |
+| M12c | **Fast compact original Platformer PCK** | [Godot 4.7.2 CI #39936285140](https://github.com/Yahballon/tmp_lap/actions/runs/39936285140) green, six real game raw `.ctex`, 87 files, **13,271,676 → 3,323,440 bytes (75% smaller)**; direct Level_01 load with M12C elapsed-ms markers for level, player, audio; desktop host player ready 17 ms. SHA256 a44b5c60b613e770ffd1b7a277c30e410310a58eade3cf0935c89deff80ab551 | 🟡 HOST PASS, PS5 speed retest OPEN |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -258,9 +259,23 @@ Official Godot 4.7.2 GitHub CI #39933593514 PASSED: 9 raw images validated, 99 p
 NEXT: Copy the ZIP GodotPS5/ contents into /data/GodotPS5/, preserving old PCKs and saves; start Godot PS5 v0.1.6. Confirm staged loader proceeds to the *visible original game*, test controls, original sound, coin HUD and level change. Send screenshot and gles3-stdout.log, gles3-stderr.log, gles3-runtime.log. PS5 M12b success must not be claimed based only on host tests.
 
 Source: [PR #251](https://github.com/Yahballon/tmp_lap/pull/251). Later engine feature: build native PNG/WebP unpackers for broad Godot lossless-texture compatibility, independent of this PCK-level workaround.
+## M12c – optimize original PS5 Platformer boot (2026-10-23)
+
+**User PS5 result:** M12b now loads and becomes controllable, but takes approximately 30–60 seconds. A new, timestamped PS5 performance TAR was not yet accessible in this turn; do not guess which operation dominates. The older bfpilot-download (28).tar predates the M12b success and only documents missing PNG/WebP decoders in original M12.
+
+**Exact old PCK binary analysis:** M12b had 99 files and 13,271,676 bytes. The now-disabled startup splash `.ctex` consumed 5.93 MiB and unused `Icon.png` raw `.ctex` consumed 3.34 MiB. Neither is referenced by original gameplay scenes. The SVG game icon `.ctex` was also unused. Together these account for about 70% of old package bytes. The previous M12b diagnostic boot additionally probed textures/font/player/scene separately before loading the original level.
+
+**M12c code:** Independent `prepare_project_fast.py` / `pack_m12_fast.gd` / `package_platformer_fast.py` generate a different `m12c-platformer-asset2201.pck`, leaving proven M12b untouched. Six original scene-referenced textures retain PS5-compatible Godot raw DATA_FORMAT_IMAGE import. Unused icon/splash source and imports are omitted from game PCK. `PS5BootFast.gd` directly loads original Level_01 ONCE and logs LEVEL_LOAD_BEGIN / LEVEL_LOAD_DONE duration_ms / SCENE_SWITCH_REQUESTED. `PS5ControlsFast.gd` logs PLAYABLE_SCENE_READY total_ms. `AudioManagerFast.gd` logs AUDIO_LOAD_DONE duration_ms. Original game mechanics, physics, WAV and MIT license retained.
+
+**Host validation:** [GitHub Actions #39936285140](https://github.com/Yahballon/tmp_lap/actions/runs/39936285140) success: six gameplay `.ctex` with raw payload, 87 files, PCK 3,323,440 bytes (25% of old size), original game Level_01 starts, grounded player, WAV audio; desktop load scene 8 ms and boot-to-player 17 ms. These numbers are NOT PS5 measurements.
+
+**Download:** `GodotPS5-M12c-Platformer-FAST-PS5-TEST.zip` (347,780 bytes), contains separate game PCK and launch.txt, retains M12b and savegames, requires only existing PPSA99847 v0.1.6. PCK SHA256 a44b5c60b613e770ffd1b7a277c30e410310a58eade3cf0935c89deff80ab551.
+
+**PS5 acceptance still open:** user should compare actual seconds to gameplay vs old 30–60s, capture current gles3-stdout.log and gles3-runtime.log, check markers M12C_LEVEL_LOAD_DONE, M12C_PLAYABLE_SCENE_READY, M12C_AUDIO_LOAD_DONE, confirm actual sprites, DualSense controls, coins and sound. Do not mark startup optimization hardware successful without user timings.
+
 ## Roadmap: Was als Nächstes zu tun ist
 
-### P0 – M12b PS5 raw-image platformer hardware retest
+### P0 – M12c physical PS5 fast boot performance test and remaining compatibility
 
 - [x] `PPSA99847 v0.1.2` auf realer PS5 starten: vom Nutzer bestätigt.
 - [x] Pong-Bildschirm mit zwei Schlägern, bewegtem Ball, Spielfeld und Punktestand nachweisen: Video `20261022_234930_00248487(1).webm` bestätigt.
@@ -287,7 +302,9 @@ Source: [PR #251](https://github.com/Yahballon/tmp_lap/pull/251). Later engine f
 - [x] **M12 third-party host:** pinned MIT upstream asset #2201, 92-file genuine Godot 4.7.2 imported PCK, Level 1 player floor collision and output ZIP, CI #39930320591 passed.
 - [x] **M12 original console failure:** user screenshot and TAR #28 prove unsupported PNG/WebP .ctex, Level_01 load fails.
 - [x] **M12b host fix:** 9 raw data-format-0 textures, 99-file PCK, staged loader and original Level_01/WAV host pass in Actions #39933593514.
-- [ ] **M12b PS5 hardware:** confirm actual rendered platformer, D-Pad/left stick, X jump, coins, WAV sound, level 2 and startup logs.
+- [x] **M12b first real console gameplay:** user confirms Level_01 loads and becomes controllable, but 30–60 s latency; other compatibility features still open.
+- [x] **M12c compact PCK host:** 75% smaller, original Level_01/physics/WAV and timing instrumentation validated in Actions #39936285140.
+- [ ] **M12c actual console speed:** measure cold boot and M12C playable/scene/audio duration_ms markers, check coins, jump, audio and Level_02.
 - [x] **M11b original PS5 diagnostic:** native file WRITE+immediate READBACK passed and a real file is preserved; existing file NOT recognized upon restart.
 - [x] **M11b2 host:** direct-open save recovery and visible status, two standalone Godot 4.7.2 processes PASS, Actions #39913555804.
 - [x] **M11b2 PS5 hardware:** Nutzer-TAR `bfpilot-download (25)(1).tar` bestätigt reale bestehende Save-Leseöffnung und persistente Zählerfolge 1→2→3→4 auf physischer PS5; mindestens zwei saubere App-Exits, tatsächlicher Save-Inhalt validiert.
@@ -341,4 +358,4 @@ Source: [PR #251](https://github.com/Yahballon/tmp_lap/pull/251). Later engine f
 
 ---
 
-**Summary (2026-10-23):** Real PS5 v0.1.6 proves original Godot 4.7.2 2D physics, GDScript, Canvas2D, input, FreeType, durable saves and audible AudioOut. Original third-party M12 Platformer PCK FAILS on console due imported .ctex PNG/WebP decoder missing. M12b rebuild uses uncompressed .ctex format 0, hosted official Godot 4.7.2 test fully passed (9 textures, original Level_01, audio, controls adapter). PS5 M12b retest remains pending; engine v0.1.6 unchanged.
+**Summary (2026-10-23):** Native PS5 Godot v0.1.6 proved GDScript, GLES3, physics, fonts, saves, audio. Original M12 external game PCK failed due PNG/WebP decoder; M12b raw-image patch is **now confirmed to load and be controllable on real PS5**, albeit slow 30–60 sec startup. M12c separate compact 3.3 MB package removes ~9.3 MiB unused splash/icons and excess preloads, instrumented elapsed milliseconds; host Godot 4.7.2 success, PS5 speed unverified. No native eboot rebuild required.
