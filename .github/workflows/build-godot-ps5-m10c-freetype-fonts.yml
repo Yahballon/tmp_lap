@@ -153,13 +153,25 @@ jobs:
           matched=[lib for lib in libs if 'libmodule_godot_physics_2d.' in lib]
           assert matched, 'Physics2D module archive MISSING: regression'
           print('GODOT_PS5_M9B_PHYSICS_ARCHIVE_FOUND', matched)
-          freetype=[lib for lib in libs if 'libmodule_freetype.' in lib]
-          assert freetype, 'FreeType module MISSING: Label/TTF will fail on PS5'
+          # Godot 4.7.2 freetype/SCsub emits a THIRD-PARTY
+          # libfreetype_builtin archive, but has no module .cpp and therefore
+          # does NOT emit libmodule_freetype. The SCons module registration
+          # defines MODULE_FREETYPE_ENABLED, not a separate .a file.
           text=[lib for lib in libs if 'libmodule_text_server_fb.' in lib]
           assert text, 'TextServerFallback module MISSING'
-          native=[lib for lib in libs if 'libfreetype_builtin.' in lib]
-          assert native, 'Upstream FreeType native library MISSING'
-          print('GODOT_PS5_M10C_FREETYPE_ARCHIVES_FOUND',freetype,text,native)
+          native=[lib for lib in libs if '/freetype/libfreetype_builtin.' in lib]
+          assert native, 'Native libfreetype_builtin MISSING: TTF will fail'
+          print('GODOT_PS5_M10C_FREETYPE_ARCHIVES_FOUND',text,native)
+          PY
+          # Verify the actual rasterizer symbols, not a nonexistent archive.
+          llvm-nm-18 /tmp/godot/bin/obj/modules/freetype/libfreetype_builtin.ps5.template_debug.x86_64.a | \
+            grep -F ' T FT_Init_FreeType'
+          python3 - <<'PY'
+          from pathlib import Path
+          assert Path('/tmp/godot/modules/modules_enabled.gen.h').is_file()
+          markers=Path('/tmp/godot/modules/modules_enabled.gen.h').read_text()
+          assert 'MODULE_FREETYPE_ENABLED' in markers
+          print('GODOT_PS5_M10C_FREETYPE_MODULE_COMPILED')
           PY
       - uses: actions/download-artifact@v4
         with:
