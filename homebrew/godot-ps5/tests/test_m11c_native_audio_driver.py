@@ -20,7 +20,7 @@ for entry in ["sceAudioOutInit()", "sceAudioOutOpen(", "sceAudioOutOutput(",
 for guard in ["Thread thread", "Mutex mutex", "BLOCK_FRAMES = 256",
               "MIX_RATE = 48000", "SPEAKER_MODE_STEREO", "SafeFlag exiting"]:
     assert guard in header, guard
-assert "GODOT_PS5_AUDIOOUT_DRIVER_REGISTERED" in os_cpp
+assert "GODOT_PS5_M11C_AUDIOOUT_DRIVER_REGISTERED" in os_cpp
 assert "AudioDriverManager::add_driver(&audio_driver)" in os_cpp
 assert "#ifdef GODOT_PS5_AUDIOOUT" in os_h
 assert 'os.environ.get("GODOT_PS5_AUDIOOUT") == "1"' in scons
