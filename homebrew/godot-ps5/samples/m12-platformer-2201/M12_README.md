@@ -2,6 +2,15 @@
 
 **Upstream original game:** [2D Platformer – Starter Kit 1.1.1](https://godotengine.org/asset-library/asset/2201), by **G2P Studios / AdilDevStuff**, original [GitHub repository](https://github.com/AdilDevStuff/2D-Platformer-Starter-Kit), pinned to commit `a48fc994cbcb168be472df84f2e13b55d2a2792f`, **MIT license**. Original 2D sprite assets credited to Kenney.nl, sound FX credited to Gdfxr. The original MIT license is preserved **inside the test installer ZIP and PCK**.
 
+## M12c fast PCK, original playable console game retained (2026-10-23)
+
+The user confirms the real M12b third-party platformer starts on PPSA99847 v0.1.6 and becomes controllable, but cold startup still takes **about 30–60 s**. Old M12b actual 13,271,676-byte PCK contained >9.3 MiB UNUSED original splash/icon raw textures and a multi-step diagnostic resource loader. Their existence and lack of gameplay references were verified against the packaged asset and actual level scene paths.
+
+New **M12c** is a separate, independently built `m12c-platformer-asset2201.pck` with only six needed original scene texture `.ctex`, size **3,323,440 bytes** (75% smaller), one direct original Level_01 load and `Time.get_ticks_msec()` diagnostics for level resource load, real player scene, original WAV audio. It DOES NOT remove gameplay, coin art, levels, saves, or original MIT license; uses the same PS5 v0.1.6 native eboot.
+
+[Host CI #39936285140](https://github.com/Yahballon/tmp_lap/actions/runs/39936285140) succeeded in Godot 4.7.2, including original CharacterBody2D grounded collision and WAV effect loading. Desktop total to Level_01 player was 17ms (not PS5). Separate `GodotPS5-M12c-Platformer-FAST-PS5-TEST.zip` (347,780 bytes) bundles new PCK plus launch config and license. PCK SHA256 `a44b5c60b613e770ffd1b7a277c30e410310a58eade3cf0935c89deff80ab551`.
+
+Physical PS5 next step: time from app launch to controlling player, collect stdout markers `GODOT_PS5_M12C_LEVEL_LOAD_DONE duration_ms`, `GODOT_PS5_M12C_PLAYABLE_SCENE_READY total_ms`, `GODOT_PS5_M12C_AUDIO_LOAD_DONE duration_ms`, match them to native runtime startup timestamps; check levels, jump and sounds. No PS5 speed result can be asserted until user test.
 ## M12b real PS5 texture failure and fixed PCK (2026-10-23)
 
 Original M12 PCK is proven **incompatible** with the current PS5 engine: screenshot shows stuck original splash, TAR `bfpilot-download (28).tar` shows missing PNG/WebP decoders for original lossless `.ctex` files in `scene/resources/compressed_texture.cpp:343`, preventing `Level_01.tscn` from loading (`GODOT_RETURN=1`). Original Godot host success DID NOT predict this PS5 failure.
