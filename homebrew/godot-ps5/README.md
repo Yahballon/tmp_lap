@@ -1,10 +1,19 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Currently (2026-10-23):** Godot 4.7.2 on real PS5 v0.1.6 proves GDScript/GLES3/2D physics/TileMapLayer/TrueType/savegames/native audible AudioOut with DualSense X replay. Original third-party G2P Studios Platformer #2201 M12b now genuinely loads and is controllable on user's PS5, but **cold startup is 30–60 seconds**. **M12c fast PCK** retains identical gameplay/sounds, strips 9.95 MB unused splash/icons (PCK 13.27→3.32 MB), loads original Level_01 once without diagnostic probes, logs native elapsed milliseconds. [Host CI #39936285140](https://github.com/Yahballon/tmp_lap/actions/runs/39936285140) passed, **actual PS5 speed improvement unverified**. Distinct data-only test ZIP; v0.1.6 native engine remains untouched.
+> **Currently (2026-10-23):** Godot v0.1.6 on real PS5 confirms original 2D physics, GDScript/GLES3, DualSense, TTF, saves, and audible AudioOut. Original G2P Studios Platformer Asset #2201 now loads both levels with M12d and native sound. PS5 TAR #31 confirms *faster Level_01 setup* (27.0→5.7s from test bootstrap) but sporadic **133–150ms frames** remain. M13 independent native v0.1.7 profiler branch instruments CPU-before-swap and EGL-swap times to locate rendering stalls. Host/source build and hardware perf claims tracked separately; do not say hitch is fixed until measured.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
+## M13 Native profiler: why a real Godot platformer still has severe frame spikes (2026-10-23)
+
+The real PS5 M12d platformer remains intermittently laggy despite **major launch improvement**. New user TAR `bfpilot-download (31).tar` shows Level_01 scene-player ready after **5,712ms** from BootFast initialization vs **27,004ms** with previous M12c. Both real original levels load, ground/trap TileMap collisions work and `navigation_enabled=false` is confirmed. Native audio still works.
+
+However there are **38 measured >80ms frame spikes**, commonly **133–150ms** (7fps-like judder) including idle moments, alongside normal 60fps periods. Native PS5 Gallium also compiles shader variants during startup and in-game; no evidence yet that it explains *all* spikes. Existing 3.3MB compact PCK already fits in a small footprint, and preloading the package into RAM has not been shown to solve GPU/compositor stalls.
+
+**M13 experimental native profiler** adds `CLOCK_MONOTONIC` timestamps around the real `display.swap()` PS5 GLES3 rendering hook. Its bounded, rate-limited `GODOT_PS5_M13_FRAME_SPIKE` logs report **CPU time before EGL swap** separately from **the time blocked in EGL swap**, and `M13_FRAME_5S` prints averages/maxima. This differentiates Godot/CPU/physics/IO stalls from Mesa/PS5-Gallium, swap/vsync or compositor stalls without forcing GPU synchronization. Proven native AudioOut/Fonts/Physics retained. Independent **v0.1.7 PPSA99847 experimental signed CI** with no automatic replacement of working 0.1.6.
+
+**PS5 status:** native v0.1.7 cross-build and device trace pending. This is a **diagnostic**, not an FPS fix; real optimization comes after hardware measurements. [M13_PERFORMANCE.md](M13_PERFORMANCE.md), [PR #254](https://github.com/Yahballon/tmp_lap/pull/254), [native M13 workflow](https://github.com/Yahballon/tmp_lap/actions/workflows/build-godot-ps5-m13-native-profiler.yml). Keep the last proven M12d platformer PCK and its `launch.txt` setting.
 ## M12c Fast Boot – compact true third-party platformer PCK (2026-10-23)
 
 The user now confirms real PS5 M12b gameplay works but waits **30–60 seconds** before controls become responsive. Previous M12b PCK binary inspection shows 13,271,676 bytes, 70% of which is unused 5.93 MiB disabled original splash and 3.34 MiB game icon (+ SVG icon). The M12b diagnostic boot preloaded unnecessary asset stages.
