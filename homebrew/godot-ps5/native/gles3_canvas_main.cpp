@@ -7,6 +7,9 @@
 #include <EGL/egl.h>
 #include <GL/glcorearb.h>
 #include <cstdio>
+#include <ctime>
+#include <cstdint>
+#include <algorithm>
 #include <sys/stat.h>
 #include <string>
 // Explicit, validated user-selected Godot 4 pack only; bundled visual
@@ -19,6 +22,46 @@ namespace {
 hui::ps5::Display display;
 bool opened=false;
 unsigned frames=0;
+// M13 opt-in profiler. Native PS5 timer around the real EGL/Godot swap:
+// separates time spent updating/rendering a Godot frame (CPU-side) from
+// time blocked in Display::swap() (vsync / GPU / driver / compositor).
+// Logs are deliberately bounded so profiling does not create its own
+// log-I/O-induced hitch. No readback, glFinish or CPU/GPU sync introduced.
+double ps5_now_ms(){
+    struct timespec t{};
+    return clock_gettime(CLOCK_MONOTONIC, &t)==0
+        ? static_cast<double>(t.tv_sec)*1000.0+static_cast<double>(t.tv_nsec)*1.0e-6 : 0.0;
+}
+double perf_last_swap_complete_ms=0.0;
+double perf_epoch_ms=0.0;
+unsigned perf_samples=0,perf_window_spikes=0,perf_window_logged=0;
+double perf_cpu_ms=0.0,perf_swap_ms=0.0,perf_max_cpu_ms=0.0,perf_max_swap_ms=0.0,perf_max_frame_ms=0.0;
+void perf_report(double cpu, double swap, double begin, double end){
+    if (perf_epoch_ms<=0.0)perf_epoch_ms=begin;
+    const double frame=cpu+swap;
+    ++perf_samples;
+    perf_cpu_ms+=cpu;
+    perf_swap_ms+=swap;
+    perf_max_cpu_ms=std::max(perf_max_cpu_ms,cpu);
+    perf_max_swap_ms=std::max(perf_max_swap_ms,swap);
+    perf_max_frame_ms=std::max(perf_max_frame_ms,frame);
+    if (frame>=80.0){
+        ++perf_window_spikes;
+        if(perf_window_logged<8){
+            ++perf_window_logged;
+            std::printf("GODOT_PS5_M13_FRAME_SPIKE frame=%u since_boot_ms=%.1f cpu_before_swap_ms=%.1f egl_swap_ms=%.1f total_ms=%.1f spike=%u\\n",
+                frames,end-perf_epoch_ms,cpu,swap,frame,perf_window_spikes);
+        }
+    }
+    if(end-perf_epoch_ms>=5000.0){
+        std::printf("GODOT_PS5_M13_FRAME_5S frames=%u avg_cpu_ms=%.2f avg_swap_ms=%.2f max_cpu_ms=%.1f max_swap_ms=%.1f max_frame_ms=%.1f spikes_80ms=%u\\n",
+            perf_samples, perf_cpu_ms/std::max(1u,perf_samples),
+            perf_swap_ms/std::max(1u,perf_samples),
+            perf_max_cpu_ms,perf_max_swap_ms,perf_max_frame_ms,perf_window_spikes);
+        perf_epoch_ms=end;perf_samples=0;perf_window_spikes=0;perf_window_logged=0;
+        perf_cpu_ms=perf_swap_ms=perf_max_cpu_ms=perf_max_swap_ms=perf_max_frame_ms=0.0;
+    }
+}
 constexpr const char *logpath="/data/GodotPS5/gles3-runtime.log";
 void record(const char *name,int value=-1){
     if(FILE*f=std::fopen(logpath,"ab")){
@@ -57,11 +100,23 @@ bool open_context(int w,int h){
 }
 bool present(){
     if(!opened)return false;
+    const double before=ps5_now_ms();
+    const double cpu_before_swap=perf_last_swap_complete_ms>0.0
+        ? std::max(0.0,before-perf_last_swap_complete_ms):0.0;
     if(!display.swap()){
         record("EGL_SWAP_FAILED",int(display.last_error()));return false;
     }
+    const double after=ps5_now_ms();
+    const double swap_ms=std::max(0.0,after-before);
     ++frames;
-    if(frames==1)record("GODOT_SWAP_FIRST");
+    if(frames==1){
+        record("GODOT_SWAP_FIRST");
+        std::printf("GODOT_PS5_M13_NATIVE_FRAME_PROFILER_READY clock=monotonic threshold_ms=80\\n");
+    }
+    if(before>0.0 && after>0.0 && perf_last_swap_complete_ms>0.0){
+        perf_report(cpu_before_swap,swap_ms,before,after);
+    }
+    perf_last_swap_complete_ms=after;
     if(frames==60||frames==600)record("GODOT_SWAP_COUNT",int(frames));
     return true;
 }
