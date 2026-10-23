@@ -21,9 +21,9 @@ def prepare(project: Path) -> None:
     # PNG or WebP payload). Mode 3 is upstream 'VRAM Uncompressed':
     # CompressedTexture2D::DATA_FORMAT_IMAGE stores raw Image pixel data,
     # requiring NO PNG, WebP, BasisU, or GPU block decompressor on PS5.
-    import_files = sorted(project.rglob("*.png.import"))
+    import_files = sorted([*project.rglob("*.png.import"), *project.rglob("*.svg.import")])
     if not import_files:
-        raise RuntimeError("Original Godot PNG import descriptors not found")
+        raise RuntimeError("Original Godot PNG/SVG texture import descriptors not found")
     for import_file in import_files:
         cfg = import_file.read_text(encoding="utf-8")
         if 'importer="texture"' not in cfg or "compress/mode=0" not in cfg:
