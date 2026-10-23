@@ -1,7 +1,7 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** Original Godot 4.7.2 GDScript/GLES3/Canvas2D, DualSense, Pong, externe PCKs, 2D-Physik (CharacterBody2D, RigidBody2D, Area2D, TileMapLayer), FreeType/Label TrueType und persistente `user://`-Savegames sind auf echter PS5 bestätigt. **Neu: ECHTES hörbares Godot-Audio über `AudioDriverPS5`/`libSceAudioOut` in PPSA99847 v0.1.6!** Der Nutzer bestätigt sechs Töne und X-Replay; PS5-TAR `bfpilot-download (27).tar` belegt Thread-Start, 48-kHz-Stereo, 2.831 ausgegebene Audioblöcke, null AudioOut-Fehler und normalen Shutdown. [Actions #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575) erfolgreich, [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt. Der zuletzt geprüfte TESTBUILD-Katalog zeigte noch v0.1.5 – Installations-Release separat prüfen.
+> **Aktuell:** Original Godot 4.7.2 GDScript/GLES3/Canvas2D, DualSense, Pong, externe PCKs, 2D-Physik (CharacterBody2D, RigidBody2D, Area2D, TileMapLayer), FreeType/Label TrueType und persistente `user://`-Savegames sind auf echter PS5 bestätigt. **Neu: ECHTES hörbares Godot-Audio über `AudioDriverPS5`/`libSceAudioOut` in PPSA99847 v0.1.6!** Der Nutzer bestätigt sechs Töne und X-Replay; PS5-TAR `bfpilot-download (27).tar` belegt Thread-Start, 48-kHz-Stereo, 2.831 ausgegebene Audioblöcke, null AudioOut-Fehler und normalen Shutdown. [Actions #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575) erfolgreich, [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt. **v0.1.6 ist jetzt auch als [GitHub-Release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.6) veröffentlicht und in der TESTBUILD-App über den Main-`version.json`-Katalog eingetragen** (23.10.2026, 08:48 UTC).
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
@@ -36,8 +36,7 @@ non-blocking but require independent investigation.
 **Status: Native PS5 sound and replay proven.** Further music formats,
 long sessions, pause/resume, streaming and compatibility with external
 Godot games have **not** yet been independently validated. The main
-TESTBUILD `version.json` most recently listed v0.1.5; verify any
-v0.1.6 release separately from this successful hardware acceptance.
+A public [v0.1.6 prerelease](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.6) **now exists and is indexed by main TESTBUILD `version.json`** (published 2026-10-23 08:48:34 UTC; 22,657,378-byte `PPSA99847.zip`, SHA256 `e15323c7736eaeead0bad1158de33dd1a7f439e6510928b6661d34219ca96026`). Real PS5 audible sound + X replay was independently confirmed using the earlier signed v0.1.6 candidate; both hardware result and release are now verified.
 
 ## M11 PS5 result + M11b2 save direct-open repair (23 October 2026)
 
