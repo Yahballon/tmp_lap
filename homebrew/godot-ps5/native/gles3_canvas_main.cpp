@@ -25,7 +25,7 @@ unsigned frames=0;
 // M13 opt-in profiler. Native PS5 timer around the real EGL/Godot swap:
 // separates time spent updating/rendering a Godot frame (CPU-side) from
 // time blocked in Display::swap() (vsync / GPU / driver / compositor).
-// Logs are deliberately bounded so profiling does not create its own
+// Experimental signed v0.1.7: used by TESTBUILD hardware CPU/EGL attribution.\n// Logs are deliberately bounded so profiling does not create its own
 // log-I/O-induced hitch. No readback, glFinish or CPU/GPU sync introduced.
 double ps5_now_ms(){
     struct timespec t{};
