@@ -51,7 +51,7 @@ jobs:
           assert r['repository']['full_name']=='Yahballon/tmp_lap'
           assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
           assert r['head_branch']=='feature/godot-ps5-engine-foundation'
-          assert r['name']=='Godot PS5 M13 Native AudioOut Thread Fix v0.1.7 (experimental)'
+          assert r['name']=='Godot PS5 M13 Native CPU versus EGL Frame Profiler v0.1.7 (experimental)'
           assert r['event']=='push'
           assert r['status']=='completed' and r['conclusion']=='success'
           matches=[a for a in json.load(open('/tmp/m13-artifacts.json'))['artifacts']
@@ -142,7 +142,7 @@ jobs:
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add version.json
-            git commit -m 'chore(testbuilds): publish Godot GLES3 AudioOut v0.1.7 [skip ci]'
+            git commit -m 'chore(testbuilds): publish Godot native frame profiler v0.1.7 [skip ci]'
             for attempt in 1 2 3 4; do
               git pull --rebase origin main
               git push origin HEAD:main && exit 0
