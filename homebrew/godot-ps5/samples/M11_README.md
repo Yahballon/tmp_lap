@@ -19,6 +19,30 @@ The console tester should explicitly report whether the ascending notes
 are **audible**. Also collect `gles3-stdout.log`,
 `gles3-stderr.log`, and `gles3-runtime.log`.
 
+## M11 real PS5 results and fixed visible save PCK (23 October 2026)
+
+The user's `bfpilot-download (24).tar` confirms **NO AUDIBLE AUDIO**:
+original Godot `AudioStreamPlayer` successfully reached the play state
+but the PS5 platform has no implemented native audio output driver.
+Development/acceptance is tracked in [M11c issue #247](https://github.com/Yahballon/tmp_lap/issues/247).
+
+The same archive has **two save runs** with successful writes/readbacks
+but both incorrectly identified as first launch; the actual archive
+contains valid `userdata/GodotPS5M11Saves/m11-save-v1.txt`.
+Upstream `FileAccessUnix::file_exists()` uses `stat/access`, which is
+unreliable on PS5. **Do not delete the data or infer a write failure.**
+
+**M11b2 repair**: new `samples/m11-saves-v2` PCK, available as
+`GodotPS5-M11b2-SAVES-VISIBLE-FIX.zip`. It directly attempts
+`FileAccess.open(READ)` *before any write*, accepts only a genuine
+not-found error as first launch, protects corrupt/unreadable data, and
+shows readable TrueType labels: cyan FIRST SAVE CREATED or green
+SAVE RESTORED with previous/new counts. Host CI [#39913555804](https://github.com/Yahballon/tmp_lap/actions/runs/39913555804)
+passed two independent processes (`new=1` then `old=1 new=2`).
+Requires unchanged `PPSA99847 v0.1.4`. Preserve the save path and
+install new PCK + `launch.txt` only. Native PS5 persistence acceptance
+**still OPEN** pending green on-screen report plus console logs.
+
 ## M11b: user:// Savegame Persistence
 
 `m11-saves.pck` writes a small versioned/checksummed save in a private
