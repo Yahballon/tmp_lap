@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as dir:
         assert z.testzip() is None
         assert z.read("GodotPS5/launch.txt")==(module.PCK+"\n").encode()
         assert z.read("GodotPS5/games/"+module.PCK)==content
-        assert b"MIT License" in z.read("GodotPS5/M12-Platformer-Original-LICENSE.txt")
+        assert b"MIT License" in z.read("GodotPS5/M12b-Platformer-Original-LICENSE.txt")
     f.write_bytes(b"BAD"+content[3:])
     try:
         module.pack(f,lic,d/"out")
