@@ -3,7 +3,7 @@
 **Projekt:** PS5-Godot-Homebrew-Port von YAHBALLON  
 **Stand:** 23. Oktober 2026 · PS5 Firmware **5.10** · Entwicklungsbranch `feature/godot-ps5-engine-foundation` · [PR #207](https://github.com/Yahballon/tmp_lap/pull/207)
 
-> **Aktueller Meilenstein: M11d v0.1.6 PS5 AUDIOOUT THREAD FIX SIGNIERT & CI GRÜN (23. Oktober 2026).** Der Nutzer-Log der stummen v0.1.5 bewies `AUDIOOUT_INIT rc=0` und `AUDIOOUT_OPEN handle=536870912`, aber falsches `AUDIOOUT_THREAD_START_FAIL` durch die Verwechslung von `Thread::ID` mit `Error/OK`, gefolgt vom Dummy-Audio-Fallback. Der v0.1.6-Source repariert die Worker-Initialisierung (`thread.start(); if (!thread.is_started())`) und `%llu`-Logformatierung; die bestehenden Emulator-Repos PS5NESX/PS5GBCX bestätigen dieselbe Port-Konfiguration. **GitHub Actions #39924377575 vollständig SUCCESS** (Host + nativer PS5-Cross-Build + signiertes `PPSA99847.zip`), **PR #249 squash-gemergt** zum Godot-Entwicklungsbranch (Commit `1a19be6acc4378b5b4a7811b9342133b9d253f8c`). Installer aus Artifact `12488688717` selbständig ZIP/CRC/`param.json` geprüft: `titleId=PPSA99847`, `contentVersion=01.000.007`, eingebettetes `m11-audio.pck`, SHA256 `88637b95f94fd2f0656bdb622cf7d2cea602db92ccd2e78f8d91765b0891cd43`. **v0.1.6 ist als signierter CI-Artefakt testbereit; PS5-Hörtest bleibt AUSSTEHEND.** Zum Zeitpunkt der Prüfung zeigt Main-TESTBUILD-`version.json` noch v0.1.5; Publisher-Workflow existiert und muss auf den erfolgreichen vertrauenswürdigen Branch-Push-Lauf reagieren.
+> **Aktueller Meilenstein: M11d ECHTES NATIVES GODOT-AUDIO AUF PS5 HARDWARE BESTÄTIGT (23. Oktober 2026).** Der Nutzer hört mit **PPSA99847 v0.1.6** die sechs Godot-Audiotöne und kann mit **DualSense X** erneut abspielen. Das beigefügte TAR `bfpilot-download (27).tar` enthält einen erfolgreichen letzten `m11-audio.pck`-PS5-Testlauf mit **`GODOT_PS5_M11D_AUDIOOUT_THREAD_STARTED`**, `GODOT_PS5_M11C_AUDIOOUT_READY rate=48000 channels=2 frames=256`, `AUDIO_MIX_RATE=48000.0`, `AUDIOOUT_OUTPUT_OK blocks=1` und `blocks=2048`, **neun** `AUDIO_X_REPLAY`-Markern, `GODOT_PS5_M11D_AUDIOOUT_CLOSE rc=0 blocks=2831 errors=0`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN` und `EGL_CLOSED`. **Audiohardware-Abnahme BESTANDEN!** Der alte v0.1.5 `Thread::ID`/`Error`-Fehler ist behoben; frühere Dummy-Fallback-/`%llu`-Meldungen im kumulierten TAR gehören zu früheren Sessions und nicht zum letzten v0.1.6-Lauf. Der signierte Installer stammt aus [Actions #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575), [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt. **Noch separat offen:** weitere Audioformate, lange Wiedergabe/Unterbrechung und allgemeine Spielekompatibilität. Der zuletzt geprüfte TESTBUILD-Main-Katalog listet weiterhin v0.1.5; GitHub-v0.1.6-Release-Katalogstatus getrennt von der bestätigten Hardwarefunktion behandeln.
 
 ## Bedeutung der Statusangaben
 
@@ -38,7 +38,7 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M11b | **Godot `FileAccess` mit `user://`-Save** | Echte PS5, zwei Sessions: `SAVE_WRITE_OK current=1` und `VERIFY_READBACK_OK` erfolgreich; **zweiter Start erkennt vorhandene Save-Datei nicht**, obwohl `userdata/GodotPS5M11Saves/m11-save-v1.txt` im Nutzer-TAR vorhanden und valide ist | 🟡 **Schreiben klappt; Neustart-Erkennung schlägt fehl** |
 | M11b2 | **Godot `user://`-Save über vollständige PS5-App-Neustarts** | Echte Konsole, `bfpilot-download (25)(1).tar`: drei hintereinander erfolgreiche `DIRECT_READ_OK`/`RESTART_PERSISTENCE_PASS`-Läufe **1→2→3→4**, exportierte Save-Datei `GODOT_PS5_M11_SAVE_V1|4|999`, mindestens zwei vollständige `GODOT_RETURN=0`/`EGL_CLOSED`/`NORMAL_SHUTDOWN`-Läufe | ✅ **Echte PS5-Persistenz 3× bestätigt** |
 | M11c | **Native Godot AudioDriverPS5 / libSceAudioOut (experimental v0.1.5)** | `audio_driver_ps5.cpp`: echter Godot-Audio-Mixer → 48-kHz-Stereo, 256 Frames, 16-Bit-PCM über `sceAudioOutInit/Open/Output/Close` in dediziertem Thread; `GODOT_PS5_AUDIOOUT=1` ausschließlich im Testbuild, [PR #248](https://github.com/Yahballon/tmp_lap/pull/248) und [CI #39918028458](https://github.com/Yahballon/tmp_lap/actions/runs/39918028458) | 🟡 Host bestanden; **native Cross-Link/PS5-Hörtest noch offen** |
-| M11d | **Godot AudioOut Thread::ID/Worker-Fix v0.1.6** | [CI #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575): Host ✅, signierter nativer PS5-Installer ✅; ZIP CRC, `PPSA99847`/`01.000.007`, `m11-audio.pck`, SHA256 `88637b95f94fd2f0656bdb622cf7d2cea602db92ccd2e78f8d91765b0891cd43`; [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt | 🟡 **Build signiert; echte PS5-Hörprobe offen** |
+| M11d | **Godot AudioDriverPS5 / libSceAudioOut mit funktionierendem Thread (v0.1.6)** | **Echte PS5, `bfpilot-download (27).tar`:** Nutzer hört Töne und X-Replay. `THREAD_STARTED`, `AUDIOOUT_READY 48000 Hz stereo`, `OUTPUT_OK blocks=1/2048`, `CLOSE rc=0 blocks=2831 errors=0`, neun X-Replays, `GODOT_RETURN=0`, `EGL_CLOSED`, `NORMAL_SHUTDOWN`. [CI #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575) signiert; [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt | ✅ **PS5-Hardware-Audio und X-Replay bestätigt** |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -195,6 +195,34 @@ The user confirmed saves work and provided `bfpilot-download (25)(1).tar`, which
 - Separate [native v0.1.5 workflow](../../.github/workflows/build-godot-ps5-m11c-native-audioout.yml) retains PhysicsServer2D, GLES3, FreeType and the existing PCK loader; it checks the public libSceAudioOut.so stub, compiles AudioDriverPS5, and must link and sign a PPSA99847 installer with contentVersion 01.000.006. The old v0.1.4 title remains a rollback option.
 - **Physical PS5 audio acceptance is mandatory:** select m11-audio.pck, install a signed v0.1.5 candidate only AFTER successful CI, listen for six notes and press X to replay. Capture gles3-stdout.log, gles3-stderr.log, gles3-runtime.log. Require AUDIOOUT_DRIVER_REGISTERED, successful nonnegative AudioOut handle, actual OUTPUT_OK blocks, native clean exit and **user-audible sound**. Driver initialization or AudioStreamPlayer.playing alone does NOT establish working audio.
 - [Implementation notes](M11C_AUDIOOUT.md) and ABI reference link to Rufidj PS5 audio probes. No Sony .sprx binary or fake playback is shipped.
+## M11d PS5 native audio hardware ACCEPTED (23 October 2026)
+
+**Status: ✅ real PS5 heard audio and successful X replay, verified against user-supplied `bfpilot-download (27).tar`.** The user installed signed PPSA99847 **v0.1.6** and explicitly confirmed audible six-note Godot playback plus repeated playback from DualSense X. This is genuine upstream Godot 4.7.2 `AudioStreamPlayer` flowing through the native `AudioDriverPS5` into `libSceAudioOut`, **not** an API-only/dummy-driver confirmation.
+
+Only consider the **last M11d session** in the cumulative console logs, as older v0.1.5 sessions still contain dummy fallbacks, malformed `%llu` error formatting and AudioOut thread misclassification. The last v0.1.6 stdout segment confirms:
+
+```text
+GODOT_PS5_M11C_AUDIOOUT_INIT rc=0
+GODOT_PS5_M11C_AUDIOOUT_OPEN handle=536870912
+GODOT_PS5_M11D_AUDIOOUT_THREAD_STARTED
+GODOT_PS5_M11D_AUDIOOUT_OUTPUT_OK blocks=1
+GODOT_PS5_M11C_AUDIOOUT_READY rate=48000 channels=2 frames=256
+GODOT_PS5_M11C_AUDIOOUT_START
+GODOT_PS5_M11_AUDIO_MIX_RATE=48000.0
+GODOT_PS5_M11_AUDIO_PCM_READY bytes=529200 sample_rate=44100
+GODOT_PS5_M11_AUDIO_PLAYER_STARTED
+GODOT_PS5_M11D_AUDIOOUT_OUTPUT_OK blocks=2048
+GODOT_PS5_M11_AUDIO_X_REPLAY  # occurs nine times in final session
+GODOT_PS5_M11D_AUDIOOUT_CLOSE rc=0 blocks=2831 errors=0
+```
+
+Its matching `gles3-runtime.log` shows the selected external `/data/GodotPS5/games/m11-audio.pck`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`. **No M11d native AudioOut output-error markers and no dummy driver fallback in this session.** The latest stderr retains nonfatal `Could not load global script cache` and two leaked ObjectDB instances at exit; these do **not** block audible sound and should be investigated as separate compatibility/cleanup issues.
+
+- **Acceptance met:** audibility, X repeat, successful nonnegative AudioOut handle, 2,831 output blocks, 0 AudioOut output failures and graceful shutdown.
+- **Preserved:** native GLES3/Canvas2D, 2D Physics, TileMapLayer, FreeType labels and Savegames were previously hardware-confirmed; no inference that every previous feature was re-tested in the *audio* session.
+- **Next separate gates:** longer running audio/stop-resume, different sample formats and real game audio, and optional nonfatal script-cache cleanup.
+- **Distribution:** signed CI [#39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575), PR [#249](https://github.com/Yahballon/tmp_lap/pull/249) merged. The latest inspected default-branch TESTBUILD `version.json` still points to `0.1.5`; **do not misstate a v0.1.6 catalog release** until separately confirmed.
+
 ## M11d – Repaired real PS5 AudioOut Thread lifetime (23 October 2026)
 
 - **Hardware log evidence:** `bfpilot-download (26).tar` contains two v0.1.5 audio boot attempts. Both report `GODOT_PS5_M11C_AUDIOOUT_INIT rc=0`, `AUDIOOUT_OPEN handle=536870912`, then `AUDIOOUT_THREAD_START_FAIL`. STDERR explicitly says `All audio drivers failed, falling back to the dummy driver`; user hears nothing. Secondary problem: `vformat` rejects `%llu` and hides follow-up PS5 AudioOut return codes. Both attempts exit cleanly with `GODOT_RETURN=0` despite dummy audio.
@@ -205,7 +233,7 @@ The user confirmed saves work and provided `bfpilot-download (25)(1).tar`, which
 
 ## Roadmap: Was als Nächstes zu tun ist
 
-### P0 – M11c nativen PS5 AudioOut-Treiber entwickeln; M11b2 auf Hardware bestanden
+### P0 – M11d Audio auf PS5 bestätigt; nächster Schritt Audio-Kompatibilität / weitere Godot-Spieltests
 
 - [x] `PPSA99847 v0.1.2` auf realer PS5 starten: vom Nutzer bestätigt.
 - [x] Pong-Bildschirm mit zwei Schlägern, bewegtem Ball, Spielfeld und Punktestand nachweisen: Video `20261022_234930_00248487(1).webm` bestätigt.
@@ -223,12 +251,12 @@ The user confirmed saves work and provided `bfpilot-download (25)(1).tar`, which
 - [x] **M10b-b PS5 / M10c Font-Pfad:** v0.1.4 mit Original-FreeType auf echter PS5 visualisiert; fünf Labels inklusive `Ä Ö Ü ß` im Nutzer-Screenshot `20261023_083016_00527039.png` sichtbar.
 - [ ] **M10c Detailabnahme:** X verändert Titel-Farbe/Text und danach optional stdout-/runtime-Logs für FONT_TEST_FINISHED, GODOT_RETURN=0, EGL_CLOSED nachreichen.
 - [x] **M11 host CI:** echte AudioStreamWAV/AudioStreamPlayer-Szene plus originale FileAccess-Save-Szene, inklusive erfolgreicher Persistenz über zwei getrennte Godot-Prozesse; Actions #39911102004 grün.
-- [ ] **M11a native AudioOut:** actual PS5 hearing test FAILED with v0.1.4 despite PCM and AudioStreamPlayer API working; implement and verify native audio driver separately.
+- [x] **M11a/M11d native AudioOut:** ursprünglich stumm unter v0.1.4/0.1.5; **jetzt unter v0.1.6 auf PS5 hörbar bestätigt**, nativer AudioDriverPS5 erfolgreich geöffnet, Ausgangspuffer fehlerfrei und X-Replay funktionsfähig.
 - [x] **M11c implementation:** Godot AudioDriverPS5 source + SDK AudioOut binding + standalone v0.1.5 CI workflow committed; static host tests pass.
-- [ ] **M11c PS5 candidate:** signed native v0.1.5 cross-link and real PS5 audibility unverified; do not mark audio working until user hearing report.
+- [x] **M11c/M11d PS5 AudioOut final:** v0.1.5-Thread-Fehler als Ursache nachgewiesen, mit v0.1.6 behoben und auf Hardware durch hörbare Audioausgabe samt erfolgreichem Exit bestätigt.
 - [x] **M11d root-cause analysis:** Real v0.1.5 PS5 log inspected; AudioOut init/open succeeded; upstream Godot 4.7.2 Thread::start ID-vs-Error mismatch and unsupported logger fixed in source.
 - [x] **M11d signierter Build:** Cross-CI 39924377575 erfolgreich; PPSA99847 v0.1.6 mit m11-audio.pck validiert, PR #249 gemergt.
-- [ ] **M11d Hardware-Hören:** Testinstall v0.1.6 auf Konsole, sechs Töne hörbar? X-Wiedergabe? Native `M11D_AUDIOOUT_THREAD_STARTED`, `M11C_AUDIOOUT_READY`, `M11D_AUDIOOUT_OUTPUT_OK`, keine Dummy-Fallback-Warnung, Exit 0 und EGL shutdown.
+- [x] **M11d PS5-Hardware-Audio:** v0.1.6, Nutzer bestätigt hörbare Töne und DualSense-X-Replays; letzter Lauf in `bfpilot-download (27).tar` zeigt 2.831 erfolgreiche AudioOut-Puffer, 0 Ausgabefehler, 9 X-Replays, `GODOT_RETURN=0`, `EGL_CLOSED` und `NORMAL_SHUTDOWN`.
 - [x] **M11b original PS5 diagnostic:** native file WRITE+immediate READBACK passed and a real file is preserved; existing file NOT recognized upon restart.
 - [x] **M11b2 host:** direct-open save recovery and visible status, two standalone Godot 4.7.2 processes PASS, Actions #39913555804.
 - [x] **M11b2 PS5 hardware:** Nutzer-TAR `bfpilot-download (25)(1).tar` bestätigt reale bestehende Save-Leseöffnung und persistente Zählerfolge 1→2→3→4 auf physischer PS5; mindestens zwei saubere App-Exits, tatsächlicher Save-Inhalt validiert.
@@ -282,4 +310,4 @@ The user confirmed saves work and provided `bfpilot-download (25)(1).tar`, which
 
 ---
 
-**Kurzfassung:** Echte PS5: GDScript/Canvas2D, 2D-Physik, TileMapLayer, FreeType-Labels und **persistente Godot-`user://`-Savegames** bestätigt (M11b2: drei neue Starts, 1→2→3→4, Datei auf Datenträger). **Audio bleibt stumm**, der Godot-PS5-Port benötigt einen echten `libSceAudioOut`-Treiber (Issue #247). Für Sound existiert bislang kein neuer getesteter Installer; v0.1.4 bleibt die bestätigte native Basis.
+**Kurzfassung:** Auf echter PS5 bestätigt: GDScript/GLES3/Canvas2D, originale 2D-Physik (inkl. RigidBody2D/Area2D/TileMapLayer), FreeType/Label-TTF, persistente `user://`-Savegames und seit **PPSA99847 v0.1.6 echte hörbare Godot-AudioStreamPlayer-Ausgabe über AudioDriverPS5/AudioOut** samt DualSense-X-Replay. Hardware-TAR `bfpilot-download (27).tar`: 2.831 Audioblöcke, 0 Fehler, sauberer Exit. Allgemeine Third-Party-Spielkompatibilität, zusätzliche Audioformate und Script-Cache-Warnungen bleiben getrennte Aufgaben. TESTBUILD-Main-Katalog zuletzt noch v0.1.5; Veröffentlichung separat prüfen.
