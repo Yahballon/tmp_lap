@@ -296,7 +296,7 @@ jobs:
               assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
               meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
               assert meta['titleId']=='PPSA99847'
-              assert meta['contentVersion']=='01.000.004'
+              assert meta['contentVersion']=='01.000.005'
           print('SIGNED GODOT M10C FREETYPE TEST BUILT; PS5 FONT RENDERING STILL UNVERIFIED')
           PY
       - uses: actions/upload-artifact@v4
