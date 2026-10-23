@@ -3,7 +3,7 @@
 **Projekt:** PS5-Godot-Homebrew-Port von YAHBALLON  
 **Stand:** 23. Oktober 2026 · PS5 Firmware **5.10** · Entwicklungsbranch `feature/godot-ps5-engine-foundation` · [PR #207](https://github.com/Yahballon/tmp_lap/pull/207)
 
-> **Aktueller Meilenstein: M11 AUF PS5 GEPRÜFT – AUDIO STUMM, SAVEGESCHICHTE DURCH USERDATA-EXISTENZABFRAGE NICHT ERKANNT (23. Oktober 2026).** Die Nutzerdaten `bfpilot-download (24).tar` enthalten einen M11-Audio-Lauf und **zwei** M11-Save-Läufe. Audio: `GODOT_PS5_M11_AUDIO_PCM_READY bytes=529200`, `AUDIO_PLAYER_STARTED`, `AUDIO_X_REPLAY` zweimal, `GODOT_RETURN=0`, aber Nutzer hört **keinen Sound**. Native `OS_PS5` registriert bislang keinen echten Audiotreiber, daher PS5-Audio **nicht bestanden**. Saves: beide Läufe loggen `SAVE_WRITE_OK current=1`, `SAVE_VERIFY_READBACK_OK`, `SAVE_FIRST_LAUNCH_PASS new=1`, Exit 0. Der TAR enthält dennoch physisch die intakte Datei `userdata/GodotPS5M11Saves/m11-save-v1.txt` mit `GODOT_PS5_M11_SAVE_V1|1|960\n`. Wahrscheinliche Ursache ist **Godot `FileAccessUnix::file_exists()` mit inkompatiblen `stat/access`**, nicht fehlender Schreibzugriff. **M11b2** behält den Spielstand und öffnet ihn direkt via `FileAccess.open(READ)`, zeigt lesbaren Zustand mit echter TTF-Label-UI. **Host-CI #39913555804 bestanden**, bereit für PS5; Audio benötigt separaten nativen Treiber.
+> **Aktueller Meilenstein: M11b2 SAVEGAME-PERSISTENZ AUF ECHTER PS5 BESTÄTIGT; M11a AUDIO WEITER STUMM (23. Oktober 2026).** Das Nutzerarchiv `bfpilot-download (25)(1).tar` belegt **drei getrennte native PS5-Starts mit korrekter Save-Wiederherstellung**: `GODOT_PS5_M11B2_DIRECT_READ_OK previous=1`, `RESTART_PERSISTENCE_PASS old=1 new=2`, dann `previous=2` / `old=2 new=3`, danach `previous=3` / `old=3 new=4`. Die echte exportierte Datei `userdata/GodotPS5M11Saves/m11-save-v1.txt` enthält `GODOT_PS5_M11_SAVE_V1|4|999\n`. Für mindestens zwei der neuen Läufe liegen `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED` vor; dritter Lauf mit intaktem Spielstand im TAR. **M11b2 auf physischer PS5 bestätigt.** Native Audioausgabe nicht implementiert: Der Nutzer hörte in M11a keine Töne, obwohl `AudioStreamPlayer` startete; [Audio-Treiber-Issue #247](https://github.com/Yahballon/tmp_lap/issues/247) ist weiter offen. **Kein neuer nativer Audiotest/Installer veröffentlicht** (neuester bestätigter PS5-Godot-Release v0.1.4).
 
 ## Bedeutung der Statusangaben
 
@@ -36,7 +36,7 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M10c | **Native FreeType + TextServerFallback PS5 v0.1.4** | Signierter [GitHub v0.1.4-Release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.4), Original-Godot-4.7.2-FreeType eingebunden; physisches PS5-Bild zeigt korrekt gerenderte Press Start 2P-Lettern inklusive deutscher Umlaute aus unabhängigem externem PCK | ✅ **PS5 visuelles FreeType/Label-Akzeptanzkriterium erfüllt; X/Exit separat offen** |
 | M11a | **Original Godot `AudioStreamWAV`/`AudioStreamPlayer`** | Echte PS5 `bfpilot-download (24).tar`: `AUDIO_PCM_READY bytes=529200`, `AUDIO_PLAYER_STARTED`, X-Replay erkannt, Exit 0, **aber subjektiv kein hörbarer Ton**. Native PS5-Godot-Engine hat bislang keinen echten AudioOut-Treiber registriert | ❌ **Audio PS5 stumm; native AudioOut-Integration nötig** |
 | M11b | **Godot `FileAccess` mit `user://`-Save** | Echte PS5, zwei Sessions: `SAVE_WRITE_OK current=1` und `VERIFY_READBACK_OK` erfolgreich; **zweiter Start erkennt vorhandene Save-Datei nicht**, obwohl `userdata/GodotPS5M11Saves/m11-save-v1.txt` im Nutzer-TAR vorhanden und valide ist | 🟡 **Schreiben klappt; Neustart-Erkennung schlägt fehl** |
-| M11b2 | **Direktes Save-Öffnen + sichtbare Status/Counter-Labels** | `FileAccess.open(READ)` statt unzuverlässigem `FileAccess.file_exists()`, lesbare TRUE TYPE-Anzeige `FIRST SAVE CREATED` / `SAVE RESTORED`, sichere Behandlung unerwarteter Dateifehler. Original Godot-4.7.2-Host: **zwei Prozesse PASS** [#39913555804](https://github.com/Yahballon/tmp_lap/actions/runs/39913555804), PCK SHA256 `8c914bbbb9f5f0c6deb5477e9e6f173a558dd1e9420bb52524eed3de4022e3bf` | 🟡 Host bestanden; **PS5-Abnahme offen** |
+| M11b2 | **Godot `user://`-Save über vollständige PS5-App-Neustarts** | Echte Konsole, `bfpilot-download (25)(1).tar`: drei hintereinander erfolgreiche `DIRECT_READ_OK`/`RESTART_PERSISTENCE_PASS`-Läufe **1→2→3→4**, exportierte Save-Datei `GODOT_PS5_M11_SAVE_V1|4|999`, mindestens zwei vollständige `GODOT_RETURN=0`/`EGL_CLOSED`/`NORMAL_SHUTDOWN`-Läufe | ✅ **Echte PS5-Persistenz 3× bestätigt** |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -168,6 +168,12 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 - **M11a PS5 hardware gate:** tester must **hear** six ascending/descending tones from TV/headphones, optionally X to replay; collect `gles3-stdout.log`/`gles3-stderr.log`/`gles3-runtime.log` to distinguish actual output from dummy driver. No hardware status assigned until user confirms audibility.
 - **M11b PS5 hardware gate:** start `m11-saves.pck` **twice with a complete PS5 homebrew exit and relaunch between runs**, without changing `launch.txt`. First blue/cyan screen plus `GODOT_PS5_M11_SAVE_FIRST_LAUNCH_PASS`, then green screen plus `GODOT_PS5_M11_SAVE_RESTART_PERSISTENCE_PASS old=1 new=2` (or incrementing previous counter if already run). Require native `GODOT_RETURN=0` and `EGL_CLOSED` separately for both sessions; keep other user saves untouched. A red test/fail marker indicates a real missing platform capability.
 
+## M11b2 PS5 save persistence ACCEPTED (23 October 2026)
+
+The user confirmed saves work and provided `bfpilot-download (25)(1).tar`, which **independently contains three successful M11b2 restarts** and a live save file. The direct-read workaround bypasses the broken libc `file_exists` metadata query; on-console stdout proves `DIRECT_READ_OK previous=1`, `RESTART_PERSISTENCE_PASS old=1 new=2`, then `previous=2`/`old=2 new=3`, finally `previous=3`/`old=3 new=4`. The TAR's stored `userdata/GodotPS5M11Saves/m11-save-v1.txt` is `GODOT_PS5_M11_SAVE_V1|4|999\n`, which validates the final counter/checksum. At least two complete M11b2 sessions in `gles3-runtime.log` have `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`. **Mark M11b2 physical hardware gate PASSED**. This fixture demonstrates Godot `user://` persistence by direct file opening; it does **not** make Godot's generic `FileAccessUnix.file_exists` reliable on PS5 and does not prove every filesystem API.
+
+**M11a audio remains NOT WORKING** on the user's PS5. The active implementation issue is [#247](https://github.com/Yahballon/tmp_lap/issues/247). No new native audio driver build/release has been verified; do not tell the user the old audio PCK can fix muted sound without a FreeBSD/PS5 AudioOut backend.
+
 ## M11 PS5 diagnostics and M11b2 save recovery (23 October 2026)
 
 **PS5 evidence from user TAR `bfpilot-download (24).tar`:**
@@ -180,7 +186,7 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 
 ## Roadmap: Was als Nächstes zu tun ist
 
-### P0 – M11b2 restart-persistence PS5 test; M11c native AudioOut backend
+### P0 – M11c nativen PS5 AudioOut-Treiber entwickeln; M11b2 auf Hardware bestanden
 
 - [x] `PPSA99847 v0.1.2` auf realer PS5 starten: vom Nutzer bestätigt.
 - [x] Pong-Bildschirm mit zwei Schlägern, bewegtem Ball, Spielfeld und Punktestand nachweisen: Video `20261022_234930_00248487(1).webm` bestätigt.
@@ -201,7 +207,7 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 - [ ] **M11a native AudioOut:** actual PS5 hearing test FAILED with v0.1.4 despite PCM and AudioStreamPlayer API working; implement and verify native audio driver separately.
 - [x] **M11b original PS5 diagnostic:** native file WRITE+immediate READBACK passed and a real file is preserved; existing file NOT recognized upon restart.
 - [x] **M11b2 host:** direct-open save recovery and visible status, two standalone Godot 4.7.2 processes PASS, Actions #39913555804.
-- [ ] **M11b2 PS5 hardware:** user must run new PCK and confirm green `SAVE RESTORED`, `DIRECT_READ_OK` and `RESTART_PERSISTENCE_PASS` after console restart.
+- [x] **M11b2 PS5 hardware:** Nutzer-TAR `bfpilot-download (25)(1).tar` bestätigt reale bestehende Save-Leseöffnung und persistente Zählerfolge 1→2→3→4 auf physischer PS5; mindestens zwei saubere App-Exits, tatsächlicher Save-Inhalt validiert.
 
 ### P1 – Echte eigene Godot-4-PCKs laden
 
@@ -252,4 +258,4 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 
 ---
 
-**Kurzfassung:** GDScript/Canvas2D/2D-Physik/TileMapLayer/FreeType sichtbar auf PS5 bestätigt. **M11a Audio FAILED on PS5 (stumm),** da native Godot-PS5-Plattform keinen AudioOut-Treiber registriert. **M11b WRITE und READBACK auf PS5 funktionieren,** aber altes `FileAccessUnix::file_exists` erkennt gespeicherte Datei nach Neustart nicht; M11b2 direkte Leseöffnung und sichtbarer Status bereits auf Godot 4.7.2 Host getestet, PS5-Test folgt. Original v0.1.4 bleibt unverändert.
+**Kurzfassung:** Echte PS5: GDScript/Canvas2D, 2D-Physik, TileMapLayer, FreeType-Labels und **persistente Godot-`user://`-Savegames** bestätigt (M11b2: drei neue Starts, 1→2→3→4, Datei auf Datenträger). **Audio bleibt stumm**, der Godot-PS5-Port benötigt einen echten `libSceAudioOut`-Treiber (Issue #247). Für Sound existiert bislang kein neuer getesteter Installer; v0.1.4 bleibt die bestätigte native Basis.
