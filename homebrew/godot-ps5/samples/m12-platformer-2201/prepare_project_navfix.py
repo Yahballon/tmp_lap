@@ -27,9 +27,12 @@ def disable_navigation(project: Path) -> None:
         data=path.read_text(encoding="utf-8")
         for label in LAYER_NAMES:
             rgx=rf'(?m)^(\[node name="{label}" type="TileMapLayer"[^\n]*\]\n)'
-            data,n=re.subn(rgx,r'\1navigation_enabled = false\n',data)
-            if n != 1:
-                raise RuntimeError(f"{filename}: expected exactly one {label} TileMapLayer; found {n}")
+            matches=list(re.finditer(rgx,data))
+            if len(matches)!=1:
+                raise RuntimeError(f"{filename}: expected exactly one {label} TileMapLayer; found {len(matches)}")
+            header_end=matches[0].end()
+            if not data[header_end:].startswith("navigation_enabled = false\\n"):
+                data=data[:header_end] + "navigation_enabled = false\\n" + data[header_end:]
             count+=1
         if 'tile_set = SubResource(' not in data or 'physics_layer_0/collision_layer = 1' not in data:
             raise RuntimeError(f"{filename}: physics collisions unexpectedly missing")
