@@ -1,0 +1,250 @@
+name: ZQuest Original ZPlayer PS5 Cross-Compilation Probe
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/zquestclassic-ps5/engine/ps5_zplayer_*'
+      - '.github/workflows/zquestclassic-full-zplayer-cross-probe.yml'
+permissions:
+  contents: read
+jobs:
+  actual-upstream-zplayer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools for native PS5 cross-build
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make git ccache ca-certificates \
+            pkg-config python3 python3-pip curl unzip tar python3-pil libfmt-dev nlohmann-json3-dev zlib1g-dev
+          python3 -m pip install --break-system-packages 'cmake>=3.29,<4.1'
+          cmake --version
+      - name: Restore PS5 compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: zquest-native-zplayer-ccache-v1-${{ github.run_id }}
+          restore-keys: |
+            zquest-native-zplayer-ccache-v1-
+      - name: Configure compiler cache
+        run: |
+          ccache --max-size=1500M
+          ccache --zero-stats
+          ccache --show-stats
+      - name: Fetch pinned ZQuestClassic and PS5 SDL2 sources
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/zcps5-full-zplayer"
+          mkdir -p "$work"
+          git init "$work/upstream"
+          git -C "$work/upstream" remote add origin https://github.com/ZQuestClassic/ZQuestClassic.git
+          git -C "$work/upstream" fetch --depth 1 origin c44dde7d0146da78bf8b541af457d5ff4e67a830
+          git -C "$work/upstream" checkout --detach FETCH_HEAD
+          git init "$work/sdl2-ps5"
+          git -C "$work/sdl2-ps5" remote add origin https://github.com/OpenAGC/SDL2.git
+          git -C "$work/sdl2-ps5" fetch --depth 1 origin ee4c47dc0d617b3bc8f35108f9956baf228a1322
+          git -C "$work/sdl2-ps5" checkout --detach FETCH_HEAD
+          git init "$work/allegro5-ps5-probe"
+          git -C "$work/allegro5-ps5-probe" remote add origin https://github.com/connorjclark/allegro5.git
+          git -C "$work/allegro5-ps5-probe" fetch --depth 1 origin aae80ca3573e19702cfc2338591a575dc75eb647
+          git -C "$work/allegro5-ps5-probe" checkout --detach FETCH_HEAD
+          git init "$work/ps5-platform"
+          git -C "$work/ps5-platform" remote add origin https://github.com/mihawk-99/PS5_PayloadSDK.git
+          git -C "$work/ps5-platform" fetch --depth 1 origin b5efad528e0ac1b8289f39d72a0e890ff68ff0a6
+          git -C "$work/ps5-platform" checkout --detach FETCH_HEAD
+      - name: Stage official LLVM 18 emulated TLS runtime for Mesa
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/zcps5-full-zplayer/compiler-rt"
+          mkdir -p "$dest"
+          base="https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-18.1.8/compiler-rt/lib/builtins"
+          for name in emutls.c int_lib.h int_types.h int_endianness.h int_util.h; do
+            curl -fsSL --retry 3 "$base/$name" -o "$dest/$name"
+            test -s "$dest/$name"
+          done
+          grep -q '__emutls_get_address' "$dest/emutls.c"
+          grep -q 'Apache-2.0 WITH LLVM-exception' "$dest/emutls.c"
+          echo "LLVM18_REAL_EMUTLS_RUNTIME_STAGED"
+      - name: Test Mesa libc compatibility on host
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -D_GNU_SOURCE -DZC_PS5_COMPAT_HOST_TEST=1 \
+            homebrew/zquestclassic-ps5/engine/ps5_mesa_libc.c \
+            homebrew/zquestclassic-ps5/engine/ps5_mesa_libc_test.c \
+            -o /tmp/zcps5-mesa-test
+          /tmp/zcps5-mesa-test
+      - name: Stage real PS5 SDK and compiler wrapper
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          bash -x homebrew/zquestclassic-ps5/engine/prepare_boot_probe_deps.sh
+          chmod +x app/tooling/prospero-clang18
+          test -x app/tooling/prospero-clang18
+          test -f app/.deps/native/ps5-payload-sdk/target/include/c++/v1/vector
+      - name: Validate engine boot-log injection before native build
+        run: |
+          set -euo pipefail
+          staged="$RUNNER_TEMP/zquest-bootlog-test"
+          mkdir -p "$staged"
+          python3 homebrew/zquestclassic-ps5/engine/prepare_app_crt_for_ps5_zplayer.py \
+            app/tooling/native/app_crt.cpp "$staged/app_crt.cpp"
+          cp "$RUNNER_TEMP/zcps5-full-zplayer/upstream/src/zc/zelda.cpp" "$staged/zelda.cpp"
+          python3 homebrew/zquestclassic-ps5/engine/instrument_engine_bootlog.py \
+            --crt "$staged/app_crt.cpp" --zelda "$staged/zelda.cpp"
+          grep -Fq '/data/ZQuestEngineBoot/logs/boot.log' "$staged/app_crt.cpp"
+          grep -Fq '/data/ZQuestEngineBoot/logs/crash.log' "$staged/app_crt.cpp"
+          grep -Fq 'BEFORE_ALLEGRO_SETUP' "$staged/zelda.cpp"
+          grep -Fq 'ZPLAYER_MAIN_ENTER' "$staged/zelda.cpp"
+          python3 -m py_compile homebrew/zquestclassic-ps5/engine/instrument_engine_bootlog.py
+      - name: Pin tested PS5 OpenGL native SDK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/tools/fetch-opengl-sdk.sh")
+          s=p.read_text()
+          assert "version=1.0.0" in s
+          assert "archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5" in s
+          s=s.replace("version=1.0.0","version=1.0.2")
+          s=s.replace("archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5",
+                      "archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4")
+          s=s.replace("github.com/blackbearreloaded/ps5-opengl","github.com/LedyBacer/ps5-opengl")
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "PS5 OpenGL SDK manifest validation previously pinned" >&2'+s[end:]
+          p.write_text(s)
+          PY
+      - name: Prepare PS5 EGL and OpenGL SDK libraries
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+        run: |
+          bash tools/prepare-opengl.sh
+          test -f .deps/ps5-opengl/current/include/GL/glcorearb.h
+          test -f .deps/ps5-opengl/current/lib/libPS5OpenGL.a
+      - name: Build actual PS5 libc locale compatibility library
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '0'
+        run: |
+          set -euo pipefail
+          sdk="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          export PS5_PAYLOAD_SDK="$sdk"
+          platform="$RUNNER_TEMP/zcps5-full-zplayer/ps5-platform"
+          test "$(git -C "$platform" rev-parse HEAD)" = "b5efad528e0ac1b8289f39d72a0e890ff68ff0a6"
+          # Only compile the actual native C-locale services. The complete
+          # platform library includes a different kernel ucontext ABI, and
+          # is NOT suitable for this unmodified PS5 payload SDK.
+          make -C "$platform/platform" \
+            CC="$GITHUB_WORKSPACE/app/tooling/prospero-clang18" \
+            AR=llvm-ar-18 -j 2 \
+            build/ps5/locale.o build/ps5/xlocale.o
+          llvm-ar-18 rcs "$platform/platform/build/ps5/libzcps5locale.a" \
+            "$platform/platform/build/ps5/locale.o" \
+            "$platform/platform/build/ps5/xlocale.o"
+          test -s "$platform/platform/build/ps5/libzcps5locale.a"
+          echo "REAL_PS5_LIBC_LOCALE_ARCHIVE_READY"
+      - name: Attempt genuine zplayer cross-compile
+        env:
+          PS5_CLANG: clang-18
+          USE_CCACHE: '1'
+          CCACHE_COMPRESS: 'true'
+        run: |
+          export PS5_PAYLOAD_SDK="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          export PS5_DEVBRIDGE_TOOL="$GITHUB_WORKSPACE/app/tooling/prospero-clang18"
+          export PS5_OPENGL_PREFIX="$GITHUB_WORKSPACE/app/.deps/ps5-opengl/current"
+          export ZC_PS5_MESA_COMPAT_SOURCE="$GITHUB_WORKSPACE/homebrew/zquestclassic-ps5/engine/ps5_mesa_libc.c"
+          export ZC_PS5_EMUTLS_SOURCE="$RUNNER_TEMP/zcps5-full-zplayer/compiler-rt/emutls.c"
+          bash homebrew/zquestclassic-ps5/engine/ps5_zplayer_full_probe.sh
+      - name: Verify linked original zplayer ELF
+        if: success()
+        run: |
+          set -euo pipefail
+          binary="$RUNNER_TEMP/zcps5-full-zplayer/build/zplayer"
+          test -s "$binary"
+          grep -aFq '/data/ZQuestEngineBoot/logs/boot.log' "$binary"
+          grep -aFq 'ZPLAYER_MAIN_ENTER' "$binary"
+          grep -aFq 'BEFORE_STATIC_CONSTRUCTORS' "$binary"
+          file "$binary"
+          llvm-readelf-18 -h "$binary" | tee "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
+          grep -q 'Machine:.*Advanced Micro Devices X86-64' "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-elf-header.txt"
+          echo 'LINKED_REAL_ZPLAYER_ELF=YES (still not verified runnable or packaged as PS5 FSELF)'
+      - name: Audit real PS5 boot readiness without mistaking ELF for FSELF
+        if: success()
+        run: |
+          set -euo pipefail
+          python3 homebrew/zquestclassic-ps5/engine/check_ps5_boot_contract.py \
+            "$RUNNER_TEMP/zcps5-full-zplayer/build/zplayer" \
+            --report "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-boot-readiness.json"
+          python3 - "$RUNNER_TEMP/zcps5-full-zplayer/zplayer-boot-readiness.json" <<'PY'
+          import json, sys
+          result=json.load(open(sys.argv[1]))
+          assert result["full_upstream_engine_linked"] is True
+          assert result["ps5_fself_packaged"] is False
+          assert result["ready_for_testbuilds"] is False
+          print("ELF validated as engine milestone; PS5 FSELF/boot verification still required")
+          PY
+      - name: Attempt PS5 FSELF conversion of actual zplayer (not hardware verified)
+        if: success()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/zcps5-full-zplayer/fself"
+          mkdir -p "$out"
+          binary="$RUNNER_TEMP/zcps5-full-zplayer/build/zplayer"
+          tool="$GITHUB_WORKSPACE/app/build/host/ps5-native-tool"
+          sdk="$GITHUB_WORKSPACE/app/.deps/native/ps5-payload-sdk"
+          bash app/tools/build-host-tools.sh
+          test -x "$tool"
+          llvm-readelf-18 -W -S "$binary" > "$out/sections.txt"
+          "$tool" link --in "$binary" --out "$out/eboot.elf" \
+            --stub-dir "$sdk/target/lib" \
+            --module-sdk 0x02000009 --companion-sdk 0x08050001 \
+            --heap-size 0xffffffffffffffff --file-name eboot.elf \
+            > "$out/link.log" 2>&1 || { cat "$out/link.log"; exit 1; }
+          "$tool" self --sign --in "$out/eboot.elf" \
+            --out "$out/eboot.bin" --magic 0x1D3D154F \
+            > "$out/sign.log" 2>&1 || { cat "$out/sign.log"; exit 1; }
+          "$tool" self --inspect --file "$out/eboot.bin" > "$out/inspect.txt"
+          test -s "$out/eboot.bin"
+          echo "PS5_FSELF_BUILT_BUT_BOOT_UNVERIFIED" | tee "$out/status.txt"
+      - name: Preserve real zplayer FSELF conversion diagnostic (boot unverified)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-ZPlayer-PS5-FSELF-CONVERSION-BOOT-UNVERIFIED
+          path: |
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/eboot.bin
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/eboot.elf
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/sections.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/link.log
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/sign.log
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/inspect.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/fself/status.txt
+          if-no-files-found: warn
+      - name: Save original PS5 zplayer link artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-Original-ZPlayer-PS5-Linked-ELF-NOT-PLAYABLE-OR-INSTALLABLE
+          path: |
+            ${{ runner.temp }}/zcps5-full-zplayer/build/zplayer
+            ${{ runner.temp }}/zcps5-full-zplayer/zplayer-elf-header.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/zplayer-boot-readiness.json
+            ${{ runner.temp }}/zcps5-full-zplayer/results.txt
+          if-no-files-found: error
+      - name: Export complete real-engine compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZQuest-ZPlayer-PS5-Full-CMake-Compile-Logs-NOT-PLAYABLE
+          path: |
+            ${{ runner.temp }}/zcps5-full-zplayer/configure.log
+            ${{ runner.temp }}/zcps5-full-zplayer/compile.log
+            ${{ runner.temp }}/zcps5-full-zplayer/results.txt
+            ${{ runner.temp }}/zcps5-full-zplayer/build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: warn
+# No pretend playable artifact, no release/TESTBUILDS mutation here.

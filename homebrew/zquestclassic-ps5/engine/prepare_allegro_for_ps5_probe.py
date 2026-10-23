@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""PS5-only Allegro CMake diagnostic: test desktop GLU dependency.
+
+Do not stub any OpenGL/GLU symbols or claim successful graphics. The pinned
+Allegro fork blocks its SDL backend unless BOTH desktop OpenGL and GLU are
+reported. PS5 OpenGL exists, but ps5-opengl has no GLU. Relax exactly this
+CMake configure condition to discover whether real GLU symbols are needed
+by compile/link stages, where missing functions must still fail.
+The upstream source is staged and remains pinned; runtime code unchanged.
+"""
+from pathlib import Path
+import argparse
+p=argparse.ArgumentParser()
+p.add_argument("allegro_root",type=Path)
+args=p.parse_args()
+path=args.allegro_root/"CMakeLists.txt"
+text=path.read_text()
+condition="if(OPENGL_FOUND AND OPENGL_GLU_FOUND)"
+new_condition="if(OPENGL_FOUND AND (OPENGL_GLU_FOUND OR ZC_PS5_NO_GLU_PROBE))"
+assert text.count(condition)==1,"Pinned Allegro OpenGL guard changed"
+assert 'message(FATAL_ERROR "SDL support currently requires OpenGL or OpenGL ES support.")' in text
+assert 'if(OPENGL_opengl_LIBRARY)' in text
+text=text.replace(condition,new_condition,1)
+start_marker="install(\n  TARGETS ${ALLEGRO_TARGETS}\n  EXPORT ${PKG_TARGETS_NAME}\n)"
+end_marker="#-----------------------------------------------------------------------------#"
+assert text.count(start_marker)==1,"Allegro install/export block changed"
+start=text.index(start_marker)
+end=text.index(end_marker,start)
+assert "export(EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
+assert "install(\n  EXPORT ${PKG_TARGETS_NAME}" in text[start:end]
+text=text[:start]+"# PS5 probe: omit desktop package exports for SDL2-static.\n"+text[end:]
+# The Allegro SDL backend must not pull in desktop UNIX devices or
+# separate libm/libpthread link flags on the PS5, where the SDK supplies
+# libc math/thread functionality. Link resolution will still check symbols.
+unix='if(ALLEGRO_UNIX) # not MACOSX\n    list(APPEND LIBRARY_SOURCES ${ALLEGRO_SRC_UNIX_FILES})\n    list(APPEND PLATFORM_LIBS m ${CMAKE_THREAD_LIBS_INIT})\nendif(ALLEGRO_UNIX)'
+assert text.count(unix)==1, "Pinned Allegro UNIX library declaration changed"
+text=text.replace(unix, 'if(ALLEGRO_UNIX AND NOT ZC_PS5_NO_DESKTOP_UNIX_LIBS) # not MACOSX\n    list(APPEND LIBRARY_SOURCES ${ALLEGRO_SRC_UNIX_FILES})\n    list(APPEND PLATFORM_LIBS m ${CMAKE_THREAD_LIBS_INIT})\nendif()',1)
+sdl='list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY} m)'
+assert text.count(sdl)==1, "Pinned Allegro SDL library declaration changed"
+text=text.replace(sdl, 'if(ZC_PS5_NO_DESKTOP_UNIX_LIBS)\n        list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY})\n    else()\n        list(APPEND PLATFORM_LIBS ${SDL2_LIBRARY} m)\n    endif()',1)
+path.write_text(text)
+
+# The PS5 libc exposes POSIX strerror_r, not the Annex-K strerror_s.
+# This Allegro file's generated flags incorrectly enable both; only disable
+# this unreachable error-reporting fallback in the staged PS5 C source.
+stdio=args.allegro_root/"src/file_stdio.c"
+source=stdio.read_text()
+guard="#if defined(ALLEGRO_HAVE_STRERROR_S)"
+assert source.count(guard)==1,"Pinned Allegro libc guard changed"
+assert "strerror_r(userdata->errnum" in source
+assert "strerror_s(userdata->errmsg" in source
+source=source.replace(guard,"#if defined(ALLEGRO_HAVE_STRERROR_S) && !defined(ZC_PS5_LIBC_NO_STRERROR_S)",1)
+stdio.write_text(source)
+
+# The pinned extensions.c includes GLU unconditionally for desktop OpenGL,
+# but uses no GLU functions (only commented-out diagnostic gluGetString).
+# PS5 core OpenGL has no GLU header. Skip this unused header in PS5 build,
+# without inventing a GLU implementation.
+ext=args.allegro_root/"src/opengl/extensions.c"
+ext_source=ext.read_text()
+glu_guard="#elif !defined ALLEGRO_CFG_OPENGLES"
+assert ext_source.count(glu_guard)==1,"Upstream GLU preprocessor guard changed"
+assert ext_source.count("#include <GL/glu.h>")==1
+assert "gluGetString(GLU_VERSION);" in ext_source  # commented-out upstream use
+ext_source=ext_source.replace(glu_guard,
+    "#elif !defined ALLEGRO_CFG_OPENGLES && !defined(ZC_PS5_NO_GLU_HEADER)",1)
+ext.write_text(ext_source)
+
+# Clang C11 on the PS5 SDK correctly requires the tolower declaration.
+# Upstream SDL keyboard file uses tolower without including <ctype.h>.
+keyboard=args.allegro_root/"src/sdl/sdl_keyboard.c"
+kb=keyboard.read_text()
+assert 'tolower(#X[0])' in kb
+assert "#include <ctype.h>" not in kb
+assert kb.count('#include "allegro5/allegro.h"')==1
+kb=kb.replace('#include "allegro5/allegro.h"',
+              '#include <ctype.h>\n#include "allegro5/allegro.h"',1)
+keyboard.write_text(kb)
+print("PS5 Allegro: bypass unused GLU header and missing strerror_s, no desktop exports; no shims")
+
+# FindDUMB.cmake unconditionally appends desktop libm for non-MSVC targets.
+# PS5 native math is supplied by SDK imports, not a separate -lm library.
+# Keep the real DUMB decoder intact and remove only the extra link flag.
+dumb_find=args.allegro_root/"cmake/FindDUMB.cmake"
+dumb_cmake=dumb_find.read_text()
+needle="  if(NOT MSVC)\n    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\n  endif()"
+assert dumb_cmake.count(needle)==1,"Pinned Allegro FindDUMB math linkage changed"
+dumb_cmake=dumb_cmake.replace(
+    needle,
+    "  if(NOT MSVC AND NOT ZC_PS5_NO_DESKTOP_UNIX_LIBS)\n"
+    "    set(DUMB_LIBRARIES ${DUMB_LIBRARIES};m)\n"
+    "  endif()",1)
+dumb_find.write_text(dumb_cmake)
