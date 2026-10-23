@@ -29,4 +29,11 @@ assert "const int32_t sample = driver->godot_samples[i] >> 16;" in driver
 assert "driver->unlock();" in driver
 assert driver.index("driver->unlock();") < driver.index("sceAudioOutOutput(driver->handle,")
 assert "GODOT_PS5_M11C_AUDIOOUT" not in (root/"scripts/build-engine.sh").read_text()
+
+workflow=(root.parent.parent/".github/workflows/build-godot-ps5-m11c-native-audioout.yml").read_text()
+assert "contentVersion='01.000.006'" in workflow, "stage must set v0.1.5"
+assert "assert meta['contentVersion']=='01.000.006'" in workflow, "ZIP check must expect v0.1.5"
+assert "GODOT_PS5_AUDIOOUT: '1'" in workflow
+assert "libSceAudioOut.so" in workflow
+assert "Godot-PS5-M11c-NATIVE-AUDIOOUT-v0.1.5-PS5-HARDWARE-UNTESTED" in workflow
 print("GODOT_PS5_M11C_DRIVER_SOURCE_OK true AudioDriver, mixer, blocking AudioOut, safe opt-in")
