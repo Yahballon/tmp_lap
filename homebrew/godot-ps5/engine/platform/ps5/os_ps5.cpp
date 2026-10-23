@@ -23,6 +23,11 @@ extern "C" void godot_ps5_set_scene_frame_callback(GodotPS5SceneFrameCallback cb
 #endif
 
 OS_PS5::OS_PS5() {
+#ifdef GODOT_PS5_AUDIOOUT
+    // Before Main::setup() selects a driver; fail closed if AudioOut cannot open.
+    AudioDriverManager::add_driver(&audio_driver);
+    print_line("GODOT_PS5_M11C_AUDIOOUT_DRIVER_REGISTERED");
+#endif
 #ifdef GODOT_PS5_DISPLAY_EXPERIMENT
     // Godot registers graphical backends in the platform OS constructor,
     // before Main::setup() picks the display driver.
