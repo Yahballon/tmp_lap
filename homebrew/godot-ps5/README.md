@@ -1,9 +1,42 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer, `PPSA99847 v0.1.2` Pong **auf PS5 spielend gezeigt** und **M8c externes Godot-PCK auf PS5 vom Nutzer bestätigt** (zwei Szenen und X-Steuerung). Nächste offene Funktion: echte 2D-Physik `PhysicsServer2D`. Konsolenlogs für M8c-Exit/FPS stehen noch aus.
+> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer, Pong, externes Godot-PCK und **native GodotPhysics2D-Kollisionen auf PS5 bestätigt**. `PPSA99847 v0.1.3` bestand den M9-Test auf physischer PS5 zweimal mit `REAL_COLLISION_OK`, `TEST_PASS`, `GODOT_RETURN=0` und `EGL_CLOSED` (`bfpilot-download (21).tar`). Fonts, Audio, Saves und weitere Physik-Features sind noch nicht einzeln bestätigt.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M9b native PhysicsServer2D acceptance on PS5 (23 October 2026)
+
+**PASS – genuine upstream Godot 4.7.2 2D physics is running on a physical PS5.**
+The M9a sample `physics-smoke.pck` uses `CharacterBody2D.move_and_collide()` against
+a `StaticBody2D` wall with `CollisionShape2D`; no hand-coded bounce or
+visual-only stand-in. The known-good v0.1.2 previously ran with
+`PhysicsServer2DDummy` and timed out (`GODOT_RETURN=43`).
+
+The independent native `PPSA99847 v0.1.3` engine was built and signed in
+[Actions #39872101079](https://github.com/Yahballon/tmp_lap/actions/runs/39872101079)
+and [PR #238](https://github.com/Yahballon/tmp_lap/pull/238) enabled the
+real `godot_physics_2d` module. User-provided console logs
+(`bfpilot-download (21).tar`) contain **two** successful sessions:
+
+```text
+GODOT_PS5_M9_BODIES_READY
+GODOT_PS5_M9_REAL_COLLISION_OK x=1093.984375 normal=(-1.0, 0.0)
+GODOT_PS5_M9_TEST_PASS physics_frames=369
+GODOT_RETURN=0
+NORMAL_SHUTDOWN
+EGL_CLOSED
+```
+
+The two latest hardware sessions contain **no dummy PhysicsServer2D fallback warning**.
+Earlier appended logs in the same TAR retain old dummy warnings and timeouts
+from the previous build; distinguish sessions, rather than searching the
+full accumulated log for any old warning. Nonblocking `project.binary` and
+global script cache diagnostics still appear and can be revisited.
+
+This **does not yet establish** `RigidBody2D`, `Area2D`, `TileMap`, UI fonts,
+audio, savegames or general third-party game compatibility. Next milestone:
+broader Godot 2D API acceptance using separate external PCKs.
 
 ## M8c acceptance: independent Godot PCK on PS5 (23 October 2026)
 
