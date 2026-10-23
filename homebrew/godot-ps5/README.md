@@ -1,9 +1,55 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** Original Godot 4.7.2 GDScript/GLES3/Canvas2D, DualSense, Pong, externe PCKs, 2D-Physik (CharacterBody2D, RigidBody2D, Area2D, TileMapLayer), FreeType/Label TrueType und persistente `user://`-Savegames sind auf echter PS5 bestätigt. **Neu: ECHTES hörbares Godot-Audio über `AudioDriverPS5`/`libSceAudioOut` in PPSA99847 v0.1.6!** Der Nutzer bestätigt sechs Töne und X-Replay; PS5-TAR `bfpilot-download (27).tar` belegt Thread-Start, 48-kHz-Stereo, 2.831 ausgegebene Audioblöcke, null AudioOut-Fehler und normalen Shutdown. [Actions #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575) erfolgreich, [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt. **v0.1.6 ist jetzt auch als [GitHub-Release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.6) veröffentlicht und in der TESTBUILD-App über den Main-`version.json`-Katalog eingetragen** (23.10.2026, 08:48 UTC).
+> **Aktuell:** Original Godot 4.7.2 GDScript/GLES3/Canvas2D, DualSense, Pong, externe PCKs, 2D-Physik (CharacterBody2D, RigidBody2D, Area2D, TileMapLayer), FreeType/Label TrueType und persistente `user://`-Savegames sind auf echter PS5 bestätigt. **Neu: ECHTES hörbares Godot-Audio über `AudioDriverPS5`/`libSceAudioOut` in PPSA99847 v0.1.6!** Der Nutzer bestätigt sechs Töne und X-Replay; PS5-TAR `bfpilot-download (27).tar` belegt Thread-Start, 48-kHz-Stereo, 2.831 ausgegebene Audioblöcke, null AudioOut-Fehler und normalen Shutdown. [Actions #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575) erfolgreich, [PR #249](https://github.com/Yahballon/tmp_lap/pull/249) gemergt. **v0.1.6 ist jetzt auch als [GitHub-Release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.6) veröffentlicht und in der TESTBUILD-App über den Main-`version.json`-Katalog eingetragen** (23.10.2026, 08:48 UTC). **M12:** real MIT Godot Asset Library #2201 2D Platformer Starter Kit 1.1.1 packaged as separate external PCK for current native PS5 v0.1.6. [Godot 4.7.2 host CI #39930320591](https://github.com/Yahballon/tmp_lap/actions/runs/39930320591) passed with original two-level game's scene boot and floor collision. Real PS5 graphics, third-party audio, and platformer gameplay **not yet tested**.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M12 original 2D Platformer Starter Kit – third-party game PCK (23 October 2026)
+
+[Godot Asset Library #2201](https://godotengine.org/asset-library/asset/2201)
+**2D Platformer – Starter Kit 1.1.1** by G2P Studios / AdilDevStuff,
+MIT-licensed and pinned to upstream commit
+`a48fc994cbcb168be472df84f2e13b55d2a2792f`.
+
+This is a genuine third-party Godot 4.7 2D platformer, not a synthetic smoke
+test: includes **two existing levels**, CharacterBody2D gameplay,
+TileMapLayer floor/trap collision, animated sprites, coin score/HUD,
+camera, scene changes, original WAV effects, custom TTF font,
+and particles.
+
+The original source gameplay scripts remain intact. Our
+`samples/m12-platformer-2201/PS5Controls.gd` adapter adds DualSense
+**left stick / D-Pad move** and **Cross (X) jump** input actions and
+readable PS5 log markers. Renderer switches from Forward Plus to
+PS5 GLES3 Compatibility.
+
+**Full real Godot 4.7.2 desktop host CI**
+[#39930320591](https://github.com/Yahballon/tmp_lap/actions/runs/39930320591)
+succeeded: imported original sprites/fonts/WAV, built a Godot
+4.7 PCK with 92 included project+imported files,
+loaded `Level_01`, found the player at (150,318),
+and confirmed real floor collision at (150,447.959),
+without script errors. A separate PS5-ready
+`GodotPS5-M12-Platformer-Asset2201-PS5-TEST.zip`
+was produced and checksum-verified.
+The original MIT license and attribution are included.
+
+**Install for PS5 hardware validation:** keep TESTBUILD-installed
+**PPSA99847 v0.1.6**, extract the ZIP and copy its
+`GodotPS5/` contents into `/data/GodotPS5/`.
+This adds `games/m12-platformer-asset2201.pck` and
+overwrites only `launch.txt` with the PCK name.
+Launch Godot, move via stick/D-Pad and jump with X.
+Inspect two levels, imported visuals, coins, scene transitions
+and audible original effects. Share screenshots/video and
+`gles3-stdout.log`, `gles3-stderr.log`, `gles3-runtime.log`.
+Remove `launch.txt` to restore default Pong.
+
+**Host-validated only: full PS5 gameplay compatibility is unverified
+until the user confirms it on the physical console.**
+Detailed English docs: [M12_README.md](samples/m12-platformer-2201/M12_README.md).
+Source integration: [PR #250](https://github.com/Yahballon/tmp_lap/pull/250).
 
 ## M11d real audible PS5 Godot AudioStreamPlayer (23 October 2026)
 
