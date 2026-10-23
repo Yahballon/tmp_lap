@@ -5,6 +5,15 @@
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
+## M12b PS5 imported texture compatibility: WORKAROUND READY (2026-10-23)
+
+The M12 third-party original Platformer was **not compatible** with the tested PS5 engine. User screenshot showed a frozen upstream Godot splash; `bfpilot-download (28).tar` proves native `GODOT_RETURN=1` and a failed Level_01 after Godot `CompressedTexture2D` tries to load original lossless `.ctex` sprites. Original source import configs specify `compress/mode=0`, which embeds PNG/WebP data; the existing PS5 build does not have usable PNG/WebP Image unpackers. The PCK itself and GPU successfully initialize.
+
+**M12b** fixes the PCK WITHOUT a native engine rebuild: re-import eight PNGs plus the SVG icon as upstream `compress/mode=3` (VRAM Uncompressed) so `.ctex` has raw `DATA_FORMAT_IMAGE=0`; verify the binary field at offset 36 for each asset. A visible tiny PS5Boot loader replaces the opaque splash, then loads the original two-level game. Lightweight deferred audio/scene-manager autoloads keep the same original gameplay APIs.
+
+[Official Godot 4.7.2 Actions #39933593514](https://github.com/Yahballon/tmp_lap/actions/runs/39933593514) **PASSED**: nine raw textures, 99 packed files, staged asset probes, original Level_01 boot and grounded CharacterBody2D collision, original WAV sounds, no script errors. [PR #251](https://github.com/Yahballon/tmp_lap/pull/251).
+
+PS5 retest ZIP: **GodotPS5-M12b-Platformer-SplashFix-PS5-TEST.zip**, 625858 bytes, distinct 13271676-byte `m12b-platformer-asset2201.pck`, SHA256 `d2b62dd7c26dc77f8d187c05973e8aaba0da4335e73c2c6e9cec1ec121f4f7b7`. Extract/merge its `GodotPS5/` folder into `/data/GodotPS5/`, keep installed Godot PS5 v0.1.6. Other packs/saves are preserved and only `launch.txt` changes. **Still not physically validated**; request screenshot, audio/button report and new gles3 logs.
 ## M12 original 2D Platformer Starter Kit – third-party game PCK (23 October 2026)
 
 [Godot Asset Library #2201](https://godotengine.org/asset-library/asset/2201)
