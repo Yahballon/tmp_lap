@@ -1,6 +1,6 @@
 # M13 – Real PS5 intermittent stutter: native CPU vs EGL/GPU swap profiling
 
-**Date:** 2026-10-23. **Status:** The PS5 2D platformer is playable but can intermittently drop to ~7.5fps; new native v0.1.7 profiler is source-implemented and hardware measurement is pending. Do not call this a performance fix yet.
+**Date:** 2026-10-23. **Status:** The PS5 2D platformer is playable but intermittently drops to ~7.5fps. **M13 v0.1.7 native profiler is signed and published in TESTBUILD** ([full CI #39945288503](https://github.com/Yahballon/tmp_lap/actions/runs/39945288503), [experimental release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.7), [PR #254 merged](https://github.com/Yahballon/tmp_lap/pull/254)); **physical M13 profiling and a real lag fix are not yet confirmed**. Do not call this a performance fix yet.
 
 ## User's physical PS5 evidence: bfpilot-download (31).tar
 
@@ -40,7 +40,7 @@ Logs at most **8 individual spikes per five seconds**, plus one per 5s summary. 
 
 ## Test and next action
 
-Separate [M13 v0.1.7 signed native workflow](https://github.com/Yahballon/tmp_lap/actions/workflows/build-godot-ps5-m13-native-profiler.yml), [PR #254](https://github.com/Yahballon/tmp_lap/pull/254). It must pass native compilation, sign PPSA99847 with `contentVersion=01.000.008`, and preserve native AudioOut v0.1.6 before any public TESTBUILD catalog change.
+Separate [M13 v0.1.7 signed native workflow](https://github.com/Yahballon/tmp_lap/actions/workflows/build-godot-ps5-m13-native-profiler.yml), [PR #254](https://github.com/Yahballon/tmp_lap/pull/254). Full CI #39945288503 **PASSED** native Godot compile/link and signed PPSA99847 with `contentVersion=01.000.008` while retaining the prior AudioOut, Physics2D and FreeType dependencies. [GitHub pre-release v0.1.7](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.7) and TESTBUILD main catalog version 0.1.7 are now live. Official release `PPSA99847.zip` is 22,657,871 bytes (SHA256 `14fbeb713ef6f6cf7dc50c214eddfe0fd0e8bfe6961907c9b956f099be272705`). No physical 0.1.7 console performance claims yet.
 
 1. Install the signed **experimental v0.1.7** title from a verified successful CI artifact. Keep existing v0.1.6 ZIP for rollback.
 2. Leave `/data/GodotPS5/launch.txt` pointing to `m12d-platformer-asset2201.pck`. No external PCK rebuild required for native profiling.
