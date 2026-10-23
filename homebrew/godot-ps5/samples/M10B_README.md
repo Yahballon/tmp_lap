@@ -1,7 +1,7 @@
 # Godot PS5 M10b – TileMapLayer and Label/TTF support
 
 Independent **real Godot 4.7.2 external PCK tests**, compatible with the
-previously confirmed **PPSA99847 v0.1.3** native engine.
+previously confirmed **PPSA99847 v0.1.3** native physics engine for the TileMap test. **FONT FIX REQUIRES a new native v0.1.4 engine**: v0.1.3 lacks FreeType even though the Godot host builds the font PCK.
 
 ## A. Real TileMapLayer collision
 
@@ -19,6 +19,12 @@ Required stdout markers:
 `GODOT_PS5_M10B_TILEMAP_READY`,
 `GODOT_PS5_M10B_TILE_CONTACT_OK`,
 `GODOT_PS5_M10B_TILE_TEST_PASS`.
+
+## PS5 hardware results (23 October 2026)
+
+- **TileMap PASS:** Actual PS5 `bfpilot-download (23).tar` contains `GODOT_PS5_M10B_TILE_CONTACT_OK tilemap=RealTileMapPlatform normal=(0,-1) y=742.984375`, `GODOT_PS5_M10B_TILE_TEST_PASS tick=139`, native `GODOT_RETURN=0` and clean EGL shutdown.
+- **Font FAIL on native v0.1.3:** The external 118,204-byte `PressStart2P-Regular.ttf` was found, but after `GODOT_PS5_M10B_FONT_TTF_LOADED`, Godot emitted `GODOT_PS5_M10B_FONT_FAIL_GLYPH_A`, `GODOT_RETURN=93`. Native stderr: `FreeType: Can't load dynamic font, engine is compiled without FreeType support!`. **It is not a missing PCK; copying this PCK again does not repair it.**
+- **Native fix underway:** [M10c PR #243](https://github.com/Yahballon/tmp_lap/pull/243) builds `PPSA99847 v0.1.4` with upstream FreeType+TextServerFallback. Host and PS5 build results must be checked before installing. Keep `launch.txt` selecting `m10b-font-ui.pck`. PS5-visible glyph output still requires user validation.
 
 ## B. Real Label / TrueType / Unicode
 
@@ -73,7 +79,7 @@ After each test inspect:
 `/data/GodotPS5/gles3-runtime.log`,
 `/data/GodotPS5/gles3-stderr.log`.
 
-**Acceptance:** separate console proof for each fixture. Both require
+**Acceptance:** TileMap PS5 evidence already passed; the font test must be repeated on FreeType-enabled native v0.1.4. Both require
 `PACK_SOURCE=CONFIG`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`,
 `EGL_CLOSED`. An unreadable Label on PS5 means the font milestone
 remains OPEN even if CI and script logs are green. When finished remove
