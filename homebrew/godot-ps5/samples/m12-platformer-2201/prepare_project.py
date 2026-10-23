@@ -33,9 +33,30 @@ def prepare(project: Path) -> None:
     )
     raw = raw.replace('[autoload]\n', '[autoload]\n\n'
         'PS5Controls="*res://PS5Controls.gd"\n', 1)
+    # Load a tiny visible diagnostic scene first. The initial upstream boot
+    # splash could remain on PS5 forever with no indication of which asset
+    # stalled while building Level_01. Disable it and defer heavy resources.
+    raw = raw.replace(
+        'run/main_scene="res://Scenes/Levels/Level_01.tscn"',
+        'run/main_scene="res://PS5Boot.tscn"')
+    raw = raw.replace(
+        'boot_splash/image="res://Assets/Splash/2D Platformer Starter Kit Splash.png"',
+        'boot_splash/show_image=false')
+    raw = raw.replace(
+        'SceneTransition="*res://Scenes/Managers/SceneTransition.tscn"',
+        'SceneTransition="*res://SceneTransitionPS5.gd"')
+    raw = raw.replace(
+        'AudioManager="*res://Scenes/Managers/AudioManager.tscn"',
+        'AudioManager="*res://AudioManagerPS5.gd"')
+    assert 'boot_splash/show_image=false' in raw
+    assert 'SceneTransition="*res://SceneTransitionPS5.gd"' in raw
+    assert 'AudioManager="*res://AudioManagerPS5.gd"' in raw
     config.write_text(raw, encoding="utf-8")
     shutil.copy2(SOURCE / "PS5Controls.gd", project / "PS5Controls.gd")
     shutil.copy2(SOURCE / "pack_m12.gd", project / "pack_m12.gd")
+    for name in ["PS5Boot.gd", "PS5Boot.tscn", "AudioManagerPS5.gd",
+                 "SceneTransitionPS5.gd"]:
+        shutil.copy2(SOURCE / name, project / name)
     # Replace desktop-only tutorial hints; preserve the actual level scenes.
     level1 = project / "Scenes/Levels/Level_01.tscn"
     scene = level1.read_text(encoding="utf-8")
@@ -43,7 +64,7 @@ def prepare(project: Path) -> None:
     assert original in scene, "Original Level_01 tutorial text changed"
     scene = scene.replace(original, 'LEFT STICK / D-PAD\nX TO JUMP')
     level1.write_text(scene, encoding="utf-8")
-    print("GODOT_PS5_M12_UPSTREAM_PREPARED", ASSET_COMMIT)
+    print("GODOT_PS5_M12B_VISIBLE_BOOT_PREPARED", ASSET_COMMIT)
 
 def manifest(project: Path) -> int:
     imported = project / ".godot/imported"
