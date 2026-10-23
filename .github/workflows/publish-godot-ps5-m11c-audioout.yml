@@ -6,7 +6,7 @@ on:
         description: "Successful signed M11c AudioOut PS5 build on trusted engine branch"
         required: true
   workflow_run:
-    workflows: ['Godot PS5 M11c Native AudioOut/Label v0.1.5 (experimental)']
+    workflows: ['Godot PS5 M11c Native AudioOut v0.1.5 (experimental)']
     types: [completed]
 
 permissions:
@@ -51,7 +51,7 @@ jobs:
           assert r['repository']['full_name']=='Yahballon/tmp_lap'
           assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
           assert r['head_branch']=='feature/godot-ps5-engine-foundation'
-          assert r['name']=='Godot PS5 M11c Native AudioOut/Label v0.1.5 (experimental)'
+          assert r['name']=='Godot PS5 M11c Native AudioOut v0.1.5 (experimental)'
           assert r['event']=='push'
           assert r['status']=='completed' and r['conclusion']=='success'
           matches=[a for a in json.load(open('/tmp/m11c-artifacts.json'))['artifacts']
