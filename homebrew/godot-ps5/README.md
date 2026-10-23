@@ -1,7 +1,7 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer, Pong, externes Godot-PCK und **native GodotPhysics2D-Kollisionen auf PS5 bestätigt**. `PPSA99847 v0.1.3` bestand den M9-Test zweimal auf echter Hardware (`bfpilot-download (21).tar`). **M10a** – echtes `RigidBody2D`/`Area2D`-Test-PCK – ist auf Godot-4.7.2-Host CI bestätigt und als separater PS5-Testdownload bereit, aber **noch nicht auf PS5 getestet**. Fonts, Audio, Saves und TileMaps bleiben offen.
+> **Aktuell:** Original-Godot-4.7.2-GLES3/Canvas2D, Pong, unabhängige PCKs und echte GodotPhysics2D-Kollisionen laufen auf PS5. **M10a (`RigidBody2D`-Schwerkraft und `Area2D`-Eintritt/-Austritt) ist jetzt ebenfalls auf echter PS5 bestätigt**: zweimal `TEST_PASS ticks=143` plus `GODOT_RETURN=0` und `EGL_CLOSED`, geprüft aus `bfpilot-download (22).tar`. M10b (TileMapLayer/Labels) sowie Fonts, Audio und Saves sind noch offen.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
 
@@ -23,9 +23,7 @@ The workflow published an independent, ready-to-copy
 It runs with **already installed PPSA99847 v0.1.3** and does **not** replace
 the native PS5 executable, Pong, or the previous external PCKs.
 
-**Hardware acceptance is still pending.** The user must test the new PCK on
-the actual console and check `gles3-stdout.log`/`gles3-runtime.log`. Passing
-host CI does not establish working `RigidBody2D`/`Area2D` on PS5.
+**PS5 hardware acceptance PASSED (23 October 2026).** The user confirmed the falling-ball visual, and provided `bfpilot-download (22).tar`, including **two complete on-console sessions**. Both stdout runs log `GODOT_PS5_M10A_AREA_ENTER_OK y=409.258422851563`, `GODOT_PS5_M10A_AREA_EXIT_OK y=646.669494628906`, `GODOT_PS5_M10A_RIGID_CONTACT_OK y=777.437438964844`, and `GODOT_PS5_M10A_TEST_PASS ticks=143 rest_y=777.299987792969 velocity=(0.0, 0.0)`. Their runtime segments show `PACK_SOURCE=CONFIG`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`. The remaining `project.binary`/global script-cache errors in stderr were **nonblocking** here. Do not extrapolate this to tilemaps, fonts/UI, audio, saving, or third-party Godot games.
 
 ## M9b native PhysicsServer2D acceptance on PS5 (23 October 2026)
 
