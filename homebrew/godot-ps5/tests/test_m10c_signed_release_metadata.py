@@ -8,7 +8,8 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[3]
 workflow = (root / ".github/workflows/build-godot-ps5-m10c-freetype-fonts.yml").read_text()
 publisher = (root / ".github/workflows/publish-godot-ps5-m10c-freetype.yml").read_text()
-assert workflow.count("contentVersion='01.000.005'") == 2, "stage AND validation must both expect v0.1.4"
+assert "contentVersion='01.000.005'" in workflow, "stage must use PS5 v0.1.4"
+assert "assert meta['contentVersion']=='01.000.005'" in workflow, "ZIP validator must expect PS5 v0.1.4"
 assert "assert meta['contentVersion']=='01.000.004'" not in workflow
 assert "Godot-PS5-M10c-NATIVE-FREETYPE-v0.1.4-PS5-HARDWARE-UNTESTED" in workflow
 assert "GODOT_PS5_FREETYPE: '1'" in workflow
