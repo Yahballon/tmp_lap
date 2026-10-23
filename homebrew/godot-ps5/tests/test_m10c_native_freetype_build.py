@@ -13,7 +13,7 @@ for marker in ("GODOT_PS5_FREETYPE:-0",
     assert marker in build, marker
 
 for marker in ("GODOT_PS5_FREETYPE: '1'", "GODOT_PS5_PHYSICS2D: '1'",
-    "libmodule_freetype.", "libfreetype_builtin.",
+    "libfreetype_builtin.", "FT_Init_FreeType", "MODULE_FREETYPE_ENABLED",
     "libmodule_text_server_fb.", "libmodule_godot_physics_2d.",
     "GODOT_PS5_M10B_FONT_TTF_LOADED", "GODOT_PS5_M10B_FONT_METRICS_OK",
     "GODOT_PS5_M10B_FONT_TEST_FINISHED",
