@@ -64,6 +64,7 @@ def prepare(project: Path) -> None:
     assert original in scene, "Original Level_01 tutorial text changed"
     scene = scene.replace(original, 'LEFT STICK / D-PAD\nX TO JUMP')
     level1.write_text(scene, encoding="utf-8")
+    print("GODOT_PS5_M12_UPSTREAM_PREPARED", ASSET_COMMIT)
     print("GODOT_PS5_M12B_VISIBLE_BOOT_PREPARED", ASSET_COMMIT)
 
 def manifest(project: Path) -> int:
@@ -77,7 +78,7 @@ def manifest(project: Path) -> int:
         relative = file.relative_to(project)
         if relative.parts[0] == ".git":
             continue
-        if relative.name in ("m12-platformer-asset2201.pck", "ps5_m12_manifest.txt"):
+        if relative.name in ("m12-platformer-asset2201.pck", "m12b-platformer-asset2201.pck", "ps5_m12_manifest.txt"):
             continue
         # Editor shader cache and internal per-host binary data are not game assets.
         if relative.parts[:2] == (".godot", "editor"):
