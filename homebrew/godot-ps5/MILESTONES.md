@@ -3,7 +3,7 @@
 **Projekt:** PS5-Godot-Homebrew-Port von YAHBALLON  
 **Stand:** 23. Oktober 2026 · PS5 Firmware **5.10** · Entwicklungsbranch `feature/godot-ps5-engine-foundation` · [PR #207](https://github.com/Yahballon/tmp_lap/pull/207)
 
-> **Aktueller Meilenstein: M10a ECHTE DYNAMISCHE GODOT-2D-PHYSIK AUF PS5 BESTÄTIGT (23. Oktober 2026).** `PPSA99847 v0.1.3` lädt das externe `dynamics-area-smoke.pck` ohne neue native Kompilierung. Nutzer bestätigt, dass die gelbe Kugel durch den cyanfarbenen Sensor fällt und auf der pinken Plattform landet. **Zwei vollständige PS5-Logläufe in `bfpilot-download (22).tar`** belegen `GODOT_PS5_M10A_AREA_ENTER_OK`, `GODOT_PS5_M10A_AREA_EXIT_OK`, `GODOT_PS5_M10A_RIGID_CONTACT_OK`, `GODOT_PS5_M10A_TEST_PASS ticks=143 rest_y=777.299987792969 velocity=(0.0, 0.0)`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`. **M10a Hardware-Abnahme bestanden.** Nächster eigenständiger Schritt M10b: TileMapLayer/Level-Kollisionen und Godot-UI/Fonts separat testen; keine allgemeine Godot-Kompatibilität behaupten.
+> **Aktueller Meilenstein: M10a ECHTE DYNAMISCHE GODOT-2D-PHYSIK AUF PS5 BESTÄTIGT (23. Oktober 2026).** `PPSA99847 v0.1.3` lädt das externe `dynamics-area-smoke.pck` ohne neue native Kompilierung. Nutzer bestätigt, dass die gelbe Kugel durch den cyanfarbenen Sensor fällt und auf der pinken Plattform landet. **Zwei vollständige PS5-Logläufe in `bfpilot-download (22).tar`** belegen `GODOT_PS5_M10A_AREA_ENTER_OK`, `GODOT_PS5_M10A_AREA_EXIT_OK`, `GODOT_PS5_M10A_RIGID_CONTACT_OK`, `GODOT_PS5_M10A_TEST_PASS ticks=143 rest_y=777.299987792969 velocity=(0.0, 0.0)`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`. **M10a Hardware-Abnahme bestanden.** **M10b a/b jetzt im originalen Godot-4.7.2-Host erfolgreich:** TileMapLayer-Kollision und externe TrueType/Label-UI; [CI #39878279649](https://github.com/Yahballon/tmp_lap/actions/runs/39878279649) grün, zwei getrennte PCK-Test-ZIPs erstellt. **PS5-Hardwaretests für beide M10b-Funktionen noch offen.**
 
 ## Bedeutung der Statusangaben
 
@@ -31,6 +31,8 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M9a | **Real PhysicsServer2D collision PCK** | Original-Godot-4.7.2-PCK mit `CharacterBody2D`, `StaticBody2D`, `CollisionShape2D`, `move_and_collide()`; Host-CI 39869677215 erfolgreich; auf PS5 mit v0.1.2 zunächst Dummy-Physics/Timeout, mit v0.1.3 echter Kontakt | ✅ PCK auf PS5 mit M9b erfolgreich; v0.1.2 ursprünglich fehlgeschlagen |
 | M9b | **Native GodotPhysics2D / PPSA99847 v0.1.3** | Build [#39872101079](https://github.com/Yahballon/tmp_lap/actions/runs/39872101079) erfolgreich; `bfpilot-download (21).tar`: **2×** `REAL_COLLISION_OK`, `TEST_PASS physics_frames=369`, `GODOT_RETURN=0`, `EGL_CLOSED`, ohne Dummy-Warnung in den erfolgreichen Sitzungen | ✅ **Auf PS5 mit Logs bestätigt** |
 | M10a | **Real RigidBody2D-Schwerkraft + Area2D-Signale (externes PCK)** | Echte PS5, Nutzerbericht und **2 vollständige Logläufe** aus `bfpilot-download (22).tar`: Eintritt y=409.2584, Austritt y=646.6695, Bodenkontakt y=777.4374; `TEST_PASS ticks=143`, Resthöhe 777.3000, Geschwindigkeit (0,0), `GODOT_RETURN=0`, `EGL_CLOSED`. Host CI [#39876290256](https://github.com/Yahballon/tmp_lap/actions/runs/39876290256) ebenfalls grün | ✅ **PS5 Hardware bestätigt (2×)** |
+| M10b-a | **TileMapLayer + TileSetAtlasSource / echte Level-Kollision** | Godot 4.7.2 Host: neun Atlas-Tiles, echte `TileData`-Physikpolygone, `CharacterBody2D`-Kollision mit **TileMapLayer** selbst, `normal=(0,-1)`, y=742.984375, `TILE_TEST_PASS tick=139`; [CI #39878279649](https://github.com/Yahballon/tmp_lap/actions/runs/39878279649) grün | 🟡 Host bestanden, **PS5 offen** |
+| M10b-b | **Control/Label + TrueType-Font** | Host: echtes externes Press Start 2P `.ttf` 118.204 Byte inkl. SIL OFL/FONTLOG im PCK; `FONT_TTF_LOADED`, `FONT_METRICS_OK size=(392,28)`, fünf Labels, `FONT_TEST_FINISHED frames=480`; [CI #39878279649](https://github.com/Yahballon/tmp_lap/actions/runs/39878279649) grün. Sichtbarer Text kann nur auf PS5 bestätigt werden | 🟡 Host bestanden, **PS5 offen** |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -130,9 +132,20 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 - **Hardware acceptance COMPLETE:** User confirms the yellow ball falls through the cyan trigger and lands on the magenta platform. Two physical-console `gles3-stdout.log` sessions contain all four markers: `AREA_ENTER_OK y=409.258422851563`, `AREA_EXIT_OK y=646.669494628906`, `RIGID_CONTACT_OK y=777.437438964844`, `TEST_PASS ticks=143 rest_y=777.299987792969 velocity=(0.0,0.0)`. Corresponding `gles3-runtime.log` sessions show `PACK_SOURCE=CONFIG` with `/data/GodotPS5/games/dynamics-area-smoke.pck`, `TOTAL_GODOT_SWAP_COUNT=114/119`, `GODOT_RETURN=0`, `EGL_CLOSED`, `NORMAL_SHUTDOWN`. No M10a FAIL markers in either session.
 - **Non-blocking diagnostics:** `gles3-stderr.log` still contains `Couldn't load file res://project.binary` and `Could not load global script cache`, yet M10a completes and exits normally. Follow up separately as a resource/cache compatibility issue. Still no verified support for `TileMapLayer`, `Label`/fonts, joints, audio, saves or arbitrary Godot projects.
 
+## M10b – TileMapLayer-Kollision und echte Godot-UI/TrueType (23 October 2026)
+
+**Status: 🟡 beide externen PCK-Projekte auf offizieller Desktop-Godot-4.7.2-Engine erfolgreich; beide physischen PS5-Hardwaretests stehen noch aus.** GitHub Actions [#39878279649](https://github.com/Yahballon/tmp_lap/actions/runs/39878279649) vollständig grün. [PR #242](https://github.com/Yahballon/tmp_lap/pull/242) dokumentiert Source, Host-Tests und separate Testpakete.
+
+- **M10b-a TileMapLayer:** Eigenständiges `samples/m10b-tilemap/` erzeugt echte Textur, `TileSet`-Physikebene, `TileSetAtlasSource`, ein Kollisionspolygon pro Tile, neun `TileMapLayer`-Zellen. `CharacterBody2D.move_and_collide()` meldet im Host `GODOT_PS5_M10B_TILE_CONTACT_OK tilemap=RealTileMapPlatform normal=(0.0, -1.0) y=742.984375` und `GODOT_PS5_M10B_TILE_TEST_PASS tick=139`. **Kein vorgetäuschter Boden oder eigenes Kollisionssystem.**
+- **M10b-b Text/Fonts:** Eigenständiges `samples/m10b-font-ui/` erstellt fünf echte Godot-`Label`-Nodes mit `FontFile.load_dynamic_font()`. Original Press Start 2P aus `google/fonts` auf Revision `92345ac0dbb28d27dbd32f3a782e84c55eaac214`, License `SIL OFL 1.1`, `OFL.txt` und `FONTLOG.txt` in PCK mitgeliefert. Host-Marker: `GODOT_PS5_M10B_FONT_RESOURCE_OK size=118204`, `GODOT_PS5_M10B_FONT_METRICS_OK size=(392.0, 28.0)`, `GODOT_PS5_M10B_LABEL_TREE_READY count=5`, `GODOT_PS5_M10B_FONT_TEST_FINISHED frames=480`. **Headless kann sichtbare GPU-Glyphen nicht bestätigen.**
+- Host-erzeugte echte PCK-SHA256: **TileMap `9372acb6f978775b5378424427bb3e766df47ed95c42f623f1a63890e843c1a5`**, **Font `c8925cfe52dba5b128dd12aba47cd9ae07623919ae15899610a8942a293d0cc7`**.
+- Download-Artefakt `Godot-PS5-M10b-TILEMAP-FONT-Host-Validated-PS5-UNTESTED` (ID `12469481706`). Es enthält **zwei getrennte ZIPs** `GodotPS5-M10b-TILEMAP-PS5-TEST.zip` und `GodotPS5-M10b-FONT-UI-PS5-TEST.zip`. Jeweils nur die Inhalte von `GodotPS5/` nach `/data/GodotPS5/` kopieren. Jede ZIP schreibt `launch.txt` auf ihr eigenes PCK; alle bisherigen PCKs und das **bekannt funktionierende PPSA99847 v0.1.3** bleiben unverändert.
+- **PS5-Abnahme separat:** erst TileMap-Test starten, Screenshot/Video sowie `gles3-stdout.log` und `gles3-runtime.log` mit `TILE_CONTACT_OK`, `TILE_TEST_PASS`, `GODOT_RETURN=0`, `EGL_CLOSED` erfassen. Danach die Font-ZIP kopieren und **visuell** prüfen, dass alle fünf Godot-Labels samt Umlauten sichtbar sind. `FONT_TTF_LOADED` und `LABEL_TREE_READY` allein beweisen noch keine gerenderten Zeichen. Optional **X** für Textfarbe.
+- Die beiden Testprojekte sind unabhängig: Tile-Kollision kann PASS sein, während der Font-Renderer FAIL ist. Keine Behauptungen zu Audio, Savegames, 3D, TextServer-Full, vollständigen TileMap-Funktionen oder allgemeinen Godot-Spielen.
+
 ## Roadmap: Was als Nächstes zu tun ist
 
-### P0 – M10a abgeschlossen; M10b TileMapLayer und Godot-UI testen
+### P0 – M10b TileMapLayer / Label-Glyphen auf echter PS5 getrennt abnehmen
 
 - [x] `PPSA99847 v0.1.2` auf realer PS5 starten: vom Nutzer bestätigt.
 - [x] Pong-Bildschirm mit zwei Schlägern, bewegtem Ball, Spielfeld und Punktestand nachweisen: Video `20261022_234930_00248487(1).webm` bestätigt.
@@ -145,7 +158,9 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 - [x] **M9b:** Original GodotPhysics2D-Modul in PS5-Engine integriert; separater Build 39872101079 grün; physische PS5-Kollision in zwei Sessions bestätigt.
 - [x] **M10a host:** official Godot 4.7.2 PhysicsServer2D RigidBody2D + Area2D PCK complete, real collision/trigger markers and rest-state verified; CI 39876290256 green and install ZIP available.
 - [x] **M10a PS5:** zwei erfolgreiche Hardware-Sessions mit realer Schwerkraft, Area-Eintritt/-Austritt, RigidBody-Bodenkontakt, stillstehendem Körper und sauberem Exit aus `bfpilot-download (22).tar`.
-- [ ] **M10b:** neues getrenntes Godot-4.7.2-Test-PCK für `TileMapLayer` mit echter Tile-Kollision und Godot-UI/`Label`; CI und PS5 hardwaregetrennt validieren, ohne bereits bestätigten PhysicsServer2D-Pfad umzubauen.
+- [x] **M10b Host CI:** zwei unabhängige Godot-4.7.2-PCKs mit echten TileMapLayer-Kollisionen und FontFile/Label-Objekten erzeugt, ausgeführt und strukturell validiert. GitHub Actions 39878279649 vollständig grün.
+- [ ] **M10b-a PS5:** cyanfarbenes Quadrat muss auf pinken echten TileMapLayer-Tiles stoppen; stdout `GODOT_PS5_M10B_TILE_CONTACT_OK` / `...TILE_TEST_PASS`; runtime Exit-Code 0.
+- [ ] **M10b-b PS5:** fünf sichtbare Godot-Label-Zeilen mit echter Press Start 2P Schrift, Zahlen und Umlauten; stdout `FONT_TTF_LOADED`, `LABEL_TREE_READY`, `FONT_TEST_FINISHED`; zusätzlich **sichtbaren Text bestätigen**, Exit-Code 0.
 
 ### P1 – Echte eigene Godot-4-PCKs laden
 
@@ -196,4 +211,4 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 
 ---
 
-**Kurzfassung:** Echte Godot 4.7.2 GDScript-/Canvas2D-Pipeline, DualSense, Pong, externe PCKs, CharacterBody2D-Kollisionen und jetzt **RigidBody2D-Schwerkraft plus Area2D-Trigger** auf PS5 bestätigt. M10a: **2×** vollständig erfolgreich inklusive sauberem Exit (`bfpilot-download (22).tar`). **Nächste getrennte Hardware-Abnahmen:** TileMapLayer, TextServer/Label/UI, Audio, Savegames und allgemeine Spiel-Kompatibilität.
+**Kurzfassung:** Echte Godot 4.7.2 GDScript-/Canvas2D-Pipeline, DualSense, Pong, externe PCKs, CharacterBody2D-Kollisionen und jetzt **RigidBody2D-Schwerkraft plus Area2D-Trigger** auf PS5 bestätigt. M10a: **2×** vollständig erfolgreich inklusive sauberem Exit (`bfpilot-download (22).tar`). **M10b TileMapLayer und FontFile/Label haben beide echte Desktop-Host-CI bestanden**, **PS5 noch nicht getestet**. Danach weitere unabhängige Abnahmen: Audio, Savegames und allgemeine Spiel-Kompatibilität.

@@ -1,9 +1,33 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** Original-Godot-4.7.2-GLES3/Canvas2D, Pong, unabhängige PCKs und echte GodotPhysics2D-Kollisionen laufen auf PS5. **M10a (`RigidBody2D`-Schwerkraft und `Area2D`-Eintritt/-Austritt) ist jetzt ebenfalls auf echter PS5 bestätigt**: zweimal `TEST_PASS ticks=143` plus `GODOT_RETURN=0` und `EGL_CLOSED`, geprüft aus `bfpilot-download (22).tar`. M10b (TileMapLayer/Labels) sowie Fonts, Audio und Saves sind noch offen.
+> **Aktuell:** GDScript, GLES3/Canvas2D, Pong, externe PCKs, CharacterBody2D-, RigidBody2D- und Area2D-Physik auf PS5 belegt. **M10b:** echte Godot-4.7.2-`TileMapLayer`-Kollisionen und `FontFile`/fünf `Label`-Nodes in zwei eigenständigen PCKs erfolgreich **auf Host geprüft** (Actions #39878279649), beide **noch auf PS5 zu testen**. Kein neues natives eboot.bin nötig. Audio, Savegames und breitere Kompatibilität weiterhin offen.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M10b independent tile physics and real Label/TTF (23 October 2026)
+
+Two official Godot 4.7.2 external PCKs are built, host-executed and available
+as individual PS5-ready test ZIPs. Source and installation runbook:
+[`samples/M10B_README.md`](samples/M10B_README.md).
+
+1. **TileMapLayer** has real `TileSet` collision polygons, atlas textures and
+nine grid cells. Upstream `CharacterBody2D.move_and_collide()` identified
+`RealTileMapPlatform` as the collision target, normal `(0,-1)`,
+`GODOT_PS5_M10B_TILE_TEST_PASS tick=139` on the host. Not manual collision.
+2. **Control/Labels/Fonts** includes a real `FontFile` dynamically loaded
+from a licensed, pinned Press Start 2P TTF with `OFL.txt` and
+`FONTLOG.txt` embedded. The host measured glyphs and rendered control
+nodes to a headless scene (`LABEL_TREE_READY count=5`);
+**visual glyph appearance on PS5 remains unverified.**
+
+[Host GitHub Actions #39878279649](https://github.com/Yahballon/tmp_lap/actions/runs/39878279649)
+is **SUCCESS**, publishing test files for the unchanged `PPSA99847 v0.1.3`
+under artifact `Godot-PS5-M10b-TILEMAP-FONT-Host-Validated-PS5-UNTESTED`.
+Each ZIP supplies `/data/GodotPS5/games/` and selects its own `.pck`
+using `launch.txt`. Older samples remain installed. **Do not mark either
+M10b feature as PS5 supported without its individual physical-console
+report/logs**, particularly visible text and Unicode rendering.
 
 ## M10a real RigidBody2D + Area2D external PCK (23 October 2026)
 
