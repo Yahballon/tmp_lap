@@ -3,7 +3,7 @@ extends SceneTree
 # A Python script generates ps5_m12_manifest.txt after headless editor import.
 func _initialize() -> void:
     var manifest_path := "res://ps5_m12_manifest.txt"
-    var output := ProjectSettings.globalize_path("res://m12c-platformer-asset2201.pck")
+    var output := ProjectSettings.globalize_path("res://m12b-platformer-asset2201.pck")
     var manifest := FileAccess.get_file_as_string(manifest_path)
     if manifest.is_empty():
         push_error("GODOT_PS5_M12_MANIFEST_MISSING")
@@ -31,5 +31,5 @@ func _initialize() -> void:
         push_error("GODOT_PS5_M12_PACK_FLUSH_FAIL rc=" + str(result))
         quit(94)
         return
-    print("GODOT_PS5_M12C_PCK_WRITTEN files=", count)
+    print("GODOT_PS5_M12B_PCK_WRITTEN files=", count)
     quit(0)
