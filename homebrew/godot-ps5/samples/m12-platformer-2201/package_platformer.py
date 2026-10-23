@@ -7,8 +7,8 @@ from pathlib import Path
 import struct
 import zipfile
 
-PCK = "m12c-platformer-asset2201.pck"
-ZIP = "GodotPS5-M12c-Platformer-FAST-PS5-TEST.zip"
+PCK = "m12b-platformer-asset2201.pck"
+ZIP = "GodotPS5-M12b-Platformer-SplashFix-PS5-TEST.zip"
 UPSTREAM = "https://github.com/AdilDevStuff/2D-Platformer-Starter-Kit"
 COMMIT = "a48fc994cbcb168be472df84f2e13b55d2a2792f"
 
@@ -32,7 +32,7 @@ def pack(pck: Path, original_license: Path, out_dir: Path) -> tuple[Path, str]:
         f"Source: {UPSTREAM} at pinned commit {COMMIT}\n"
         "Requires installed PPSA99847 Godot PS5 v0.1.6 with native audio.\n"
         "Extract this ZIP, copy GodotPS5 contents into /data/GodotPS5/\n"
-        "Adds games/m12c-platformer-asset2201.pck and replaces launch.txt ONLY.\n"
+        "Adds games/m12b-platformer-asset2201.pck and replaces launch.txt ONLY.\n"
         "Does not replace eboot, delete other PCKs or change save data.\n"
         "Controls: LEFT STICK or D-PAD = move; CROSS (X) = jump.\n"
         "Test: 2 levels, coin score, camera, collisions, sounds, animations.\n"
@@ -47,14 +47,14 @@ def pack(pck: Path, original_license: Path, out_dir: Path) -> tuple[Path, str]:
     with zipfile.ZipFile(out,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=8) as z:
         z.writestr(f"GodotPS5/games/{PCK}", data)
         z.writestr("GodotPS5/launch.txt", PCK+"\n")
-        z.writestr("GodotPS5/M12c-Platformer-README.txt", note)
-        z.writestr("GodotPS5/M12c-Platformer-Original-LICENSE.txt", mit)
-        z.writestr("GodotPS5/m12c-platformer.sha256", sha+"  games/"+PCK+"\n")
+        z.writestr("GodotPS5/M12b-Platformer-README.txt", note)
+        z.writestr("GodotPS5/M12b-Platformer-Original-LICENSE.txt", mit)
+        z.writestr("GodotPS5/m12b-platformer.sha256", sha+"  games/"+PCK+"\n")
     with zipfile.ZipFile(out) as z:
         assert z.testzip() is None
         assert z.read("GodotPS5/launch.txt") == (PCK+"\n").encode()
         assert z.read(f"GodotPS5/games/{PCK}") == data
-    print("GODOT_PS5_M12C_INSTALL_ZIP_OK",out,"sha256=",sha)
+    print("GODOT_PS5_M12B_INSTALL_ZIP_OK",out,"sha256=",sha)
     return out, sha
 
 if __name__ == "__main__":
