@@ -1,4 +1,8 @@
-# M11c – Native Godot AudioOut driver for PS5 v0.1.5 (EXPERIMENTAL)
+# M11c → M11d – Native PS5 Godot AudioOut (v0.1.6 HARDWARE CONFIRMED)
+
+**M11d hardware result (23 October 2026): ✅ AUDIBLE NATIVE PS5 AUDIO AND X REPLAY CONFIRMED** on signed PPSA99847 v0.1.6. The user listened to the actual six tones and triggered successful DualSense X replay. Console archive `bfpilot-download (27).tar` shows a successful final run with `GODOT_PS5_M11D_AUDIOOUT_THREAD_STARTED`, `AUDIOOUT_READY rate=48000 channels=2 frames=256`, two `OUTPUT_OK` markers, **9 X replays**, and `AUDIOOUT_CLOSE rc=0 blocks=2831 errors=0`. Runtime confirms `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, and `EGL_CLOSED`. Signed [build #39924377575](https://github.com/Yahballon/tmp_lap/actions/runs/39924377575), [merged PR #249](https://github.com/Yahballon/tmp_lap/pull/249), audio implementation [issue #247 CLOSED](https://github.com/Yahballon/tmp_lap/issues/247). Known limitation: third-party Godot game compatibility, long-running streams and alternate formats have not yet been independently verified.
+
+**Root cause of the older v0.1.5 silence:** Godot 4.7.2 `Thread::start` returns a **Thread::ID**, not an Error. The initial audio code compared a nonzero successful ID to `OK=0`, incorrectly closed the real AudioOut handle and fell back to the dummy driver. M11d uses `thread.start(...); if (!thread.is_started())` and repairs unsupported `%llu` log formatting. Historical v0.1.5 errors in the cumulative TAR are not present in the successful last v0.1.6 session.
 
 The user's PS5 M11a hardware test created real 529,200-byte PCM and started AudioStreamPlayer but was SILENT. Godot OS_PS5 registered no real AudioDriver, leaving a dummy sink.
 
