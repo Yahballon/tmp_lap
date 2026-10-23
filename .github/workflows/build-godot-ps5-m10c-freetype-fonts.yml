@@ -32,6 +32,7 @@ jobs:
           python3 homebrew/godot-ps5/scripts/check_overlay.py
           python3 homebrew/godot-ps5/tests/test_m9b_native_physics_build.py
           python3 homebrew/godot-ps5/tests/test_m10c_native_freetype_build.py
+          python3 homebrew/godot-ps5/tests/test_m10c_signed_release_metadata.py
       - name: Pack actual Godot 4.7.2 Sprite2D fixture
         run: |
           set -euo pipefail
