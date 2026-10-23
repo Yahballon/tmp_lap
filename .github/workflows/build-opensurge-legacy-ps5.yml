@@ -124,6 +124,12 @@ jobs:
             homebrew/opensurge-ps5/tests/native_terrain_stress.cpp \
             -o /tmp/opensurge-terrain-stress
           /tmp/opensurge-terrain-stress "$PWD/app/assets/game/"
+          g++ -std=c++17 -O2 -Wall -Wextra \
+            -I homebrew/opensurge-ps5/tests/mocks \
+            -I homebrew/opensurge-ps5/native \
+            homebrew/opensurge-ps5/tests/native_loop_smoke.cpp \
+            -o /tmp/opensurge-native-loop
+          /tmp/opensurge-native-loop "$PWD/app/assets/game/"
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -194,7 +200,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag=opensurge-ps5-v0.6.3
+          tag=opensurge-ps5-v0.6.4
           file=app/dist/PPSA99358.zip
           test -s "$file"
           python3 homebrew/opensurge-ps5/scripts/validate-legacy-package.py app
@@ -205,7 +211,7 @@ jobs:
           fi
           gh release create "$tag" "$file" \
             --target "$GITHUB_SHA" \
-            --title "Open Surge PS5 v0.6.3 - Persistent Collision Recovery and Floor Sweep" \
+            --title "Open Surge PS5 v0.6.4 - Original S-Tunnel and Four-Orientation Loop Preview" \
             --notes-file homebrew/opensurge-ps5/RELEASE_NOTES_LEGACY.md \
             --prerelease
 

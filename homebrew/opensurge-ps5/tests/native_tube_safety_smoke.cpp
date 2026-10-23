@@ -16,16 +16,32 @@ int main(int argc,char** argv){
     }
     constexpr float dt=1.f/120.f;
     level.test_put(3728.f,10072.f,1,true);
+    level.test_probe(768.f);
+    level.test_probe(756.f);
+    level.test_pixel(4496.f,10048.f);
+    level.test_pixel(4496.f,10072.f);
     level.update(dt,0,false);
     std::printf("TUBE_INITIAL in=%d entries=%u rejected=%u x=%.1f y=%.1f\n",
         int(level.in_tube()),level.tube_entries(),
         level.unsafe_tube_exits(),level.player_x(),level.player_y());
-    if(level.in_tube()){
-        for(int n=0;n<220&&level.in_tube();++n)
-            level.update(dt,0,false);
-        if(level.in_tube())return 4;
-        if(level.tube_exits() && !level.grounded())return 5;
-    }else if(level.unsafe_tube_exits()==0)return 6;
+    if(!level.in_tube()){
+        std::fprintf(stderr,"FAIL FORWARD S-TUBE did not start refused=%u\n",level.unsafe_tube_exits());
+        return 6;
+    }
+    const float span=level.tube_track_y_span();
+    std::printf("S_TUBE_START samples=%u span=%.1f arc=%.1f\n",
+        level.tube_track_samples(),span,level.tube_track_distance());
+    if(span<24.f || span>360.f){
+        std::fprintf(stderr,"FAIL S-TUBE route too flat or disconnected span=%.1f\n",span);
+        return 10;
+    }
+    for(int n=0;n<300&&level.in_tube();++n)
+        level.update(dt,0,false);
+    if(level.in_tube() || level.tube_exits()!=1 || !level.grounded()){
+        std::fprintf(stderr,"FAIL S-TUBE OUT exits=%u refused=%u x=%.1f y=%.1f\n",
+            level.tube_exits(),level.unsafe_tube_exits(),level.player_x(),level.player_y());
+        return 4;
+    }
     // Continue running with no player inputs, then also hold RIGHT for a
     // while. Tube endpoints must not turn into endless freefall.
     float deepest=level.player_y();
@@ -40,8 +56,24 @@ int main(int argc,char** argv){
             return 8;
         }
     }
-    std::printf("PASS TUBE SAFETY entries=%u safe_exits=%u refused=%u recovered=%u deepest_y=%.1f final=(%.1f,%.1f)\n",
+    std::printf("PASS S-TUBE SAFETY entries=%u safe_exits=%u refused=%u recovered=%u deepest_y=%.1f final=(%.1f,%.1f)\n",
         level.tube_entries(),level.tube_exits(),level.unsafe_tube_exits(),
         level.loop_safety_recoveries(),deepest,level.player_x(),level.player_y());
+    level.reset();
+    level.test_put(4464.f,10072.f,-1,true);
+    level.update(dt,0,false);
+    if(!level.in_tube()){
+        std::fprintf(stderr,"FAIL REVERSE S-TUBE refused=%u\n",level.unsafe_tube_exits());
+        return 11;
+    }
+    for(int n=0;n<300&&level.in_tube();++n)
+        level.update(dt,0,false);
+    if(level.in_tube() || level.tube_exits()!=1 || !level.grounded()){
+        std::fprintf(stderr,"FAIL REVERSE S-TUBE exit=%u x=%.1f y=%.1f\n",
+             level.tube_exits(),level.player_x(),level.player_y());
+        return 12;
+    }
+    std::printf("PASS REVERSE S-TUBE: x=%.1f y=%.1f wave_span=%.1f\n",
+         level.player_x(),level.player_y(),span);
     return 0;
 }

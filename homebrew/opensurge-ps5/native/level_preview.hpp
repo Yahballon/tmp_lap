@@ -23,6 +23,12 @@ struct ScriptRoute {
     float x=0,y=0;
 };
 struct BrickCell {std::uint64_t key=0;std::uint32_t index=0;};
+// Tube In/Out are control locks in original tubes.ss, not teleporters.
+// Follow the original brick collision corridor while input is locked.
+struct TubeTrackPoint {float x=0.f,y=0.f,distance=0.f;};
+// Native loop compatibility sensor. Geometry is discovered from the original
+// paired Sunshine ring bricks; radius is read from their actual collision mask.
+struct LoopRing {float x=0.f,y=0.f,radius=0.f;};
 
 class LevelPreview {
 public:
@@ -38,7 +44,23 @@ public:
     unsigned unsafe_tube_exits() const {return unsafe_tube_exits_;}
     unsigned loop_safety_recoveries() const {return loop_safety_recoveries_;}
     bool in_tube() const {return tube_active_;}
-    bool loop_mode_ready() const {return false;} // Original MM_* physics not yet linked
+    unsigned tube_track_samples() const {return unsigned(tube_track_.size());}
+    float tube_track_distance() const {return tube_track_length_;}
+    float tube_track_y_span() const {return tube_track_y_max_-tube_track_y_min_;}
+    bool loop_mode_ready() const {return !loops_.empty();}
+    size_t loop_count() const {return loops_.size();}
+    bool looping() const {return loop_active_;}
+    unsigned loop_completions() const {return loop_completions_;}
+    // Floor, right wall, ceiling, left wall. Angles advance clockwise
+    // around an interior ring, as in original physicsactor.c MM_*.
+    int movement_mode() const {
+        if(!loop_active_)return 0;
+        const float a=std::fmod(loop_angle_+6.28318530718f,6.28318530718f);
+        if(a<.78539816f||a>=5.49778714f)return 0;
+        if(a<2.35619449f)return 1;
+        if(a<3.92699082f)return 2;
+        return 3;
+    }
 
     int visible() const {return visible_;}
     float player_x() const {return x_;}
@@ -104,6 +126,20 @@ public:
             solid_at(nx+7.f,(support?floor:y_)-26.f)?1:0,
             front_floor?1:0,forward,far_floor?1:0,far);
     }
+    // Original-mask host harness, not compiled into PS5 shipping binaries.
+    void test_set_rolling_speed(float value){
+        vx_=value;rolling_=true;facing_=value>=0.f?1:-1;
+    }
+    bool test_setup_loop(size_t index,float speed) {
+        if(index>=loops_.size() || std::abs(speed)<350.f)return false;
+        const auto& ring=loops_[index];
+        float r=0.f;
+        if(!loop_radius_at(ring,0.f,r))return false;
+        if(!loop_center_clear(ring.x,ring.y+r))return false;
+        test_put(ring.x,ring.y+r+16.f,speed>=0.f?1:-1,true);
+        vx_=speed;
+        return true;
+    }
     bool test_inside() const{return body_hits(x_,y_);}
     float test_safe_x() const{return safe_ground_x_;}
     float test_safe_y() const{return safe_ground_y_;}
@@ -145,7 +181,7 @@ public:
         if(!ready())return;
         vx_=(x_>=source_x?1.f:-1.f)*210.f;
         vy_=-280.f;
-        ground_=false;
+        ground_=false;loop_active_=false;
         charging_=rolling_=false;
         charge_=0.f;
         y_-=4.f;
@@ -153,7 +189,7 @@ public:
     void spring_bounce(float strength) {
         if(!ready()||strength<100.f||strength>1400.f)return;
         vy_=-strength;
-        ground_=false;spring_anim_=0.32f;
+        ground_=false;loop_active_=false;spring_anim_=0.32f;
         charging_=false;charge_=0.f;rolling_=false;
         y_-=3.f; // free the player's feet from the spring platform
     }
@@ -285,6 +321,7 @@ public:
             error_="ORIGINAL COLLISION MASK MISSING";return false;
         }
         mask_.assign(collision.begin(),collision.end());
+        build_loop_rings();
         atlas_=renderer.batch().create_texture(atlasw,atlash,
                              reinterpret_cast<const unsigned char*>(bg.data()));
         hero_=renderer.batch().create_texture(herow,heroh,
@@ -305,9 +342,12 @@ public:
         embedded_frames_=solid_recoveries_=0;
         active_layer_=0;layer_switches_=0;tube_entries_=tube_exits_=0;
         tube_active_=false;tube_timer_=tube_cooldown_=0.f;
+        tube_track_.clear();tube_track_index_=0;tube_track_length_=0.f;
+        tube_track_y_min_=tube_track_y_max_=y_;
         unsafe_tube_exits_=loop_safety_recoveries_=0;
         safe_ground_x_=x_;safe_ground_y_=y_;
         tube_guard_=0.f;
+        loop_active_=false;loop_angle_=loop_speed_=0.f;loop_index_=0;loop_completions_=0;
         // The spawn point is the character's source hot spot, not the bitmap
         // bottom. Support slightly embedded spawn coordinates without snapping
         // hundreds of pixels to an arbitrary platform.
@@ -347,6 +387,19 @@ public:
         tube_guard_=std::max(0.f,tube_guard_-dt);
         if(tube_active_){
             tick_tube(dt);
+            elapsed_+=dt;
+            return;
+        }
+        if(loop_active_){
+            if(jump){
+                // Jump away from whichever loop surface is beneath Surge.
+                const float nx=std::sin(loop_angle_);
+                const float ny=std::cos(loop_angle_);
+                vx_=float(loop_direction_)*loop_speed_*ny-505.f*nx;
+                vy_=-float(loop_direction_)*loop_speed_*nx-505.f*ny;
+                x_-=nx*3.f;y_-=ny*3.f;
+                loop_active_=false;ground_=false;
+            }else tick_loop(dt);
             elapsed_+=dt;
             return;
         }
@@ -488,6 +541,13 @@ public:
             if(find_floor(x_,y_,6,18,floor) && !body_hits(x_,floor)){
                 y_=floor;vy_=0.f;last_ground_y_=y_;
             }else ground_=false;
+        }
+        // Full loop motion is not horizontal: the tangent rotates into the
+        // right wall, ceiling and left wall. Do this before floor/wall sweeps.
+        if(try_enter_loop()){
+            tick_loop(dt);
+            elapsed_+=dt;
+            return;
         }
         const float dx=vx_*dt;
         const int horizontal_steps=std::max(1,int(std::ceil(std::abs(dx)/2.f)));
@@ -701,7 +761,8 @@ private:
         return true;
     }
     void restore_safe_ground(){
-        tube_active_=wall_climb_=false;
+        tube_active_=wall_climb_=loop_active_=false;
+        tube_track_.clear();tube_track_index_=0;tube_track_length_=0.f;
         vx_=vy_=0.f;rolling_=charging_=false;
         // Rolling probes are narrower than standing probes; a saved rolling
         // location can be solid for the standing player. Never revive at a
@@ -777,12 +838,19 @@ private:
                 if(ground_ && !body_hits(x_,y_)){
                     safe_ground_x_=x_;safe_ground_y_=y_;
                 }
+                // v0.6.3 linearly interpolated Tube In -> Tube Out. The S
+                // tunnel then traversed with Y frozen at ~10064, visibly
+                // crossing solid waves. Build an actual mask-following
+                // trajectory before locking input; reject missing tracks.
+                if(!build_tube_track(selected->x,support)){
+                    ++unsafe_tube_exits_;
+                    tube_cooldown_=0.3f;
+                    break;
+                }
                 tube_active_=true;tube_from_x_=x_;tube_from_y_=y_;
                 tube_to_x_=selected->x;tube_to_y_=support;
                 tube_timer_=0.f;
-                const float distance=std::hypot(tube_to_x_-tube_from_x_,
-                                                 tube_to_y_-tube_from_y_);
-                tube_duration_=std::max(0.05f,distance/600.f);
+                tube_duration_=std::max(0.05f,tube_track_length_/600.f);
                 ++tube_entries_;
                 rolling_=true;charging_=false;ground_=false;
                 vy_=0.f;
@@ -790,18 +858,86 @@ private:
             break;
         }
     }
+
+    bool nearest_tube_floor(float px,float prev_feet,float& out) const {
+        // Follow an actual opaque-mask floor with transparent space above it,
+        // rather than invent a sine curve from the artwork. Bounded local
+        // scan prevents jumping to an unrelated level/platform at a seam.
+        float best=1000.f;
+        for(int d=-90;d<=90;++d){
+            const float row=std::floor(prev_feet)+float(d);
+            if(!floor_pixel(px,row) || floor_pixel(px,row-1.f))continue;
+            if(solid_at(px,row-8.f) || solid_at(px,row-16.f))continue;
+            const float delta=std::abs(row-prev_feet);
+            if(delta<best){best=delta;out=row;}
+        }
+        // The original S curve moves 27-30px between some 4px X samples.
+        // Keep a 40px bounded local contour tolerance, not a remote floor hop.
+        return best<=40.f;
+    }
+    bool build_tube_track(float target_x,float target_y) {
+        tube_track_.clear();tube_track_length_=0.f;tube_track_index_=0;
+        tube_track_y_min_=tube_track_y_max_=y_;
+        const float delta=target_x-x_;
+        if(std::abs(delta)<30.f || std::abs(delta)>1300.f)return false;
+        const float sign=delta>0.f?1.f:-1.f;
+        tube_track_.push_back({x_,y_,0.f});
+        // Original tubes.ss only locks input while physics moves the hero:
+        // stepping along the source mask approximates that guided rolling.
+        const float distance=std::abs(delta);
+        for(float step=4.f;step<distance;step+=4.f){
+            const auto& prev=tube_track_.back();
+            const float px=x_+sign*step;
+            float foot=prev.y;
+            if(!nearest_tube_floor(px,prev.y,foot) ||
+               std::abs(foot-prev.y)>40.f){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("TUBE_TRACK_GAP x=%.1f prev_x=%.1f prev_y=%.1f sampled_y=%.1f\n",
+                    px,prev.x,prev.y,foot);
+#endif
+                tube_track_.clear();return false;
+            }
+            tube_track_length_+=std::hypot(px-prev.x,foot-prev.y);
+            tube_track_.push_back({px,foot,tube_track_length_});
+            tube_track_y_min_=std::min(tube_track_y_min_,foot);
+            tube_track_y_max_=std::max(tube_track_y_max_,foot);
+        }
+        const auto& prev=tube_track_.back();
+        if(std::abs(prev.y-target_y)>32.f){
+#ifdef SURGEPREVIEW_HOST_TEST
+            std::printf("TUBE_TRACK_END_MISMATCH x=%.1f prev_y=%.1f target_y=%.1f\n",
+                target_x,prev.y,target_y);
+#endif
+            tube_track_.clear();return false;
+        }
+        tube_track_length_+=std::hypot(target_x-prev.x,target_y-prev.y);
+        tube_track_.push_back({target_x,target_y,tube_track_length_});
+        tube_track_y_min_=std::min(tube_track_y_min_,target_y);
+        tube_track_y_max_=std::max(tube_track_y_max_,target_y);
+        return tube_track_.size()>=5 && tube_track_length_>30.f;
+    }
     void tick_tube(float dt){
         if(!tube_active_)return;
+        if(tube_track_.size()<2 || tube_track_length_<=0.f){
+            ++unsafe_tube_exits_;
+            restore_safe_ground();
+            return;
+        }
         tube_timer_=std::min(tube_duration_,tube_timer_+dt);
-        const float t=tube_timer_/tube_duration_;
-        // This animation may pass through terrain ONLY while the destination
-        // has a validated physical landing. Don't let it silently hand the
-        // character back to normal gravity under the solid floor.
-        x_=tube_from_x_+(tube_to_x_-tube_from_x_)*t;
-        y_=tube_from_y_+(tube_to_y_-tube_from_y_)*t;
+        const float travel=std::min(tube_track_length_,tube_timer_*600.f);
+        while(tube_track_index_+2<tube_track_.size() &&
+              tube_track_[tube_track_index_+1].distance<travel)
+            ++tube_track_index_;
+        const auto& a=tube_track_[tube_track_index_];
+        const auto& b=tube_track_[tube_track_index_+1];
+        const float segment=std::max(0.001f,b.distance-a.distance);
+        const float t=std::clamp((travel-a.distance)/segment,0.f,1.f);
+        x_=a.x+(b.x-a.x)*t;
+        y_=a.y+(b.y-a.y)*t;
         vx_=0.f;vy_=0.f;
-        if(t>=1.f){
+        if(tube_timer_>=tube_duration_){
             tube_active_=false;
+            tube_track_.clear();tube_track_index_=0;
             float floor=y_;
             if(!tube_exit_usable(x_,y_,floor)){
                 ++unsafe_tube_exits_;
@@ -818,6 +954,188 @@ private:
             vx_=(facing_>=0?1.f:-1.f)*600.f;
             rolling_=true;
         }
+    }
+
+    static constexpr float kPi=3.14159265358979323846f;
+    // The ring's authored outline is persistent across Green/Yellow visual
+    // occlusion switches. Ordinary movement still uses active_layer_.
+    bool loop_solid_at(float px,float py) const {
+        bool hit=false;
+        candidates(px,py,[&](const PlacedBrick& b){
+            if(hit)return;
+            const auto& d=defs_[b.id];
+            if(!d.solid || px<float(b.x)||py<float(b.y)||
+               px>=float(b.x+d.w)||py>=float(b.y+d.h))return;
+            hit=mask_pixel(b,int(px-float(b.x)),int(py-float(b.y)));
+        });
+        return hit;
+    }
+    // Distance from the ring's empty center to an actual SOLID mask pixel.
+    // Prevents hard-coded circular teleports through solid terrain.
+    bool loop_radius_at(const LoopRing& ring,float angle,float& radius) const {
+        const float nx=std::sin(angle),ny=std::cos(angle);
+        if(loop_solid_at(ring.x+nx*8.f,ring.y+ny*8.f))return false;
+        for(int dist=20;dist<=128;++dist){
+            if(loop_solid_at(ring.x+nx*float(dist),ring.y+ny*float(dist))){
+                radius=float(dist)-16.f;
+                return radius>=12.f && radius<=112.f;
+            }
+        }
+        return false;
+    }
+    bool loop_center_clear(float px,float py) const {
+        // Do not use upright wall sensors in rotated contact states.
+        return !loop_solid_at(px,py) && !loop_solid_at(px-5.f,py) &&
+               !loop_solid_at(px+5.f,py) && !loop_solid_at(px,py-5.f) &&
+               !loop_solid_at(px,py+5.f);
+    }
+    void build_loop_rings(){
+        loops_.clear();
+        // Original demo's Loop In/Out art is built from lower Bricks 37/38
+        // and upper Bricks 41/42. Derive positions instead of baking x=5888.
+        for(const auto& left:placed_){
+            if(left.id!=37)continue;
+            bool right=false,upper_left=false,upper_right=false;
+            for(const auto& candidate:placed_){
+                if(candidate.id==38 && candidate.x==left.x+128 &&
+                   candidate.y==left.y)right=true;
+                if(candidate.id==41 && candidate.x==left.x &&
+                   candidate.y==left.y-160)upper_left=true;
+                if(candidate.id==42 && candidate.x==left.x+128 &&
+                   candidate.y==left.y-160)upper_right=true;
+            }
+            if(!right||!upper_left||!upper_right)continue;
+            LoopRing ring{float(left.x+128),float(left.y-16),0.f};
+            if(solid_at(ring.x,ring.y))continue;
+            float total=0.f;
+            bool valid=true;
+            for(int i=0;i<8;++i){
+                float radius=0.f;
+                if(!loop_radius_at(ring,float(i)*(kPi/4.f),radius)){
+                    valid=false;break;
+                }
+                total+=radius;
+            }
+            if(valid){
+                ring.radius=total/8.f;
+                loops_.push_back(ring);
+            }
+        }
+    }
+    bool try_enter_loop(){
+        if(loop_active_||!rolling_||charging_||std::abs(vx_)<350.f ||
+           tube_active_||wall_climb_)return false;
+        for(size_t i=0;i<loops_.size();++i){
+            const auto& ring=loops_[i];
+            if(std::abs(x_-ring.x)>16.f)continue;
+            float r=0.f;
+            if(!loop_radius_at(ring,0.f,r))continue;
+            const float foot=ring.y+r+16.f;
+            if(std::abs(y_-foot)>45.f)continue;
+            const float centre_y=ring.y+r;
+            if(!loop_center_clear(ring.x,centre_y))continue;
+            loop_active_=true;loop_index_=i;loop_angle_=0.f;
+            loop_direction_=vx_>=0.f?1:-1;
+            loop_speed_=std::abs(vx_);
+            x_=ring.x;y_=centre_y+16.f;vy_=0.f;
+            ground_=true;wall_climb_=false;
+            return true;
+        }
+        return false;
+    }
+    void tick_loop(float dt){
+        if(!loop_active_||loop_index_>=loops_.size())return;
+        const LoopRing& ring=loops_[loop_index_];
+        // Project normal gravity onto tangent, matching the uphill energy
+        // penalty and downhill acceleration rather than boosting through.
+        const float incline=std::sin(loop_angle_)*float(loop_direction_);
+        const float gravity_factor=incline>=0.f?281.25f:1125.f;
+        loop_speed_=std::clamp(loop_speed_-gravity_factor*incline*dt,
+                               0.f,960.f);
+        if(loop_speed_<210.f){
+#ifdef SURGEPREVIEW_HOST_TEST
+            std::printf("LOOP_DETACH_SPEED angle=%.3f speed=%.1f layer=%d x=%.1f y=%.1f\n",
+                loop_angle_,loop_speed_,active_layer_,x_,y_);
+#endif
+            // Insufficient momentum: detach in the current tangent direction.
+            vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+            vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
+            loop_active_=false;ground_=false;
+            return;
+        }
+        float remaining=loop_speed_*dt;
+        while(remaining>0.0001f){
+            const float ds=std::min(remaining,3.f);
+            remaining-=ds;
+            float radius=0.f;
+            if(!loop_radius_at(ring,loop_angle_,radius)){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("LOOP_DETACH_CONTACT angle=%.3f layer=%d x=%.1f y=%.1f\n",
+                   loop_angle_,active_layer_,x_,y_);
+#endif
+                loop_active_=false;ground_=false;
+                vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+                vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
+                return;
+            }
+            const float advance=float(loop_direction_)*ds/std::max(16.f,radius);
+            const float next_angle=loop_direction_>0?
+                std::min(2.f*kPi,loop_angle_+advance):
+                std::max(-2.f*kPi,loop_angle_+advance);
+            float next_radius=0.f;
+            if(!loop_radius_at(ring,next_angle,next_radius)){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("LOOP_DETACH_MASK angle=%.3f layer=%d x=%.1f y=%.1f\n",
+                   next_angle,active_layer_,x_,y_);
+#endif
+                loop_active_=false;ground_=false;
+                vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+                vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
+                return;
+            }
+            float nx=ring.x+std::sin(next_angle)*next_radius;
+            float ny=ring.y+std::cos(next_angle)*next_radius;
+            // At the authored Green/Yellow transition, a neighbouring mask
+            // can reach into the inside of an otherwise valid ring contour.
+            // Make a bounded inward contact correction, never tunnel outwards
+            // through the SOLID ring just to maintain the angular path.
+            if(!loop_center_clear(nx,ny)){
+                for(int shrink=1;shrink<=20;++shrink){
+                    const float radius=next_radius-float(shrink);
+                    if(radius<12.f)break;
+                    const float sx=ring.x+std::sin(next_angle)*radius;
+                    const float sy=ring.y+std::cos(next_angle)*radius;
+                    if(loop_center_clear(sx,sy)){nx=sx;ny=sy;break;}
+                }
+            }
+            if(!loop_center_clear(nx,ny)){
+#ifdef SURGEPREVIEW_HOST_TEST
+                std::printf("LOOP_DETACH_BODY angle=%.3f layer=%d x=%.1f y=%.1f\n",
+                   next_angle,active_layer_,nx,ny);
+#endif
+                loop_active_=false;ground_=false;
+                vx_=loop_speed_*std::cos(loop_angle_);
+                vy_=-loop_speed_*std::sin(loop_angle_);
+                return;
+            }
+            loop_angle_=next_angle;
+            x_=nx;y_=ny+16.f;
+            if(std::abs(loop_angle_)>=2.f*kPi-0.0001f){
+                loop_active_=false;++loop_completions_;
+                loop_angle_=0.f;vx_=float(loop_direction_)*loop_speed_;vy_=0.f;
+                ground_=has_foot_support(x_,y_);
+                if(ground_ && !body_hits(x_,y_)){
+                    safe_ground_x_=x_;safe_ground_y_=y_;
+                    last_ground_y_=y_;
+                }
+                return;
+            }
+        }
+        // Preserve the rolling speed independently of world X velocity.
+        // Sprite/HUD velocity points along the ring tangent.
+        vx_=float(loop_direction_)*loop_speed_*std::cos(loop_angle_);
+        vy_=-float(loop_direction_)*loop_speed_*std::sin(loop_angle_);
+        ground_=true;
     }
     bool mask_pixel(const PlacedBrick& b,int sx,int sy) const {
         if(sx<0||sy<0||sx>=defs_[b.id].w||sy>=defs_[b.id].h)return false;
@@ -979,6 +1297,9 @@ private:
     bool tube_active_=false;
     float tube_from_x_=0.f,tube_from_y_=0.f,tube_to_x_=0.f,tube_to_y_=0.f;
     float tube_timer_=0.f,tube_duration_=0.f,tube_cooldown_=0.f;
+    std::vector<TubeTrackPoint> tube_track_;
+    size_t tube_track_index_=0;
+    float tube_track_length_=0.f,tube_track_y_min_=0.f,tube_track_y_max_=0.f;
     float tube_guard_=0.f,safe_ground_x_=0.f,safe_ground_y_=0.f;
     unsigned unsafe_tube_exits_=0,loop_safety_recoveries_=0;
     bool wall_climb_=false;
@@ -987,6 +1308,12 @@ private:
     unsigned wall_climbs_=0;
     unsigned dash_releases_=0;
     float last_ground_y_=0.f;
+    std::vector<LoopRing> loops_;
+    bool loop_active_=false;
+    size_t loop_index_=0;
+    float loop_angle_=0.f,loop_speed_=0.f;
+    int loop_direction_=1;
+    unsigned loop_completions_=0;
     unsigned blocked_=0,respawns_=0;
     unsigned embedded_frames_=0,solid_recoveries_=0;
     std::string error_;
