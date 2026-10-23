@@ -49,12 +49,12 @@ void perf_report(double cpu, double swap, double begin, double end){
         ++perf_window_spikes;
         if(perf_window_logged<8){
             ++perf_window_logged;
-            std::printf("GODOT_PS5_M13_FRAME_SPIKE frame=%u since_boot_ms=%.1f cpu_before_swap_ms=%.1f egl_swap_ms=%.1f total_ms=%.1f spike=%u\\n",
+            std::printf("GODOT_PS5_M13_FRAME_SPIKE frame=%u since_boot_ms=%.1f cpu_before_swap_ms=%.1f egl_swap_ms=%.1f total_ms=%.1f spike=%u\n",
                 frames,end-perf_epoch_ms,cpu,swap,frame,perf_window_spikes);
         }
     }
     if(end-perf_epoch_ms>=5000.0){
-        std::printf("GODOT_PS5_M13_FRAME_5S frames=%u avg_cpu_ms=%.2f avg_swap_ms=%.2f max_cpu_ms=%.1f max_swap_ms=%.1f max_frame_ms=%.1f spikes_80ms=%u\\n",
+        std::printf("GODOT_PS5_M13_FRAME_5S frames=%u avg_cpu_ms=%.2f avg_swap_ms=%.2f max_cpu_ms=%.1f max_swap_ms=%.1f max_frame_ms=%.1f spikes_80ms=%u\n",
             perf_samples, perf_cpu_ms/std::max(1u,perf_samples),
             perf_swap_ms/std::max(1u,perf_samples),
             perf_max_cpu_ms,perf_max_swap_ms,perf_max_frame_ms,perf_window_spikes);
@@ -111,7 +111,7 @@ bool present(){
     ++frames;
     if(frames==1){
         record("GODOT_SWAP_FIRST");
-        std::printf("GODOT_PS5_M13_NATIVE_FRAME_PROFILER_READY clock=monotonic threshold_ms=80\\n");
+        std::printf("GODOT_PS5_M13_NATIVE_FRAME_PROFILER_READY clock=monotonic threshold_ms=80\n");
     }
     if(before>0.0 && after>0.0 && perf_last_swap_complete_ms>0.0){
         perf_report(cpu_before_swap,swap_ms,before,after);
