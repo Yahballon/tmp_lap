@@ -24,7 +24,7 @@ Required stdout markers:
 
 - **TileMap PASS:** Actual PS5 `bfpilot-download (23).tar` contains `GODOT_PS5_M10B_TILE_CONTACT_OK tilemap=RealTileMapPlatform normal=(0,-1) y=742.984375`, `GODOT_PS5_M10B_TILE_TEST_PASS tick=139`, native `GODOT_RETURN=0` and clean EGL shutdown.
 - **Font FAIL on native v0.1.3:** The external 118,204-byte `PressStart2P-Regular.ttf` was found, but after `GODOT_PS5_M10B_FONT_TTF_LOADED`, Godot emitted `GODOT_PS5_M10B_FONT_FAIL_GLYPH_A`, `GODOT_RETURN=93`. Native stderr: `FreeType: Can't load dynamic font, engine is compiled without FreeType support!`. **It is not a missing PCK; copying this PCK again does not repair it.**
-- **Native fix underway:** [M10c PR #243](https://github.com/Yahballon/tmp_lap/pull/243) builds `PPSA99847 v0.1.4` with upstream FreeType+TextServerFallback. Host and PS5 build results must be checked before installing. Keep `launch.txt` selecting `m10b-font-ui.pck`. PS5-visible glyph output still requires user validation.
+- **Font now visually PASS on native v0.1.4 (23 October 2026):** [M10c PR #243](https://github.com/Yahballon/tmp_lap/pull/243) enabled upstream FreeType+TextServerFallback. The signed [PPSA99847 v0.1.4 release](https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.1.4) is published, and the user screenshot `20261023_083016_00527039.png` shows all five Godot Labels, Press Start 2P rasterization and visible `Ä Ö Ü ß` on the real PS5. No further PCK edit required. X color reaction and final shutdown status remain unverified by a screenshot.
 
 ## B. Real Label / TrueType / Unicode
 
@@ -51,6 +51,10 @@ Required stdout:
 `GODOT_PS5_M10B_FONT_METRICS_OK`,
 `GODOT_PS5_M10B_LABEL_TREE_READY`,
 `GODOT_PS5_M10B_FONT_TEST_FINISHED`.
+
+## PS5 screenshot acceptance (M10c)
+
+**Visible text/TTF support: PASSED on physical PS5, 23 October 2026.** The uploaded screenshot `20261023_083016_00527039.png` shows `GODOT PS5 / M10B` in cyan, `LABEL + TRUE TYPE FONT` in white, numbers and letters in yellow, `UMLAUT: Ä Ö Ü ß` in green, and `PRESS X / CHANGE COLOR` in grey. These are five native Godot Label controls using the standalone font PCK and v0.1.4 FreeType-enabled engine. The screenshot does not establish X responsiveness, end-of-test exit code, or broad Unicode support; inspect new console logs as a separate check.
 
 ## Get the test ZIPs
 
