@@ -1,9 +1,41 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** Original Godot 4.7.2 GDScript, GLES3/Canvas2D, Pong, externe PCKs, CharacterBody2D, RigidBody2D, Area2D, TileMapLayer **und echte FreeType/TrueType-Fonts mit fünf Godot-Label-Elementen auf PS5 bestätigt**. Nutzer-Screenshot `20261023_083016_00527039.png` zeigt Press Start 2P, fünf Textzeilen, Zahlen, Farben und `Ä Ö Ü ß` in `PPSA99847 v0.1.4` (M10c). **X-Textwechsel und sauberer Font-Szenen-Exit wurden noch nicht durch separate Logs belegt.** Audio, Savegames und allgemeine Godot-Kompatibilität bleiben offen.
+> **Aktuell:** Godot 4.7.2 GDScript, GLES3/Canvas2D, Pong, externe PCKs, 2D-Physik, TileMapLayer und sichtbare FreeType/Label-TTFs auf PS5 bestätigt (v0.1.4). **M11**: zwei zusätzliche eigenständige PCKs für `AudioStreamPlayer` und `user://`-Savegames sind auf original Godot 4.7.2 **host-bestätigt** ([Actions #39911102004](https://github.com/Yahballon/tmp_lap/actions/runs/39911102004)); Audio-Hörtest und Save-Persistenz über zwei PS5-App-Starts **noch offen**. Für Tests bleibt `PPSA99847 v0.1.4` unverändert.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M11 AudioStreamPlayer and user:// savegames (23 October 2026)
+
+Two independent **real Godot 4.7.2** PCK fixtures (no PS5 native rebuild).
+Both passed [GitHub Actions run #39911102004](https://github.com/Yahballon/tmp_lap/actions/runs/39911102004).
+Read [`samples/M11_README.md`](samples/M11_README.md) for installation, safety
+and independent PS5 hardware acceptance criteria.
+
+- **M11a audio:** A genuine `AudioStreamWAV` 16-bit PCM sound is generated in
+GDScript and passed to `AudioStreamPlayer`, six notes and optional X replay.
+CI sees `AUDIO_PCM_READY`, `AUDIO_PLAYER_STARTED` and `AUDIO_HOST_API_PASS`.
+**Desktop playback-API success does NOT prove audible PS5 sound**; only user
+hearing TV/headphone tones establishes console audio support. Existing
+PS5 platform may still use a dummy sound output.
+- **M11b savegames:** The PCK writes a checksum-protected `user://` save,
+immediately reopens it, and CI launches a **second independent Godot
+process** reading the old value and incrementing `1` to `2`. CI verified
+`SAVE_FIRST_LAUNCH_PASS`, `SAVE_PERSIST_OK` and
+`SAVE_RESTART_PERSISTENCE_PASS old=1 new=2`.
+**PS5 filesystem writes are unverified** because `FileAccessPS5` currently
+implements kernel I/O on reads but delegates writes to Unix libc. A failed
+write on the actual console would require a separate native engine fix.
+
+The successful workflow publishes independent ready-to-copy
+`GodotPS5-M11a-AUDIO-TEST.zip` and `GodotPS5-M11b-SAVES-TEST.zip`.
+Each adds just one PCK under `/data/GodotPS5/games/` and replaces
+`launch.txt`. All earlier PS5 apps and packs remain present. The Save
+test requires **two complete PS5 app launches** using the same PCK.
+Collect three `gles3-*.log` files for reliable diagnostics.
+
+**Both M11 hardware milestones remain OPEN** until the required audio
+hearing report or PS5 save persistence report and logs are available.
 
 ## M10c FreeType/Label native engine repair (23 October 2026)
 
