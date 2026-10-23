@@ -14,9 +14,11 @@ scons=(platform/"SCsub").read_text()
 detect=(platform/"detect.py").read_text()
 for entry in ["sceAudioOutInit()", "sceAudioOutOpen(", "sceAudioOutOutput(",
               "sceAudioOutClose(", "audio_server_process(BLOCK_FRAMES",
-              "GODOT_PS5_M11C_AUDIOOUT_OUTPUT_OK", "GODOT_PS5_M11C_AUDIOOUT_OPEN",
+              "GODOT_PS5_M11C_AUDIOOUT_OPEN",
               "GODOT_PS5_M11C_AUDIOOUT_FATAL_STOP"]:
     assert entry in driver, entry
+assert ("GODOT_PS5_M11C_AUDIOOUT_OUTPUT_OK" in driver or
+        "GODOT_PS5_M11D_AUDIOOUT_OUTPUT_OK" in driver), "native PS5 AudioOut successful block marker missing"
 for guard in ["Thread thread", "Mutex mutex", "BLOCK_FRAMES = 256",
               "MIX_RATE = 48000", "SPEAKER_MODE_STEREO", "SafeFlag exiting"]:
     assert guard in header, guard
