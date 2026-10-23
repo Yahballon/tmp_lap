@@ -23,3 +23,10 @@
 - Experimental changes live on `fix/opensurge-s-tunnel-loop-v064`; publish an explicitly marked v0.6.4 native PS5 test prerelease after signed build CI; PS5 hardware gameplay QA remains pending.
 - Run native PS5 legacy build workflow via PR; inspect `native_routes_smoke`, `native_tube_safety_smoke`, `native_terrain_stress`, and `native_uphill_smoke`.
 - When ready, bump app metadata, `main.cpp` version, workflow release tag, version.json and release notes together; publish as explicitly labeled PS5 native preview, never as full engine.
+
+## TESTBUILD distribution is mandatory (user requirement, 2026-10-23)
+- Users test **only inside their PS5 TESTBUILD app**; do not redirect them to a manual ZIP install or an Actions-only artifact.
+- Every console QA build must publish an actual GitHub Release with an uploaded `PPSA99358.zip`, a new semver tag, and an updated root `version.json` entry. The app rejects artifact/raw.githubusercontent.com URLs.
+- Temporary QA suffix tags like `opensurge-ps5-v0.6.4-qa1` are catalog-eligible but must be superseded by the genuine `opensurge-ps5-v0.6.4` release once its signed build passes.
+- v0.6.4-qa1 fallback uses the already signed CI artifact built from commit `6c1be46cdbe8fc81d0a823ba79d8934b932dd413` with an **unmodified FSELF**, so the in-app text still reads v0.6.3 despite its newer physics. Only the package contentVersion is 01.018.000. This mismatch must be disclosed.
+- Future releases must not regress to QA repackaging unless full builds are unavailable; always test final signed binaries and catalog discoverability before saying the TESTBUILD is ready.

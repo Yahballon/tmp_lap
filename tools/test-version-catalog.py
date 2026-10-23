@@ -141,4 +141,20 @@ with tempfile.TemporaryDirectory() as tmp:
         before=(root/'version.json').read_bytes()
         catalog.main()
         assert (root/'version.json').read_bytes()==before
+        # Temporary QA releases belong in TESTBUILD until the genuine
+        # signed build for the same semantic version is published.
+        releases.append(release('opensurge-ps5','0.6.4-qa1','PPSA99358',True))
+        catalog.main()
+        qa_entry=next(e for e in json.loads((root/'version.json').read_text())['apps']
+                      if e['title_id']=='PPSA99358')
+        assert qa_entry['version']=='0.6.4'
+        assert qa_entry['tag']=='opensurge-ps5-v0.6.4-qa1'
+        assert qa_entry['zip_url'].endswith('/opensurge-ps5-v0.6.4-qa1/PPSA99358.zip')
+        final=release('opensurge-ps5','0.6.4','PPSA99358',True)
+        final['published_at']='2026-10-15T17:00:00Z'
+        releases.append(final)
+        catalog.main()
+        final_entry=next(e for e in json.loads((root/'version.json').read_text())['apps']
+                         if e['title_id']=='PPSA99358')
+        assert final_entry['tag']=='opensurge-ps5-v0.6.4'
 print('PASS: TESTBUILDS catalog includes Godot PS5 Probe prerelease and preserves stable releases')
