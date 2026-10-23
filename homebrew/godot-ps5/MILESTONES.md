@@ -3,7 +3,7 @@
 **Projekt:** PS5-Godot-Homebrew-Port von YAHBALLON  
 **Stand:** 23. Oktober 2026 · PS5 Firmware **5.10** · Entwicklungsbranch `feature/godot-ps5-engine-foundation` · [PR #207](https://github.com/Yahballon/tmp_lap/pull/207)
 
-> **Aktueller Meilenstein: M9b REAL GODOT PHYSICS 2D AUF PS5 BESTÄTIGT (23. Oktober 2026).** Der Nutzer meldet erfolgreiche Bewegung, Wandkollision und Grünfärbung auf `PPSA99847 v0.1.3`. **Zusätzlich unabhängiger Konsolen-Logbeweis** in `bfpilot-download (21).tar`: zwei erfolgreiche externe `physics-smoke.pck`-Sessions, jeweils `GODOT_PS5_M9_REAL_COLLISION_OK x=1093.984375 normal=(-1.0, 0.0)`, `GODOT_PS5_M9_TEST_PASS physics_frames=369`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN` und `EGL_CLOSED`. Keine Dummy-Physics-Warnung innerhalb der letzten beiden Sessions. Die historischen alten Dummy-Warnungen und Fehlercodes 43 im selben append-only-TAR gehören zu zwei früheren, fehlgeschlagenen Versuchen. **Nächster Meilenstein: M10 breitere 2D-Kompatibilität (UI/Fonts, zusätzliche Physics-Features, Audio und Saves getrennt nachweisen).**
+> **Aktueller Meilenstein: M9b REAL GODOT PHYSICS 2D AUF PS5 BESTÄTIGT (23. Oktober 2026).** Der Nutzer meldet erfolgreiche Bewegung, Wandkollision und Grünfärbung auf `PPSA99847 v0.1.3`. **Zusätzlich unabhängiger Konsolen-Logbeweis** in `bfpilot-download (21).tar`: zwei erfolgreiche externe `physics-smoke.pck`-Sessions, jeweils `GODOT_PS5_M9_REAL_COLLISION_OK x=1093.984375 normal=(-1.0, 0.0)`, `GODOT_PS5_M9_TEST_PASS physics_frames=369`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN` und `EGL_CLOSED`. Keine Dummy-Physics-Warnung innerhalb der letzten beiden Sessions. Die historischen alten Dummy-Warnungen und Fehlercodes 43 im selben append-only-TAR gehören zu zwei früheren, fehlgeschlagenen Versuchen. **M10a RigidBody2D/Area2D external PCK now passes desktop Godot 4.7.2 CI (run #39876290256); physical PS5 acceptance still OPEN.**
 
 ## Bedeutung der Statusangaben
 
@@ -30,6 +30,7 @@ Diese Unterscheidung ist wichtig: Ein erfolgreich signiertes ELF/ZIP ist **kein*
 | M8c | Eigenes externes Godot-4.7.2-PCK ohne eboot.bin-Neubau | Zwei Szenen, `res://palette.json`, GDScript, Canvas2D, DualSense-X; grüner CI-Lauf **39866584380** und Nutzerbericht „geht auch alles wie es soll“ | ✅ PS5-Funktion vom Nutzer bestätigt; 🟡 Hardware-Logs noch ausstehend |
 | M9a | **Real PhysicsServer2D collision PCK** | Original-Godot-4.7.2-PCK mit `CharacterBody2D`, `StaticBody2D`, `CollisionShape2D`, `move_and_collide()`; Host-CI 39869677215 erfolgreich; auf PS5 mit v0.1.2 zunächst Dummy-Physics/Timeout, mit v0.1.3 echter Kontakt | ✅ PCK auf PS5 mit M9b erfolgreich; v0.1.2 ursprünglich fehlgeschlagen |
 | M9b | **Native GodotPhysics2D / PPSA99847 v0.1.3** | Build [#39872101079](https://github.com/Yahballon/tmp_lap/actions/runs/39872101079) erfolgreich; `bfpilot-download (21).tar`: **2×** `REAL_COLLISION_OK`, `TEST_PASS physics_frames=369`, `GODOT_RETURN=0`, `EGL_CLOSED`, ohne Dummy-Warnung in den erfolgreichen Sitzungen | ✅ **Auf PS5 mit Logs bestätigt** |
+| M10a | **Real RigidBody2D gravity + Area2D signals (independent external PCK)** | Official Godot 4.7.2 headless acceptance: AREA_ENTER_OK y=409.26, AREA_EXIT_OK y=646.67, RIGID_CONTACT_OK y=777.44, TEST_PASS ticks=143 rest_y=777.30 velocity=(0,0). [CI #39876290256](https://github.com/Yahballon/tmp_lap/actions/runs/39876290256) | 🟡 **Host tested; PS5 hardware acceptance pending** |
 
 **Wichtig zu M6/M7:** M6 benutzte noch einen **eigenen nativen OpenGL-Zeichner**. **M7 ist der eigentliche Renderer-Durchbruch:** Das Schachbrett wird dort vom **originalen Godot-Canvas2D** gezeichnet, nicht von unserem Test-Shader. Die native Hülle besitzt nur EGL-Kontext, GL-Prozedurauflösung und Präsentation.
 
@@ -116,9 +117,20 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 - **Hardware-Abnahme BESTANDEN (23.10.2026):** `bfpilot-download (21).tar` enthält zwei vollständige `physics-smoke.pck`-Läufe unter dem neuen `PPSA99847 v0.1.3`: je `GODOT_PS5_M9_BODIES_READY`, `GODOT_PS5_M9_REAL_COLLISION_OK x=1093.984375 normal=(-1.0, 0.0)` und `GODOT_PS5_M9_TEST_PASS physics_frames=369`; dazu `PACK_SOURCE=CONFIG`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN` und `EGL_CLOSED` im Runtime-Log. Zuvor im selben TAR enthalten: zwei alte Fehlversuche mit `GODOT_RETURN=43`, Dummy-Warnung und Timeout. Die beiden letzten Sessions enthalten **keine** Dummy-Warnung mehr.
 - **Restwarnungen:** `Couldn't load file res://project.binary` und `Could not load global script cache` sind weiterhin im stderr der erfolgreichen Sitzungen vorhanden, blockieren hier nicht. Nur die getesteten Physics-Basics beanspruchen; noch keine Bestätigung für RigidBody2D, TileMaps, Areas, Joints, Audio, Fonts oder Savegames.
 
+## M10a – Real rigid bodies, gravity and Area2D signals (23 October 2026)
+
+**Status: 🟡 host PASS; native PS5 acceptance pending.** This step requires only the previously hardware-confirmed `PPSA99847 v0.1.3`; no new native ELF, firmware change or changes to the working Pong/M9b code.
+
+- Source and runbook: [`samples/dynamics-area-smoke/`](samples/dynamics-area-smoke/README.md). New [`build-godot-ps5-m10a-dynamics-area.yml`](../../.github/workflows/build-godot-ps5-m10a-dynamics-area.yml) builds a **genuine Godot 4.7.2 PCK** and starts it independently on a Linux host, then checks real engine physics signals and generates an installable PS5-ready *data-only* ZIP.
+- CI **SUCCESS**: [run 39876290256](https://github.com/Yahballon/tmp_lap/actions/runs/39876290256), artifact `Godot-PS5-M10a-RIGIDBODY-AREA-HOST-PASS-PS5-UNTESTED` (ID `12468183558`). Standalone real Godot PCK SHA-256: `afec68be20df28c71119d8e8d23c3b19c8e81ace54739decbea2d810d8a908ff`.
+- Host proof: `GODOT_PS5_M10A_AREA_ENTER_OK y=409.2584`, `GODOT_PS5_M10A_AREA_EXIT_OK y=646.6695`, `GODOT_PS5_M10A_RIGID_CONTACT_OK y=777.4374`, and `GODOT_PS5_M10A_TEST_PASS ticks=143 rest_y=777.3000 velocity=(0.0, 0.0)`. These are genuine Godot `Area2D.body_entered`, `Area2D.body_exited` and `RigidBody2D.body_entered` events with Godot-managed gravity and body position. No scripted movement or synthetic collisions.
+- To test on PS5: extract **`GodotPS5-M10a-RIGIDBODY-AREA-TEST.zip`** inside the Actions artifact; copy `GodotPS5/` contents to `/data/GodotPS5/`. It adds `games/dynamics-area-smoke.pck` and writes `launch.txt` containing `dynamics-area-smoke.pck` (previous PCKs remain installed). Run existing `PPSA99847 v0.1.3`.
+- Expected visual result: yellow ball falls through cyan trigger and lands on magenta platform, three signal lights turn green. Required console proof: `gles3-stdout.log` contains `GODOT_PS5_M10A_AREA_ENTER_OK`, `GODOT_PS5_M10A_AREA_EXIT_OK`, `GODOT_PS5_M10A_RIGID_CONTACT_OK`, `GODOT_PS5_M10A_TEST_PASS`; `gles3-runtime.log` contains `PACK_SOURCE=CONFIG`, `GODOT_RETURN=0`, `NORMAL_SHUTDOWN`, `EGL_CLOSED`.
+- **Do not mark M10a on-console confirmed** until the user reports success, ideally accompanied by video/screenshot and these PS5 logs. No claim yet for `TileMapLayer`, `Label`, joints, fonts, audio, saves or universal project compatibility.
+
 ## Roadmap: Was als Nächstes zu tun ist
 
-### P0 – M9b real PhysicsServer2D bestätigt; nächster Test: breitere Godot-2D-Funktionen
+### P0 – M10a gravity and trigger acceptance on physical PS5
 
 - [x] `PPSA99847 v0.1.2` auf realer PS5 starten: vom Nutzer bestätigt.
 - [x] Pong-Bildschirm mit zwei Schlägern, bewegtem Ball, Spielfeld und Punktestand nachweisen: Video `20261022_234930_00248487(1).webm` bestätigt.
@@ -129,6 +141,9 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 - [x] **M9a host acceptance:** standalone `CharacterBody2D` + `StaticBody2D` + `CollisionShape2D` real Godot 4.7.2 collision test built, executed, signed-off by CI run `39869677215`, and ready-to-copy external PCK produced.
 - [x] **M9a PS5 hardware acceptance:** Die native v0.1.3 besteht den realen Kollisionstest zweimal mit `REAL_COLLISION_OK`, `TEST_PASS`, Exit-Code 0 und vollständigem EGL-Shutdown; mit v0.1.2 war der Dummy-Server das bestätigte Hindernis.
 - [x] **M9b:** Original GodotPhysics2D-Modul in PS5-Engine integriert; separater Build 39872101079 grün; physische PS5-Kollision in zwei Sessions bestätigt.
+- [x] **M10a host:** official Godot 4.7.2 PhysicsServer2D RigidBody2D + Area2D PCK complete, real collision/trigger markers and rest-state verified; CI 39876290256 green and install ZIP available.
+- [ ] **M10a PS5:** run `dynamics-area-smoke.pck` on the existing v0.1.3 native app and provide `gles3-stdout.log` + `gles3-runtime.log`/screenshot; only mark completed when real hardware confirms all signals.
+- [ ] **M10b:** explore `TileMapLayer` collision and `Label`/TextServer, each independently gated, without assuming that working basic Physics2D automatically enables all nodes.
 
 ### P1 – Echte eigene Godot-4-PCKs laden
 
@@ -179,4 +194,4 @@ Host Actions run [39869677215](https://github.com/Yahballon/tmp_lap/actions/runs
 
 ---
 
-**Kurzfassung:** Original Godot 4.7.2 GDScript, GLES3/Canvas2D, DualSense, Pong, externe PCKs und jetzt **echte native PhysicsServer2D-Kollisionen** sind auf PS5 getestet. M9b ist durch zwei reale Konsolenläufe aus `bfpilot-download (21).tar` bestätigt. **Nächste unabhängige Abnahmen:** RigidBody2D/Area2D, Fonts/UI, Audio, Savegames und Kompatibilitätsmatrix.
+**Kurzfassung:** Original Godot 4.7.2 GDScript, GLES3/Canvas2D, DualSense, Pong, externe PCKs und jetzt **echte native PhysicsServer2D-Kollisionen** sind auf PS5 getestet. M9b ist durch zwei reale Konsolenläufe aus `bfpilot-download (21).tar` bestätigt. **M10a** RigidBody2D/Area2D PCK passes the official Godot 4.7.2 host test and awaits PS5 console acceptance; later independent gates: TileMapLayer, Fonts/UI, Audio, saves and a compatibility matrix.
