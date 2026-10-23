@@ -8,6 +8,7 @@ import zipfile
 TESTS = {
     "audio": ("m11-audio.pck", "GodotPS5-M11a-AUDIO-TEST.zip"),
     "saves": ("m11-saves.pck", "GodotPS5-M11b-SAVES-TEST.zip"),
+    "saves-v2": ("m11-saves-v2.pck", "GodotPS5-M11b2-SAVES-VISIBLE-FIX.zip"),
 }
 
 def bundle(mode, source, directory):
