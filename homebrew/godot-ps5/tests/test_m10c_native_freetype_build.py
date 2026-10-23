@@ -24,6 +24,7 @@ for marker in ("GODOT_PS5_FREETYPE: '1'", "GODOT_PS5_PHYSICS2D: '1'",
 assert "GODOT_PS5_FREETYPE:" not in baseline
 assert "contentVersion='01.000.004'" in baseline
 assert "module_freetype_enabled=yes" not in baseline
+assert "assert meta['contentVersion']=='01.000.005'" in ci
 assert "GODOT_PS5_FREETYPE" not in (root/"engine/platform/ps5/detect.py").read_text()
 
 assert "GODOT_PS5_M10B_FONT_FAIL_GLYPH_A" in (root/"samples/m10b-font-ui/main.gd").read_text()
