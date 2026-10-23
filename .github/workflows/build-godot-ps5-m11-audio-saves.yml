@@ -1,0 +1,98 @@
+name: Godot PS5 M11 Audio + Restart Savegame PCKs
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/m11-audio/**'
+      - 'homebrew/godot-ps5/samples/m11-saves/**'
+      - 'homebrew/godot-ps5/tests/test_m11_external_pcks.py'
+      - 'homebrew/godot-ps5/scripts/package_m11_external_pcks.py'
+      - '.github/workflows/build-godot-ps5-m11-audio-saves.yml'
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/m11-audio/**'
+      - 'homebrew/godot-ps5/samples/m11-saves/**'
+      - 'homebrew/godot-ps5/tests/test_m11_external_pcks.py'
+      - 'homebrew/godot-ps5/scripts/package_m11_external_pcks.py'
+      - '.github/workflows/build-godot-ps5-m11-audio-saves.yml'
+permissions:
+  contents: read
+jobs:
+  m11-real-godot-pcks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate M11 API and PS5 installer shape
+        run: |
+          set -euo pipefail
+          python3 homebrew/godot-ps5/tests/test_m11_external_pcks.py
+      - name: Download official Godot 4.7.2
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot47.zip
+          unzip -q /tmp/godot47.zip -d /tmp
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+      - name: Build and check genuine Godot AudioStreamWAV PCK
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          folder=homebrew/godot-ps5/samples/m11-audio
+          "$godot" --headless --path "$folder" --script res://make_pack.gd 2>&1 | tee /tmp/m11-audio-pack.log
+          grep -Fq GODOT_PS5_M11_AUDIO_PCK_WRITTEN /tmp/m11-audio-pack.log
+          test -s "$folder/m11-audio.pck"
+          "$godot" --headless --main-pack "$folder/m11-audio.pck" --quit-after 1100 2>&1 | tee /tmp/m11-audio-host.log
+          for marker in GODOT_PS5_M11_AUDIO_BOOT GODOT_PS5_M11_AUDIO_PCM_READY GODOT_PS5_M11_AUDIO_PLAYER_STARTED GODOT_PS5_M11_AUDIO_HOST_API_PASS GODOT_PS5_M11_AUDIO_HARDWARE_AUDIBILITY_UNCONFIRMED; do
+            grep -Fq "$marker" /tmp/m11-audio-host.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M11_AUDIO_FAIL_' /tmp/m11-audio-host.log; then exit 1; fi
+      - name: Build real Godot save PCK and run TWO SEPARATE processes
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          folder=homebrew/godot-ps5/samples/m11-saves
+          "$godot" --headless --path "$folder" --script res://make_pack.gd 2>&1 | tee /tmp/m11-saves-pack.log
+          grep -Fq GODOT_PS5_M11_SAVE_PCK_WRITTEN /tmp/m11-saves-pack.log
+          test -s "$folder/m11-saves.pck"
+          export XDG_DATA_HOME=/tmp/m11-save-ci-data
+          export XDG_CONFIG_HOME=/tmp/m11-save-ci-config
+          mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
+          "$godot" --headless --main-pack "$folder/m11-saves.pck" --quit-after 700 2>&1 | tee /tmp/m11-save-first.log
+          grep -Fq GODOT_PS5_M11_SAVE_FIRST_LAUNCH_PASS /tmp/m11-save-first.log
+          grep -Fq GODOT_PS5_M11_SAVE_VERIFY_READBACK_OK /tmp/m11-save-first.log
+          if grep -Fq GODOT_PS5_M11_SAVE_RESTART_PERSISTENCE_PASS /tmp/m11-save-first.log; then exit 1; fi
+          "$godot" --headless --main-pack "$folder/m11-saves.pck" --quit-after 700 2>&1 | tee /tmp/m11-save-second.log
+          grep -Fq GODOT_PS5_M11_SAVE_PERSIST_OK /tmp/m11-save-second.log
+          grep -Fq GODOT_PS5_M11_SAVE_RESTART_PERSISTENCE_PASS /tmp/m11-save-second.log
+          grep -Fq GODOT_PS5_M11_SAVE_TEST_FINISHED /tmp/m11-save-second.log
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M11_SAVE_FAIL_|GODOT_PS5_M11_SAVE_WRITE_UNAVAILABLE' /tmp/m11-save-first.log /tmp/m11-save-second.log; then exit 1; fi
+          printenv XDG_DATA_HOME
+      - name: Package independent PS5 test ZIPs
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/m11-ready
+          tool=homebrew/godot-ps5/scripts/package_m11_external_pcks.py
+          python3 "$tool" audio homebrew/godot-ps5/samples/m11-audio/m11-audio.pck /tmp/m11-ready | tee /tmp/m11-packages.log
+          python3 "$tool" saves homebrew/godot-ps5/samples/m11-saves/m11-saves.pck /tmp/m11-ready | tee -a /tmp/m11-packages.log
+          grep -Fq GODOT_PS5_M11_BUNDLE_READY /tmp/m11-packages.log
+          test -s /tmp/m11-ready/GodotPS5-M11a-AUDIO-TEST.zip
+          test -s /tmp/m11-ready/GodotPS5-M11b-SAVES-TEST.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-M11-Audio-Saves-HOST-VALIDATED-PS5-UNTESTED
+          path: /tmp/m11-ready/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-M11-Host-Logs
+          path: |
+            /tmp/m11-audio-pack.log
+            /tmp/m11-audio-host.log
+            /tmp/m11-saves-pack.log
+            /tmp/m11-save-first.log
+            /tmp/m11-save-second.log
+            /tmp/m11-packages.log
+          if-no-files-found: warn
