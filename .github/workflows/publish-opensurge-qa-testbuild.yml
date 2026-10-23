@@ -1,0 +1,149 @@
+name: Publish Open Surge PS5 QA TESTBUILD fallback
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-opensurge-qa-testbuild.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: opensurge-v064-qa-catalog
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore signed v0.6.4-physics test package from passing CI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view opensurge-ps5-v0.6.4 >/dev/null 2>&1; then
+            echo "Full v0.6.4 release already available; no QA fallback needed"
+            echo "SKIP_QA=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          mkdir -p qa
+          # Passed PS5 FSELF validation and all four-stage regression tests.
+          # Source: 6c1be46cdbe8fc81d0a823ba79d8934b932dd413, full CI run 39874746356.
+          gh run download 39874746356 \
+            --name PPSA99358-OpenSurge-LEGACY-NATIVE-DIAGNOSTIC-NOT-GAME \
+            --dir qa
+          test -s qa/PPSA99358.zip
+          echo "a0cad1fabde10588e6f28945d97a83cc4f859307065fdc1832815693afbf070e  qa/PPSA99358.zip" | sha256sum -c -
+      - name: Version metadata and integrity check, without touching signed eboot
+        if: env.SKIP_QA != '1'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, zipfile, struct
+          src=Path("qa/PPSA99358.zip")
+          dst=Path("qa/qa-release.zip")
+          with zipfile.ZipFile(src) as source, zipfile.ZipFile(dst,"w") as target:
+              assert source.testzip() is None
+              files=set(source.namelist())
+              assert "PPSA99358/eboot.bin" in files
+              assert "PPSA99358/sce_sys/param.json" in files
+              elf=source.read("PPSA99358/eboot.bin")
+              assert elf[:4]==struct.pack("<I",0x1D3D154F)
+              for needle in (b"LOOP_PHASE",b"LOOP_COMPLETE",b"v0.6.3",b"ORIGINAL_TUBE_IN_SCRIPT"):
+                  assert needle in elf,needle
+              assert b"v0.6.4" not in elf, "Fallback must not overwrite a genuine v0.6.4 build"
+              assert len(files)>=100
+              for info in source.infolist():
+                  assert not info.filename.startswith("/") and ".." not in Path(info.filename).parts
+                  data=source.read(info)
+                  if info.filename=="PPSA99358/sce_sys/param.json":
+                      obj=json.loads(data)
+                      assert obj["titleId"]=="PPSA99358"
+                      obj["contentVersion"]="01.018.000"
+                      data=(json.dumps(obj,indent=2)+"\n").encode()
+                  target.writestr(info,data)
+          dst.replace(src)
+          with zipfile.ZipFile(src) as archive:
+              assert archive.testzip() is None
+              assert json.loads(archive.read("PPSA99358/sce_sys/param.json"))["contentVersion"]=="01.018.000"
+          print("QA fallback: verified binary intact, package metadata updated to contentVersion 01.018.000")
+          PY
+      - name: Publish honest TESTBUILD-only prerelease if main build is not ready
+        if: env.SKIP_QA != '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view opensurge-ps5-v0.6.4 >/dev/null 2>&1; then
+            echo "Main v0.6.4 is published; don't create older QA fallback"
+          elif gh release view opensurge-ps5-v0.6.4-qa1 >/dev/null 2>&1; then
+            echo "Existing QA TESTBUILD present; not overwriting"
+          else
+            cat > /tmp/notes.txt <<'EOF'
+          # Open Surge PS5 v0.6.4 QA — S-Tunnel / Looping Test
+
+          **TESTBUILD App QA release, not final v0.6.4.** The signed PS5 binary is
+          from the verified four-orientation looping source snapshot
+          6c1be46cdbe8fc81d0a823ba79d8934b932dd413, before the final
+          UI version bump. Therefore its in-game header still reads v0.6.3.
+          The package installation contentVersion is updated to 01.018.000
+          without modifying the signed eboot.bin.
+
+          Source fixes include real original-mask S-tunnel rolling tracks,
+          two-way four-mode rings, collision-layer continuity and diagnostics.
+          Host tests passed S-tunnel both ways, all four rings both ways, the
+          video regression and four Sunshine stage terrain stress. Full
+          SurgeScript/Allegro gameplay is not yet ported.
+          
+          When the proper signed v0.6.4 build finishes it will appear as a
+          separate GitHub Release and supersede this QA catalog entry.
+          EOF
+            gh release create opensurge-ps5-v0.6.4-qa1 qa/PPSA99358.zip \
+              --target 6c1be46cdbe8fc81d0a823ba79d8934b932dd413 \
+              --title "Open Surge PS5 v0.6.4 QA - S-Tunnel and Looping TESTBUILD" \
+              --notes-file /tmp/notes.txt --prerelease
+          fi
+      - name: Refresh TESTBUILD app version.json to new release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          for attempt in 1 2 3 4 5; do
+            python3 tools/update-version.py
+            if python3 - <<'PY'
+          import json
+          data=json.load(open("version.json"))
+          for app in data["apps"]:
+              if app.get("title_id")=="PPSA99358":
+                  assert app["version"]=="0.6.4",app
+                  assert app["tag"] in ("opensurge-ps5-v0.6.4","opensurge-ps5-v0.6.4-qa1"),app
+                  print("TESTBUILD Open Surge:",app["tag"],app["zip_url"])
+                  break
+          else:
+              raise AssertionError("Missing Open Surge PPSA99358")
+          PY
+            then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then exit 1; fi
+            sleep 8
+          done
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add version.json
+            git commit -m "chore: publish Open Surge v0.6.4 QA to TESTBUILDS [skip ci]"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
