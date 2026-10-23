@@ -1,0 +1,139 @@
+name: Godot PS5 M12c Optimized Third Party Platformer PCK (External PCK)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/m12-platformer-2201/**'
+      - 'homebrew/godot-ps5/tests/test_m12c_fastboot.py'
+      - '.github/workflows/build-godot-ps5-m12c-fastboot.yml'
+  push:
+    branches:
+      - feature/godot-ps5-engine-foundation
+      - feature/godot-ps5-m12-asset2201-platformer
+    paths:
+      - 'homebrew/godot-ps5/samples/m12-platformer-2201/**'
+      - 'homebrew/godot-ps5/tests/test_m12c_fastboot.py'
+      - '.github/workflows/build-godot-ps5-m12c-fastboot.yml'
+permissions:
+  contents: read
+jobs:
+  real-third-party-godot-pck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate adapter + safe PCK packaging
+        run: |
+          set -euo pipefail
+          python3 homebrew/godot-ps5/tests/test_m12_platformer_asset2201.py
+          python3 homebrew/godot-ps5/tests/test_m12c_fastboot.py
+      - name: Fetch pinned MIT Godot Asset Library 2201
+        run: |
+          set -euo pipefail
+          git clone --quiet --filter=blob:none https://github.com/AdilDevStuff/2D-Platformer-Starter-Kit.git /tmp/m12-upstream
+          cd /tmp/m12-upstream
+          git checkout -q a48fc994cbcb168be472df84f2e13b55d2a2792f
+          test "$(git rev-parse HEAD)" = "a48fc994cbcb168be472df84f2e13b55d2a2792f"
+          test -s LICENSE
+          test -s 'Scenes/Levels/Level_01.tscn'
+          test -s 'Scenes/Levels/Level_02.tscn'
+          test -s 'Assets/Sound/FX/jump.wav'
+          test -s 'Assets/Fonts/Star Choco.ttf'
+          echo GODOT_PS5_M12_ORIGINAL_ASSET_PINNED
+      - name: Download official Godot 4.7.2 and patch PS5-specific controls
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+          python3 homebrew/godot-ps5/samples/m12-platformer-2201/prepare_project_fast.py prepare /tmp/m12-upstream
+          grep -Fq 'PS5Controls="*res://PS5Controls.gd"' /tmp/m12-upstream/project.godot
+          grep -Fq 'renderer/rendering_method="gl_compatibility"' /tmp/m12-upstream/project.godot
+          grep -Fq 'run/main_scene="res://PS5BootFast.tscn"' /tmp/m12-upstream/project.godot
+          grep -Fq 'boot_splash/show_image=false' /tmp/m12-upstream/project.godot
+          ! grep -Fq 'config/icon="res://Icon.png"' /tmp/m12-upstream/project.godot
+          python3 - <<'PY'
+          from pathlib import Path
+          import_files=list(Path('/tmp/m12-upstream').rglob('*.png.import'))
+          assert len(import_files)>=6
+          for file in import_files:
+              contents=file.read_text()
+              assert 'compress/mode=3' in contents, file
+          print('GODOT_PS5_M12B_IMPORT_CONFIGS_RAW',len(import_files))
+          PY
+      - name: Import original sprites, fonts, WAV sounds and TileMaps in Godot 4.7.2
+        run: |
+          set -euo pipefail
+          timeout 150 /tmp/Godot_v4.7.2-stable_linux.x86_64 --headless --path /tmp/m12-upstream --editor --import 2>&1 | tee /tmp/m12-import.log
+          if grep -Ei 'SCRIPT ERROR|Parse Error|ERROR:.*Failed to|Failed to load script' /tmp/m12-import.log; then
+            echo 'M12 editor import failed' >&2
+            exit 1
+          fi
+          python3 homebrew/godot-ps5/samples/m12-platformer-2201/prepare_project_fast.py manifest /tmp/m12-upstream | tee /tmp/m12-rawtextures.log
+          grep -Fq GODOT_PS5_M12C_GAMEPLAY_TEXTURES_ONLY /tmp/m12-rawtextures.log
+          test -s /tmp/m12-upstream/ps5_m12_manifest.txt
+      - name: Pack compact gameplay-only PCK with 9.3 MiB unused splash/icons removed
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/m12-upstream/ps5_m12_manifest.txt').read_text()
+          assert '.godot/imported/platformPack_tilesheet' in p
+          assert '.godot/imported/platformerPack_character' in p
+          assert '.godot/imported/star_07' in p
+          assert '2D Platformer Starter Kit Splash' not in p
+          assert '.godot/imported/Icon.png-' not in p
+          assert '.godot/imported/icon.svg-' not in p
+          print('GODOT_PS5_M12C_GAMEPLAY_MANIFEST_VERIFIED')
+          PY
+      - name: Pack the ORIGINAL playable game + imported resources in genuine Godot PCK
+        run: |
+          set -euo pipefail
+          timeout 150 /tmp/Godot_v4.7.2-stable_linux.x86_64 --headless --path /tmp/m12-upstream --script res://pack_m12.gd 2>&1 | tee /tmp/m12-pck.log
+          grep -Fq GODOT_PS5_M12C_PCK_WRITTEN /tmp/m12-pck.log
+          test -s /tmp/m12-upstream/m12c-platformer-asset2201.pck
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          p=Path('/tmp/m12-upstream/m12c-platformer-asset2201.pck')
+          n=p.stat().st_size
+          assert n < 5500000, f'fast PCK unexpectedly large ({n} bytes)'
+          print(f'GODOT_PS5_M12C_FAST_PCK_SIZE_OK bytes={n} expected_original=13271676')
+          PY
+      - name: Launch fast production third-party platformer PCK under official Godot 4.7.2
+        run: |
+          set -euo pipefail
+          timeout 150 /tmp/Godot_v4.7.2-stable_linux.x86_64 --headless --main-pack /tmp/m12-upstream/m12c-platformer-asset2201.pck --quit-after 720 2>&1 | tee /tmp/m12-host.log
+          for marker in GODOT_PS5_M12C_BOOT_READY GODOT_PS5_M12C_LEVEL_LOAD_DONE GODOT_PS5_M12C_SCENE_SWITCH_REQUESTED GODOT_PS5_M12C_PLAYABLE_SCENE_READY GODOT_PS5_M12_INPUT_READY GODOT_PS5_M12_SCENE_READY GODOT_PS5_M12_PLAYER_FOUND GODOT_PS5_M12_FRAME; do
+            grep -Fq "$marker" /tmp/m12-host.log
+          done
+          if grep -Ei 'SCRIPT ERROR|Parse Error|ERROR:.*Failed to|Failed to load script|GODOT_PS5_M12_PLAYER_NOT_FOUND_IN_CURRENT_SCENE' /tmp/m12-host.log; then
+            echo 'M12 genuine host game load failed' >&2
+            exit 1
+          fi
+          echo GODOT_PS5_M12C_HOST_GAME_BOOT_PASS
+      - name: Build independent PS5 install ZIP (data-only; no eboot)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/m12-ready
+          python3 homebrew/godot-ps5/samples/m12-platformer-2201/package_platformer_fast.py \
+            /tmp/m12-upstream/m12c-platformer-asset2201.pck \
+            /tmp/m12-upstream/LICENSE /tmp/m12-ready | tee /tmp/m12-install.log
+          test -s /tmp/m12-ready/GodotPS5-M12c-Platformer-FAST-PS5-TEST.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-M12c-FastBoot-Asset2201-Host-Validated-PS5-UNTESTED
+          path: /tmp/m12-ready/GodotPS5-M12c-Platformer-FAST-PS5-TEST.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-M12c-FastBoot-Host-Logs
+          path: |
+            /tmp/m12-import.log
+            /tmp/m12-rawtextures.log
+            /tmp/m12-pck.log
+            /tmp/m12-host.log
+            /tmp/m12-install.log
+          if-no-files-found: warn
