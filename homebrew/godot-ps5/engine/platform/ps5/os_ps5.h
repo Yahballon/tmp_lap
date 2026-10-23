@@ -2,10 +2,16 @@
 #pragma once
 #include "drivers/unix/os_unix.h"
 #include "pad_ps5.h"
+#ifdef GODOT_PS5_AUDIOOUT
+#include "audio_driver_ps5.h"
+#endif
 
 class OS_PS5 final : public OS_Unix {
     MainLoop *main_loop = nullptr;
     ps5_pad::Bridge controller;
+#ifdef GODOT_PS5_AUDIOOUT
+    AudioDriverPS5 audio_driver;
+#endif
 protected:
     void initialize() override;
     void finalize() override;
