@@ -37,9 +37,10 @@ with tempfile.TemporaryDirectory() as tmp:
         assert text.count("navigation_enabled = false")==2, name
         assert text.count('tile_set = SubResource(')==2
         assert 'physics_layer_0/collision_layer = 1' in text
-    try:opt.disable_navigation(proj)
-    except RuntimeError:pass
-    else:raise AssertionError("navigation patch must be applied exactly once")
+    before={name:(lv/name).read_text() for name in opt.LEVELS}
+    opt.disable_navigation(proj)
+    after={name:(lv/name).read_text() for name in opt.LEVELS}
+    assert before==after, "Navigation transform must be idempotent"
     pack=root/"package_platformer_navfix.py"
     spec=importlib.util.spec_from_file_location("m12d_package",pack)
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
