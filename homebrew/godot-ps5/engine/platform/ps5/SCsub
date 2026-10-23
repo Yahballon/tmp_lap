@@ -6,6 +6,8 @@ Import("env")
 # probe only for the isolated cross-compile, never the regular PS5 title.
 import os
 sources = ["os_ps5.cpp", "godot_ps5.cpp", "file_access_ps5.cpp", "pad_ps5.cpp", "compat.cpp"]
+if os.environ.get("GODOT_PS5_AUDIOOUT") == "1":
+    sources.append("audio_driver_ps5.cpp")
 if os.environ.get("GODOT_PS5_DISPLAY_EXPERIMENT") == "1":
     sources.append("display_server_ps5.cpp")
 env.add_library("#bin/godot_ps5", sources)
