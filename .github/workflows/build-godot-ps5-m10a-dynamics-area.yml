@@ -1,0 +1,81 @@
+name: Godot PS5 M10a RigidBody2D and Area2D external PCK
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/dynamics-area-smoke/**'
+      - 'homebrew/godot-ps5/tests/test_m10a_dynamics_area.py'
+      - '.github/workflows/build-godot-ps5-m10a-dynamics-area.yml'
+  push:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/samples/dynamics-area-smoke/**'
+      - 'homebrew/godot-ps5/tests/test_m10a_dynamics_area.py'
+      - '.github/workflows/build-godot-ps5-m10a-dynamics-area.yml'
+permissions:
+  contents: read
+jobs:
+  host-physics-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate M10a packager, resources and signal markers
+        run: |
+          python3 homebrew/godot-ps5/tests/test_m10a_dynamics_area.py
+      - name: Download official Godot 4.7.2
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot47.zip
+          unzip -q /tmp/godot47.zip -d /tmp
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+      - name: Create genuine Godot PCK and test ALL real physics signals
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/dynamics-area-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m10a-pack.log
+          grep -Fq GODOT_PS5_M10A_PCK_WRITTEN /tmp/m10a-pack.log
+          test -s "$project/dynamics-area-smoke.pck"
+          "$godot" --headless --main-pack "$project/dynamics-area-smoke.pck" --quit-after 2300 2>&1 | tee /tmp/m10a-test.log
+          for marker in GODOT_PS5_M10A_BOOT GODOT_PS5_M10A_BODIES_READY GODOT_PS5_M10A_AREA_ENTER_OK GODOT_PS5_M10A_AREA_EXIT_OK GODOT_PS5_M10A_RIGID_CONTACT_OK GODOT_PS5_M10A_TEST_PASS; do
+            grep -Fq "$marker" /tmp/m10a-test.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M10A_FAIL_' /tmp/m10a-test.log; then exit 1; fi
+      - name: Package PS5-ready ZIP; preserve existing eboot and installed PCKs
+        run: |
+          set -euo pipefail
+          project=homebrew/godot-ps5/samples/dynamics-area-smoke
+          mkdir -p /tmp/m10a-out
+          python3 "$project/make_ps5_test_bundle.py" "$project/dynamics-area-smoke.pck" /tmp/m10a-out | tee /tmp/m10a-bundle.log
+          grep -Fq GODOT_PS5_M10A_BUNDLE_READY /tmp/m10a-bundle.log
+          cp "$project/dynamics-area-smoke.pck" /tmp/m10a-out/dynamics-area-smoke.pck
+          python3 - <<'PY'
+          import zipfile
+          from pathlib import Path
+          p=Path("/tmp/m10a-out/GodotPS5-M10a-RIGIDBODY-AREA-TEST.zip")
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              assert set(z.namelist()) == {
+                  "GodotPS5/games/dynamics-area-smoke.pck",
+                  "GodotPS5/launch.txt",
+                  "GodotPS5/M10a-README.txt",
+                  "GodotPS5/dynamics-area-smoke.sha256"
+              }
+          print("GODOT_PS5_M10A_ZIP_VALIDATED")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-M10a-RIGIDBODY-AREA-HOST-PASS-PS5-UNTESTED
+          path: /tmp/m10a-out/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-M10a-Host-Logs
+          path: |
+            /tmp/m10a-pack.log
+            /tmp/m10a-test.log
+            /tmp/m10a-bundle.log
+          if-no-files-found: warn

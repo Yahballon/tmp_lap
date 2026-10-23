@@ -1,9 +1,31 @@
 # Godot 4.7.2 PS5 Homebrew Runtime
 
 > **Projektstatus / Meilensteine:** [**MILESTONES.md – Erfolge, aktuelle Builds und nächste Aufgaben**](MILESTONES.md) · Stand 23.10.2026.
-> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer, Pong, externes Godot-PCK und **native GodotPhysics2D-Kollisionen auf PS5 bestätigt**. `PPSA99847 v0.1.3` bestand den M9-Test auf physischer PS5 zweimal mit `REAL_COLLISION_OK`, `TEST_PASS`, `GODOT_RETURN=0` und `EGL_CLOSED` (`bfpilot-download (21).tar`). Fonts, Audio, Saves und weitere Physik-Features sind noch nicht einzeln bestätigt.
+> **Aktuell:** echter Godot-GLES3/Canvas2D-Renderer, Pong, externes Godot-PCK und **native GodotPhysics2D-Kollisionen auf PS5 bestätigt**. `PPSA99847 v0.1.3` bestand den M9-Test zweimal auf echter Hardware (`bfpilot-download (21).tar`). **M10a** – echtes `RigidBody2D`/`Area2D`-Test-PCK – ist auf Godot-4.7.2-Host CI bestätigt und als separater PS5-Testdownload bereit, aber **noch nicht auf PS5 getestet**. Fonts, Audio, Saves und TileMaps bleiben offen.
 
 **by YAHBALLON** · Title ID `PPSA99843` · original Godot Engine (MIT)
+
+## M10a real RigidBody2D + Area2D external PCK (23 October 2026)
+
+This is a separate, host-validated Godot 4.7.2 project at
+[`samples/dynamics-area-smoke/`](samples/dynamics-area-smoke/README.md).
+Using original Godot PhysicsServer2D, a gravity-driven `RigidBody2D` crosses
+an `Area2D` trigger and settles on a `StaticBody2D` platform. The scene
+requires real engine signals: `body_entered`, `body_exited`, a rigid-body
+floor contact, and a settled location/zero-velocity result.
+
+[Actions run #39876290256](https://github.com/Yahballon/tmp_lap/actions/runs/39876290256)
+**passed on official desktop/headless Godot 4.7.2**, reporting
+`GODOT_PS5_M10A_TEST_PASS ticks=143 rest_y=777.3 velocity=(0,0)`.
+The workflow published an independent, ready-to-copy
+`GodotPS5-M10a-RIGIDBODY-AREA-TEST.zip` which contains only
+`games/dynamics-area-smoke.pck`, `launch.txt` and diagnostic instructions.
+It runs with **already installed PPSA99847 v0.1.3** and does **not** replace
+the native PS5 executable, Pong, or the previous external PCKs.
+
+**Hardware acceptance is still pending.** The user must test the new PCK on
+the actual console and check `gles3-stdout.log`/`gles3-runtime.log`. Passing
+host CI does not establish working `RigidBody2D`/`Area2D` on PS5.
 
 ## M9b native PhysicsServer2D acceptance on PS5 (23 October 2026)
 
