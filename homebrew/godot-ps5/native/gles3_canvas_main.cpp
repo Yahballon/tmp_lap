@@ -62,6 +62,58 @@ void perf_report(double cpu, double swap, double begin, double end){
         perf_cpu_ms=perf_swap_ms=perf_max_cpu_ms=perf_max_swap_ms=perf_max_frame_ms=0.0;
     }
 }
+// M14: opt-in reversible PS5 EGL present pacing experiment.
+// The confirmed M12d game pack is untouched. Experimental TESTBUILD defaults
+// to immediate presents to compare with the original VSync=1 pipeline.
+// Write "vsync" to /data/GodotPS5/present_mode.txt to restore the baseline.
+enum class PS5PresentMode { Immediate, VSync };
+PS5PresentMode perf_present_mode = PS5PresentMode::Immediate;
+const char *perf_present_mode_name(PS5PresentMode mode) {
+    return mode == PS5PresentMode::Immediate ? "immediate" : "vsync";
+}
+void load_present_mode() {
+    const char *conf="/data/GodotPS5/present_mode.txt";
+    const int fd=sceKernelOpen(conf,O_RDONLY | O_NOFOLLOW,0);
+    if(fd<0) {
+        std::printf("GODOT_PS5_M14_CONFIG file=absent mode=immediate (experimental_default)\\n");
+        return;
+    }
+    char data[32]{};
+    const long n=sceKernelRead(fd,data,sizeof(data));
+    sceKernelClose(fd);
+    if(n<=0 || static_cast<size_t>(n)>=sizeof(data)) {
+        perf_present_mode=PS5PresentMode::VSync;
+        std::printf("GODOT_PS5_M14_CONFIG file=invalid mode=vsync\\n");
+        return;
+    }
+    std::string mode(data,static_cast<size_t>(n));
+    const size_t first=mode.find_first_not_of(" \\t\\r\\n");
+    if(first==std::string::npos)mode.clear();
+    else mode=mode.substr(first,mode.find_last_not_of(" \\t\\r\\n")-first+1);
+    if(mode=="immediate")perf_present_mode=PS5PresentMode::Immediate;
+    else perf_present_mode=PS5PresentMode::VSync;
+    std::printf("GODOT_PS5_M14_CONFIG file=present mode=%s\\n",perf_present_mode_name(perf_present_mode));
+}
+void apply_present_mode() {
+    // The DevBridge Display::open has already established VSync=1. Only
+    // an explicit, successful EGL call overrides that known-good default.
+    const EGLDisplay d=eglGetCurrentDisplay();
+    const bool request_fast=perf_present_mode==PS5PresentMode::Immediate;
+    bool changed=false;
+    EGLint error=EGL_SUCCESS;
+    if(request_fast && d!=EGL_NO_DISPLAY) {
+        changed=eglSwapInterval(d,0)==EGL_TRUE;
+        if(!changed) {
+            error=eglGetError();
+            // Fail back to the known-good interval 1 if unsupported.
+            (void)eglSwapInterval(d,1);
+        }
+    }
+    const char *effective=request_fast && changed ? "immediate" : "vsync";
+    std::printf("GODOT_PS5_M14_PRESENT_MODE requested=%s effective=%s egl_error=0x%x\\n",
+        perf_present_mode_name(perf_present_mode),effective,static_cast<unsigned>(error));
+}
+
 constexpr const char *logpath="/data/GodotPS5/gles3-runtime.log";
 void record(const char *name,int value=-1){
     if(FILE*f=std::fopen(logpath,"ab")){
@@ -82,6 +134,7 @@ bool open_context(int w,int h){
         record("EGL_OPEN_FAILED",int(display.last_error()));return false;
     }
     opened=true;record("EGL_OPEN_OK");
+    apply_present_mode();
     record("WIDTH",display.width());record("HEIGHT",display.height());
     if(FILE*f=std::fopen(logpath,"ab")){
         const auto *r=glGetString(GL_RENDERER),*v=glGetString(GL_VERSION);
@@ -137,6 +190,7 @@ int main(){
     (void)freopen("/data/GodotPS5/gles3-stderr.log","ab",stderr);
     setvbuf(stdout,nullptr,_IONBF,0);setvbuf(stderr,nullptr,_IONBF,0);
     record("BOOT");
+    load_present_mode();
     const GodotPS5GraphicsHooks hooks={open_context,present,close_context,gl_resolve};
     godot_ps5_set_graphics_hooks(&hooks);
     constexpr char bundled[]="/app0/assets/godot/visual-smoke.pck";
