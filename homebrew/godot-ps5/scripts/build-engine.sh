@@ -30,6 +30,15 @@ if [[ "${GODOT_PS5_M20_DISABLE_GL_QUERIES:-0}" == "1" ]]; then
   python3 "$root/scripts/patch_ps5_m20_gl_timestamps.py" \
     "$GODOT_SOURCE/drivers/gles3/storage/utilities.cpp"
 fi
+# M21: PS5-only GLES3 2D buffer fence check. Preserve genuine GL buffer
+# lifetime decisions; the nonblocking timeout-zero status probe is A/B only.
+if [[ "${GODOT_PS5_M21_NONBLOCKING_CANVAS_FENCE:-0}" == "1" ]]; then
+  [[ "${GODOT_PS5_NATIVE_GLES3:-0}" == "1" ]] || {
+    echo 'M21 canvas fence patch requires native PS5 GLES3' >&2; exit 2;
+  }
+  python3 "$root/scripts/patch_ps5_m21_canvas_fence.py" \
+    "$GODOT_SOURCE/drivers/gles3/rasterizer_canvas_gles3.cpp"
+fi
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
