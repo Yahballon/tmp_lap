@@ -34,3 +34,19 @@ Version `0.2.10` / `PPSA99847` / `contentVersion=01.000.021`, signed native PS5 
 4. If both modes remain unplayable, consider removing all diagnostic `printf` entirely for production, using an asynchronous logging thread or isolated in-memory ring, and trace actual native PS5 `swap()` outside logging. Avoid declaring `glFinish` culpable absent proof that p_swap_buffers is false; real display is available.
 
 Hardware success and actual root cause **NOT YET VERIFIED**.
+
+
+## Hardware acceptance: PASS for bundled Pong – user TAR #46 (2026-10-24)
+
+The user reports, unambiguously, that Pong is now playable **without lag**. Direct inspection of `bfpilot-download (46).tar` supports this on real PS5 firmware 5.10:
+
+- `gles3-runtime.log` contains `M26_IO_A_B_MODE=1`, confirming the **default buffered** stdio path. New stdout includes `GODOT_PS5_M26_IO_MODE mode=buffered stdout_buffer=131072 stderr_buffer=131072`; some earlier append-only stdout content shares the same line due to buffer/previous-session flush boundaries, so do **not** attribute the preceding old `max_draw_ms=34580.22` fragment to the new M26 test.
+- The **new M26 session only**, starting at its M26 mode marker, has ten complete `GODOT_PS5_M13_FRAME_5S` samples: first 301 frames / one 150.2ms warm-up spike; the **following nine windows all have exactly 300 frames in five seconds and 0 spikes >=80ms**. That is **2,700 consecutive stable frames / 45 seconds**, after initial 301 frames (~50 sec total measured).
+- Nine stable windows have `avg_cpu_ms` ~16.56–16.57 and `avg_swap_ms` ~0.12. Max render frame after warm-up is ~17.7–17.8ms. `M25_VIEWPORT_5S` has 300 frames, 0 spikes per window, steady `avg_wall_ms` ~16.5 and `avg_canvas_ms` ~1.7. `M24_RENDER_5S` confirms normal viewport timing, and `M17_PHASE_5S` shows 0 frame spikes.
+- Pong heartbeats at frames **600, 1200, 1800, 2400, 3000**, plus `GODOT_PS5_PONG_HIT` and `GODOT_PS5_PONG_SCORE`, confirm the **live GDScript/gameplay loop**, not just an idle video. Native AudioOut output markers remain active.
+- This is a decisive **hardware acceptance PASS for the built-in Pong sample on the signed experimental v0.2.10 / PPSA99847**, compared with repeated v0.2.9 failures of only 1–3 frames per five-second window. The signed `godot-ps5-gles3-canvas-v0.2.10` release and main `version.json` TESTBUILD catalog were verified successfully published.
+- Causal confidence: the only intended change from v0.2.9 is buffered stdout/stderr output; the large improvement is strong evidence of render-thread synchronous log I/O as a major contributor. We have **not** separately instrumented individual `write()` calls or reproduced a controlled `unbuffered` comparison in v0.2.10, so root cause should be stated as **strongly supported, not mathematically proven**.
+
+**Preserve this known-good v0.2.10 signed release as a hardware-validated rollback baseline. Do not overwrite or regress it during later experiments.**
+
+Remaining acceptance: verify M12d external platformer and other larger Godot 4.7.2 projects independently, stress the build for more than 50 seconds, and validate that buffered logs are flushed safely on orderly quit or explicit bounded flush without bringing back per-frame filesystem stalls. Original M26 stream buffering can leave unsynced logs if killed abruptly; prefer asynchronous collector or scheduled slow-path flush if production needs real-time diagnostics. Do not label universal PS5 Godot compatibility or all games as proven.
