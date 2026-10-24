@@ -30,6 +30,15 @@ if [[ "${GODOT_PS5_M24_RENDER_STAGES:-0}" == "1" ]]; then
   python3 "$root/scripts/patch_ps5_m24_render_stages.py" \
     "$GODOT_SOURCE/servers/rendering/rendering_server_default.cpp"
 fi
+# M25: isolated, low-frequency timers separating canvas render, compositor
+# blit, gl_end_frame and viewport bookkeeping in Godot's original GLES3.
+if [[ "${GODOT_PS5_M25_VIEWPORT_STAGES:-0}" == "1" ]]; then
+  [[ "${GODOT_PS5_NATIVE_GLES3:-0}" == "1" ]] || {
+    echo 'M25 viewport timestamps require native GLES3' >&2; exit 2;
+  }
+  python3 "$root/scripts/patch_ps5_m25_viewport.py" \
+    "$GODOT_SOURCE/servers/rendering/renderer_viewport.cpp"
+fi
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
