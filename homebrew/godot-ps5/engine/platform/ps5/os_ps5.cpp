@@ -1,6 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Native Godot runtime + DualSense. Graphics remain opt-in and experimental.
 #include "os_ps5.h"
+#ifdef GODOT_PS5_NATIVE_GLES3
+#include <atomic>
+extern "C" int sceKernelUsleep(unsigned int);
+static std::atomic<uint64_t> ps5_sleep_calls{0};
+static std::atomic<uint64_t> ps5_sleep_requested_us{0};
+static std::atomic<uint64_t> ps5_sleep_actual_us{0};
+static std::atomic<uint64_t> ps5_sleep_max_us{0};
+static std::atomic<uint64_t> ps5_sleep_fallbacks{0};
+// Atomic maximum, lock-free best effort. Never log from a delay call.
+static void ps5_sleep_track_max(uint64_t v) {
+    uint64_t old=ps5_sleep_max_us.load(std::memory_order_relaxed);
+    while(v>old && !ps5_sleep_max_us.compare_exchange_weak(
+            old,v,std::memory_order_relaxed,std::memory_order_relaxed)) {}
+}
+#endif
+
 #include "file_access_ps5.h"
 #include "core/os/main_loop.h"
 #include "core/os/memory.h"
@@ -74,6 +90,25 @@ String OS_PS5::get_cache_path() const { return "/data/GodotPS5/cache"; }
 String OS_PS5::get_user_data_dir(const String &user) const {
     return String("/data/GodotPS5/userdata").path_join(user.validate_filename());
 }
+#ifdef GODOT_PS5_NATIVE_GLES3
+void OS_PS5::delay_usec(uint32_t p_usec) const {
+    // FreeBSD libc nanosleep is unverified in the PS5 sandbox. The native
+    // kernel import handles microsecond delays; retain the Unix fallback if
+    // this API reports an error. No arbitrary FPS cap or busy spinning.
+    const uint64_t begin=get_ticks_usec();
+    const int rc=sceKernelUsleep(p_usec);
+    if(rc!=0) {
+        ps5_sleep_fallbacks.fetch_add(1,std::memory_order_relaxed);
+        OS_Unix::delay_usec(p_usec);
+    }
+    const uint64_t end=get_ticks_usec();
+    const uint64_t actual=end>=begin ? end-begin:0;
+    ps5_sleep_calls.fetch_add(1,std::memory_order_relaxed);
+    ps5_sleep_requested_us.fetch_add(p_usec,std::memory_order_relaxed);
+    ps5_sleep_actual_us.fetch_add(actual,std::memory_order_relaxed);
+    ps5_sleep_track_max(actual);
+}
+#endif
 void OS_PS5::run() {
     if (!main_loop) return;
     main_loop->initialize();
@@ -137,6 +172,12 @@ void OS_PS5::run() {
                 diag_frames,diag_frames ? double(diag_sum_main_us)/double(diag_frames)/1000.0:0.0,
                 diag_max_main_us/1000.0,diag_max_poll_us/1000.0,diag_max_events_us/1000.0,
                 diag_max_idle_us/1000.0,diag_spikes);
+            std::printf("GODOT_PS5_M16_SLEEP_5S calls=%llu requested_ms=%.2f actual_ms=%.2f max_sleep_ms=%.2f fallbacks=%llu\n",
+                static_cast<unsigned long long>(ps5_sleep_calls.exchange(0,std::memory_order_relaxed)),
+                ps5_sleep_requested_us.exchange(0,std::memory_order_relaxed)/1000.0,
+                ps5_sleep_actual_us.exchange(0,std::memory_order_relaxed)/1000.0,
+                ps5_sleep_max_us.exchange(0,std::memory_order_relaxed)/1000.0,
+                static_cast<unsigned long long>(ps5_sleep_fallbacks.exchange(0,std::memory_order_relaxed)));
             diag_start_us=diag_end_us;diag_frames=diag_spikes=diag_reported=0;
             diag_sum_main_us=diag_max_main_us=diag_max_poll_us=diag_max_events_us=diag_max_idle_us=0;
         }
