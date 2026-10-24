@@ -85,7 +85,7 @@ void OS_PS5::run() {
     uint64_t diag_max_poll_us=0,diag_max_events_us=0,diag_max_main_us=0,diag_max_idle_us=0;
     uint64_t diag_sum_main_us=0;
     unsigned diag_frames=0,diag_spikes=0,diag_reported=0;
-    std::printf("GODOT_PS5_M15_ITER_PROFILER_READY mode=main_thread_v1\\n");
+    std::printf("GODOT_PS5_M15_ITER_PROFILER_READY mode=main_thread_v1\n");
 #endif
     while (true) {
 #ifdef GODOT_PS5_NATIVE_GLES3
@@ -127,13 +127,13 @@ void OS_PS5::run() {
             ++diag_spikes;
             if(diag_reported<4 && diag_end_us-diag_start_us<5000000) {
                 ++diag_reported;
-                std::printf("GODOT_PS5_M15_ITER_SPIKE poll_ms=%.2f events_ms=%.2f main_ms=%.2f outside_ms=%.2f total_ms=%.2f\\n",
+                std::printf("GODOT_PS5_M15_ITER_SPIKE poll_ms=%.2f events_ms=%.2f main_ms=%.2f outside_ms=%.2f total_ms=%.2f\n",
                     diag_pad_us/1000.0,diag_events_us/1000.0,diag_main_us/1000.0,
                     diag_idle_us/1000.0,diag_total_us/1000.0);
             }
         }
         if(diag_end_us>=diag_start_us && diag_end_us-diag_start_us>=5000000) {
-            std::printf("GODOT_PS5_M15_ITER_5S frames=%u avg_main_ms=%.2f max_main_ms=%.2f max_poll_ms=%.2f max_events_ms=%.2f max_outside_ms=%.2f spikes_80ms=%u\\n",
+            std::printf("GODOT_PS5_M15_ITER_5S frames=%u avg_main_ms=%.2f max_main_ms=%.2f max_poll_ms=%.2f max_events_ms=%.2f max_outside_ms=%.2f spikes_80ms=%u\n",
                 diag_frames,diag_frames ? double(diag_sum_main_us)/double(diag_frames)/1000.0:0.0,
                 diag_max_main_us/1000.0,diag_max_poll_us/1000.0,diag_max_events_us/1000.0,
                 diag_max_idle_us/1000.0,diag_spikes);
