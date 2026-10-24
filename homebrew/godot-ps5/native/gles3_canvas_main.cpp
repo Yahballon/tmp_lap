@@ -203,7 +203,7 @@ int main(){
         sceKernelClose(m26_fd);
         if(n>0 && n<static_cast<long>(sizeof(mode))) {
             std::string value(mode,static_cast<size_t>(n));
-            while(!value.empty() && (value.back()=='\n'||value.back()=='\\r'))value.pop_back();
+            while(!value.empty() && (value.back()=='\n'||value.back()=='\r'))value.pop_back();
             m26_unbuffered=value=="unbuffered";
         }
     }
