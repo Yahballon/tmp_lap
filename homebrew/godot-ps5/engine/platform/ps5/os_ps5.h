@@ -32,5 +32,10 @@ public:
     String get_cache_path() const override;
     String get_user_data_dir(const String &user) const override;
     MainLoop *get_main_loop() const override;
+#ifdef GODOT_PS5_NATIVE_GLES3
+    // Use the PS5 kernel-backed microsecond delay instead of libc nanosleep
+    // while measuring any oversleep. Only enabled in the experimental title.
+    void delay_usec(uint32_t p_usec) const override;
+#endif
     void run();
 };
