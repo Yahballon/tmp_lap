@@ -1,0 +1,150 @@
+name: Publish Godot PS5 M18 CPU Audio A-B TESTBUILD
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful signed M13 native frame profiler build from trusted feature branch"
+        required: true
+  workflow_run:
+    workflows: ['Godot PS5 M18 CPU Scheduling and Audio A-B v0.2.2']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-godot-ps5-m18-cpu-audio-ab
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'perf/godot-ps5-m18-cpu-deschedule' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Strictly verify successful signed native build from trusted branch
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/m18-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/m18-artifacts.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('/tmp/m18-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='perf/godot-ps5-m18-cpu-deschedule'
+          assert r['name']=='Godot PS5 M18 CPU Scheduling and Audio A-B v0.2.2'
+          assert r['event']=='push'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          matches=[a for a in json.load(open('/tmp/m18-artifacts.json'))['artifacts']
+            if a['name']=='Godot-PS5-M18-CPU-AUDIO-AB-v0.2.2-PS5-HARDWARE-UNTESTED'
+            and not a['expired'] and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(matches)==1, f'M13 signed native profiler artifact missing: {matches}'
+          Path('/tmp/m18-build-sha').write_text(r['head_sha'])
+          print('GODOT_PS5_M18_SIGNED_RELEASE_SOURCE_VERIFIED',r['id'],r['head_sha'])
+          PY
+          mkdir -p /tmp/m18-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" \
+            --name Godot-PS5-M18-CPU-AUDIO-AB-v0.2.2-PS5-HARDWARE-UNTESTED \
+            --dir /tmp/m18-release
+          test -s /tmp/m18-release/PPSA99847.zip
+      - name: Independently validate installable PS5 signed AudioOut title
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,struct,zipfile
+          p=Path('/tmp/m18-release/PPSA99847.zip')
+          assert p.stat().st_size>1_000_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert all(n.startswith('PPSA99847/') and '..' not in Path(n).parts for n in names)
+              for name in ('eboot.bin','assets/godot/visual-smoke.pck',
+                    'assets/godot/physics-smoke.pck','assets/godot/m10b-font-ui.pck'):
+                  assert 'PPSA99847/'+name in names
+              data=z.read('PPSA99847/eboot.bin')
+              assert len(data)>5_000_000 and data[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentId']=='UP9000-PPSA99847_00-GODOTGLES3CANVAS'
+              assert meta['contentVersion']=='01.000.013'
+          print('GODOT_PS5_M18_SIGNED_ZIP_OK',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Publish v0.2.2 PS5 native frame-profiler TESTBUILD (experimental)
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-gles3-canvas-v0.2.2
+          cat > /tmp/m18-notes.md <<'NOTES'
+          Godot PS5 GLES3 v0.2.2 (M18) – CPU scheduler vs wall-clock diagnosis and reversible AudioOut A/B.
+
+          Firmware 5.10 hardware archive #36 confirms original Godot 4.7.2 platformer still has severe 1–3s hitches: scene/process phase up to ~981ms, draw phase up to ~1912ms, original EGL buffer swap ~0.1ms. The underlying cause is not resolved.
+
+          NEW M18 CPU CLOCK: Main::iteration wall-time is compared to thread CPU-time (CLOCK_THREAD_CPUTIME_ID if available). GODOT_PS5_M18_MAIN_CPU_SPIKE and GODOT_PS5_M18_MAIN_CPU_5S report how much work was actual CPU execution vs waiting/descheduling. Unsupported clock reports M18_CPU_CLOCK_UNAVAILABLE.
+
+          NEW OPTIONAL audio A/B: native AudioOut remains ON by default. Create /data/GodotPS5/m18_audio_mode.txt with exact content "dummy" (newline allowed) to use Godot's built-in Dummy audio driver for ONE diagnostic test. Sound will be absent in this opt-in mode. Remove the file to restore sound on next boot. GODOT_PS5_M18_AUDIO_AB_MODE states active mode. Compare equal-duration runs to isolate a possible audio-thread contention effect. Do not advertise this as a sound-enabled gameplay fix.
+
+          VSync=1 stays default, original M12d PCK and existing M13/M15/M16/M17 timing preserved. Keep v0.2.1 as a rollback. Test both Level_01/02 and export stdout/stderr/runtime logs after reproducing lag.
+          Source: https://github.com/Yahballon/tmp_lap/tree/perf/godot-ps5-m18-cpu-deschedule/homebrew/godot-ps5
+
+          NOTES
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
+          else
+            gh release create "$tag" /tmp/m18-release/PPSA99847.zip \
+              --repo "$GITHUB_REPOSITORY" --target perf/godot-ps5-m18-cpu-deschedule \
+              --title 'Godot PS5 GLES3 Canvas v0.2.2 – CPU Clock / Audio A-B Diagnostics' \
+              --notes-file /tmp/m18-notes.md --prerelease
+          fi
+      - name: Update TESTBUILDS version.json with verified release
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json
+          j=json.load(open('version.json'))
+          matches=[x for x in j['apps'] if x['title_id']=='PPSA99847']
+          assert len(matches)==1
+          app=matches[0]
+          assert app['version']=='0.2.2'
+          assert app['tag']=='godot-ps5-gles3-canvas-v0.2.2'
+          assert app['zip_url'].endswith('/PPSA99847.zip')
+          assert j['app_count']==len(j['apps'])
+          print('GODOT_PS5_M18_TESTBUILD_CATALOG_OK')
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add version.json
+            git commit -m 'chore(testbuilds): publish Godot PS5 M18 CPU/audio A-B v0.2.2 [skip ci]'
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
