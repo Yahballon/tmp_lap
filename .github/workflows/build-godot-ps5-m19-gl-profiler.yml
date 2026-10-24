@@ -23,6 +23,7 @@ on:
       - 'homebrew/godot-ps5/tests/test_native_gles3_hooks.py'
       - 'homebrew/godot-ps5/tests/test_native_gles3_canvas.py'
       - 'homebrew/godot-ps5/tests/test_m14_present_pacing.py'
+      - 'homebrew/godot-ps5/tests/test_m19_gl_api_trace.py'
       - 'homebrew/godot-ps5/samples/visual-smoke/**'
       - 'homebrew/godot-ps5/samples/pong-smoke/**'
       - 'homebrew/godot-ps5/gles3-canvas/**'
