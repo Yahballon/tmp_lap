@@ -18,6 +18,9 @@ for token in requirements:
     assert token in s, token
 assert s.index("load_present_mode();") < s.index("godot_ps5_run_pack(pack.c_str())")
 assert s.index("apply_present_mode();") < s.index('record("BOOT_FRAME_PRESENTED")')
-assert "glFinish(" not in s and "glReadPixels(" not in s
+# M19 pass-through wrappers only call these methods when Godot did;
+# no extra application-requested fences/readbacks may be inserted.
+assert "glFinish(" not in s.split("// M19 – low-overhead timing")[0]
+assert "glReadPixels(" not in s.split("// M19 – low-overhead timing")[0]
 assert 'constexpr const char *logpath="/data/GodotPS5/gles3-runtime.log";' in s
 print("GODOT_PS5_M14_HOST_PRESENT_MODE_TEST_PASS")

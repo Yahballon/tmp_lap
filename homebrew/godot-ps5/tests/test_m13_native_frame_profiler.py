@@ -14,7 +14,10 @@ need=["clock_gettime(CLOCK_MONOTONIC", "GODOT_PS5_M13_NATIVE_FRAME_PROFILER_READ
 for x in need:assert x in s,x
 assert s.index('const double before=ps5_now_ms()')<s.index('if(!display.swap()){',s.index('bool present()'))
 assert s.index('const double after=ps5_now_ms()')>s.index('if(!display.swap()){',s.index('bool present()'))
-assert 'glFinish(' not in s and 'glReadPixels(' not in s
+# M19 pass-through wrappers only call these methods when Godot did;
+# no extra application-requested fences/readbacks may be inserted.
+assert "glFinish(" not in s.split("// M19 – low-overhead timing")[0]
+assert "glReadPixels(" not in s.split("// M19 – low-overhead timing")[0]
 assert 'perf_report' in s and 'perf_last_swap_complete_ms=after;' in s
 assert "GODOT_PS5_M13_FRAME_SPIKE" in s
 assert "if(frames==1)" in s

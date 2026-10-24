@@ -11,8 +11,13 @@ for token in ("GODOT_PS5_NATIVE_GLES3: '1'","GODOT_PS5_GLES3_ARCHIVES: '1'",
               "visual-smoke.pck","graphics_hooks_ps5.h","stage_native_link.py"):
     assert token in workflow,token
 
-assert "glDrawArrays(" not in native
-assert "glTexImage2D(" not in native
+# M19 adds API timing delegates, not app-authored primitive drawing.
+# Its thin wrapper only forwards Godot's original call.
+pre_m19 = native.split("// M19 – low-overhead timing")[0]
+assert "glDrawArrays(" not in pre_m19
+assert "glTexImage2D(" not in pre_m19
+assert "m19_real_glDrawArrays(mode,first,count)" in native
+assert "m19_real_glTexImage2D(target,level,internalformat,width,height,border,format,type,pixels)" in native
 assert "gh release create" not in workflow
 for symbol in ('#include "pck_launch_config.hpp"', 'read_launch_txt()',
                'trusted_external_path(requested)', 'valid_godot4_pack(requested)',

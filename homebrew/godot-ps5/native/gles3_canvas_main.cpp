@@ -10,6 +10,8 @@
 #include <ctime>
 #include <cstdint>
 #include <algorithm>
+#include <atomic>
+#include <cstring>
 #include <sys/stat.h>
 #include <string>
 // Explicit, validated user-selected Godot 4 pack only; bundled visual
@@ -114,6 +116,222 @@ void apply_present_mode() {
         perf_present_mode_name(perf_present_mode),effective,static_cast<unsigned>(error));
 }
 
+// M19 – low-overhead timing of selected Godot GLES3 OpenGL entry points.
+// Each API call is delegated without changing GL state or order.
+// A timer may itself slightly perturb render speed; M19 is diagnostic only.
+// Resolved function pointers are recorded after the current EGL context opens.
+struct M19GlStat {
+    const char *name;
+    std::atomic<unsigned long long> calls{0}, total_us{0}, max_us{0}, spikes_80ms{0};
+};
+M19GlStat m19_gl_stats[] = {
+    {"glDrawElements"},
+    {"glDrawArrays"},
+    {"glDrawElementsInstanced"},
+    {"glDrawArraysInstanced"},
+    {"glBufferData"},
+    {"glBufferSubData"},
+    {"glMapBufferRange"},
+    {"glUnmapBuffer"},
+    {"glTexImage2D"},
+    {"glTexSubImage2D"},
+    {"glFenceSync"},
+    {"glClientWaitSync"},
+    {"glFinish"},
+    {"glFlush"},
+    {"glClear"},
+    {"glBlitFramebuffer"},
+    {"glReadPixels"},
+    {"glGetError"},
+    {"glBindFramebuffer"},
+    {"glUseProgram"},
+    {"glBindBuffer"},
+    {"glGetIntegerv"},
+    {"glGetUniformLocation"},
+};
+constexpr size_t m19_gl_count=sizeof(m19_gl_stats)/sizeof(m19_gl_stats[0]);
+double m19_window_start_ms=0.0;
+unsigned m19_hooked_count=0;
+void m19_add(size_t idx, double elapsed_ms) {
+    const auto us=static_cast<unsigned long long>(std::max(0.0,elapsed_ms)*1000.0);
+    auto &s=m19_gl_stats[idx];
+    s.calls.fetch_add(1,std::memory_order_relaxed);
+    s.total_us.fetch_add(us,std::memory_order_relaxed);
+    if(us>=80000)s.spikes_80ms.fetch_add(1,std::memory_order_relaxed);
+    auto previous=s.max_us.load(std::memory_order_relaxed);
+    while(previous<us && !s.max_us.compare_exchange_weak(
+        previous,us,std::memory_order_relaxed,std::memory_order_relaxed)) {}
+}
+void m19_report(double now_ms) {
+    if(m19_window_start_ms==0.0) {
+        m19_window_start_ms=now_ms;
+        std::printf("GODOT_PS5_M19_GL_PROFILER_READY hooked=%u names=%zu threshold_ms=80\n",
+            m19_hooked_count,m19_gl_count);
+    }
+    if(now_ms-m19_window_start_ms<5000.0)return;
+    unsigned long long all_calls=0,all_us=0,max_us=0,all_spikes=0;
+    for(size_t i=0;i<m19_gl_count;++i) {
+        auto &s=m19_gl_stats[i];
+        const auto calls=s.calls.exchange(0,std::memory_order_relaxed);
+        const auto total=s.total_us.exchange(0,std::memory_order_relaxed);
+        const auto peak=s.max_us.exchange(0,std::memory_order_relaxed);
+        const auto spikes=s.spikes_80ms.exchange(0,std::memory_order_relaxed);
+        all_calls+=calls;all_us+=total;all_spikes+=spikes;
+        if(peak>max_us)max_us=peak;
+        if(calls>0) {
+            std::printf("GODOT_PS5_M19_GL_5S name=%s calls=%llu total_ms=%.2f max_call_ms=%.2f spikes_80ms=%llu\n",
+                s.name,calls,total/1000.0,peak/1000.0,spikes);
+        }
+    }
+    std::printf("GODOT_PS5_M19_GL_SUMMARY_5S hooked=%u calls=%llu total_ms=%.2f max_call_ms=%.2f spikes_80ms=%llu\n",
+        m19_hooked_count,all_calls,all_us/1000.0,max_us/1000.0,all_spikes);
+    m19_window_start_ms=now_ms;
+}
+PFNGLDRAWELEMENTSPROC m19_real_glDrawElements=nullptr;
+void m19_trace_glDrawElements(GLenum mode, GLsizei count, GLenum type, const void *indices) {
+    const double before=ps5_now_ms();
+    m19_real_glDrawElements(mode,count,type,indices);
+    m19_add(0,ps5_now_ms()-before);
+}
+PFNGLDRAWARRAYSPROC m19_real_glDrawArrays=nullptr;
+void m19_trace_glDrawArrays(GLenum mode, GLint first, GLsizei count) {
+    const double before=ps5_now_ms();
+    m19_real_glDrawArrays(mode,first,count);
+    m19_add(1,ps5_now_ms()-before);
+}
+PFNGLDRAWELEMENTSINSTANCEDPROC m19_real_glDrawElementsInstanced=nullptr;
+void m19_trace_glDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount) {
+    const double before=ps5_now_ms();
+    m19_real_glDrawElementsInstanced(mode,count,type,indices,instancecount);
+    m19_add(2,ps5_now_ms()-before);
+}
+PFNGLDRAWARRAYSINSTANCEDPROC m19_real_glDrawArraysInstanced=nullptr;
+void m19_trace_glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount) {
+    const double before=ps5_now_ms();
+    m19_real_glDrawArraysInstanced(mode,first,count,instancecount);
+    m19_add(3,ps5_now_ms()-before);
+}
+PFNGLBUFFERDATAPROC m19_real_glBufferData=nullptr;
+void m19_trace_glBufferData(GLenum target, GLsizeiptr size, const void *data, GLenum usage) {
+    const double before=ps5_now_ms();
+    m19_real_glBufferData(target,size,data,usage);
+    m19_add(4,ps5_now_ms()-before);
+}
+PFNGLBUFFERSUBDATAPROC m19_real_glBufferSubData=nullptr;
+void m19_trace_glBufferSubData(GLenum target, GLintptr offset, GLsizeiptr size, const void *data) {
+    const double before=ps5_now_ms();
+    m19_real_glBufferSubData(target,offset,size,data);
+    m19_add(5,ps5_now_ms()-before);
+}
+PFNGLMAPBUFFERRANGEPROC m19_real_glMapBufferRange=nullptr;
+void* m19_trace_glMapBufferRange(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access) {
+    const double before=ps5_now_ms();
+    auto result=m19_real_glMapBufferRange(target,offset,length,access);
+    m19_add(6,ps5_now_ms()-before);
+    return result;
+}
+PFNGLUNMAPBUFFERPROC m19_real_glUnmapBuffer=nullptr;
+GLboolean m19_trace_glUnmapBuffer(GLenum target) {
+    const double before=ps5_now_ms();
+    auto result=m19_real_glUnmapBuffer(target);
+    m19_add(7,ps5_now_ms()-before);
+    return result;
+}
+PFNGLTEXIMAGE2DPROC m19_real_glTexImage2D=nullptr;
+void m19_trace_glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels) {
+    const double before=ps5_now_ms();
+    m19_real_glTexImage2D(target,level,internalformat,width,height,border,format,type,pixels);
+    m19_add(8,ps5_now_ms()-before);
+}
+PFNGLTEXSUBIMAGE2DPROC m19_real_glTexSubImage2D=nullptr;
+void m19_trace_glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels) {
+    const double before=ps5_now_ms();
+    m19_real_glTexSubImage2D(target,level,xoffset,yoffset,width,height,format,type,pixels);
+    m19_add(9,ps5_now_ms()-before);
+}
+PFNGLFENCESYNCPROC m19_real_glFenceSync=nullptr;
+GLsync m19_trace_glFenceSync(GLenum condition, GLbitfield flags) {
+    const double before=ps5_now_ms();
+    auto result=m19_real_glFenceSync(condition,flags);
+    m19_add(10,ps5_now_ms()-before);
+    return result;
+}
+PFNGLCLIENTWAITSYNCPROC m19_real_glClientWaitSync=nullptr;
+GLenum m19_trace_glClientWaitSync(GLsync sync, GLbitfield flags, GLuint64 timeout) {
+    const double before=ps5_now_ms();
+    auto result=m19_real_glClientWaitSync(sync,flags,timeout);
+    m19_add(11,ps5_now_ms()-before);
+    return result;
+}
+PFNGLFINISHPROC m19_real_glFinish=nullptr;
+void m19_trace_glFinish(void) {
+    const double before=ps5_now_ms();
+    m19_real_glFinish();
+    m19_add(12,ps5_now_ms()-before);
+}
+PFNGLFLUSHPROC m19_real_glFlush=nullptr;
+void m19_trace_glFlush(void) {
+    const double before=ps5_now_ms();
+    m19_real_glFlush();
+    m19_add(13,ps5_now_ms()-before);
+}
+PFNGLCLEARPROC m19_real_glClear=nullptr;
+void m19_trace_glClear(GLbitfield mask) {
+    const double before=ps5_now_ms();
+    m19_real_glClear(mask);
+    m19_add(14,ps5_now_ms()-before);
+}
+PFNGLBLITFRAMEBUFFERPROC m19_real_glBlitFramebuffer=nullptr;
+void m19_trace_glBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter) {
+    const double before=ps5_now_ms();
+    m19_real_glBlitFramebuffer(srcX0,srcY0,srcX1,srcY1,dstX0,dstY0,dstX1,dstY1,mask,filter);
+    m19_add(15,ps5_now_ms()-before);
+}
+PFNGLREADPIXELSPROC m19_real_glReadPixels=nullptr;
+void m19_trace_glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels) {
+    const double before=ps5_now_ms();
+    m19_real_glReadPixels(x,y,width,height,format,type,pixels);
+    m19_add(16,ps5_now_ms()-before);
+}
+PFNGLGETERRORPROC m19_real_glGetError=nullptr;
+GLenum m19_trace_glGetError(void) {
+    const double before=ps5_now_ms();
+    auto result=m19_real_glGetError();
+    m19_add(17,ps5_now_ms()-before);
+    return result;
+}
+PFNGLBINDFRAMEBUFFERPROC m19_real_glBindFramebuffer=nullptr;
+void m19_trace_glBindFramebuffer(GLenum target, GLuint framebuffer) {
+    const double before=ps5_now_ms();
+    m19_real_glBindFramebuffer(target,framebuffer);
+    m19_add(18,ps5_now_ms()-before);
+}
+PFNGLUSEPROGRAMPROC m19_real_glUseProgram=nullptr;
+void m19_trace_glUseProgram(GLuint program) {
+    const double before=ps5_now_ms();
+    m19_real_glUseProgram(program);
+    m19_add(19,ps5_now_ms()-before);
+}
+PFNGLBINDBUFFERPROC m19_real_glBindBuffer=nullptr;
+void m19_trace_glBindBuffer(GLenum target, GLuint buffer) {
+    const double before=ps5_now_ms();
+    m19_real_glBindBuffer(target,buffer);
+    m19_add(20,ps5_now_ms()-before);
+}
+PFNGLGETINTEGERVPROC m19_real_glGetIntegerv=nullptr;
+void m19_trace_glGetIntegerv(GLenum pname, GLint *data) {
+    const double before=ps5_now_ms();
+    m19_real_glGetIntegerv(pname,data);
+    m19_add(21,ps5_now_ms()-before);
+}
+PFNGLGETUNIFORMLOCATIONPROC m19_real_glGetUniformLocation=nullptr;
+GLint m19_trace_glGetUniformLocation(GLuint program, const GLchar *name) {
+    const double before=ps5_now_ms();
+    auto result=m19_real_glGetUniformLocation(program,name);
+    m19_add(22,ps5_now_ms()-before);
+    return result;
+}
+
 constexpr const char *logpath="/data/GodotPS5/gles3-runtime.log";
 void record(const char *name,int value=-1){
     if(FILE*f=std::fopen(logpath,"ab")){
@@ -170,6 +388,7 @@ bool present(){
         perf_report(cpu_before_swap,swap_ms,before,after);
     }
     perf_last_swap_complete_ms=after;
+    m19_report(after);
     if(frames==60||frames==600)record("GODOT_SWAP_COUNT",int(frames));
     return true;
 }
@@ -180,7 +399,125 @@ void close_context(){
     record("EGL_CLOSED");
 }
 void* gl_resolve(const char *name){
-    return reinterpret_cast<void*>(eglGetProcAddress(name));
+    if(!name)return nullptr;
+    void *original=reinterpret_cast<void*>(eglGetProcAddress(name));
+    if(!original)return nullptr;
+    if(std::strcmp(name,"glDrawElements")==0) {
+        m19_real_glDrawElements=reinterpret_cast<PFNGLDRAWELEMENTSPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glDrawElements);
+    }
+    if(std::strcmp(name,"glDrawArrays")==0) {
+        m19_real_glDrawArrays=reinterpret_cast<PFNGLDRAWARRAYSPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glDrawArrays);
+    }
+    if(std::strcmp(name,"glDrawElementsInstanced")==0) {
+        m19_real_glDrawElementsInstanced=reinterpret_cast<PFNGLDRAWELEMENTSINSTANCEDPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glDrawElementsInstanced);
+    }
+    if(std::strcmp(name,"glDrawArraysInstanced")==0) {
+        m19_real_glDrawArraysInstanced=reinterpret_cast<PFNGLDRAWARRAYSINSTANCEDPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glDrawArraysInstanced);
+    }
+    if(std::strcmp(name,"glBufferData")==0) {
+        m19_real_glBufferData=reinterpret_cast<PFNGLBUFFERDATAPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glBufferData);
+    }
+    if(std::strcmp(name,"glBufferSubData")==0) {
+        m19_real_glBufferSubData=reinterpret_cast<PFNGLBUFFERSUBDATAPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glBufferSubData);
+    }
+    if(std::strcmp(name,"glMapBufferRange")==0) {
+        m19_real_glMapBufferRange=reinterpret_cast<PFNGLMAPBUFFERRANGEPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glMapBufferRange);
+    }
+    if(std::strcmp(name,"glUnmapBuffer")==0) {
+        m19_real_glUnmapBuffer=reinterpret_cast<PFNGLUNMAPBUFFERPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glUnmapBuffer);
+    }
+    if(std::strcmp(name,"glTexImage2D")==0) {
+        m19_real_glTexImage2D=reinterpret_cast<PFNGLTEXIMAGE2DPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glTexImage2D);
+    }
+    if(std::strcmp(name,"glTexSubImage2D")==0) {
+        m19_real_glTexSubImage2D=reinterpret_cast<PFNGLTEXSUBIMAGE2DPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glTexSubImage2D);
+    }
+    if(std::strcmp(name,"glFenceSync")==0) {
+        m19_real_glFenceSync=reinterpret_cast<PFNGLFENCESYNCPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glFenceSync);
+    }
+    if(std::strcmp(name,"glClientWaitSync")==0) {
+        m19_real_glClientWaitSync=reinterpret_cast<PFNGLCLIENTWAITSYNCPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glClientWaitSync);
+    }
+    if(std::strcmp(name,"glFinish")==0) {
+        m19_real_glFinish=reinterpret_cast<PFNGLFINISHPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glFinish);
+    }
+    if(std::strcmp(name,"glFlush")==0) {
+        m19_real_glFlush=reinterpret_cast<PFNGLFLUSHPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glFlush);
+    }
+    if(std::strcmp(name,"glClear")==0) {
+        m19_real_glClear=reinterpret_cast<PFNGLCLEARPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glClear);
+    }
+    if(std::strcmp(name,"glBlitFramebuffer")==0) {
+        m19_real_glBlitFramebuffer=reinterpret_cast<PFNGLBLITFRAMEBUFFERPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glBlitFramebuffer);
+    }
+    if(std::strcmp(name,"glReadPixels")==0) {
+        m19_real_glReadPixels=reinterpret_cast<PFNGLREADPIXELSPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glReadPixels);
+    }
+    if(std::strcmp(name,"glGetError")==0) {
+        m19_real_glGetError=reinterpret_cast<PFNGLGETERRORPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glGetError);
+    }
+    if(std::strcmp(name,"glBindFramebuffer")==0) {
+        m19_real_glBindFramebuffer=reinterpret_cast<PFNGLBINDFRAMEBUFFERPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glBindFramebuffer);
+    }
+    if(std::strcmp(name,"glUseProgram")==0) {
+        m19_real_glUseProgram=reinterpret_cast<PFNGLUSEPROGRAMPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glUseProgram);
+    }
+    if(std::strcmp(name,"glBindBuffer")==0) {
+        m19_real_glBindBuffer=reinterpret_cast<PFNGLBINDBUFFERPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glBindBuffer);
+    }
+    if(std::strcmp(name,"glGetIntegerv")==0) {
+        m19_real_glGetIntegerv=reinterpret_cast<PFNGLGETINTEGERVPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glGetIntegerv);
+    }
+    if(std::strcmp(name,"glGetUniformLocation")==0) {
+        m19_real_glGetUniformLocation=reinterpret_cast<PFNGLGETUNIFORMLOCATIONPROC>(original);
+        ++m19_hooked_count;
+        return reinterpret_cast<void*>(&m19_trace_glGetUniformLocation);
+    }
+    return original;
 }
 } // namespace
 
