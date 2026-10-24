@@ -63,11 +63,12 @@ extern "C" int godot_ps5_run_pack(const char *requested) {
         char *args[10] = {display_opt, display_name, driver_opt, driver_name,
                          method_opt, method_name, main_pack,
                          const_cast<char *>(pack.c_str())};
-        int count = 8;
+        constexpr int count = 8;
+        int m18_count=count;
         const bool dummy_audio=m18_dummy_audio_requested();
         if(dummy_audio) {
-            args[count++]=audio_opt;
-            args[count++]=audio_driver_dummy;
+            args[m18_count++]=audio_opt;
+            args[m18_count++]=audio_driver_dummy;
         }
         std::printf("GODOT_PS5_M18_AUDIO_AB_MODE mode=%s\n",
             dummy_audio?"dummy":"native_audioout");
@@ -79,7 +80,11 @@ extern "C" int godot_ps5_run_pack(const char *requested) {
 
         std::fprintf(stderr, "[GodotPS5 PHASE 0.2.11] BEFORE_MAIN_SETUP\n");
         std::fflush(stderr);
+        #ifdef GODOT_PS5_NATIVE_GLES3
+        const Error err = Main::setup("godot.ps5", m18_count, args);
+#else
         const Error err = Main::setup("godot.ps5", count, args);
+#endif
         std::fprintf(stderr, "[GodotPS5 PHASE 0.2.11] AFTER_MAIN_SETUP status=%d\n", int(err));
         std::fflush(stderr);
         if (err == OK) {
