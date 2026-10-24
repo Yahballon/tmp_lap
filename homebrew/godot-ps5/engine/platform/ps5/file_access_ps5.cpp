@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "file_access_ps5.h"
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <fcntl.h>
@@ -39,7 +40,12 @@ Error FileAccessPS5::open_internal(const String &p_path, int p_mode_flags) {
             std::fprintf(stderr, "[GodotPS5 IO] OPEN_FAILED %s\n", native_path.utf8().get_data());
             return native_error;
         }
-        std::fprintf(stderr, "[GodotPS5 IO] OPEN_OK %s\n", native_path.utf8().get_data());
+        // M15: repeated PCK opens were synchronously flushed to the
+        // unbuffered console log, even during gameplay. Bound successful
+        // path diagnostics; preserve every failed open and native IO behavior.
+        static std::atomic<unsigned> successful_open_logs{0};
+        if (successful_open_logs.fetch_add(1, std::memory_order_relaxed) < 8)
+            std::fprintf(stderr, "[GodotPS5 IO] OPEN_OK %s\n", native_path.utf8().get_data());
         return OK;
     }
     return FileAccessUnix::open_internal(p_path, p_mode_flags);
