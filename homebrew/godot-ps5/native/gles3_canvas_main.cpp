@@ -527,6 +527,9 @@ int main(){
     (void)freopen("/data/GodotPS5/gles3-stderr.log","ab",stderr);
     setvbuf(stdout,nullptr,_IONBF,0);setvbuf(stderr,nullptr,_IONBF,0);
     record("BOOT");
+    // M20 trial: real Godot GLES3 GPU timestamp readback is compiled out.
+    // No shader, draw-call, swap interval or game data is changed.
+    std::printf("GODOT_PS5_M20_GPU_TIMESTAMP_SYNC_DISABLED active=1 engine_patch_required=1\n");
     load_present_mode();
     const GodotPS5GraphicsHooks hooks={open_context,present,close_context,gl_resolve};
     godot_ps5_set_graphics_hooks(&hooks);

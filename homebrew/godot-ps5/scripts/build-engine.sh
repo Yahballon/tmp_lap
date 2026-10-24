@@ -21,6 +21,15 @@ if [[ "${GODOT_PS5_M17_PHASE_PROFILE:-0}" == "1" ]]; then
   }
   python3 "$root/scripts/patch_ps5_m17_iteration.py" "$GODOT_SOURCE/main/main.cpp"
 fi
+# M20: opt-in PS5 GLES3-only workaround for sync GPU timestamp reads.
+# It does not affect other apps, the Godot PCK, physics or real GL drawing.
+if [[ "${GODOT_PS5_M20_DISABLE_GL_QUERIES:-0}" == "1" ]]; then
+  [[ "${GODOT_PS5_NATIVE_GLES3:-0}" == "1" ]] || {
+    echo 'M20 GPU timestamp patch requires native GLES3 build' >&2; exit 2;
+  }
+  python3 "$root/scripts/patch_ps5_m20_gl_timestamps.py" \
+    "$GODOT_SOURCE/drivers/gles3/storage/utilities.cpp"
+fi
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
