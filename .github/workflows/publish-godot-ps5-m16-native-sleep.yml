@@ -1,0 +1,146 @@
+name: Publish Godot PS5 M16 Native Sleep TESTBUILD
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful signed M13 native frame profiler build from trusted feature branch"
+        required: true
+  workflow_run:
+    workflows: ['Godot PS5 M16 Native Kernel Sleep Timing v0.2.0']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-godot-ps5-m16-native-sleep
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'perf/godot-ps5-m16-kernel-sleep-trace' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Strictly verify successful signed native build from trusted branch
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/m16-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/m16-artifacts.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('/tmp/m16-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='perf/godot-ps5-m16-kernel-sleep-trace'
+          assert r['name']=='Godot PS5 M16 Native Kernel Sleep Timing v0.2.0'
+          assert r['event']=='push'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          matches=[a for a in json.load(open('/tmp/m16-artifacts.json'))['artifacts']
+            if a['name']=='Godot-PS5-M16-NATIVE-SLEEP-v0.2.0-PS5-HARDWARE-UNTESTED'
+            and not a['expired'] and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(matches)==1, f'M13 signed native profiler artifact missing: {matches}'
+          Path('/tmp/m16-build-sha').write_text(r['head_sha'])
+          print('GODOT_PS5_M16_SIGNED_RELEASE_SOURCE_VERIFIED',r['id'],r['head_sha'])
+          PY
+          mkdir -p /tmp/m16-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" \
+            --name Godot-PS5-M16-NATIVE-SLEEP-v0.2.0-PS5-HARDWARE-UNTESTED \
+            --dir /tmp/m16-release
+          test -s /tmp/m16-release/PPSA99847.zip
+      - name: Independently validate installable PS5 signed AudioOut title
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,struct,zipfile
+          p=Path('/tmp/m16-release/PPSA99847.zip')
+          assert p.stat().st_size>1_000_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert all(n.startswith('PPSA99847/') and '..' not in Path(n).parts for n in names)
+              for name in ('eboot.bin','assets/godot/visual-smoke.pck',
+                    'assets/godot/physics-smoke.pck','assets/godot/m10b-font-ui.pck'):
+                  assert 'PPSA99847/'+name in names
+              data=z.read('PPSA99847/eboot.bin')
+              assert len(data)>5_000_000 and data[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentId']=='UP9000-PPSA99847_00-GODOTGLES3CANVAS'
+              assert meta['contentVersion']=='01.000.011'
+          print('GODOT_PS5_M16_SIGNED_ZIP_OK',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Publish v0.2.0 PS5 native frame-profiler TESTBUILD (experimental)
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-gles3-canvas-v0.2.0
+          cat > /tmp/m16-notes.md <<'NOTES'
+          EXPERIMENTAL Godot PS5 GLES3 v0.2.0 native microsecond sleep timing test.
+          Firmware 5.10 hardware TAR #34 confirms VSync=1 with 34 logged M15 main-thread spikes, up to 1923ms in Main::iteration, and most EGL swaps ~0.1ms.
+          v0.2.0 uses sceKernelUsleep for the Godot PS5 native GLES3 OS::delay_usec instead of the Unix libc nanosleep path. Reports GODOT_PS5_M16_SLEEP_5S calls/requested_ms/actual_ms/max_sleep_ms/fallbacks; the native PS5 call falls back to OS_Unix sleep if it fails.
+          This is a CPU frame-pacing candidate, not a proven PS5 performance fix. No speculative VSync-off defaults; retains M15 vsync=1, native AudioOut, Level_01/02, external PCK, and M13/M15 timing.
+          Use the original m12d-platformer-asset2201.pck and compare performance. Return to signed v0.1.9 via its release if performance degrades.
+          Source PR: https://github.com/Yahballon/tmp_lap/pull/257
+
+          NOTES
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
+          else
+            gh release create "$tag" /tmp/m16-release/PPSA99847.zip \
+              --repo "$GITHUB_REPOSITORY" --target perf/godot-ps5-m16-kernel-sleep-trace \
+              --title 'Godot PS5 GLES3 Canvas v0.2.0 – Native Sleep Timing Test (experimental)' \
+              --notes-file /tmp/m16-notes.md --prerelease
+          fi
+      - name: Update TESTBUILDS version.json with verified release
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json
+          j=json.load(open('version.json'))
+          matches=[x for x in j['apps'] if x['title_id']=='PPSA99847']
+          assert len(matches)==1
+          app=matches[0]
+          assert app['version']=='0.2.0'
+          assert app['tag']=='godot-ps5-gles3-canvas-v0.2.0'
+          assert app['zip_url'].endswith('/PPSA99847.zip')
+          assert j['app_count']==len(j['apps'])
+          print('GODOT_PS5_M16_TESTBUILD_CATALOG_OK')
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add version.json
+            git commit -m 'chore(testbuilds): publish Godot PS5 native sleep v0.2.0 [skip ci]'
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
