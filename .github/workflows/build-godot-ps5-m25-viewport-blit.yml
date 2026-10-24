@@ -5,6 +5,8 @@ on:
     branches: [feature/godot-ps5-engine-foundation]
     paths:
       - 'homebrew/godot-ps5/native/gles3_canvas_main.cpp'
+      - 'homebrew/godot-ps5/tests/test_m25_viewport.py'
+      - 'homebrew/godot-ps5/scripts/patch_ps5_m25_viewport.py'
       - 'homebrew/godot-ps5/tests/test_m13_native_frame_profiler.py'
       - 'homebrew/godot-ps5/tests/test_m14_present_pacing.py'
       - 'homebrew/godot-ps5/tests/test_m15_safe_pacing.py'
