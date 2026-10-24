@@ -45,7 +45,7 @@ Error FileAccessPS5::open_internal(const String &p_path, int p_mode_flags) {
         // path diagnostics; preserve every failed open and native IO behavior.
         static std::atomic<unsigned> successful_open_logs{0};
         if (successful_open_logs.fetch_add(1, std::memory_order_relaxed) < 8)
-            std::fprintf(stderr, "[GodotPS5 IO] OPEN_OK %s\\n", native_path.utf8().get_data());
+            std::fprintf(stderr, "[GodotPS5 IO] OPEN_OK %s\n", native_path.utf8().get_data());
         return OK;
     }
     return FileAccessUnix::open_internal(p_path, p_mode_flags);
