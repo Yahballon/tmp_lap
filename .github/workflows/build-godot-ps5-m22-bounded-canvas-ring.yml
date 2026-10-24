@@ -61,16 +61,16 @@ jobs:
           python3 homebrew/godot-ps5/tests/test_m20_gpu_queries.py
           python3 homebrew/godot-ps5/tests/test_m21_canvas_fence.py
           python3 homebrew/godot-ps5/tests/test_m22_canvas_ring.py
-          python3 -m py_compile homebrew/godot-ps5/scripts/patch_ps5_m22_bounded_canvas_ring.py
-          python3 homebrew/godot-ps5/scripts/patch_ps5_m22_bounded_canvas_ring.py /tmp/godot-m21-original.cpp
-          grep -Fq 'GODOT_PS5_M22_BOUNDED_CANVAS_RING' /tmp/godot-m21-original.cpp
-          python3 homebrew/godot-ps5/scripts/patch_ps5_m22_bounded_canvas_ring.py /tmp/godot-m21-original.cpp
           python3 -m py_compile homebrew/godot-ps5/scripts/patch_ps5_m21_canvas_fence.py
           wget -q https://raw.githubusercontent.com/godotengine/godot/4.7.2-stable/drivers/gles3/rasterizer_canvas_gles3.cpp -O /tmp/godot-m21-original.cpp
           test -s /tmp/godot-m21-original.cpp
           python3 homebrew/godot-ps5/scripts/patch_ps5_m21_canvas_fence.py /tmp/godot-m21-original.cpp
           grep -Fq 'GODOT_PS5_M21_NONBLOCKING_CANVAS_FENCE' /tmp/godot-m21-original.cpp
           python3 homebrew/godot-ps5/scripts/patch_ps5_m21_canvas_fence.py /tmp/godot-m21-original.cpp
+          python3 -m py_compile homebrew/godot-ps5/scripts/patch_ps5_m22_bounded_canvas_ring.py
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m22_bounded_canvas_ring.py /tmp/godot-m21-original.cpp
+          grep -Fq 'GODOT_PS5_M22_BOUNDED_CANVAS_RING' /tmp/godot-m21-original.cpp
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m22_bounded_canvas_ring.py /tmp/godot-m21-original.cpp
           python3 -m py_compile homebrew/godot-ps5/scripts/patch_ps5_m20_gl_timestamps.py
           wget -q https://raw.githubusercontent.com/godotengine/godot/4.7.2-stable/drivers/gles3/storage/utilities.cpp -O /tmp/godot-m20-original.cpp
           test -s /tmp/godot-m20-original.cpp
