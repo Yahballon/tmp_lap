@@ -21,6 +21,15 @@ if [[ "${GODOT_PS5_M17_PHASE_PROFILE:-0}" == "1" ]]; then
   }
   python3 "$root/scripts/patch_ps5_m17_iteration.py" "$GODOT_SOURCE/main/main.cpp"
 fi
+# M24 low-overhead original Godot renderer stage timing, without M19/M23
+# per-GL-API wrappers, GL fences, shader mutations, or changed frame pacing.
+if [[ "${GODOT_PS5_M24_RENDER_STAGES:-0}" == "1" ]]; then
+  [[ "${GODOT_PS5_NATIVE_GLES3:-0}" == "1" ]] || {
+    echo 'M24 stage timings require experimental PS5 GLES3' >&2; exit 2;
+  }
+  python3 "$root/scripts/patch_ps5_m24_render_stages.py" \
+    "$GODOT_SOURCE/servers/rendering/rendering_server_default.cpp"
+fi
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
