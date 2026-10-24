@@ -13,6 +13,14 @@ python3 "$root/scripts/patch_ps5_setup_trace.py" "$GODOT_SOURCE"
 python3 "$root/scripts/patch_ps5_post_settings_trace.py" "$GODOT_SOURCE"
 python3 "$root/scripts/patch_ps5_userdata.py" "$GODOT_SOURCE"
 python3 "$root/scripts/patch_ps5_dir_access.py" "$GODOT_SOURCE"
+# M17: experimental native GLES3 profiling only. The original Godot source
+# and known-good headless/scene-bridge builds remain unchanged.
+if [[ "${GODOT_PS5_M17_PHASE_PROFILE:-0}" == "1" ]]; then
+  [[ "${GODOT_PS5_NATIVE_GLES3:-0}" == "1" ]] || {
+    echo 'M17 profiling requires native PS5 GLES3' >&2; exit 2;
+  }
+  python3 "$root/scripts/patch_ps5_m17_iteration.py" "$GODOT_SOURCE/main/main.cpp"
+fi
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
