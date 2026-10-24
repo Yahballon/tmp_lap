@@ -1,0 +1,148 @@
+name: Publish Godot PS5 M24 Render Stages TESTBUILD
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful signed M13 native frame profiler build from trusted feature branch"
+        required: true
+  workflow_run:
+    workflows: ['Godot PS5 M24 Render Server Stage Isolation v0.2.8']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-godot-ps5-m24-render-stages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'perf/godot-ps5-m24-render-stages' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Strictly verify successful signed native build from trusted branch
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/m24-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/m24-artifacts.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('/tmp/m24-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='perf/godot-ps5-m24-render-stages'
+          assert r['name']=='Godot PS5 M24 Render Server Stage Isolation v0.2.8'
+          assert r['event']=='push'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          matches=[a for a in json.load(open('/tmp/m24-artifacts.json'))['artifacts']
+            if a['name']=='Godot-PS5-M24-RENDER-STAGES-v0.2.8-PS5-HARDWARE-UNTESTED'
+            and not a['expired'] and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(matches)==1, f'M13 signed native profiler artifact missing: {matches}'
+          Path('/tmp/m24-build-sha').write_text(r['head_sha'])
+          print('GODOT_PS5_M24_SIGNED_RELEASE_SOURCE_VERIFIED',r['id'],r['head_sha'])
+          PY
+          mkdir -p /tmp/m24-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" \
+            --name Godot-PS5-M24-RENDER-STAGES-v0.2.8-PS5-HARDWARE-UNTESTED \
+            --dir /tmp/m24-release
+          test -s /tmp/m24-release/PPSA99847.zip
+      - name: Independently validate installable PS5 signed AudioOut title
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,struct,zipfile
+          p=Path('/tmp/m24-release/PPSA99847.zip')
+          assert p.stat().st_size>1_000_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert all(n.startswith('PPSA99847/') and '..' not in Path(n).parts for n in names)
+              for name in ('eboot.bin','assets/godot/visual-smoke.pck',
+                    'assets/godot/physics-smoke.pck','assets/godot/m10b-font-ui.pck'):
+                  assert 'PPSA99847/'+name in names
+              data=z.read('PPSA99847/eboot.bin')
+              assert len(data)>5_000_000 and data[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentId']=='UP9000-PPSA99847_00-GODOTGLES3CANVAS'
+              assert meta['contentVersion']=='01.000.019'
+          print('GODOT_PS5_M24_SIGNED_ZIP_OK',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Publish v0.2.8 PS5 native frame-profiler TESTBUILD (experimental)
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-gles3-canvas-v0.2.8
+          cat > /tmp/m24-notes.md <<'NOTES'
+          Experimental Godot PS5 v0.2.8 (M24) – original Godot 4.7.2 RenderingServer draw stage isolation and rollback of M19–M23 GL profiler instrumentation.
+
+          The two PS5 firmware 5.10 sessions in user TAR #43 prove M23 v0.2.7 unusable even on the built-in Pong: 6 frames in first 5s window and 2 frames in next; RenderingServer draw reaches 7653ms. Previous M19 23 timed GL calls total 3.6–3.8ms in a late frame, while 32 new M23 GL entry timings sum just ~0.18–0.20ms; none of these profiled API calls explains the stall. CPU thread-clock confirms 38–39ms actual CPU within an ~8.58s frame. The driver or broader render server is blocking outside instrumented functions.
+
+          M24 deliberately returns to the earlier M18 baseline (original Godot Canvas2D buffer ring, no M19/M23 GL interceptors, no M20 timestamp-query patch or M21 custom sync poll, no M22 orphaning), preserving native AudioOut, original Godot PCK loading, GDScript/Physics2D and VSync=1 by default. It inserts only eight monotonic timestamps per Godot RenderingServerDefault::_draw in seven logical sections: begin_frame, scene_update, pre-viewport, viewport->draw_viewports, end_frame, post_draw, and frame_profile. Bounded GODOT_PS5_M24_RENDER_READY, M24_RENDER_SPIKE and M24_RENDER_5S logs identify the exact subsystem wall wait without GPU fences or per-GL-call timing overhead.
+
+          This is a safe-isolation diagnostic, NOT a confirmed FPS fix. Physical hardware required. Test bundled Pong first, export gles3 stdout after initial large hitch, compare M24 max_viewport_ms vs other stage maxes, and do not claim stable until one minute and level playback both remain smooth.
+          Source: https://github.com/Yahballon/tmp_lap/tree/perf/godot-ps5-m24-render-stages/homebrew/godot-ps5
+
+          NOTES
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
+          else
+            gh release create "$tag" /tmp/m24-release/PPSA99847.zip \
+              --repo "$GITHUB_REPOSITORY" --target perf/godot-ps5-m24-render-stages \
+              --title 'Godot PS5 GLES3 Canvas v0.2.8 – Renderer Stage Isolation' \
+              --notes-file /tmp/m24-notes.md --prerelease
+          fi
+      - name: Update TESTBUILDS version.json with verified release
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json
+          j=json.load(open('version.json'))
+          matches=[x for x in j['apps'] if x['title_id']=='PPSA99847']
+          assert len(matches)==1
+          app=matches[0]
+          assert app['version']=='0.2.8'
+          assert app['tag']=='godot-ps5-gles3-canvas-v0.2.8'
+          assert app['zip_url'].endswith('/PPSA99847.zip')
+          assert j['app_count']==len(j['apps'])
+          print('GODOT_PS5_M24_TESTBUILD_CATALOG_OK')
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add version.json
+            git commit -m 'chore(testbuilds): publish Godot PS5 M18 CPU/audio A-B v0.2.8 [skip ci]'
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
