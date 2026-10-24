@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "b89a9fc353b79a66a1f610b1e4b8933869873b3cba302fc4aa033de38b1c42eb",
+  "version": "1a6c5204eba8b6751223f25ecd3dae3e9961969147a6772c8bed3fa1b6a77a5b",
   "repository": "Yahballon/tmp_lap",
   "app_count": 29,
   "apps": [
@@ -294,14 +294,14 @@
       "name": "Godot PS5 GLES3 Canvas (EXPERIMENTAL)",
       "slug": "godot-ps5-gles3-canvas",
       "title_id": "PPSA99847",
-      "version": "0.2.3",
-      "tag": "godot-ps5-gles3-canvas-v0.2.3",
+      "version": "0.2.4",
+      "tag": "godot-ps5-gles3-canvas-v0.2.4",
       "zip_name": "PPSA99847.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gles3-canvas-v0.2.3/PPSA99847.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.2.3",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/godot-ps5-gles3-canvas-v0.2.4/PPSA99847.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/godot-ps5-gles3-canvas-v0.2.4",
       "source": "homebrew/godot-ps5-gles3-canvas",
-      "size_bytes": 22669049,
-      "published_at": "2026-10-24T12:14:07Z"
+      "size_bytes": 22668652,
+      "published_at": "2026-10-24T12:46:27Z"
     },
     {
       "name": "4 WINS",
