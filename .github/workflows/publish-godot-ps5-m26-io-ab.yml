@@ -1,0 +1,147 @@
+name: Publish Godot PS5 M26 Buffered IO TESTBUILD
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful signed M13 native frame profiler build from trusted feature branch"
+        required: true
+  workflow_run:
+    workflows: ['Godot PS5 M26 Buffered Logging A-B v0.2.10']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-godot-ps5-m26-io-ab
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'perf/godot-ps5-m26-buffered-io-ab' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Strictly verify successful signed native build from trusted branch
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/m26-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/m26-artifacts.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('/tmp/m26-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='perf/godot-ps5-m26-buffered-io-ab'
+          assert r['name']=='Godot PS5 M26 Buffered Logging A-B v0.2.10'
+          assert r['event']=='push'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          matches=[a for a in json.load(open('/tmp/m26-artifacts.json'))['artifacts']
+            if a['name']=='Godot-PS5-M26-BUFFERED-IO-v0.2.10-PS5-HARDWARE-UNTESTED'
+            and not a['expired'] and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(matches)==1, f'M13 signed native profiler artifact missing: {matches}'
+          Path('/tmp/m26-build-sha').write_text(r['head_sha'])
+          print('GODOT_PS5_M26_SIGNED_RELEASE_SOURCE_VERIFIED',r['id'],r['head_sha'])
+          PY
+          mkdir -p /tmp/m26-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" \
+            --name Godot-PS5-M26-BUFFERED-IO-v0.2.10-PS5-HARDWARE-UNTESTED \
+            --dir /tmp/m26-release
+          test -s /tmp/m26-release/PPSA99847.zip
+      - name: Independently validate installable PS5 signed AudioOut title
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,struct,zipfile
+          p=Path('/tmp/m26-release/PPSA99847.zip')
+          assert p.stat().st_size>1_000_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert all(n.startswith('PPSA99847/') and '..' not in Path(n).parts for n in names)
+              for name in ('eboot.bin','assets/godot/visual-smoke.pck',
+                    'assets/godot/physics-smoke.pck','assets/godot/m10b-font-ui.pck'):
+                  assert 'PPSA99847/'+name in names
+              data=z.read('PPSA99847/eboot.bin')
+              assert len(data)>5_000_000 and data[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentId']=='UP9000-PPSA99847_00-GODOTGLES3CANVAS'
+              assert meta['contentVersion']=='01.000.021'
+          print('GODOT_PS5_M26_SIGNED_ZIP_OK',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Publish v0.2.10 PS5 native frame-profiler TESTBUILD (experimental)
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-gles3-canvas-v0.2.10
+          cat > /tmp/m26-notes.md <<'NOTES'
+          Godot PS5 GLES3 v0.2.10 M26 – buffered vs unbuffered log-write A/B.
+          
+          PS5 firmware 5.10 TAR #45 demonstrates the M25 v0.2.9 built-in Pong still becomes unplayable after initially drawing ~121–124 frames in a five-second window. Later only 1 frame per window; M25 original Godot canvas draw ~1.8ms, render-target screen blit ~0.07ms, native EGL swap ~0.1ms, yet outer rasterizer gl_end_frame is up to ~8.66 seconds. In a late frame, original M24 reports 24.9 sec in viewport while M25 reports only 8.66sec including gl_end_frame: the large delta can be caused by synchronous diagnostic logging after the M25 timestamp. The native PS5 present() function itself prints M13 stats after timing EGL swap and stdout/stderr are configured _IONBF (one synchronous write per call) to /data. We have NOT verified that logging is the sole cause of all pre-M25 regressions.
+          
+          M26 preserves the EXACT same actual original Godot 4.7.2 GLES3 engine, M25 viewport measurements, AudioOut, Pong, M12d platformer, controller and VSync=1. The only A/B change: 128KiB static fully buffered stdout/stderr streams by default, avoiding synchronous per-line writes inside native swap callback and renderer diagnostics. To restore the prior unbuffered behavior, create /data/GodotPS5/m26_log_mode.txt with exact content "unbuffered", then restart. Deleting it restores buffered mode. The separate gles3-runtime.log records M26_IO_A_B_MODE value (1=buffered,0=unbuffered) immediately; stdout reports GODOT_PS5_M26_IO_MODE. WARNING: buffered logs may not reach disk until buffer fills or a graceful shutdown, so do not assume missing stdout lines mean absent code. Record both FPS responsiveness and equal-duration hitches. Stop if visibly frozen. Do not claim an FPS fix without physical proof; previous signed v0.2.9 remains rollback.
+          
+          Source: https://github.com/Yahballon/tmp_lap/tree/perf/godot-ps5-m26-buffered-io-ab/homebrew/godot-ps5
+
+          NOTES
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
+          else
+            gh release create "$tag" /tmp/m26-release/PPSA99847.zip \
+              --repo "$GITHUB_REPOSITORY" --target perf/godot-ps5-m26-buffered-io-ab \
+              --title 'Godot PS5 GLES3 Canvas v0.2.10 – Buffered Diagnostic I/O Trial' \
+              --notes-file /tmp/m26-notes.md --prerelease
+          fi
+      - name: Update TESTBUILDS version.json with verified release
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json
+          j=json.load(open('version.json'))
+          matches=[x for x in j['apps'] if x['title_id']=='PPSA99847']
+          assert len(matches)==1
+          app=matches[0]
+          assert app['version']=='0.2.10'
+          assert app['tag']=='godot-ps5-gles3-canvas-v0.2.10'
+          assert app['zip_url'].endswith('/PPSA99847.zip')
+          assert j['app_count']==len(j['apps'])
+          print('GODOT_PS5_M26_TESTBUILD_CATALOG_OK')
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add version.json
+            git commit -m 'chore(testbuilds): publish Godot PS5 M18 CPU/audio A-B v0.2.10 [skip ci]'
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
