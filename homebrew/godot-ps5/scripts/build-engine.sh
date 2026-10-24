@@ -39,6 +39,15 @@ if [[ "${GODOT_PS5_M21_NONBLOCKING_CANVAS_FENCE:-0}" == "1" ]]; then
   python3 "$root/scripts/patch_ps5_m21_canvas_fence.py" \
     "$GODOT_SOURCE/drivers/gles3/rasterizer_canvas_gles3.cpp"
 fi
+# M22: cap the GL Canvas2D instance-buffer set ring only for
+# experimental native PS5 GLES3; never touch bundled PCK/game assets.
+if [[ "${GODOT_PS5_M22_BOUNDED_RING:-0}" == "1" ]]; then
+  [[ "${GODOT_PS5_NATIVE_GLES3:-0}" == "1" ]] || {
+    echo 'M22 bounded Canvas2D ring requires native PS5 GLES3' >&2; exit 2;
+  }
+  python3 "$root/scripts/patch_ps5_m22_bounded_canvas_ring.py" \
+    "$GODOT_SOURCE/drivers/gles3/rasterizer_canvas_gles3.cpp"
+fi
 cd "$GODOT_SOURCE"
 jobs=4
 if test -n "$(printenv BUILD_JOBS || :)"; then jobs="$(printenv BUILD_JOBS)"; fi
