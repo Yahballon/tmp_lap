@@ -1,0 +1,396 @@
+name: Godot PS5 M25 Viewport Canvas Blit Isolation v0.2.9
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/native/gles3_canvas_main.cpp'
+      - 'homebrew/godot-ps5/tests/test_m25_viewport.py'
+      - 'homebrew/godot-ps5/scripts/patch_ps5_m25_viewport.py'
+      - 'homebrew/godot-ps5/tests/test_m13_native_frame_profiler.py'
+      - 'homebrew/godot-ps5/tests/test_m14_present_pacing.py'
+      - 'homebrew/godot-ps5/tests/test_m15_safe_pacing.py'
+      - 'homebrew/godot-ps5/tests/test_m16_native_sleep.py'
+      - 'homebrew/godot-ps5/tests/test_m17_phase_profile.py'
+      - 'homebrew/godot-ps5/tests/test_m18_cpu_time_audio_ab.py'
+      - 'homebrew/godot-ps5/tests/test_m24_render_stages.py'
+      - 'homebrew/godot-ps5/tests/test_m25_viewport.py'
+      - 'homebrew/godot-ps5/scripts/patch_ps5_m25_viewport.py'
+      - 'homebrew/godot-ps5/scripts/patch_ps5_m24_render_stages.py'
+      - 'homebrew/godot-ps5/scripts/patch_ps5_m17_iteration.py'
+      - 'homebrew/godot-ps5/scripts/build-engine.sh'
+      - '.github/workflows/build-godot-ps5-m25-viewport-blit.yml'
+  push:
+    branches: [perf/godot-ps5-m25-viewport-blit-trace, feature/godot-ps5-engine-foundation]
+    paths:
+      - 'homebrew/godot-ps5/engine/**'
+      - 'homebrew/godot-ps5/native/gles3_canvas_main.cpp'
+      - 'homebrew/godot-ps5/tests/test_native_gles3_hooks.py'
+      - 'homebrew/godot-ps5/tests/test_native_gles3_canvas.py'
+      - 'homebrew/godot-ps5/tests/test_m14_present_pacing.py'
+      - 'homebrew/godot-ps5/samples/visual-smoke/**'
+      - 'homebrew/godot-ps5/samples/pong-smoke/**'
+      - 'homebrew/godot-ps5/gles3-canvas/**'
+      - '.github/workflows/build-godot-ps5-m25-viewport-blit.yml'
+permissions:
+  contents: read
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify scene bridge uses real GDScript data
+        run: |
+          set -euo pipefail
+          python3 homebrew/godot-ps5/tests/test_native_gles3_hooks.py
+          python3 homebrew/godot-ps5/tests/test_native_gles3_canvas.py
+          python3 homebrew/godot-ps5/scripts/check_overlay.py
+          python3 homebrew/godot-ps5/tests/test_m9b_native_physics_build.py
+          python3 homebrew/godot-ps5/tests/test_m10c_native_freetype_build.py
+          python3 homebrew/godot-ps5/tests/test_m11c_native_audio_driver.py
+          python3 homebrew/godot-ps5/tests/test_m11d_audio_thread_fix.py
+          python3 homebrew/godot-ps5/tests/test_m13_native_frame_profiler.py
+          python3 homebrew/godot-ps5/tests/test_m14_present_pacing.py
+          python3 homebrew/godot-ps5/tests/test_m15_safe_pacing.py
+          python3 homebrew/godot-ps5/tests/test_m16_native_sleep.py
+          python3 homebrew/godot-ps5/tests/test_m17_phase_profile.py
+          python3 homebrew/godot-ps5/tests/test_m18_cpu_time_audio_ab.py
+          python3 homebrew/godot-ps5/tests/test_m24_render_stages.py
+          python3 homebrew/godot-ps5/tests/test_m25_viewport.py
+          python3 -m py_compile homebrew/godot-ps5/scripts/patch_ps5_m25_viewport.py
+          wget -q https://raw.githubusercontent.com/godotengine/godot/4.7.2-stable/servers/rendering/renderer_viewport.cpp -O /tmp/godot-m25-viewport.cpp
+          test -s /tmp/godot-m25-viewport.cpp
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m25_viewport.py /tmp/godot-m25-viewport.cpp
+          grep -Fq GODOT_PS5_M25_VIEWPORT_5S /tmp/godot-m25-viewport.cpp
+          grep -Fq GODOT_PS5_M25_VIEWPORT_READY /tmp/godot-m25-viewport.cpp
+          grep -Fq GODOT_PS5_M25_VIEWPORT_SPIKE /tmp/godot-m25-viewport.cpp
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m25_viewport.py /tmp/godot-m25-viewport.cpp
+          python3 -m py_compile homebrew/godot-ps5/scripts/patch_ps5_m24_render_stages.py
+          wget -q https://raw.githubusercontent.com/godotengine/godot/4.7.2-stable/servers/rendering/rendering_server_default.cpp -O /tmp/godot-m24-render.cpp
+          test -s /tmp/godot-m24-render.cpp
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m24_render_stages.py /tmp/godot-m24-render.cpp
+          grep -Fq GODOT_PS5_M24_RENDER_5S /tmp/godot-m24-render.cpp
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m24_render_stages.py /tmp/godot-m24-render.cpp
+          python3 -m py_compile homebrew/godot-ps5/scripts/patch_ps5_m17_iteration.py
+          wget -q https://raw.githubusercontent.com/godotengine/godot/4.7.2-stable/main/main.cpp -O /tmp/godot-m17-original.cpp
+          test -s /tmp/godot-m17-original.cpp
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m17_iteration.py /tmp/godot-m17-original.cpp
+          grep -Fq GODOT_PS5_M17_PHASE_5S /tmp/godot-m17-original.cpp
+          python3 homebrew/godot-ps5/scripts/patch_ps5_m17_iteration.py /tmp/godot-m17-original.cpp
+      - name: Pack actual Godot 4.7.2 Sprite2D fixture
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot-linux.zip
+          unzip -q /tmp/godot-linux.zip -d /tmp/
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          chmod +x "$godot"
+          project=homebrew/godot-ps5/samples/visual-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/pack.log
+          grep -Fq GODOT_PS5_VISUAL_PCK_WRITTEN /tmp/pack.log
+          "$godot" --headless --main-pack "$project/visual-smoke.pck" --quit-after 60 2>&1 | tee /tmp/scene.log
+          grep -Fq GODOT_PS5_REAL_2D_SCENE_READY /tmp/scene.log
+      - name: Generate playable, font-free Godot 4.7.2 Pong PCK
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/pong-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/pong-pack.log
+          grep -Fq GODOT_PS5_PONG_PCK_WRITTEN /tmp/pong-pack.log
+          test -s "$project/pong.pck"
+          "$godot" --headless --main-pack "$project/pong.pck" --quit-after 80 2>&1 | tee /tmp/pong-scene.log
+          grep -Fq GODOT_PS5_PONG_READY /tmp/pong-scene.log
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/pong-scene.log; then exit 1; fi
+      - name: Build separate host-verified real-physics PCK fixture
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/physics-smoke
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m9b-pack.log
+          grep -Fq GODOT_PS5_M9_PCK_WRITTEN /tmp/m9b-pack.log
+          "$godot" --headless --main-pack "$project/physics-smoke.pck" --quit-after 2200 2>&1 | tee /tmp/m9b-physics-host.log
+          grep -Fq GODOT_PS5_M9_REAL_COLLISION_OK /tmp/m9b-physics-host.log
+          grep -Fq GODOT_PS5_M9_TEST_PASS /tmp/m9b-physics-host.log
+      - name: Build and host-test genuine external TTF+Label sample
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          font=homebrew/godot-ps5/samples/m10b-font-ui
+          rev=92345ac0dbb28d27dbd32f3a782e84c55eaac214
+          for name in PressStart2P-Regular.ttf OFL.txt FONTLOG.txt; do
+            curl -fLsS --retry 3 "https://raw.githubusercontent.com/google/fonts/${rev}/ofl/pressstart2p/${name}" -o "$font/$name"
+          done
+          "$godot" --headless --path "$font" --script res://make_pack.gd 2>&1 | tee /tmp/m10c-font-pack.log
+          grep -Fq GODOT_PS5_M10B_FONT_PCK_WRITTEN /tmp/m10c-font-pack.log
+          "$godot" --headless --main-pack "$font/m10b-font-ui.pck" --quit-after 1100 2>&1 | tee /tmp/m10c-font-host.log
+          for m in GODOT_PS5_M10B_FONT_RESOURCE_OK GODOT_PS5_M10B_FONT_TTF_LOADED GODOT_PS5_M10B_FONT_METRICS_OK GODOT_PS5_M10B_LABEL_TREE_READY GODOT_PS5_M10B_FONT_TEST_FINISHED; do
+            grep -Fq "$m" /tmp/m10c-font-host.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M10B_FONT_FAIL_' /tmp/m10c-font-host.log; then exit 1; fi
+      - name: Build and host-validate six-tone M11 Godot AudioStream PCK
+        run: |
+          set -euo pipefail
+          godot=/tmp/Godot_v4.7.2-stable_linux.x86_64
+          project=homebrew/godot-ps5/samples/m11-audio
+          "$godot" --headless --path "$project" --script res://make_pack.gd 2>&1 | tee /tmp/m11c-audio-pack.log
+          grep -Fq GODOT_PS5_M11_AUDIO_PCK_WRITTEN /tmp/m11c-audio-pack.log
+          "$godot" --headless --main-pack "$project/m11-audio.pck" --quit-after 1100 2>&1 | tee /tmp/m11c-audio-host.log
+          for marker in GODOT_PS5_M11_AUDIO_PCM_READY GODOT_PS5_M11_AUDIO_PLAYER_STARTED GODOT_PS5_M11_AUDIO_HOST_API_PASS; do
+            grep -Fq "$marker" /tmp/m11c-audio-host.log
+          done
+          if grep -iE 'SCRIPT ERROR|Parse Error|Failed to load script|GODOT_PS5_M11_AUDIO_FAIL_' /tmp/m11c-audio-host.log; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GodotPS5-M11c-AudioStream-PCK-HOST-ONLY
+          path: homebrew/godot-ps5/samples/m11-audio/m11-audio.pck
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GodotPS5-M10c-TTF-Label-Sample-Host-Only
+          path: homebrew/godot-ps5/samples/m10b-font-ui/m10b-font-ui.pck
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GodotPS5-M9b-Physics-Godot4-PCK-HOST-ONLY
+          path: homebrew/godot-ps5/samples/physics-smoke/physics-smoke.pck
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GodotPS5-GLES3-Pong-Godot4-PCK-NOT-PS5
+          path: homebrew/godot-ps5/samples/pong-smoke/pong.pck
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GodotPS5-GLES3-Genuine-Visual-PCK-NOT-PS5
+          path: homebrew/godot-ps5/samples/visual-smoke/visual-smoke.pck
+          if-no-files-found: error
+  native-ps5-build:
+    needs: host-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install compiler and packager prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 llvm-18 lld-18 \
+            scons git make pkg-config python3 unzip wget ca-certificates
+      - name: Clone pinned native Godot 4.7.2 and DevBridge
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch 4.7.2-stable https://github.com/godotengine/godot.git /tmp/godot
+          git clone https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          git -C /tmp/devbridge checkout ce6178ed7b7668a4686e5368971ca567b33d394b
+      - name: Set up audited digest-pinned PS5 graphics + SDK toolchain
+        run: |
+          set -euo pipefail
+          sed -i 's|https://zlib.net/fossils/|https://github.com/madler/zlib/releases/download/v1.3.2/|g' \
+            /tmp/devbridge/templates/simple-calc/tools/setup-native-dependencies.sh
+          prefix=$(bash homebrew/godot-ps5/gpu-probe/fetch-mirrored-opengl-sdk.sh)
+          env PS5_OPENGL_PREFIX="$prefix" \
+            bash /tmp/devbridge/templates/simple-calc/tools/prepare-opengl.sh
+      - name: Build genuine Godot scene-state callback into PS5 engine archives
+        env:
+          GODOT_SOURCE: /tmp/godot
+          PS5_PAYLOAD_SDK: /tmp/devbridge/templates/simple-calc/.deps/native/ps5-payload-sdk
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          GODOT_MODULE_SET: smoke
+          GODOT_PS5_GLES3_ARCHIVES: '1'
+          GODOT_PS5_DISPLAY_EXPERIMENT: '1'
+          GODOT_PS5_NATIVE_GLES3: '1'
+          GODOT_PS5_M17_PHASE_PROFILE: '1'
+          GODOT_PS5_M24_RENDER_STAGES: '1'
+          GODOT_PS5_M25_VIEWPORT_STAGES: '1'
+          GODOT_PS5_PHYSICS2D: '1'
+          GODOT_PS5_FREETYPE: '1'
+          GODOT_PS5_AUDIOOUT: '1'
+        run: |
+          set -euo pipefail
+          # Native AudioOut code needs the public SDK-generated import stub;
+          # do not ship any Sony .sprx or create fake audio output fallbacks.
+          sdk="$PS5_PAYLOAD_SDK/target/lib/libSceAudioOut.so"
+          test -s "$sdk" || { echo "M11C ERROR: missing public SDK libSceAudioOut.so import"; exit 1; }
+          echo "GODOT_PS5_M11C_AUDIOOUT_IMPORT_PRESENT=$sdk"
+          bash homebrew/godot-ps5/scripts/build-engine.sh
+          llvm-nm-18 /tmp/godot/bin/libgodot_ps5.ps5.template_debug.x86_64.a | grep -F 'AudioDriverPS5'
+          echo GODOT_PS5_M11C_AUDIOOUT_GODOT_DRIVER_COMPILED
+          python3 homebrew/godot-ps5/scripts/package_static_engine.py \
+            /tmp/godot /tmp/godot-scene-bridge-engine-archives.zip --min-archives 8
+          llvm-nm-18 /tmp/godot/bin/libgodot_ps5.ps5.template_debug.x86_64.a | \
+            grep -F 'godot_ps5_set_graphics_hooks'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest=json.loads(Path('/tmp/godot/godot-ps5-full-manifest.json').read_text())
+          libs=[entry['path'] for entry in manifest['archives']]
+          matched=[lib for lib in libs if 'libmodule_godot_physics_2d.' in lib]
+          assert matched, 'Physics2D module archive MISSING: regression'
+          print('GODOT_PS5_M9B_PHYSICS_ARCHIVE_FOUND', matched)
+          # Godot 4.7.2 freetype/SCsub emits a THIRD-PARTY
+          # libfreetype_builtin archive, but has no module .cpp and therefore
+          # does NOT emit libmodule_freetype. The SCons module registration
+          # defines MODULE_FREETYPE_ENABLED, not a separate .a file.
+          text=[lib for lib in libs if 'libmodule_text_server_fb.' in lib]
+          assert text, 'TextServerFallback module MISSING'
+          native=[lib for lib in libs if '/freetype/libfreetype_builtin.' in lib]
+          assert native, 'Native libfreetype_builtin MISSING: TTF will fail'
+          print('GODOT_PS5_M10C_FREETYPE_ARCHIVES_FOUND',text,native)
+          PY
+          # Verify the actual rasterizer symbols, not a nonexistent archive.
+          llvm-nm-18 /tmp/godot/bin/obj/modules/freetype/libfreetype_builtin.ps5.template_debug.x86_64.a | \
+            grep -F ' T FT_Init_FreeType'
+          python3 - <<'PY'
+          from pathlib import Path
+          assert Path('/tmp/godot/modules/modules_enabled.gen.h').is_file()
+          markers=Path('/tmp/godot/modules/modules_enabled.gen.h').read_text()
+          assert 'MODULE_FREETYPE_ENABLED' in markers
+          print('GODOT_PS5_M10C_FREETYPE_MODULE_COMPILED')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: GodotPS5-M11c-AudioStream-PCK-HOST-ONLY
+          path: /tmp/godot-m11c-audio-pck
+      - uses: actions/download-artifact@v4
+        with:
+          name: GodotPS5-M10c-TTF-Label-Sample-Host-Only
+          path: /tmp/godot-m10c-font-pck
+      - uses: actions/download-artifact@v4
+        with:
+          name: GodotPS5-GLES3-Genuine-Visual-PCK-NOT-PS5
+          path: /tmp/godot-visual-pck
+      - uses: actions/download-artifact@v4
+        with:
+          name: GodotPS5-M9b-Physics-Godot4-PCK-HOST-ONLY
+          path: /tmp/godot-m9b-pck
+      - uses: actions/download-artifact@v4
+        with:
+          name: GodotPS5-GLES3-Pong-Godot4-PCK-NOT-PS5
+          path: /tmp/godot-pong-pck
+      - name: Stage graphics + native Godot in an isolated PPSA99847 install
+        run: |
+          set -euo pipefail
+          cp -a /tmp/devbridge/templates/simple-calc /tmp/godot-scene-app
+          mkdir -p /tmp/godot-scene-app/assets/godot
+          # Keep the known-good v0.1.1 GLES3 launcher unchanged. The new
+          # default pack is a REAL Godot 2D game, not a native GL sprite.
+          cp /tmp/godot-pong-pck/pong.pck /tmp/godot-scene-app/assets/godot/visual-smoke.pck
+          test -s /tmp/godot-scene-app/assets/godot/visual-smoke.pck
+          cp /tmp/godot-m9b-pck/physics-smoke.pck /tmp/godot-scene-app/assets/godot/physics-smoke.pck
+          cp /tmp/godot-m10c-font-pck/m10b-font-ui.pck /tmp/godot-scene-app/assets/godot/m10b-font-ui.pck
+          cp /tmp/godot-m11c-audio-pck/m11-audio.pck /tmp/godot-scene-app/assets/godot/m11-audio.pck
+          python3 homebrew/godot-ps5/scripts/stage_native_link.py \
+            --godot /tmp/godot --app /tmp/godot-scene-app \
+            --entry homebrew/godot-ps5/native/gles3_canvas_main.cpp
+          # stage_native_link makes an isolated APP_SOURCE_DIR. Preserve the
+          # *proven DevBridge* native GPU sources + malloc/mmap wrappers there;
+          # otherwise the linker loses its __wrap_* and EGL/Display symbols.
+          app_src=/tmp/godot-scene-app/src/godot-smoke
+          mkdir -p "$app_src/platform/ps5" "$app_src/runtime"
+          cp /tmp/devbridge/templates/simple-calc/src/platform/ps5/display_egl.cpp \
+             /tmp/devbridge/templates/simple-calc/src/platform/ps5/system.cpp \
+             "$app_src/platform/ps5/"
+          cp /tmp/devbridge/templates/simple-calc/src/runtime/app_heap.c \
+             /tmp/devbridge/templates/simple-calc/src/runtime/native_mmap.c \
+             /tmp/devbridge/templates/simple-calc/src/runtime/runtime_shims.c \
+             "$app_src/runtime/"
+          test -s "$app_src/platform/ps5/display_egl.cpp"
+          test -s "$app_src/runtime/app_heap.c"
+          cp homebrew/godot-ps5/engine/platform/ps5/graphics_hooks_ps5.h "$app_src/"
+          # The full Godot PS5 runtime already supplies syslog/openlog through
+          # libc.a. The smaller standalone GPU template only needs its no-op
+          # openlog() shim because it does not link all of Godot's libc users.
+          # Remove exactly this conflicting local implementation, keeping
+          # shader-cache mkstemp and splash/shader TLS shims intact.
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          shim=Path('/tmp/godot-scene-app/src/godot-smoke/runtime/runtime_shims.c')
+          code=shim.read_text()
+          pattern=r'\nvoid openlog\(const char \*identifier, int option, int facility\)\s*\{\s*\(void\)identifier;\s*\(void\)option;\s*\(void\)facility;\s*\}\s*'
+          code,count=re.subn(pattern,'\n',code)
+          assert count==1, f'Expected exactly one stand-alone openlog shim, got {count}'
+          assert 'int mkstemps(' in code and 'hui_release_splash' in code
+          shim.write_text(code)
+          print('PS5 full Godot libc openlog provider preserved; duplicate removed')
+          PY
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/godot-scene-app')
+          data=json.loads((root/'sce_sys/param.json').read_text())
+          data.update(titleId='PPSA99847',conceptId='99847',
+                      contentId='UP9000-PPSA99847_00-GODOTGLES3CANVAS',
+                      contentVersion='01.000.020')
+          data['localizedParameters']['en-US']['titleName']='Godot PS5 Viewport Canvas Blit M25 v0.2.9'
+          assert len(data['contentId'].split('_00-')[1])==16
+          (root/'sce_sys/param.json').write_text(json.dumps(data,indent=2)+'\n')
+          # Keep DevBridge's EGL/GL include and import settings together
+          # with the native Godot archive group from stage_native_link.py.
+          base=(Path('/tmp/devbridge/templates/simple-calc/GNUmakefile')).read_text().splitlines()
+          original=(root/'GNUmakefile').read_text()
+          flags=[line for line in base if line.startswith(
+              ('APP_DEFINITIONS :=','APP_INCLUDE_PATHS :=',
+               'APP_IMPORT_STUBS :=','APP_WRAP_SYMBOLS :='))]
+          assert len(flags)==4
+          audio_import=root/'.deps/native/ps5-payload-sdk/target/lib/libSceAudioOut.so'
+          assert audio_import.is_file() and audio_import.stat().st_size>0, 'PS5 SDK AudioOut import stub missing'
+          flags=[line+' .deps/native/ps5-payload-sdk/target/lib/libSceAudioOut.so'
+                 if line.startswith('APP_IMPORT_STUBS :=') else line for line in flags]
+          print('GODOT_PS5_M11C_AUDIOOUT_IMPORT_LINK_CONFIGURED')
+          original=original.replace('APP_STATIC_ARCHIVES := ',
+                                    'APP_STATIC_ARCHIVES := .deps/ps5-opengl/libps5opengl-group.a ',1)
+          (root/'GNUmakefile').write_text('\n'.join(flags)+'\n'+original)
+          print('Staged PPSA99847 using upstream Godot GLES3 and native PS5 EGL callbacks')
+          PY
+      - name: Native ELF link, weak-TLS fallback and signed PS5 installation ZIP
+        run: |
+          set -euo pipefail
+          (
+            cd /tmp/godot-scene-app
+            env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+              make USE_CCACHE=0 BUILD_JOBS=4 app
+          ) 2>&1 | tee /tmp/godot-scene-bridge-link.log || {
+            test -s /tmp/godot-scene-app/build/llvm-pie.elf
+            python3 homebrew/godot-ps5/scripts/resolve_weak_tls.py \
+              --elf /tmp/godot-scene-app/build/llvm-pie.elf \
+              --build-sh /tmp/godot-scene-app/tools/build.sh
+            (
+              cd /tmp/godot-scene-app
+              env PS5_CLANG=clang-18 USE_CCACHE=0 BUILD_JOBS=4 \
+                make USE_CCACHE=0 BUILD_JOBS=4 app
+            ) 2>&1 | tee -a /tmp/godot-scene-bridge-link.log
+          }
+      - name: Validate signed composite title and CPU/EGL-swap profiler (unverified on PS5 console)
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,json,struct
+          p=Path('/tmp/godot-scene-app/dist/PPSA99847.zip')
+          assert p.is_file() and p.stat().st_size>100_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              paths=z.namelist()
+              assert all(name.startswith('PPSA99847/') and '..' not in Path(name).parts for name in paths)
+              assert 'PPSA99847/eboot.bin' in paths
+              assert 'PPSA99847/assets/godot/visual-smoke.pck' in paths
+              assert 'PPSA99847/assets/godot/physics-smoke.pck' in paths
+              assert 'PPSA99847/assets/godot/m10b-font-ui.pck' in paths
+              assert 'PPSA99847/assets/godot/m11-audio.pck' in paths
+              elf=z.read('PPSA99847/eboot.bin')
+              assert len(elf)>1_000_000 and elf[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentVersion']=='01.000.020'
+          print('SIGNED GODOT M13 NATIVE FRAME PROFILER BUILT; PS5 PERFORMANCE NOT YET TESTED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Godot-PS5-M25-VIEWPORT-BLIT-v0.2.9-PS5-HARDWARE-UNTESTED
+          path: /tmp/godot-scene-app/dist/PPSA99847.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Godot-PS5-M25-Viewport-Blit-Link-Diagnostics
+          path: /tmp/godot-scene-bridge-link.log
+          if-no-files-found: warn
