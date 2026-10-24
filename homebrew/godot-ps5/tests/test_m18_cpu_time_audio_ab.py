@@ -15,7 +15,9 @@ for marker in ("m18_audio_mode.txt","m18_dummy_audio_requested()",
                'dummy_audio?"dummy":"native_audioout"'):
     assert marker in launch, marker
 assert "if(dummy_audio)" in launch
-assert "int count = 8" in launch
+assert "constexpr int count = 8;" in launch
+assert "int m18_count=count;" in launch
+assert 'Main::setup("godot.ps5", m18_count, args)' in launch
 assert "GODOT_PS5_M17_PHASE_5S" in (base/"scripts/patch_ps5_m17_iteration.py").read_text()
 assert "PS5PresentMode perf_present_mode = PS5PresentMode::VSync;" in native
 assert "GODOT_PS5_M13_FRAME_5S" in native
