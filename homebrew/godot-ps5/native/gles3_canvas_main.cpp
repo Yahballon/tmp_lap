@@ -188,7 +188,40 @@ int main(){
     mkdir("/data/GodotPS5",0755);
     (void)freopen("/data/GodotPS5/gles3-stdout.log","ab",stdout);
     (void)freopen("/data/GodotPS5/gles3-stderr.log","ab",stderr);
-    setvbuf(stdout,nullptr,_IONBF,0);setvbuf(stderr,nullptr,_IONBF,0);
+    // M26: On real PS5, synchronous per-line stdout/stderr writes to /data
+    // can stall the rendering thread even AFTER EGL swap itself completed.
+    // Buffered mode is the default controlled A/B; exact "unbuffered" in
+    // /data/GodotPS5/m26_log_mode.txt restores prior per-line behavior.
+    // Keep the user payload, rendering commands and log text unchanged.
+    static char m26_stdout_buffer[128*1024];
+    static char m26_stderr_buffer[128*1024];
+    bool m26_unbuffered=false;
+    const int m26_fd=sceKernelOpen("/data/GodotPS5/m26_log_mode.txt",O_RDONLY|O_NOFOLLOW,0);
+    if(m26_fd>=0) {
+        char mode[24]{};
+        const long n=sceKernelRead(m26_fd,mode,sizeof(mode));
+        sceKernelClose(m26_fd);
+        if(n>0 && n<static_cast<long>(sizeof(mode))) {
+            std::string value(mode,static_cast<size_t>(n));
+            while(!value.empty() && (value.back()=='\n'||value.back()=='\\r'))value.pop_back();
+            m26_unbuffered=value=="unbuffered";
+        }
+    }
+    const int out_setvbuf= m26_unbuffered
+        ? setvbuf(stdout,nullptr,_IONBF,0)
+        : setvbuf(stdout,m26_stdout_buffer,_IOFBF,sizeof(m26_stdout_buffer));
+    const int err_setvbuf= m26_unbuffered
+        ? setvbuf(stderr,nullptr,_IONBF,0)
+        : setvbuf(stderr,m26_stderr_buffer,_IOFBF,sizeof(m26_stderr_buffer));
+    if(out_setvbuf!=0 || err_setvbuf!=0) {
+        // Never silently treat failed buffer configuration as an A/B result.
+        std::fprintf(stderr,"GODOT_PS5_M26_IO_INIT_FAILED out=%d err=%d\n",out_setvbuf,err_setvbuf);
+    }
+    record("M26_IO_A_B_MODE",m26_unbuffered?0:1);
+    std::printf("GODOT_PS5_M26_IO_MODE mode=%s stdout_buffer=%d stderr_buffer=%d\n",
+        m26_unbuffered?"unbuffered":"buffered",
+        m26_unbuffered?0:int(sizeof(m26_stdout_buffer)),
+        m26_unbuffered?0:int(sizeof(m26_stderr_buffer)));
     record("BOOT");
     load_present_mode();
     const GodotPS5GraphicsHooks hooks={open_context,present,close_context,gl_resolve};
