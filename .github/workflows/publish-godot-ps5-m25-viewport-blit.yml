@@ -1,0 +1,149 @@
+name: Publish Godot PS5 M25 Viewport Blit TESTBUILD
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful signed M13 native frame profiler build from trusted feature branch"
+        required: true
+  workflow_run:
+    workflows: ['Godot PS5 M25 Viewport Canvas Blit Isolation v0.2.9']
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-godot-ps5-m25-viewport-blit
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'perf/godot-ps5-m25-viewport-blit-trace' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == 'Yahballon/tmp_lap')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Strictly verify successful signed native build from trusted branch
+        id: artifact
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+          PARENT_RUN: ${{ github.event.workflow_run.id || '0' }}
+          REQUESTED_RUN: ${{ inputs.run_id || '0' }}
+        run: |
+          set -euo pipefail
+          run="$PARENT_RUN"
+          if [ "$run" = 0 ]; then run="$REQUESTED_RUN"; fi
+          [[ "$run" =~ ^[0-9]+$ ]] || exit 2
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > /tmp/m25-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" > /tmp/m25-artifacts.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.load(open('/tmp/m25-run.json'))
+          assert r['repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_repository']['full_name']=='Yahballon/tmp_lap'
+          assert r['head_branch']=='perf/godot-ps5-m25-viewport-blit-trace'
+          assert r['name']=='Godot PS5 M25 Viewport Canvas Blit Isolation v0.2.9'
+          assert r['event']=='push'
+          assert r['status']=='completed' and r['conclusion']=='success'
+          matches=[a for a in json.load(open('/tmp/m25-artifacts.json'))['artifacts']
+            if a['name']=='Godot-PS5-M25-VIEWPORT-BLIT-v0.2.9-PS5-HARDWARE-UNTESTED'
+            and not a['expired'] and a.get('workflow_run',{}).get('head_sha')==r['head_sha']]
+          assert len(matches)==1, f'M13 signed native profiler artifact missing: {matches}'
+          Path('/tmp/m25-build-sha').write_text(r['head_sha'])
+          print('GODOT_PS5_M25_SIGNED_RELEASE_SOURCE_VERIFIED',r['id'],r['head_sha'])
+          PY
+          mkdir -p /tmp/m25-release
+          gh run download "$run" --repo "$GITHUB_REPOSITORY" \
+            --name Godot-PS5-M25-VIEWPORT-BLIT-v0.2.9-PS5-HARDWARE-UNTESTED \
+            --dir /tmp/m25-release
+          test -s /tmp/m25-release/PPSA99847.zip
+      - name: Independently validate installable PS5 signed AudioOut title
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,struct,zipfile
+          p=Path('/tmp/m25-release/PPSA99847.zip')
+          assert p.stat().st_size>1_000_000
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert all(n.startswith('PPSA99847/') and '..' not in Path(n).parts for n in names)
+              for name in ('eboot.bin','assets/godot/visual-smoke.pck',
+                    'assets/godot/physics-smoke.pck','assets/godot/m10b-font-ui.pck'):
+                  assert 'PPSA99847/'+name in names
+              data=z.read('PPSA99847/eboot.bin')
+              assert len(data)>5_000_000 and data[:4]==struct.pack('<I',0x1d3d154f)
+              meta=json.loads(z.read('PPSA99847/sce_sys/param.json'))
+              assert meta['titleId']=='PPSA99847'
+              assert meta['contentId']=='UP9000-PPSA99847_00-GODOTGLES3CANVAS'
+              assert meta['contentVersion']=='01.000.020'
+          print('GODOT_PS5_M25_SIGNED_ZIP_OK',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Publish v0.2.9 PS5 native frame-profiler TESTBUILD (experimental)
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag=godot-ps5-gles3-canvas-v0.2.9
+          cat > /tmp/m25-notes.md <<'NOTES'
+          Experimental Godot PS5 GLES3 v0.2.9 (M25) – Original Viewport Canvas/Blit/GL-end profiling (firmware 5.10 hardware).
+          
+          Direct physical PS5 TAR #44 M24 v0.2.8 built-in Pong starts slightly better (149 frames in first report versus 6 in the much heavier M23), but eventually falls to 1–3 frames per five-second report. M24 original RenderingServerDefault::_draw attribution confirms ONLY viewport->draw_viewports() is expensive, max_viewport_ms=3238.37 initially and later ~1033ms; render begin, scene, pre-viewport, end, post and profiling max each less than ~0.24ms.
+          
+          The exact upstream 4.7.2 RendererViewport::draw_viewports performs the 2D Canvas render, original framebuffer blit to the screen, and gl_end_frame/present separately. M13 fast EGL swap does NOT time the GLES3 framebuffer blit before the swap. M25 therefore adds bounded native PS5 monotonic timing within the upstream renderer viewport source, distinguishing canvas->render_canvas(), other _draw_viewport steps, gl_window_make_current(), the blit, gl_end_frame and remaining setup work, with no GL API wrapping or new GPU commands.
+          
+          Look for GODOT_PS5_M25_VIEWPORT_READY, GODOT_PS5_M25_VIEWPORT_SPIKE and 5S summaries max_canvas_ms, max_draw_other_ms, max_blit_ms, max_gl_end_ms, max_other_ms, along with M24 render summary. Retains original M18 baseline GL behavior and all prior M13/M17/M18 clocks, native audio, PCK and input. THIS IS DIAGNOSTIC, not a confirmed FPS fix. Try Pong until the first severe hitch, save fresh stdout/runtime logs, then original platformer only if stable. Previous signed v0.2.8 retained.
+          
+          Source: https://github.com/Yahballon/tmp_lap/tree/perf/godot-ps5-m25-viewport-blit-trace/homebrew/godot-ps5
+
+          NOTES
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99847.zip
+          else
+            gh release create "$tag" /tmp/m25-release/PPSA99847.zip \
+              --repo "$GITHUB_REPOSITORY" --target perf/godot-ps5-m25-viewport-blit-trace \
+              --title 'Godot PS5 GLES3 Canvas v0.2.9 – Viewport/Blit Timing' \
+              --notes-file /tmp/m25-notes.md --prerelease
+          fi
+      - name: Update TESTBUILDS version.json with verified release
+        env:
+          GH_TOKEN: ${{ secrets.PS5_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          python3 - <<'PY'
+          import json
+          j=json.load(open('version.json'))
+          matches=[x for x in j['apps'] if x['title_id']=='PPSA99847']
+          assert len(matches)==1
+          app=matches[0]
+          assert app['version']=='0.2.9'
+          assert app['tag']=='godot-ps5-gles3-canvas-v0.2.9'
+          assert app['zip_url'].endswith('/PPSA99847.zip')
+          assert j['app_count']==len(j['apps'])
+          print('GODOT_PS5_M25_TESTBUILD_CATALOG_OK')
+          PY
+          if [ -n "$(git status --porcelain -- version.json)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add version.json
+            git commit -m 'chore(testbuilds): publish Godot PS5 M18 CPU/audio A-B v0.2.9 [skip ci]'
+            for attempt in 1 2 3 4; do
+              git pull --rebase origin main
+              git push origin HEAD:main && exit 0
+              sleep 3
+            done
+            exit 1
+          fi
