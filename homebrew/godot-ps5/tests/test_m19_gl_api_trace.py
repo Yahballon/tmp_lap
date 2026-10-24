@@ -29,7 +29,7 @@ assert 'm19_report(after);' in s
 assert 'return original;' in s and "eglGetProcAddress(name)" in s
 assert "PS5PresentMode perf_present_mode = PS5PresentMode::VSync;" in s
 assert 'GODOT_PS5_M13_NATIVE_FRAME_PROFILER_READY' in s
-assert not re.search(r"(^|\\n)\\s*glFinish\\(",s)
+assert not re.search(r"(?m)^\s*glFinish\(",s)
 assert "glReadPixels(0," not in s
-assert not re.search(r"(^|\\n)\\s*glDraw(Arrays|Elements)\\(",s)
+assert not re.search(r"(?m)^\s*glDraw(Arrays|Elements)\(",s)
 print("GODOT_PS5_M19_GL_API_TIMING_PASSTHROUGH_GUARDS_PASS")
