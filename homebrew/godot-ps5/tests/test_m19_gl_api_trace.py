@@ -26,7 +26,7 @@ assert "GODOT_PS5_M19_GL_PROFILER_READY" in s
 assert "GODOT_PS5_M19_GL_5S" in s
 assert "GODOT_PS5_M19_GL_SUMMARY_5S" in s
 assert 'm19_report(after);' in s
-assert 'return original;' in s and "eglGetProcAddress(name)" in s
+assert ('return original;' in s or 'return m23_resolve(name,original);' in s) and "eglGetProcAddress(name)" in s
 assert "PS5PresentMode perf_present_mode = PS5PresentMode::VSync;" in s
 assert 'GODOT_PS5_M13_NATIVE_FRAME_PROFILER_READY' in s
 assert not re.search(r"(?m)^\s*glFinish\(",s)
