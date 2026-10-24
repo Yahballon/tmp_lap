@@ -62,12 +62,12 @@ void perf_report(double cpu, double swap, double begin, double end){
         perf_cpu_ms=perf_swap_ms=perf_max_cpu_ms=perf_max_swap_ms=perf_max_frame_ms=0.0;
     }
 }
-// M14: opt-in reversible PS5 EGL present pacing experiment.
+// M15: safe PS5 EGL present pacing; immediate remains opt-in for A/B diagnosis.
 // The confirmed M12d game pack is untouched. Experimental TESTBUILD defaults
 // to immediate presents to compare with the original VSync=1 pipeline.
 // Write "vsync" to /data/GodotPS5/present_mode.txt to restore the baseline.
 enum class PS5PresentMode { Immediate, VSync };
-PS5PresentMode perf_present_mode = PS5PresentMode::Immediate;
+PS5PresentMode perf_present_mode = PS5PresentMode::VSync;
 const char *perf_present_mode_name(PS5PresentMode mode) {
     return mode == PS5PresentMode::Immediate ? "immediate" : "vsync";
 }
@@ -75,7 +75,7 @@ void load_present_mode() {
     const char *conf="/data/GodotPS5/present_mode.txt";
     const int fd=sceKernelOpen(conf,O_RDONLY | O_NOFOLLOW,0);
     if(fd<0) {
-        std::printf("GODOT_PS5_M14_CONFIG file=absent mode=immediate (experimental_default)\n");
+        std::printf("GODOT_PS5_M14_CONFIG file=absent mode=vsync (safe_default)\n");
         return;
     }
     char data[32]{};
