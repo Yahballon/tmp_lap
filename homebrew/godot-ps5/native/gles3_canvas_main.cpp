@@ -34,6 +34,7 @@ double ps5_now_ms(){
     return clock_gettime(CLOCK_MONOTONIC, &t)==0
         ? static_cast<double>(t.tv_sec)*1000.0+static_cast<double>(t.tv_nsec)*1.0e-6 : 0.0;
 }
+#include "m23_gl_trace_extra.hpp"
 double perf_last_swap_complete_ms=0.0;
 double perf_epoch_ms=0.0;
 unsigned perf_samples=0,perf_window_spikes=0,perf_window_logged=0;
@@ -389,6 +390,7 @@ bool present(){
     }
     perf_last_swap_complete_ms=after;
     m19_report(after);
+    m23_report(after);
     if(frames==60||frames==600)record("GODOT_SWAP_COUNT",int(frames));
     return true;
 }
@@ -517,7 +519,7 @@ void* gl_resolve(const char *name){
         ++m19_hooked_count;
         return reinterpret_cast<void*>(&m19_trace_glGetUniformLocation);
     }
-    return original;
+    return m23_resolve(name,original);
 }
 } // namespace
 
@@ -527,6 +529,7 @@ int main(){
     (void)freopen("/data/GodotPS5/gles3-stderr.log","ab",stderr);
     setvbuf(stdout,nullptr,_IONBF,0);setvbuf(stderr,nullptr,_IONBF,0);
     record("BOOT");
+    std::printf("GODOT_PS5_M23_EXTRA_GL_TIMING active=1 methods=32\n");
     // M20 trial: real Godot GLES3 GPU timestamp readback is compiled out.
     // No shader, draw-call, swap interval or game data is changed.
     std::printf("GODOT_PS5_M20_GPU_TIMESTAMP_SYNC_DISABLED active=1 engine_patch_required=1\n");

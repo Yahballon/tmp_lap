@@ -176,6 +176,10 @@ static void godot_ps5_boot_stage(const char *stage) {
     target=app/"src/godot-smoke"
     target.mkdir(parents=True,exist_ok=True)
     shutil.copyfile(entry,target/"main.cpp")
+    # M23: static, audited GL timing adapter included by experimental main.cpp.
+    extra_header=Path(entry).parent/"m23_gl_trace_extra.hpp"
+    if extra_header.is_file():
+        shutil.copyfile(extra_header,target/"m23_gl_trace_extra.hpp")
     # The native launcher now imports only two portable, source-reviewed
     # PCK screening headers; stage them adjacent to main.cpp so DevBridge's
     # normal native compile command has no extra include-path assumptions.
