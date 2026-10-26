@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// FITBREW 0.1.2 by YAHBALLON - original equipment-free fitness app.
+// FITBREW 0.1.3 by YAHBALLON - original equipment-free fitness app.
 #include "workout.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -26,7 +26,7 @@ Color c(unsigned v,float a=1){return Color::rgb(v,a);}
 void logs(const char* msg){
  mkdir("/data/FITBREW",0755);mkdir("/data/FITBREW/logs",0755);
  if(FILE* f=fopen("/data/FITBREW/logs/fitbrew.log","ab")){
-  fprintf(f,"[FITBREW 0.1.2] %s\n",msg);fclose(f);
+  fprintf(f,"[FITBREW 0.1.3] %s\n",msg);fclose(f);
  }
 }
 std::string read_file(const std::string& path,size_t max=12*1024*1024){
@@ -78,17 +78,9 @@ unsigned load_image(Renderer& renderer,const std::string& name){
  const auto separator=name.find_last_of('.');
  const auto stem=separator==std::string::npos?name:name.substr(0,separator);
  const auto raw_name=stem+".rgba";
- // Optional original FITBREW photo pack on USB or persistent data. The packaged
- // 512x512 raw illustration is always a complete offline fallback.
- std::string pixels;
- const char* overrides[]={"/data/FITBREW/assets/","/mnt/usb0/FITBREW/assets/",
-                          "/mnt/usb1/FITBREW/assets/","/mnt/usb2/FITBREW/assets/",
-                          "/mnt/usb3/FITBREW/assets/"};
- for(const char* p:overrides){
-  const auto candidate=read_file(std::string(p)+raw_name,expected+1);
-  if(candidate.size()==expected){pixels=candidate;break;}
- }
- if(pixels.empty())pixels=asset(raw_name,expected+1);
+ // Always use the art shipped inside PPSA99790; old USB/data overrides
+ // could silently replace these new AI images with outdated photographs.
+ const auto pixels=asset(raw_name,expected+1);
  char msg[256];
  if(pixels.size()==expected){
   const unsigned id=renderer.batch().create_texture(side,side,
@@ -167,7 +159,7 @@ void header(DrawList& d,const Font& f,unsigned a,const State& s){
   text(d,f,a,icon[i],49,y+44,27,active?0x070a0d:0xa4b6cc);
   text(d,f,a,nav[i],91,y+43,22,active?0x06090a:0xd0daeb);
  }
- text(d,f,a,"FITBREW   v0.1.2",1698,83,23,WHITE);
+ text(d,f,a,"FITBREW   v0.1.3",1698,83,23,WHITE);
  text(d,f,a,"100% FREE  -  OFFLINE",1698,111,15,LIME);
 }
 void footer(DrawList& d,const Font& f,unsigned a,const State& s){

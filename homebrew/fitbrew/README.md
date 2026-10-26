@@ -4,7 +4,7 @@
 
 **Your body. Your goals. Zero equipment. Zero subscriptions.**
 
-Native PlayStation 5 Homebrew · **by YAHBALLON** · v0.1.2
+Native PlayStation 5 Homebrew · **by YAHBALLON** · v0.1.3
 
 </div>
 
@@ -12,7 +12,7 @@ Native PlayStation 5 Homebrew · **by YAHBALLON** · v0.1.2
 
 FITBREW is an entirely offline, controller-first fitness application for the PS5, designed around bodyweight-only exercise. No machine, dumbbell, band, subscription, sign-in, camera, smartwatch or personal data upload is needed.
 
-> **PS5 test feedback:** A user reports that the core app appears to work on PS5 but exercise pictures were missing in v0.1.0. v0.1.2 addresses this with raw GPU textures and additional logs; the fix still needs an on-console retest. The bundled six images are generated illustrations until original photo files are provided. The uploaded reference design is not a hardware screenshot.
+> **PS5 test feedback:** A user reports that the core app appears to work on PS5 but exercise pictures were missing in v0.1.0. v0.1.3 addresses this with raw GPU textures and additional logs; the fix still needs an on-console retest. The bundled six images are generated illustrations until original photo files are provided. The uploaded reference design is not a hardware screenshot.
 
 ## Features
 
@@ -66,11 +66,11 @@ This application lives at `homebrew/fitbrew/` in [Yahballon/tmp_lap](https://git
 
 ## Photography and image troubleshooting
 
-FITBREW v0.1.2 bundles twelve original **photographs from credited Unsplash contributors** in the native installable PS5 ZIP. The photos are downloaded at build time, resized/dark-graded, converted to RGBA8 and bundled with JPEG fallbacks. **No USB photo pack or console network connection is required.** Build failures block publication rather than silently generating stick figures.
+FITBREW v0.1.3 bundles twelve **original AI-generated FITBREW fitness images** in the native installable PS5 ZIP. The original generated source images are committed to GitHub, resized and converted to RGBA8 during the build, then bundled with JPEG fallbacks. **No USB photo pack or console network connection is required.** Build failures block publication rather than silently generating stick figures.
 
 Each of the 12 curated plans has a different photo; exercise breakdown thumbnails intentionally reuse corresponding movement categories, not exact tutorial still frames. True technique animation for each of 36 exercises is a later feature.
 
-Source credits and use terms: [PHOTO_CREDITS.md](assets/PHOTO_CREDITS.md). To diagnose missing GPU textures, inspect `/data/FITBREW/logs/fitbrew.log` for `ART_RGBA` and `ART_READY 12/12 textures`. Nothing in the v0.1.2 release claims to have been hardware-verified until retested.
+Source-image mapping: [PHOTO_CREDITS.md](assets/PHOTO_CREDITS.md). To diagnose missing GPU textures, inspect `/data/FITBREW/logs/fitbrew.log` for `ART_RGBA` and `ART_READY 12/12 textures`. Nothing in the v0.1.3 release claims to have been hardware-verified until retested.
 ## Privacy and safety
 
 Training history is saved on the PS5 only. The app does not measure heart rate, calories, steps, oxygen saturation or health conditions. Exercise prescriptions are general, not individual medical advice. Start gently; avoid movements unsuitable for your circumstances.

@@ -1,9 +1,9 @@
 # FITBREW — Milestones, Evidence & Agent Handoff
 
 **Project:** `Yahballon/tmp_lap/homebrew/fitbrew`
-**Last updated:** 2026-10-26 (UTC; exact minute not recorded)
-**Active branch:** `feature/fitbrew-v0.1.2-photo-dashboard` (PR #273). Published release remains v0.1.1 until main workflow creates v0.1.2.
-**Development version / Title ID:** v0.1.2 / PPSA99790 (unchanged) (searched monorepo and PHIP-0001 for collision; no matching source-index result; global uniqueness NOT guaranteed)
+**Last updated:** 2026-10-26 (v0.1.3 source-import milestone)
+**Active branch:** `feature/fitbrew-v0.1.3-bundled-ai-photos`. Previous v0.1.2 already published; v0.1.3 pending.
+**Development version / Title ID:** v0.1.3 / PPSA99790 (unchanged) (searched monorepo and PHIP-0001 for collision; no matching source-index result; global uniqueness NOT guaranteed)
 **Latest verified Release:** [fitbrew-v0.1.1](https://github.com/Yahballon/tmp_lap/releases/tag/fitbrew-v0.1.1), asset `PPSA99790.zip` (6,886,686 bytes); main build run 40322034573 SUCCESS. TESTBUILDS catalog update run 40322320329 SUCCESS, current `version.json` shows FITBREW v0.1.1.
 **Hardware target:** user's PS5 firmware 5.10. On 2026-10-26 user reports most functionality seems operational except missing photos in v0.1.0. No logs/screenshots or v0.1.1 retest supplied.
 
@@ -41,6 +41,18 @@
 - Build setup copied from `build-4wins.yml`. Needs first actual CI invocation and compiler errors fixed rather than assumed working.
 
 ## Change Log — Latest First
+
+### 2026-10-26 — v0.1.3 original AI images directly in app (pending CI release)
+
+- User explicitly rejected a separate USB photo package and requested the image sources live in GitHub and ship inside the homebrew installer.
+- Added `assets/import_ai_photos.py` to import all twelve user-requested generated images at build time; source image URLs are temporary and will not be used after the first main release persists source JPGs.
+- Changed `assets/generate_assets.py` to require these original AI sources, never substitute Unsplash photographs.
+- Changed loader to prioritize embedded `PPSA99790/assets/pose_*.rgba` instead of older USB overrides.
+- CI step saves 12 JPEG originals back to GitHub main using workflow permissions, making future builds independent of temporary download links.
+- Bumped version 0.1.2 to 0.1.3 and retained PPSA99790 Title ID.
+- Build and release must be confirmed from Actions and generated `version.json`; not yet hardware tested.
+
+
 
 ### 2026-10-26 — v0.1.2 professional photography and card repairs (PR #273, CI pending)
 - PS5 screenshot from the user confirms v0.1.1's picture assets are simplistic silhouettes. User rejects these visuals as unlike the reference.

@@ -1,14 +1,14 @@
-# FITBREW v0.1.2 — Photo Edition
+# FITBREW v0.1.3 — Original AI Workout Artwork Built In
 
-The v0.1.1 screen showed geometric silhouette artwork instead of professional photos, repeated images, stretched hero bodies and overflowing workout names. This update repairs the visual design while leaving the fitness engine unchanged.
+The twelve AI-generated workout images requested by the user are now baked into the **native PS5 homebrew app**; no USB stick, separate photo pack, connection or manual installation of assets.
 
-- Bundles 12 distinct credited real-life sports photographs from freely usable Unsplash sources (strength, squats, planks, cardio and flexibility).
-- Downloads/validates image sources during GitHub Actions and embeds all 12 JPEG and PS5 RGBA8 textures into the installer: entirely offline on PS5.
-- Missing photo source now fails the build. No accidental stick-figure fallback will be released.
-- Uses aspect-ratio-correct UV cover crops, readable clipped photo-card labels and two-line Today titles.
-- Gives all 12 workout plans distinct photos while retaining the same 36 original exercises and bodyweight-only approach.
-- Keeps PPSA99790 and the existing local FITBREW progress directory.
+- 12 images from the previously created FITBREW AI batch, correctly mapped by each workout's `plans[].image` index.
+- Includes 12 JPEG files and 12 ready-to-upload 512x512 RGBA8 GPU textures inside `PPSA99790.zip`.
+- GitHub Actions imports and checks the image sources, persists the source JPEGs to the repository, then builds the native app using those files.
+- Bundled art takes priority over old USB/data photo overrides.
+- Title ID `PPSA99790` and `/data/FITBREW/progress.ini` are unchanged, preserving previous workout progress.
+- Same 36 exercises, 12 workouts, timings and native DualSense UI.
 
-Validation: CI source/image/ZIP checks are automated. Real PS5 firmware 5.10 screenshot retest is still required. The photos illustrate workout categories, not exact step-by-step form instruction for each exercise.
+The first test is still on PS5 firmware 5.10. Original artwork provides attractive per-*program* photos; exercise-level photo specificity and motion instruction are still future work.
 
-Photography author/source credits: assets/PHOTO_CREDITS.md.
+See `assets/PHOTO_CREDITS.md` for photo-to-program mapping.

@@ -1,20 +1,24 @@
-# FITBREW photo credits · v0.1.2
+# FITBREW Original AI Workout Art — v0.1.3
 
-These are photographs from **Unsplash**. Their source images are downloaded at build time, processed into dark fitness-themed art, and **bundled within the PS5 installer**. No download occurs on the console. No photo in this list is Unsplash+.
+All 12 workout photos were generated for FITBREW in the user-requested October 26, 2026 AI batch. They are not third-party Unsplash source photos and **not** real exercise technique demonstrations.
 
-Unsplash License: https://unsplash.com/license — use is free for this non-stock-gallery fitness application. Attribution is supplied as a courtesy.
+Each image is converted by `generate_assets.py` into 512×512 JPEG and GPU RGBA8 and bundled in `PPSA99790.zip`; the console never has to download photos or load an extra USB pack.
 
-- **pose_0** · Push-up · Gard Pro · https://unsplash.com/photos/a-man-doing-push-ups-in-a-gym-qlid9Lys8r0 · Unsplash photo ID `1731341400836-baaa5535b8d5`
-- **pose_1** · Squats · Mina Rad · https://unsplash.com/photos/a-man-and-a-woman-doing-squats-in-a-gym-J1z_duF7WQg · Unsplash photo ID `1727848562663-81fec613880c`
-- **pose_2** · Plank · Anastase Maragos · https://unsplash.com/photos/man-doing-a-plank-exercise-in-a-gym-XxD_wt6lDpc · Unsplash photo ID `1765302741884-e846c7a178df`
-- **pose_3** · Running · Gabriel Martin · https://unsplash.com/photos/young-woman-running-outdoors-with-hair-blowing-XCCcdTdiZF0 · Unsplash photo ID `1759476530203-b11cc8c87d43`
-- **pose_4** · Bodyweight strength · Ahmed Zalabany · https://unsplash.com/photos/a-man-doing-push-ups-on-a-gym-floor--7Gd6up6SHA · Unsplash photo ID `1631501700640-cfd8663b9bd7`
-- **pose_5** · Stretching · Emily Sea · https://unsplash.com/photos/woman-stretching-coiWR0gT8Cw · Unsplash photo ID `1485727749690-d091e8284ef3`
-- **pose_6** · Partner planks · Mina Rad · https://unsplash.com/photos/women-holding-plank-position-in-gym-bJvDVW26_5Q · Unsplash photo ID `1789629455545-6418611bb5a2`
-- **pose_7** · Squat technique · Kobe Kian Clata · https://unsplash.com/photos/a-man-doing-squats-in-a-gym-gZw9OuUxRVE · Unsplash photo ID `1734668491961-a3ea1168d37b`
-- **pose_8** · Core · Sergio Carpintero · https://unsplash.com/photos/a-man-doing-a-plank-on-a-gym-floor-gPmu9yIrO84 · Unsplash photo ID `1666979289446-6e9ebb257091`
-- **pose_9** · HIIT running · Mathias Reding · https://unsplash.com/photos/a-female-runner-competes-on-a-track-PDBRQvH4ZSk · Unsplash photo ID `1762709753339-7bd2fea1f346`
-- **pose_10** · Cardio · Gabriel Martin · https://unsplash.com/photos/a-woman-in-athletic-wear-running-outdoors-Wr762Ay9gwA · Unsplash photo ID `1759476597683-f51b04cf58d3`
-- **pose_11** · Mobility · Margaret Young · https://unsplash.com/photos/woman-stretching-on-a-yoga-mat-indoors-0VLjZ6aYFZ8 · Unsplash photo ID `1767611094260-1f5565e6d815`
+| Workout | AI image source |
+| --- | --- |
+| Full Body Starter | `assets/pose_0.jpg` |
+| Low Impact Cardio | `assets/pose_3.jpg` |
+| Core Control | `assets/pose_2.jpg` |
+| Full Body HIIT | `assets/pose_4.jpg` |
+| Leg Day | `assets/pose_1.jpg` |
+| Chest & Core | `assets/pose_6.jpg` |
+| Morning Energy | `assets/pose_11.jpg` |
+| No-Jump Sweat | `assets/pose_10.jpg` |
+| Bodyweight Burn | `assets/pose_9.jpg` |
+| Posture Reset | `assets/pose_5.jpg` |
+| Glutes & Legs | `assets/pose_7.jpg` |
+| Quick 10 | `assets/pose_8.jpg` |
 
-All hero/card pictures are editorial training illustrations; photos do not constitute exercise-form instruction for a particular move. The workout instructions are original app content. The real photos do not replace accurate animated technique demonstrations, which remain a planned feature.
+Two photo crops (pose_7 and pose_8) were derived from the existing AI-generated FITBREW workout contact sheet. The first GitHub Actions v0.1.3 release imports the original art into the repository and commits all 12 JPEGs to the `main` branch.
+
+**Release validation:** `tests/art_test.py` checks 12 distinct sources, 12 exact-sized GPU RGBA textures, 12 fallback JPEGs and the icon. The PS5 installer validation checks all 24 image files inside the actual ZIP. This verifies packaging, not image semantics or real PS5 GPU behavior.

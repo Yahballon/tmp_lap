@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""FITBREW real-photo artwork pipeline for the PS5 offline installer.
+"""FITBREW v0.1.3 offline photo staging.
 
-This script downloads credited freely usable original fitness photographs DURING
-GitHub Actions; the console never needs an internet connection. A missing photo
-is a failed build, never a silent switch back to ugly geometric silhouettes.
-Every image is prepared as a square JPEG and raw 512x512 RGBA8 GPU texture.
+Uses original AI-generated workout JPGs from the repository, never the prior
+Unsplash placeholders. Prepares package-ready 512x512 JPEG + RGBA8, plus icon.
 """
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageEnhance, ImageFilter
@@ -19,58 +17,16 @@ SRC = Path(__file__).resolve().parent
 TARGET = Path(sys.argv[1])
 (TARGET / 'assets').mkdir(parents=True, exist_ok=True)
 (TARGET / 'sce_sys').mkdir(parents=True, exist_ok=True)
-# All twelve source pages and author credits live in PHOTO_CREDITS.md.
-PHOTO_IDS = [
-    '1731341400836-baaa5535b8d5',
-    '1727848562663-81fec613880c',
-    '1765302741884-e846c7a178df',
-    '1759476530203-b11cc8c87d43',
-    '1631501700640-cfd8663b9bd7',
-    '1485727749690-d091e8284ef3',
-    '1789629455545-6418611bb5a2',
-    '1734668491961-a3ea1168d37b',
-    '1666979289446-6e9ebb257091',
-    '1762709753339-7bd2fea1f346',
-    '1759476597683-f51b04cf58d3',
-    '1767611094260-1f5565e6d815'
-]
-PHOTO_COUNT = len(PHOTO_IDS)
-CACHE = Path('/tmp/fitbrew-verified-photo-cache')
-CACHE.mkdir(parents=True, exist_ok=True)
+PHOTO_COUNT=12
 
 def source_photo(index: int):
-    user_photo = SRC / f'pose_{index}.jpg'
-    if user_photo.is_file():
-        return Image.open(user_photo).convert('RGB')
-    url = (f'https://images.unsplash.com/photo-{PHOTO_IDS[index]}'
-           '?fit=crop&crop=entropy&w=1024&h=1024&fm=jpg&q=85')
-    cache_file = CACHE / f'{PHOTO_IDS[index]}.jpg'
-    if not cache_file.exists():
-        err = None
-        for attempt in range(3):
-            try:
-                req = urllib.request.Request(
-                    url, headers={'User-Agent': 'FITBREW-PS5/0.1.2 (offline-packager)',
-                                  'Accept': 'image/jpeg,image/*'})
-                with urllib.request.urlopen(req, timeout=35) as response:
-                    if response.status != 200:
-                        raise RuntimeError(f'photo {index} HTTP {response.status}')
-                    data = response.read(10 * 1024 * 1024 + 1)
-                    if len(data) > 10 * 1024 * 1024 or len(data) < 12000:
-                        raise RuntimeError(f'photo {index} bad source length {len(data)}')
-                with Image.open(BytesIO(data)) as image:
-                    image.verify()
-                cache_file.write_bytes(data)
-                break
-            except Exception as ex:
-                err = ex
-                if attempt < 2: time.sleep(2 * (attempt + 1))
-        if not cache_file.exists():
-            raise RuntimeError(f'FITBREW photo_{index} download failed; '
-                               f'refusing illustration fallback: {err}')
-    print(f'PHOTO_SOURCE {index}: {len(cache_file.read_bytes())} bytes sha256='
-          f'{hashlib.sha256(cache_file.read_bytes()).hexdigest()}', flush=True)
-    return Image.open(cache_file).convert('RGB')
+    file=SRC/f"pose_{index}.jpg"
+    if not file.is_file():
+        raise RuntimeError(f"FITBREW AI source missing: {file}. Run import_ai_photos.py")
+    with Image.open(file) as im:
+        if im.width<256 or im.height<256:
+            raise RuntimeError(f"FITBREW invalid AI photo dimensions: {file}")
+        return im.convert("RGB")
 
 def grade_photo(image):
     image = ImageOps.fit(image, (512,512), method=Image.Resampling.LANCZOS,
@@ -114,4 +70,4 @@ d.text((34,371),'FIT',font=font,fill='#ffffff')
 d.text((176,371),'BREW',font=font,fill='#d9ff00')
 d.line((36,465,477,465),fill='#d9ff00',width=7)
 icon.convert('RGB').save(TARGET/'sce_sys'/'icon0.png',optimize=True)
-print(f'PASS FITBREW photo assets: {PHOTO_COUNT} credited photographs and launcher icon')
+print(f'PASS FITBREW AI photo assets: {PHOTO_COUNT} original AI workout images and launcher icon')
