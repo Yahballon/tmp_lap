@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "d7cd59cc63f586d4ec7fde8ecc4c26ac2af8f160c66c3eaa3f61616cf4a4c4c9",
+  "version": "1533c1596260ce892dddb0df49603f1556fe8ff522336f6a5941e96f358c190a",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 29,
+  "app_count": 30,
   "apps": [
     {
       "name": "ZQuest Classic PS5",
@@ -185,6 +185,19 @@
       "source": "homebrew/ps5-system-info",
       "size_bytes": 6064978,
       "published_at": "2026-10-15T09:58:11Z"
+    },
+    {
+      "name": "FITBREW",
+      "slug": "fitbrew",
+      "title_id": "PPSA99790",
+      "version": "0.1.0",
+      "tag": "fitbrew-v0.1.0",
+      "zip_name": "PPSA99790.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/fitbrew-v0.1.0/PPSA99790.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/fitbrew-v0.1.0",
+      "source": "homebrew/fitbrew",
+      "size_bytes": 6823203,
+      "published_at": "2026-10-26T11:49:26Z"
     },
     {
       "name": "PS5 MicroPython",
