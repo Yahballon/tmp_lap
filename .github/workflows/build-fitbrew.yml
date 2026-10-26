@@ -2,7 +2,12 @@ name: Build FITBREW PS5
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['homebrew/fitbrew/**', '.github/workflows/build-fitbrew.yml']
+    paths:
+      - 'homebrew/fitbrew/native/**'
+      - 'homebrew/fitbrew/assets/**'
+      - 'homebrew/fitbrew/tests/**'
+      - 'homebrew/fitbrew/app.json'
+      - '.github/workflows/build-fitbrew.yml'
   push:
     branches: [main]
     paths: ['homebrew/fitbrew/**', '.github/workflows/build-fitbrew.yml']
@@ -106,6 +111,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view fitbrew-v0.1.0 >/dev/null 2>&1; then
-            echo 'Refusing to replace immutable release';exit 1
+            # Rebuilding an unchanged source tree is allowed; replacing a released
+            # binary from changed source under the same version is NOT allowed.
+            git fetch --depth=1 origin refs/tags/fitbrew-v0.1.0
+            release_sha=$(git rev-list -n 1 FETCH_HEAD)
+            if ! git diff --quiet "$release_sha" "$GITHUB_SHA" -- homebrew/fitbrew/native homebrew/fitbrew/assets homebrew/fitbrew/app.json; then
+              echo 'FITBREW source changed: bump version/tag before publishing.'
+              exit 1
+            fi
+            echo 'Existing immutable FITBREW release matches this source; skipping republish.'
+            exit 0
           fi
           gh release create fitbrew-v0.1.0 app/dist/PPSA99790.zip --target "$GITHUB_SHA" --title 'FITBREW by YAHBALLON v0.1.0' --notes-file homebrew/fitbrew/RELEASE_NOTES.md
