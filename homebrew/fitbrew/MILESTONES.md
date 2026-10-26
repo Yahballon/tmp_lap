@@ -4,7 +4,7 @@
 **Last updated:** 2026-10-26 (UTC; exact minute not recorded)
 **Active branch:** `feature/fitbrew-native-fitness` (working draft; inspect branch head)
 **Current version / Title ID:** v0.1.0 / PPSA99790 (searched monorepo and PHIP-0001 for collision; no matching source-index result; global uniqueness NOT guaranteed)
-**Latest verified release / TESTBUILD:** NONE
+**Latest verified release / TESTBUILD:** NONE. Initial CI job 40317053412 failed after host tests passed; initial contentId fixed in following commit.
 **Hardware target:** user's PS5 firmware 5.10; not tested for this app
 
 > **CURRENT STATE:** New workout engine, native UI implementation, asset-stage script and GitHub Actions workflow are present on a feature branch. No successful CI compilation, installable ZIP or hardware run is verified. Final original AI photo atlas was generated in the agent session but **not committed as runtime assets**; deterministic artwork fallback exists in generator.
@@ -42,7 +42,7 @@
 
 ## Change Log — Latest First
 
-### 2026-10-26 — First native implementation (feature branch)
+### 2026-10-26 — First CI failure and metadata fix\n- Actions run `40317053412`, job `121552171539`: host workout tests, art staging, OpenGL dependencies passed. Native package stage failed with `param.json contentId must be valid and contain titleId`.\n- Root cause: app.json contentId suffix length was 17, required 16. Updated to `UP9000-PPSA99790_00-FITBREWHOMEBREW0`; pending next CI run for proof.\n- The first CI job ran before the latest main.cpp string fix was pushed. Inspect new CI.\n\n### 2026-10-26 — First native implementation (feature branch)
 - User requested 1:1 FITBREW-inspired PS5 app with equipment-free programs, premium imagery, no follow-up questions and TESTBUILDS.
 - Added app metadata, 36 exercises, 12 programs and initial simulation checks.
 - Added native live rendered UI with dark/lime styling and per-exercise timers.
@@ -92,7 +92,7 @@ None verified on hardware for FITBREW v0.1.0 yet. Existing other apps are unaffe
 
 ## NEXT ACTION FOR THE NEXT AGENT
 
-**Do this first:** inspect FITBREW PR GitHub Actions and run host tests. Fix any compiler errors before merging and releasing.  
+**Do this first:** check the new FITBREW PR GitHub Actions run after contentId fix, confirm PS5 compile/ZIP; fix any remaining errors. Fix any compiler errors before merging and releasing.  
 **Starting point:** `Yahballon/tmp_lap`, branch `feature/fitbrew-native-fitness`, `homebrew/fitbrew/`, `.github/workflows/build-fitbrew.yml`.  
 **Expected success evidence:** passing host test, actual PS5 compile, verified ZIP with real `eboot.bin`, icon, six JPEGs, fonts, libc.  
 **If it fails:** inspect failing job and stage artifacts; compare with working `build-4wins.yml` pattern.  
