@@ -27,6 +27,7 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/fitbrew/tests/workout_test.cpp -o /tmp/fitbrew-test
           /tmp/fitbrew-test
+          python3 homebrew/fitbrew/tests/art_test.py
           python3 -m json.tool homebrew/fitbrew/app.json >/dev/null
       - name: Stage native app and artwork
         run: |
@@ -38,6 +39,15 @@ jobs:
           done
           cp homebrew/fitbrew/native/main.cpp homebrew/fitbrew/native/workout.hpp app/src/
           python3 homebrew/fitbrew/assets/generate_assets.py app
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          for i in range(6):
+            p=Path(f'app/assets/pose_{i}.rgba')
+            assert p.stat().st_size==512*512*4, p
+            with Image.open(f'app/assets/pose_{i}.jpg') as jpg:
+              assert jpg.size==(512,512)
+          PY
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -93,8 +103,9 @@ jobs:
           assert len(exe)>1000 and exe[:4]==struct.pack('<I',0x1d3d154f)
           assert json.loads((root/'sce_sys/param.json').read_text())['titleId']=='PPSA99790'
           assert Image.open(root/'sce_sys/icon0.png').size==(512,512)
-          assets=['eboot.bin','sce_sys/icon0.png','sce_sys/param.json','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']+[f'assets/pose_{i}.jpg' for i in range(6)]
+          assets=['eboot.bin','sce_sys/icon0.png','sce_sys/param.json','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']+[f'assets/pose_{i}.{ext}' for i in range(6) for ext in ('jpg','rgba')]
           for a in assets: assert (root/a).is_file(),a
+          for i in range(6): assert (root/f'assets/pose_{i}.rgba').stat().st_size==512*512*4
           with zipfile.ZipFile('app/dist/PPSA99790.zip') as z:
             assert z.testzip() is None
             for a in assets: assert 'PPSA99790/'+a in z.namelist(),a
@@ -102,7 +113,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: FITBREW-v0.1.0-PPSA99790
+          name: FITBREW-v0.1.1-PPSA99790
           path: app/dist/PPSA99790.zip
           if-no-files-found: error
       - name: Publish TESTBUILDS-compatible FITBREW release
@@ -110,10 +121,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view fitbrew-v0.1.0 >/dev/null 2>&1; then
+          if gh release view fitbrew-v0.1.1 >/dev/null 2>&1; then
             # Rebuilding an unchanged source tree is allowed; replacing a released
             # binary from changed source under the same version is NOT allowed.
-            git fetch --depth=1 origin refs/tags/fitbrew-v0.1.0
+            git fetch --depth=1 origin refs/tags/fitbrew-v0.1.1
             release_sha=$(git rev-list -n 1 FETCH_HEAD)
             if ! git diff --quiet "$release_sha" "$GITHUB_SHA" -- homebrew/fitbrew/native homebrew/fitbrew/assets homebrew/fitbrew/app.json; then
               echo 'FITBREW source changed: bump version/tag before publishing.'
@@ -122,4 +133,4 @@ jobs:
             echo 'Existing immutable FITBREW release matches this source; skipping republish.'
             exit 0
           fi
-          gh release create fitbrew-v0.1.0 app/dist/PPSA99790.zip --target "$GITHUB_SHA" --title 'FITBREW by YAHBALLON v0.1.0' --notes-file homebrew/fitbrew/RELEASE_NOTES.md
+          gh release create fitbrew-v0.1.1 app/dist/PPSA99790.zip --target "$GITHUB_SHA" --title 'FITBREW by YAHBALLON v0.1.1' --notes-file homebrew/fitbrew/RELEASE_NOTES.md

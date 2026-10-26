@@ -1,10 +1,10 @@
 {
   "name": "FITBREW",
   "slug": "fitbrew",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "titleId": "PPSA99790",
   "contentId": "UP9000-PPSA99790_00-FITBREWHOMEBREW0",
-  "contentVersion": "01.000.000",
-  "releaseTag": "fitbrew-v0.1.0",
+  "contentVersion": "01.000.001",
+  "releaseTag": "fitbrew-v0.1.1",
   "developer": "YAHBALLON"
 }

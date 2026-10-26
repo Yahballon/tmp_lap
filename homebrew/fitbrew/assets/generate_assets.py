@@ -46,6 +46,11 @@ for i in range(6):
     else:
         im=draw_pose(i)
     im.save(dest,quality=88,optimize=True)
+    # Raw RGBA8 uploads bypass stb_image on PS5, which has shown decoder/
+    # filesystem sensitivity in other native homebrews. Do not premultiply alpha.
+    raw=im.convert("RGBA").tobytes()
+    assert len(raw)==512*512*4
+    (target/"assets"/f"pose_{i}.rgba").write_bytes(raw)
 icon_source=root/"icon-ai.png"
 if icon_source.is_file():
     icon=Image.open(icon_source).convert("RGB").resize((512,512))
@@ -56,4 +61,4 @@ else:
     d.text((45,350),"FITBREW",fill=(215,255,0),stroke_width=0)
     d.line((42,422,472,422),fill=(215,255,0),width=6)
 icon.save(target/"sce_sys"/"icon0.png",optimize=True)
-print("FITBREW artwork staged: six 512x512 JPEG workout photographs/illustrations and launcher icon")
+print("FITBREW artwork staged: six 512x512 JPEG + RGBA8 textures and launcher icon")

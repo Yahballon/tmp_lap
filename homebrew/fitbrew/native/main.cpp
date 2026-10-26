@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// FITBREW 0.1.0 by YAHBALLON - original equipment-free fitness app.
+// FITBREW 0.1.1 by YAHBALLON - original equipment-free fitness app.
 #include "workout.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -26,7 +26,7 @@ Color c(unsigned v,float a=1){return Color::rgb(v,a);}
 void logs(const char* msg){
  mkdir("/data/FITBREW",0755);mkdir("/data/FITBREW/logs",0755);
  if(FILE* f=fopen("/data/FITBREW/logs/fitbrew.log","ab")){
-  fprintf(f,"[FITBREW 0.1.0] %s\n",msg);fclose(f);
+  fprintf(f,"[FITBREW 0.1.1] %s\n",msg);fclose(f);
  }
 }
 std::string read_file(const std::string& path,size_t max=12*1024*1024){
@@ -69,13 +69,58 @@ void save_progress(const State& s){
  if(fclose(f)==0){if(rename("/data/FITBREW/progress.tmp","/data/FITBREW/progress.ini")!=0)logs("Progress rename failed");}
  else logs("Progress close failed");
 }
+// PS5 GL image upload via pre-decoded RGBA8: no runtime JPEG decoder required.
+// CI writes raw 512x512 pixel bytes alongside each source JPG. Keep JPEG
+// decode as a diagnostic fallback for older or manually copied assets.
 unsigned load_image(Renderer& renderer,const std::string& name){
- const auto bytes=asset(name);if(bytes.empty()){logs("Missing art asset");return 0;}
- int w=0,h=0,components=0;
- auto* rgba=stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(bytes.data()),int(bytes.size()),&w,&h,&components,4);
- if(!rgba||w<=0||h<=0||w>2048||h>2048){if(rgba)stbi_image_free(rgba);logs("Image decode failed");return 0;}
- const unsigned texture=renderer.batch().create_texture(w,h,rgba);
- stbi_image_free(rgba);return texture;
+ constexpr int side=512;
+ constexpr size_t expected=size_t(side)*side*4;
+ const auto separator=name.find_last_of('.');
+ const auto stem=separator==std::string::npos?name:name.substr(0,separator);
+ const auto raw_name=stem+".rgba";
+ // Optional original FITBREW photo pack on USB or persistent data. The packaged
+ // 512x512 raw illustration is always a complete offline fallback.
+ std::string pixels;
+ const char* overrides[]={"/data/FITBREW/assets/","/mnt/usb0/FITBREW/assets/",
+                          "/mnt/usb1/FITBREW/assets/","/mnt/usb2/FITBREW/assets/",
+                          "/mnt/usb3/FITBREW/assets/"};
+ for(const char* p:overrides){
+  const auto candidate=read_file(std::string(p)+raw_name,expected+1);
+  if(candidate.size()==expected){pixels=candidate;break;}
+ }
+ if(pixels.empty())pixels=asset(raw_name,expected+1);
+ char msg[256];
+ if(pixels.size()==expected){
+  const unsigned id=renderer.batch().create_texture(side,side,
+                         reinterpret_cast<const uint8_t*>(pixels.data()));
+  snprintf(msg,sizeof(msg),"ART_RGBA name=%s bytes=%zu gpu_id=%u",
+           raw_name.c_str(),pixels.size(),id);
+  logs(msg);
+  if(id)return id;
+ }else{
+  snprintf(msg,sizeof(msg),"ART_RGBA_MISSING_OR_BAD name=%s bytes=%zu expected=%zu",
+           raw_name.c_str(),pixels.size(),expected);
+  logs(msg);
+ }
+ const auto bytes=asset(name);
+ if(bytes.empty()){
+  snprintf(msg,sizeof(msg),"ART_JPG_MISSING name=%s",name.c_str());
+  logs(msg);return 0;
+ }
+ int w=0,h=0,n=0;
+ auto* rgba=stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(bytes.data()),
+                                 int(bytes.size()),&w,&h,&n,4);
+ if(!rgba||w<1||h<1||w>2048||h>2048){
+  snprintf(msg,sizeof(msg),"ART_JPG_DECODE_FAILED name=%s bytes=%zu reason=%s",
+    name.c_str(),bytes.size(),stbi_failure_reason()?stbi_failure_reason():"unknown");
+  logs(msg);if(rgba)stbi_image_free(rgba);return 0;
+ }
+ const unsigned id=renderer.batch().create_texture(w,h,rgba);
+ stbi_image_free(rgba);
+ snprintf(msg,sizeof(msg),"ART_JPG_FALLBACK name=%s w=%d h=%d gpu_id=%u",
+          name.c_str(),w,h,id);
+ logs(msg);
+ return id;
 }
 void text(DrawList& d,const Font& f,unsigned atlas,const std::string& value,float x,float y,float size,unsigned color=WHITE,Align align=Align::left){
  d.text(f,atlas,value,x,y,size,c(color),align);
@@ -113,7 +158,7 @@ void header(DrawList& d,const Font& f,unsigned a,const State& s){
   text(d,f,a,icon[i],49,y+44,27,active?0x070a0d:0xa4b6cc);
   text(d,f,a,nav[i],91,y+43,22,active?0x06090a:0xd0daeb);
  }
- text(d,f,a,"FITBREW   v0.1.0",1698,83,23,WHITE);
+ text(d,f,a,"FITBREW   v0.1.1",1698,83,23,WHITE);
  text(d,f,a,"100% FREE  -  OFFLINE",1698,111,15,LIME);
 }
 void footer(DrawList& d,const Font& f,unsigned a,const State& s){
@@ -312,7 +357,10 @@ int main(){
  const auto font_data=asset("fonts/inter-semibold.huifont",5*1024*1024);
  Font font;if(!font.load(font_data)){logs("FONT_FAIL");hui::sys::park();}
  unsigned atlas=renderer.batch().create_font_texture(font);
- std::array<unsigned,6> photos{};for(int i=0;i<6;i++)photos[i]=load_image(renderer,"pose_"+std::to_string(i)+".jpg");
+ std::array<unsigned,6> photos{};
+ for(int i=0;i<6;i++)photos[i]=load_image(renderer,"pose_"+std::to_string(i)+".jpg");
+ int textures_loaded=0;for(const auto id:photos)if(id)++textures_loaded;
+ char diagnostic[90];snprintf(diagnostic,sizeof(diagnostic),"ART_READY %d/6 textures",textures_loaded);logs(diagnostic);
  hui::ps5::Pad pad;pad.open();
  hui::InputTracker tracker;hui::InputSettings prefs;
  prefs.repeat_delay_us=330000;prefs.repeat_interval_us=135000;tracker.set_settings(prefs);
