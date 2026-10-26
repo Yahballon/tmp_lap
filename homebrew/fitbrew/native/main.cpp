@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// FITBREW 0.1.1 by YAHBALLON - original equipment-free fitness app.
+// FITBREW 0.1.2 by YAHBALLON - original equipment-free fitness app.
 #include "workout.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -26,7 +26,7 @@ Color c(unsigned v,float a=1){return Color::rgb(v,a);}
 void logs(const char* msg){
  mkdir("/data/FITBREW",0755);mkdir("/data/FITBREW/logs",0755);
  if(FILE* f=fopen("/data/FITBREW/logs/fitbrew.log","ab")){
-  fprintf(f,"[FITBREW 0.1.1] %s\n",msg);fclose(f);
+  fprintf(f,"[FITBREW 0.1.2] %s\n",msg);fclose(f);
  }
 }
 std::string read_file(const std::string& path,size_t max=12*1024*1024){
@@ -129,9 +129,18 @@ void panel(DrawList& d,float x,float y,float w,float h,bool selected=false){
  d.bordered_rect({x,y,w,h},19,c(0x121a26,.96f),selected?3.f:1.3f,c(selected?LIME:EDGE));
  if(selected)d.glow({x,y,w,h},19,9,c(LIME,.20f));
 }
+// Cropped cover photo: preserve athlete's proportions instead of stretching
+// a 512x512 square across a tall hero/card. The crop stays inside the GPU UVs.
 void photo(DrawList& d,unsigned id,float x,float y,float w,float h,unsigned fallback=0x202b30){
- if(id)d.image(id,{x,y,w,h},kFullUv,c(WHITE));
- else d.gradient_rect({x,y,w,h},0,c(fallback),c(0x0a0f14));
+ if(id){
+  float u=0.f,v=0.f,uw=1.f,vh=1.f;
+  const float aspect=w/std::max(h,1.f);
+  if(aspect<1.f){uw=aspect;u=(1.f-uw)*.5f;}
+  else{vh=1.f/aspect;v=(1.f-vh)*.5f;}
+  d.image(id,{x,y,w,h},{u,v,uw,vh},c(WHITE),7);
+ }else{
+  d.gradient_rect({x,y,w,h},7,c(fallback),c(0x0a0f14));
+ }
 }
 void tag(DrawList& d,const Font& f,unsigned a,const std::string& value,float x,float y,unsigned color=LIME){
  text(d,f,a,value,x,y,18,color);
@@ -158,7 +167,7 @@ void header(DrawList& d,const Font& f,unsigned a,const State& s){
   text(d,f,a,icon[i],49,y+44,27,active?0x070a0d:0xa4b6cc);
   text(d,f,a,nav[i],91,y+43,22,active?0x06090a:0xd0daeb);
  }
- text(d,f,a,"FITBREW   v0.1.1",1698,83,23,WHITE);
+ text(d,f,a,"FITBREW   v0.1.2",1698,83,23,WHITE);
  text(d,f,a,"100% FREE  -  OFFLINE",1698,111,15,LIME);
 }
 void footer(DrawList& d,const Font& f,unsigned a,const State& s){
@@ -170,15 +179,29 @@ void footer(DrawList& d,const Font& f,unsigned a,const State& s){
 }
 void workout_tile(DrawList& d,const Font& f,unsigned a,unsigned img,
                   const Plan& p,float x,float y,float w,float h,bool chosen){
- panel(d,x,y,w,h,chosen);
- photo(d,img,x+5,y+5,w-10,h-10);
- d.gradient_rect({x+6,y+h*.5f,w-12,h*.48f},0,c(0x090d12,.1f),c(0x080c12,.98f));
- if(chosen)d.bordered_rect({x,y,w,h},17,c(0x0b1018,.08f),3.5f,c(LIME));
- text(d,f,a,p.title,x+18,y+h-67,23,WHITE);
- text(d,f,a,std::string(p.category)+"  /  "+p.level,x+18,y+h-40,15,0xd4e1ee);
- text(d,f,a,minutes(duration_seconds(p)),x+18,y+h-15,14,LIME);
+ const bool compact=w<210;
+ // The photography fills each tile. Text is placed in an opaque-enough
+ // bottom gradient, then clipped to the tile width.
+ photo(d,img,x+3,y+3,w-6,h-6);
+ const float band=compact?116.f:105.f;
+ d.gradient_rect({x+4,y+h-band,w-8,band-4},0,c(0x05090e,.08f),c(0x060a10,.99f));
+ d.push_clip({x+11,y+h-band,w-22,band-8});
+ std::string heading=compact?std::string(p.category):std::string(p.title);
+ if(compact&&std::string(p.title).find("HIIT")!=std::string::npos)heading="HIIT";
+ if(compact&&std::string(p.title).find("STARTER")!=std::string::npos)heading="FULL BODY";
+ text(d,f,a,heading,x+(compact?12.f:20.f),y+h-65,compact?19.f:24.f,WHITE);
+ if(compact){
+  text(d,f,a,std::string(p.level),x+12,y+h-42,13,0xcad5e0);
+  text(d,f,a,minutes(duration_seconds(p)),x+12,y+h-17,16,LIME);
+ }else{
+  text(d,f,a,std::string(p.category)+"  /  "+p.level,x+20,y+h-39,16,0xd6dfe8);
+  text(d,f,a,minutes(duration_seconds(p)),x+20,y+h-17,17,LIME);
+ }
+ d.pop_clip();
+ d.bordered_rect({x,y,w,h},15,c(0x040a13,0.f),chosen?3.f:1.6f,c(chosen?LIME:0x394455));
+ if(chosen)d.glow({x,y,w,h},15,7,c(LIME,.19f));
 }
-void home(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,6>& images){
+void home(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,12>& images){
  // Left photo, live headline over a graded photograph (not the screenshot bitmap).
  photo(d,images[0],258,161,386,817);
  d.gradient_rect({258,161,386,450},0,c(0x070c14,.97f),c(0x070c14,.13f));
@@ -212,17 +235,29 @@ void home(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<u
  for(int i=0;i<4;i++)
   workout_tile(d,f,a,images[plans[i].image],plans[i],663.f+i*169.f,665,154,280,i==s.focus);
  panel(d,1352,160,523,816);
- photo(d,images[4],1358,166,511,801);
+ photo(d,images[plans[s.focus].image],1358,166,511,801);
  d.gradient_rect({1358,168,511,360},0,c(0x04070b,.8f),c(0x04070b,.05f));
  d.gradient_rect({1358,711,511,256},0,c(0x05070b,.05f),c(0x05070b,.98f));
  text(d,f,a,"TODAY'S WORKOUT",1380,206,22);
- text(d,f,a,plans[s.focus].title,1381,258,41);
- d.rounded_rect({1382,278,84,4},2,c(LIME));
+ // Split lengthy plan titles into readable display lines; never draw through
+ // the right-side border as the old unbounded single line did.
+ const std::string title=plans[s.focus].title;
+ if(title.size()>14){
+  size_t split=title.rfind(' ',14);
+  if(split==std::string::npos)split=title.find(' ');
+  if(split==std::string::npos)split=title.size();
+  text(d,f,a,title.substr(0,split),1381,249,37);
+  text(d,f,a,title.substr(std::min(split+1,title.size())),1381,295,37);
+  d.rounded_rect({1382,313,84,4},2,c(LIME));
+ }else{
+  text(d,f,a,title,1381,261,39);
+  d.rounded_rect({1382,279,84,4},2,c(LIME));
+ }
  text(d,f,a,"NO EQUIPMENT",1381,732,23,LIME);
  text(d,f,a,minutes(duration_seconds(plans[s.focus])),1382,825,61,WHITE);
  text(d,f,a,"X  VIEW DETAILS   /   TRIANGLE  START",1382,905,20,WHITE);
 }
-void workouts(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,6>& images){
+void workouts(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,12>& images){
  text(d,f,a,"WORKOUT LIBRARY",287,209,63);
  text(d,f,a,"12 original bodyweight plans  /  36 exercises  /  all offline",290,245,23,MUTED);
  for(int i=0;i<PLAN_COUNT;i++){
@@ -232,7 +267,7 @@ void workouts(DrawList& d,const Font& f,unsigned a,const State& s,const std::arr
  }
 }
 void details(DrawList& d,const Font& f,unsigned a,const State& s,
-             const std::array<unsigned,6>& images){
+             const std::array<unsigned,12>& images){
  const auto& p=plans[s.selected];
  photo(d,images[p.image],271,176,700,805);
  d.gradient_rect({271,176,700,345},0,c(0x070c13,.88f),c(0x070c13,.05f));
@@ -253,7 +288,7 @@ void details(DrawList& d,const Font& f,unsigned a,const State& s,
  }
  text(d,f,a,"LEFT / RIGHT  SWITCH PLAN",1050,934,19,0xaab9c8);
 }
-void session(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,6>& images){
+void session(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,12>& images){
  const auto& p=plans[s.selected];
  const auto& e=exercises[p.sequence[std::clamp(s.exercise_index,0,int(p.count)-1)]];
  photo(d,images[e.image],271,162,957,812);
@@ -303,7 +338,7 @@ void progress(DrawList& d,const Font& f,unsigned a,const State& s){
  }
  text(d,f,a,"X   OPEN WORKOUTS",350,917,19,LIME);
 }
-void programs(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,6>& images){
+void programs(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,12>& images){
  text(d,f,a,"TRAINING PATHS",298,206,64);
  text(d,f,a,"Choose a path - each starts with one of our curated offline plans.",302,247,23,MUTED);
  const char* names[]={"START STRONG","BUILD ENDURANCE","MOVE & RECOVER"};
@@ -357,10 +392,10 @@ int main(){
  const auto font_data=asset("fonts/inter-semibold.huifont",5*1024*1024);
  Font font;if(!font.load(font_data)){logs("FONT_FAIL");hui::sys::park();}
  unsigned atlas=renderer.batch().create_font_texture(font);
- std::array<unsigned,6> photos{};
- for(int i=0;i<6;i++)photos[i]=load_image(renderer,"pose_"+std::to_string(i)+".jpg");
+ std::array<unsigned,12> photos{};
+ for(int i=0;i<12;i++)photos[i]=load_image(renderer,"pose_"+std::to_string(i)+".jpg");
  int textures_loaded=0;for(const auto id:photos)if(id)++textures_loaded;
- char diagnostic[90];snprintf(diagnostic,sizeof(diagnostic),"ART_READY %d/6 textures",textures_loaded);logs(diagnostic);
+ char diagnostic[90];snprintf(diagnostic,sizeof(diagnostic),"ART_READY %d/12 textures",textures_loaded);logs(diagnostic);
  hui::ps5::Pad pad;pad.open();
  hui::InputTracker tracker;hui::InputSettings prefs;
  prefs.repeat_delay_us=330000;prefs.repeat_interval_us=135000;tracker.set_settings(prefs);
