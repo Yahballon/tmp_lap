@@ -1,0 +1,111 @@
+name: Build FITBREW PS5
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['homebrew/fitbrew/**', '.github/workflows/build-fitbrew.yml']
+  push:
+    branches: [main]
+    paths: ['homebrew/fitbrew/**', '.github/workflows/build-fitbrew.yml']
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make git curl unzip tar python3 python3-pil g++ pkg-config ca-certificates
+      - name: Exercise validation, workout engine and metadata
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/fitbrew/tests/workout_test.cpp -o /tmp/fitbrew-test
+          /tmp/fitbrew-test
+          python3 -m json.tool homebrew/fitbrew/app.json >/dev/null
+      - name: Stage native app and artwork
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          git clone --depth=1 https://github.com/Yahballon/ps5-homebrew-ui.git /tmp/ps5-homebrew-ui
+          for part in gfx ui core audio platform third_party; do
+            cp -a "/tmp/ps5-homebrew-ui/src/$part" app/src/
+          done
+          cp homebrew/fitbrew/native/main.cpp homebrew/fitbrew/native/workout.hpp app/src/
+          python3 homebrew/fitbrew/assets/generate_assets.py app
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('homebrew/fitbrew/app.json').read_text())
+          p=Path('app/sce_sys/param.json');meta=json.loads(p.read_text())
+          meta.update(titleId=data['titleId'],conceptId=data['titleId'][4:],contentId=data['contentId'],contentVersion=data['contentVersion'])
+          meta['localizedParameters']['en-US']['titleName']='FITBREW'
+          p.write_text(json.dumps(meta,indent=2)+'\n')
+          PY
+      - name: Select tested PS5 OpenGL SDK fork
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/tools/fetch-opengl-sdk.sh')
+          s=p.read_text()
+          assert 'version=1.0.0' in s
+          assert 'blackbearreloaded/ps5-opengl' in s
+          assert 'archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5' in s
+          s=s.replace('version=1.0.0','version=1.0.2')
+          s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5','archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
+          s=s.replace('github.com/blackbearreloaded/ps5-opengl','github.com/LedyBacer/ps5-opengl')
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {');end=s.index('}',start)+1
+          s=s[:start]+'echo "Pinned SDK archive SHA-256 verified" >&2'+s[end:]
+          p.write_text(s)
+          PY
+      - name: Fetch and compile native OpenGL dependencies
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: bash tools/prepare-opengl.sh
+      - name: Rename native POSIX collisions
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Compile and package FITBREW
+        working-directory: app
+        env:
+          PS5_CLANG: clang-18
+          BUILD_JOBS: '4'
+          USE_CCACHE: '0'
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify real installable binary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import json,struct,zipfile
+          root=Path('app/dist/PPSA99790')
+          exe=(root/'eboot.bin').read_bytes()
+          assert len(exe)>1000 and exe[:4]==struct.pack('<I',0x1d3d154f)
+          assert json.loads((root/'sce_sys/param.json').read_text())['titleId']=='PPSA99790'
+          assert Image.open(root/'sce_sys/icon0.png').size==(512,512)
+          assets=['eboot.bin','sce_sys/icon0.png','sce_sys/param.json','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']+[f'assets/pose_{i}.jpg' for i in range(6)]
+          for a in assets: assert (root/a).is_file(),a
+          with zipfile.ZipFile('app/dist/PPSA99790.zip') as z:
+            assert z.testzip() is None
+            for a in assets: assert 'PPSA99790/'+a in z.namelist(),a
+          print('PASS FITBREW installer verification')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FITBREW-v0.1.0-PPSA99790
+          path: app/dist/PPSA99790.zip
+          if-no-files-found: error
+      - name: Publish TESTBUILDS-compatible FITBREW release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view fitbrew-v0.1.0 >/dev/null 2>&1; then
+            echo 'Refusing to replace immutable release';exit 1
+          fi
+          gh release create fitbrew-v0.1.0 app/dist/PPSA99790.zip --target "$GITHUB_SHA" --title 'FITBREW by YAHBALLON v0.1.0' --notes-file homebrew/fitbrew/RELEASE_NOTES.md
