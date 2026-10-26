@@ -204,7 +204,7 @@ void details(DrawList& d,const Font& f,unsigned a,const State& s,
   float x=1036+col*410.f,y=349+row*118.f;
   photo(d,images[e.image],x,y,101,104);
   text(d,f,a,std::to_string(i+1)+". "+e.name,x+114,y+39,22);
-  text(d,f,a,e.area+"  /  "+std::to_string(p.seconds)+" SEC",x+114,y+73,16,LIME);
+  text(d,f,a,std::string(e.area)+"  /  "+std::to_string(p.seconds)+" SEC",x+114,y+73,16,LIME);
  }
  text(d,f,a,"LEFT / RIGHT  SWITCH PLAN",1050,934,19,0xaab9c8);
 }
