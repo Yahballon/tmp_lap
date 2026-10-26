@@ -19,6 +19,7 @@ names = set(re.findall(r"(?m)^      - (.+?)\s*$", block))
 assert names, "No build workflows subscribed by catalog updater"
 assert "types: [completed]" in block, "Catalog must run after builds complete"
 assert "Build 4 WINS PS5" in names, "4 WINS release workflow not subscribed"
+assert "Build FITBREW PS5" in names, "FITBREW release workflow not subscribed"
 assert "Build Open Surge PS5 Legacy Native (non-playable test)" in names, "Open Surge test-release workflow not subscribed"
 assert "Publish PS5DreamcastX Release" in names, "DreamcastX standalone release publisher not subscribed"
 assert "Publish PS5DreamcastX TESTBUILD" in names
