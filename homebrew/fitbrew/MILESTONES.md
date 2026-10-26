@@ -2,12 +2,12 @@
 
 **Project:** `Yahballon/tmp_lap/homebrew/fitbrew`
 **Last updated:** 2026-10-26 (UTC; exact minute not recorded)
-**Active branch:** `feature/fitbrew-native-fitness` (working draft; inspect branch head)
-**Current version / Title ID:** v0.1.0 / PPSA99790 (searched monorepo and PHIP-0001 for collision; no matching source-index result; global uniqueness NOT guaranteed)
+**Active branch:** `fix/fitbrew-v0.1.1-native-images` (in development; verify latest branch head)
+**Current version / Title ID:** v0.1.1 in development / PPSA99790 (unchanged) (searched monorepo and PHIP-0001 for collision; no matching source-index result; global uniqueness NOT guaranteed)
 **Latest verified Release:** [fitbrew-v0.1.0](https://github.com/Yahballon/tmp_lap/releases/tag/fitbrew-v0.1.0), asset PPSA99790.zip (6,823,203 bytes); main build run 40317621212 SUCCESS. TESTBUILDS catalog now includes FITBREW in version.json (30 entries) after catalog-trigger fix on main.
-**Hardware target:** user's PS5 firmware 5.10; not tested for this app
+**Hardware target:** user's PS5 firmware 5.10. On 2026-10-26 user reports most functionality seems operational except missing photos in v0.1.0. No logs/screenshots or v0.1.1 retest supplied.
 
-> **CURRENT STATE:** New workout engine, native UI implementation, asset-stage script and GitHub Actions workflow are present on a feature branch. PR CI run 40317262158 completed SUCCESS, including cross-compilation, asset packaging and verified ZIP. PS5 hardware remains untested. Final original AI photo atlas was generated in the agent session but **not committed as runtime assets**; deterministic artwork fallback exists in generator.
+> **CURRENT STATE:** FITBREW v0.1.0 was published and recognized in TESTBUILDS. The user says workouts and UI generally work but images are missing on PS5. v0.1.1 adds predecoded native RGBA8 textures for six poses, GPU-load diagnostics and optional offline original-photo pack overrides. Build/PS5 test for v0.1.1 pending.
 
 ## Status legend
 - VERIFIED ON PS5: actual console evidence
@@ -24,10 +24,10 @@
 | M1 | 36 bodyweight-only exercises and 12 plans | IMPLEMENTED / UNVERIFIED | `native/workout.hpp` |
 | M2 | Timer, rest, pause, skip, local progression model | IMPLEMENTED / UNVERIFIED | `native/workout.hpp` |
 | M3 | Native dashboard/library/details/session/progress/settings | IMPLEMENTED / UNVERIFIED | `native/main.cpp` |
-| M4 | Six exercise image resources and icon stage | IMPLEMENTED / UNVERIFIED | `assets/generate_assets.py`; illustrated fallback |
-| M5 | Host exercise test | NOT RUN | `tests/workout_test.cpp` |
-| M6 | Native PS5 executable and installer ZIP | NOT VERIFIED | `.github/workflows/build-fitbrew.yml` |
-| M7 | PS5 controller / OpenGL hardware run | NOT STARTED | console needed |
+| M4 | Six RGBA8 image resources and icon stage | IMPLEMENTED / UNVERIFIED | `assets/generate_assets.py`; host test pending |
+| M5 | Host exercise test | CI / BUILD VERIFIED v0.1.0 | Main job 40317621212, host test passed |
+| M6 | Native PS5 executable and installer ZIP | CI / BUILD VERIFIED v0.1.0 | Main job 40317621212, release v0.1.0 |
+| M7 | PS5 controller / OpenGL hardware run | PARTIAL USER REPORT v0.1.0 | User reports functions seem to work except images; full functionality not confirmed |
 | M8 | Actual PS5 screenshot `screenshots/1.png` | NOT CAPTURED | console needed |
 | M9 | User-approved final original hero and guided exercise imagery | NOT INTEGRATED | generated AI collage local to task, missing from GitHub |
 
@@ -40,7 +40,7 @@
 - CI: `.github/workflows/build-fitbrew.yml`; `tools/update-version.py` discovers only **successful real Releases**, not PRs.
 - Build setup copied from `build-4wins.yml`. Needs first actual CI invocation and compiler errors fixed rather than assumed working.
 
-## Change Log — Latest First
+## Change Log — Latest First\n\n### 2026-10-26 — v0.1.1 missing image workaround (unverified)\n- User tested v0.1.0 in TESTBUILDS and reports images absent; other functions apparently work. No console log was supplied.\n- Working hypothesis: JPEG texture upload/decoding or lookup path on PS5; cannot distinguish without logs.\n- Native loader now attempts 512×512 raw RGBA8 GPU uploads first and reports bytes and resulting texture ID. JPEG fallback remains for compatibility.\n- Asset generator writes six `.rgba` images alongside `.jpg`; added host validation and ZIP asset-size checks.\n- Optional original photo pack is loaded from `/data/FITBREW/assets` or USB 0–3 before packaged fallback; photos have not been embedded in the GitHub source.\n- No v0.1.1 CI or PS5 result claimed at the time of this checkpoint.\n
 
 ### 2026-10-26 — Immutable release workflow guard (pending CI)\n- Initial release is immutable. Subsequent documentation edits triggered expensive builds and failed at the existing release tag.\n- Restricted FITBREW build workflow triggers to native source, assets, tests, app.json and workflow changes.\n- Existing-release condition fetches tag and checks native/assets/app.json bytes are unchanged before safely skipping publish; changed sources require a new version/tag.\n- Verify `fix/fitbrew-release-rebuild-guard` CI and merge.\n\n### 2026-10-26 — Main release verified and catalog trigger fix\n- PR #269 merged (squash commit 45ad7848c6fc1317b99906bb5b6598d366a9e0bb).\n- Main Actions run 40317621212 succeeded and published release \`fitbrew-v0.1.0\`; verified the uploaded 6,823,203-byte \`PPSA99790.zip\`.\n- Catalog `tools/test-catalog-triggers.py` requires workflow_run subscription to all publishers. FITBREW was absent from `.github/workflows/update-version-catalog.yml`, so add `Build FITBREW PS5` and regression assertion.\n- Release is downloadable, but TESTBUILDS listing remains unverified until refresh succeeds.\n\n### 2026-10-26 — CI build verified\n- PR CI run 40317262158 passed, including 36-exercise host tests, native PS5 OpenGL SDK build, actual package binary checks and uploaded installable ZIP artifact.\n- Test on physical PS5 firmware 5.10 is still NOT PERFORMED.\n- Next: merge PR if authorized, let main run publish the Release, verify TESTBUILDS catalog after generator finishes.\n\n### 2026-10-26 — First CI failure and metadata fix\n- Actions run `40317053412`, job `121552171539`: host workout tests, art staging, OpenGL dependencies passed. Native package stage failed with `param.json contentId must be valid and contain titleId`.\n- Root cause: app.json contentId suffix length was 17, required 16. Updated to `UP9000-PPSA99790_00-FITBREWHOMEBREW0`; pending next CI run for proof.\n- The first CI job ran before the latest main.cpp string fix was pushed. Inspect new CI.\n\n### 2026-10-26 — First native implementation (feature branch)
 - User requested 1:1 FITBREW-inspired PS5 app with equipment-free programs, premium imagery, no follow-up questions and TESTBUILDS.
@@ -52,7 +52,7 @@
 
 ## Working Features — Do Not Regress
 
-None verified on hardware for FITBREW v0.1.0 yet. Existing other apps are unaffected; only FITBREW and its new workflow were edited.
+User reports most FITBREW v0.1.0 navigation and workouts work on PS5; treat this as preliminary user feedback, not proof of every feature. Preserve Title ID, settings path, exercises, plans and input behavior.
 
 ## Known Bugs, Blockers and Limitations
 
@@ -93,7 +93,7 @@ None verified on hardware for FITBREW v0.1.0 yet. Existing other apps are unaffe
 ## NEXT ACTION FOR THE NEXT AGENT
 
 **Do this first:** merge CI-green PR if appropriate, verify main build creates real release ZIP `PPSA99790.zip`, then verify generated TESTBUILDS catalog. Fix any compiler errors before merging and releasing.  
-**Starting point:** `Yahballon/tmp_lap`, branch `feature/fitbrew-native-fitness`, `homebrew/fitbrew/`, `.github/workflows/build-fitbrew.yml`.  
+**Starting point:** `Yahballon/tmp_lap`, branch `fix/fitbrew-v0.1.1-native-images`, `homebrew/fitbrew/`, `.github/workflows/build-fitbrew.yml`.  
 **Expected success evidence:** passing host test, actual PS5 compile, verified ZIP with real `eboot.bin`, icon, six JPEGs, fonts, libc.  
 **If it fails:** inspect failing job and stage artifacts; compare with working `build-4wins.yml` pattern.  
 **Do not change:** `tmp_lap/version.json` manually, other apps or existing game Title IDs.  
