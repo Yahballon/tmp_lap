@@ -130,7 +130,7 @@ void workout_tile(DrawList& d,const Font& f,unsigned a,unsigned img,
  d.gradient_rect({x+6,y+h*.5f,w-12,h*.48f},0,c(0x090d12,.1f),c(0x080c12,.98f));
  if(chosen)d.bordered_rect({x,y,w,h},17,c(0x0b1018,.08f),3.5f,c(LIME));
  text(d,f,a,p.title,x+18,y+h-67,23,WHITE);
- text(d,f,a,p.category+"  /  "+p.level,x+18,y+h-40,15,0xd4e1ee);
+ text(d,f,a,std::string(p.category)+"  /  "+p.level,x+18,y+h-40,15,0xd4e1ee);
  text(d,f,a,minutes(duration_seconds(p)),x+18,y+h-15,14,LIME);
 }
 void home(DrawList& d,const Font& f,unsigned a,const State& s,const std::array<unsigned,6>& images){
