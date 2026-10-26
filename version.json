@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "7cced2ebcddf8e900986f1c0223408cf1f5566a35180db0fa75460a249b09dbc",
+  "version": "26c35356fa6b5ad935832792060d7c6fbab2fae06db886adb3680a5134827b80",
   "repository": "Yahballon/tmp_lap",
   "app_count": 30,
   "apps": [
@@ -190,14 +190,14 @@
       "name": "FITBREW",
       "slug": "fitbrew",
       "title_id": "PPSA99790",
-      "version": "0.1.1",
-      "tag": "fitbrew-v0.1.1",
+      "version": "0.1.2",
+      "tag": "fitbrew-v0.1.2",
       "zip_name": "PPSA99790.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/fitbrew-v0.1.1/PPSA99790.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/fitbrew-v0.1.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/fitbrew-v0.1.2/PPSA99790.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/fitbrew-v0.1.2",
       "source": "homebrew/fitbrew",
-      "size_bytes": 6886686,
-      "published_at": "2026-10-26T12:24:35Z"
+      "size_bytes": 13350314,
+      "published_at": "2026-10-26T12:43:52Z"
     },
     {
       "name": "PS5 MicroPython",
