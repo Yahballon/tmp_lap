@@ -4,7 +4,7 @@
 
 **Your body. Your goals. Zero equipment. Zero subscriptions.**
 
-Native PlayStation 5 Homebrew · **by YAHBALLON** · v0.1.0
+Native PlayStation 5 Homebrew · **by YAHBALLON** · v0.1.1
 
 </div>
 
@@ -12,7 +12,7 @@ Native PlayStation 5 Homebrew · **by YAHBALLON** · v0.1.0
 
 FITBREW is an entirely offline, controller-first fitness application for the PS5, designed around bodyweight-only exercise. No machine, dumbbell, band, subscription, sign-in, camera, smartwatch or personal data upload is needed.
 
-> **Preview build:** PS5 hardware validation is pending. The six exercise cards currently use original stylized fallback illustrations when high-quality optional `pose_0.jpg`–`pose_5.jpg` assets are not checked in. The user-supplied screenshot is a *visual reference*, not proof of the real running application. The first genuine screenshot is pending.
+> **PS5 test feedback:** A user reports that the core app appears to work on PS5 but exercise pictures were missing in v0.1.0. v0.1.1 addresses this with raw GPU textures and additional logs; the fix still needs an on-console retest. The bundled six images are generated illustrations until original photo files are provided. The uploaded reference design is not a hardware screenshot.
 
 ## Features
 
@@ -63,6 +63,16 @@ This application lives at `homebrew/fitbrew/` in [Yahballon/tmp_lap](https://git
 - Application logs: `/data/FITBREW/logs/fitbrew.log`.
 
 **State of support:** PS5 target firmware, OpenGL runtime, physical controller response, image load and real frame timing must still be checked on-console. No release/TESTBUILD is claimed before the build succeeds.
+
+## Artwork and image troubleshooting
+
+v0.1.1 loads a **512×512 RGBA8 texture** for each of six pose categories, predecoded at build time. The package also retains JPEGs as diagnostic fallback. The installer CI confirms the six `.rgba` files are inside `PPSA99790.zip` and have the exact size required for GPU upload. The original exercise photo pack can override all six images without replacing the app:
+
+1. Copy `FITBREW/assets/pose_0.rgba` through `pose_5.rgba` to a USB root, so the PS5 sees `/mnt/usb0/FITBREW/assets/pose_0.rgba` (also accepts usb1–usb3).
+2. Or copy those same files to `/data/FITBREW/assets/` to keep them after unplugging the USB.
+3. Restart FITBREW. It loads valid 512×512 photo textures first and uses bundled images as a fallback.
+
+**Image diagnostics** are written to `/data/FITBREW/logs/fitbrew.log`. Inspect `ART_RGBA`, `ART_JPG_FALLBACK`, and `ART_READY N/6 textures`; only `ART_READY 6/6` confirms all six GPU uploads succeeded. This does not imply every exercise has a unique photo (six image categories are reused for 36 movements).
 
 ## Artwork
 
