@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// FITBREW v0.1.0. All exercises are bodyweight-only; no equipment required.
+// FITBREW v0.1.2. All exercises are bodyweight-only; no equipment required.
 #pragma once
 #include <array>
 #include <algorithm>
@@ -61,13 +61,13 @@ inline constexpr Plan plans[] = {
  {"CORE CONTROL","Strong foundations, steady form","CORE","BEGINNER",{{0,10,8,11,9,32,24,23,0,0}},8,30,20,2},
  {"FULL BODY HIIT","Sweaty intervals, zero equipment","FULL BODY","INTERMEDIATE",{{0,2,3,14,17,5,31,16,23,0}},9,40,20,4},
  {"LEG DAY","Quads, glutes and balance","LEGS","INTERMEDIATE",{{0,2,5,12,13,9,33,28,22,0}},9,40,20,1},
- {"CHEST & CORE","Push, stabilize, recover","STRENGTH","INTERMEDIATE",{{1,3,7,4,26,31,10,23,0,0}},8,40,20,0},
- {"MORNING ENERGY","Wake up and move mindfully","MOBILITY","BEGINNER",{{0,1,25,29,21,15,28,22,0,0}},8,30,10,3},
- {"NO-JUMP SWEAT","Low-impact total body circuit","CARDIO","INTERMEDIATE",{{0,15,30,18,2,19,34,25,23,0}},9,35,15,3},
- {"BODYWEIGHT BURN","Challenging full-body rounds","HIIT","ADVANCED",{{0,14,3,17,33,16,26,31,23,0}},9,45,15,4},
- {"POSTURE RESET","Back, core and gentle mobility","RECOVERY","BEGINNER",{{0,21,27,11,20,28,25,35,23,0}},9,35,15,2},
- {"GLUTES & LEGS","Controlled strength for lower body","LEGS","BEGINNER",{{0,2,9,6,12,5,21,22,0,0}},8,35,20,5},
- {"QUICK 10","Short effective daily routine","FULL BODY","BEGINNER",{{0,15,2,4,10,19,9,23,0,0}},8,40,20,1}
+ {"CHEST & CORE","Push, stabilize, recover","STRENGTH","INTERMEDIATE",{{1,3,7,4,26,31,10,23,0,0}},8,40,20,6},
+ {"MORNING ENERGY","Wake up and move mindfully","MOBILITY","BEGINNER",{{0,1,25,29,21,15,28,22,0,0}},8,30,10,11},
+ {"NO-JUMP SWEAT","Low-impact total body circuit","CARDIO","INTERMEDIATE",{{0,15,30,18,2,19,34,25,23,0}},9,35,15,10},
+ {"BODYWEIGHT BURN","Challenging full-body rounds","HIIT","ADVANCED",{{0,14,3,17,33,16,26,31,23,0}},9,45,15,9},
+ {"POSTURE RESET","Back, core and gentle mobility","RECOVERY","BEGINNER",{{0,21,27,11,20,28,25,35,23,0}},9,35,15,5},
+ {"GLUTES & LEGS","Controlled strength for lower body","LEGS","BEGINNER",{{0,2,9,6,12,5,21,22,0,0}},8,35,20,7},
+ {"QUICK 10","Short effective daily routine","FULL BODY","BEGINNER",{{0,15,2,4,10,19,9,23,0,0}},8,40,20,8}
 };
 inline constexpr int PLAN_COUNT=sizeof(plans)/sizeof(plans[0]);
 inline int duration_seconds(const Plan& p){return p.count*p.seconds+(p.count-1)*p.rest;}
