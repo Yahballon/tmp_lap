@@ -2,8 +2,8 @@
 
 **Project:** `Yahballon/tmp_lap/homebrew/fitbrew`
 **Last updated:** 2026-10-26 (UTC; exact minute not recorded)
-**Active branch:** `main`; v0.1.1 image fix merged via PR #272 (squash commit `4ab6d0ab7d4fac48f81166d5aa78a8cf5c785e13`)
-**Current version / Title ID:** v0.1.1 released / PPSA99790 (unchanged) (searched monorepo and PHIP-0001 for collision; no matching source-index result; global uniqueness NOT guaranteed)
+**Active branch:** `feature/fitbrew-v0.1.2-photo-dashboard` (PR #273). Published release remains v0.1.1 until main workflow creates v0.1.2.
+**Development version / Title ID:** v0.1.2 / PPSA99790 (unchanged) (searched monorepo and PHIP-0001 for collision; no matching source-index result; global uniqueness NOT guaranteed)
 **Latest verified Release:** [fitbrew-v0.1.1](https://github.com/Yahballon/tmp_lap/releases/tag/fitbrew-v0.1.1), asset `PPSA99790.zip` (6,886,686 bytes); main build run 40322034573 SUCCESS. TESTBUILDS catalog update run 40322320329 SUCCESS, current `version.json` shows FITBREW v0.1.1.
 **Hardware target:** user's PS5 firmware 5.10. On 2026-10-26 user reports most functionality seems operational except missing photos in v0.1.0. No logs/screenshots or v0.1.1 retest supplied.
 
@@ -41,6 +41,16 @@
 - Build setup copied from `build-4wins.yml`. Needs first actual CI invocation and compiler errors fixed rather than assumed working.
 
 ## Change Log — Latest First
+
+### 2026-10-26 — v0.1.2 professional photography and card repairs (PR #273, CI pending)
+- PS5 screenshot from the user confirms v0.1.1's picture assets are simplistic silhouettes. User rejects these visuals as unlike the reference.
+- Twelve independent free-use source photographs from Unsplash, with explicit credits and build-time downloads.
+- Generator now processes real photographic JPEG + raw GPU textures and fails the build when a download is missing instead of silently producing old figures.
+- UV cover crop preserves athlete proportions on tall hero photos and compact cards.
+- Workout card titles are bounded and short on small cards; long hero titles split into readable lines.
+- One distinct photo per plan (12 total). Core exercise/timer logic and save paths unchanged.
+- Verify v0.1.2 photo download and native PS5 binary in CI, then merge, release and update TESTBUILDS automatically.
+
 
 ### 2026-10-26 — v0.1.1 release and TESTBUILDS verification
 - PR #272 merged; main Actions run 40322034573 succeeded, including host art test, PS5 compiler, ZIP verification of all six `.rgba` and `.jpg` assets and uploaded installer.
@@ -101,7 +111,7 @@ User reports most FITBREW v0.1.0 navigation and workouts work on PS5; treat this
 ## NEXT ACTION FOR THE NEXT AGENT
 
 **Do this first:** merge CI-green PR if appropriate, verify main build creates real release ZIP `PPSA99790.zip`, then verify generated TESTBUILDS catalog. Fix any compiler errors before merging and releasing.  
-**Starting point:** `Yahballon/tmp_lap`, branch `main`, release `fitbrew-v0.1.1`, `homebrew/fitbrew/`, `.github/workflows/build-fitbrew.yml`.  
+**Starting point:** `Yahballon/tmp_lap`, branch `feature/fitbrew-v0.1.2-photo-dashboard`, PR #273, `homebrew/fitbrew/`, `.github/workflows/build-fitbrew.yml`.  
 **Expected success evidence:** passing host test, actual PS5 compile, verified ZIP with real `eboot.bin`, icon, six JPEGs, fonts, libc.  
 **If it fails:** inspect failing job and stage artifacts; compare with working `build-4wins.yml` pattern.  
 **Do not change:** `tmp_lap/version.json` manually, other apps or existing game Title IDs.  
