@@ -6,7 +6,8 @@ int main(){
  static_assert(EXERCISE_COUNT>=30);
  static_assert(PLAN_COUNT>=10);
  for(const auto& p:plans){
-  assert(p.count>0&&p.count<=10&&p.seconds>=20);\n  assert(p.image<12);
+  assert(p.count>0&&p.count<=10&&p.seconds>=20);
+  assert(p.image<12);
   for(int i=0;i<p.count;i++)assert(p.sequence[i]<EXERCISE_COUNT);
   assert(duration_seconds(p)>0);
  }
