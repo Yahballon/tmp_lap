@@ -23,6 +23,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make git curl unzip tar python3 python3-pil g++ pkg-config ca-certificates
+      - name: Import original FITBREW AI photo sources
+        run: python3 homebrew/fitbrew/assets/import_ai_photos.py
       - name: Exercise validation, workout engine and metadata
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/fitbrew/tests/workout_test.cpp -o /tmp/fitbrew-test
@@ -111,9 +113,22 @@ jobs:
             for a in assets: assert 'PPSA99790/'+a in z.namelist(),a
           print('PASS FITBREW installer verification')
           PY
+      # Check in the original generated images once. Subsequent releases then
+      # build from genuine GitHub source assets even after temporary import URLs
+      # expire. GITHUB_TOKEN pushes do not recursively start Actions workflows.
+      - name: Persist all 12 AI images in GitHub source
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add homebrew/fitbrew/assets/pose_*.jpg
+          if ! git diff --cached --quiet; then
+            git commit -m "assets(fitbrew): vendor 12 original AI workout images [skip ci]"
+            git push origin HEAD:main
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: FITBREW-v0.1.2-PPSA99790
+          name: FITBREW-v0.1.3-PPSA99790
           path: app/dist/PPSA99790.zip
           if-no-files-found: error
       - name: Publish TESTBUILDS-compatible FITBREW release
@@ -121,10 +136,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view fitbrew-v0.1.2 >/dev/null 2>&1; then
+          if gh release view fitbrew-v0.1.3 >/dev/null 2>&1; then
             # Rebuilding an unchanged source tree is allowed; replacing a released
             # binary from changed source under the same version is NOT allowed.
-            git fetch --depth=1 origin refs/tags/fitbrew-v0.1.2
+            git fetch --depth=1 origin refs/tags/fitbrew-v0.1.3
             release_sha=$(git rev-list -n 1 FETCH_HEAD)
             if ! git diff --quiet "$release_sha" "$GITHUB_SHA" -- homebrew/fitbrew/native homebrew/fitbrew/assets homebrew/fitbrew/app.json; then
               echo 'FITBREW source changed: bump version/tag before publishing.'
@@ -133,4 +148,4 @@ jobs:
             echo 'Existing immutable FITBREW release matches this source; skipping republish.'
             exit 0
           fi
-          gh release create fitbrew-v0.1.2 app/dist/PPSA99790.zip --target "$GITHUB_SHA" --title 'FITBREW by YAHBALLON v0.1.2' --notes-file homebrew/fitbrew/RELEASE_NOTES.md
+          gh release create fitbrew-v0.1.3 app/dist/PPSA99790.zip --target "$(git rev-parse HEAD)" --title 'FITBREW by YAHBALLON v0.1.3' --notes-file homebrew/fitbrew/RELEASE_NOTES.md
