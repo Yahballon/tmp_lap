@@ -75,3 +75,11 @@ GitHub REST also returned 404 for both original `blackbearreloaded/ps5-native-ap
 The mirror-switch script now guards **all three original URL + exact digest/commit pairs**, fails atomically if the upstream metadata changes, and does not weaken the original archive SHA checks or git commit identity checks. The SDK and git repos are still trusted/validated only under their original upstream exact pins. A new build is required to verify fetching the mirror at runtime; presence of GitHub commit objects alone is not proof of completed native compilation.
 
 **Next:** Inspect the latest `main` Actions run. Pass criteria are make deps (all dependencies fetched at exact pins), complete native eboot compile, ZIP integrity, GitHub Release asset and generated TESTBUILDS entry. Hardware check and actual screenshot remain outstanding.
+
+## UI-kit mirror restored — 2026-10-27
+
+- Native [run 40563453423](https://github.com/Yahballon/tmp_lap/actions/runs/40563453423) failed during `make deps` downloading ten per-file SHA-256-pinned assets at `blackbearreloaded/ps5-homebrew-ui@aed286b81cdf70a814d3059f54633ba34844e46e`, HTTP 404 for `src/ui/theme.cpp`. The previous OpenGL SDK source mirror worked in this run.
+- Verified that the exact source commit `aed286b81cdf70a814d3059f54633ba34844e46e` exists in `Yahballon/ps5-homebrew-ui`. Updated the CI-only URL translation to point all ten original files to this exact commit in the user's fork. Each individual file's expected SHA-256 is pinned unchanged and still verified by ProsperoEden's `tools/deps.py`.
+- Expanded regression tests: all ten names, SHA-256 pins, idempotency and fail-closed behavior on any unexpected change. This patch does not alter Eden gameplay or package identity. A CI compile and device validation remain required.
+
+**Next action:** review the new main branch run, confirm `make deps` completes, then tackle first native compiler/linker issue. Do not claim Release or TESTBUILDS availability without an actual verified asset.
