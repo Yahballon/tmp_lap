@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: prosperoeden-gbaxy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   native:
@@ -36,7 +36,7 @@ jobs:
           test "$(git -C .work/prosperoeden status --porcelain | wc -l)" -eq 5
           grep -q 'list.coverflow_image' .work/prosperoeden/headless/prosperoeden/pe/ui/library.cpp
           grep -q 'shape == 8 || shape == 9' .work/prosperoeden/headless/prosperoeden/pe/gfx/gl_batch.cpp
-      - name: Use SHA-256-verified mirror for missing PS5 OpenGL SDK release
+      - name: Restore exact-pinned OpenGL SDK and native helper mirrors
         run: |
           python3 homebrew/prosperoeden-coverflow/tests/test_sdk_mirror.py
           python3 homebrew/prosperoeden-coverflow/tools/fix_opengl_sdk_mirror.py --source .work/prosperoeden
