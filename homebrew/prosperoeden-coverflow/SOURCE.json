@@ -1,0 +1,9 @@
+{
+  "upstream_repository": "Swordpdf/ProsperoEden",
+  "upstream_commit": "a26ba788222465ec7fb94dc813958fc749734e07",
+  "donor_repository": "Yahballon/PS5GBAX",
+  "donor_commit": "197c62e08cd709299785fa07c8c0addbb844c51d",
+  "title_id": "PPSA99008",
+  "overlay_version": "0.1.0",
+  "license": "GPL-3.0-or-later"
+}

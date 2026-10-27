@@ -12,6 +12,9 @@ This repository hosts **multiple independent native PlayStation 5 homebrew appli
 
 ## Projects
 
+**ProsperoEden GBAXY Coverflow:** [Native UI source + build instructions](homebrew/prosperoeden-coverflow/README.md).
+
+
 | Application | Source | Build | Release |
 | --- | --- | --- | --- |
 | Open Surge PS5 (native diagnostic; no gameplay) | [homebrew/opensurge-ps5](homebrew/opensurge-ps5/) | [Build Open Surge PS5 Legacy Native](.github/workflows/build-opensurge-legacy-ps5.yml) | [v0.1.1 diagnostic prerelease](https://github.com/Yahballon/tmp_lap/releases/tag/opensurge-ps5-v0.1.1) |
