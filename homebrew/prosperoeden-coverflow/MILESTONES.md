@@ -53,3 +53,13 @@
 - The pull-request TESTBUILDS catalog validation also passed: https://github.com/Yahballon/tmp_lap/actions/runs/40561104802.
 
 **NEXT ACTION UPDATE:** Inspect the native compiler and package-verification steps in run 40561099313. Publish status only after workflow confirms success, then validate the real release and auto-generated manifest. Real PS5 game launch and coverflow render remain untested.
+
+## Native build failure and exact-source recovery — 2026-10-27
+
+- [Run 40561099313](https://github.com/Yahballon/tmp_lap/actions/runs/40561099313) **FAILED** in `make deps` before compilation: `blackbearreloaded/ps5-opengl/releases/download/v1.0.2/ps5-opengl-sdk-1.0.2.tar.gz` returned HTTP 404 after three attempts. C++ pose and overlay application both passed.
+- Found [darkxex/ps5-opengl v1.0.2](https://github.com/darkxex/ps5-opengl/releases/tag/v1.0.2), which exposes an archive of the **same filename and exact SHA-256** recorded in upstream `tools/deps.json`: `30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4`, file size 226310155 bytes.
+- Added `tools/fix_opengl_sdk_mirror.py` with a strict original SHA and old URL guard. It substitutes the GitHub asset URL only in the temporary ProsperoEden build checkout. Upstream's SHA-256 verification still gates extracted inputs; *no checksum override is allowed*.
+- Added `tests/test_sdk_mirror.py` to check idempotency, unrelated dependency preservation and rejection of altered hashes.
+- Adjusted workflow to test the mirror patch and to release only on `main` after successful native compilation/ZIP verification. No Release or TESTBUILDS entry is implied by this patch until a succeeding native build confirms them.
+
+**Next:** Inspect the rerun triggered by merging this fix to `main`: verify it passes `make deps` and proceeds to native compiler and ZIP validation; debug first failed job, and record only real results.
