@@ -29,8 +29,6 @@ constexpr float kCover = 240.0f;
 constexpr float kCellPitchX = kCover + 32.0f;
 constexpr float kCellPitchY = 346.0f; // a cover, its name on up to two lines, a line under it, and the gap
 constexpr float kGridTop = 152.0f;
-constexpr float kGridBottom = 972.0f;
-constexpr float kGridWidth = kCellPitchX * (kColumns - 1) + kCover;
 constexpr Rect kDetail{1304.0f, 136.0f, 520.0f, 836.0f};
 
 // A game's settings: a page of three parts beside the rail.
