@@ -1,7 +1,7 @@
 name: Build ProsperoEden GBAXY Coverflow
 on:
   push:
-    branches: [feature/prosperoeden-gbaxy-coverflow]
+    branches: [main, feature/prosperoeden-gbaxy-coverflow]
     paths:
       - 'homebrew/prosperoeden-coverflow/**'
       - '.github/workflows/build-prosperoeden-coverflow.yml'
@@ -36,6 +36,10 @@ jobs:
           test "$(git -C .work/prosperoeden status --porcelain | wc -l)" -eq 5
           grep -q 'list.coverflow_image' .work/prosperoeden/headless/prosperoeden/pe/ui/library.cpp
           grep -q 'shape == 8 || shape == 9' .work/prosperoeden/headless/prosperoeden/pe/gfx/gl_batch.cpp
+      - name: Use SHA-256-verified mirror for missing PS5 OpenGL SDK release
+        run: |
+          python3 homebrew/prosperoeden-coverflow/tests/test_sdk_mirror.py
+          python3 homebrew/prosperoeden-coverflow/tools/fix_opengl_sdk_mirror.py --source .work/prosperoeden
       - name: Free disk space for RADV and Eden
         run: |
           df -h "$GITHUB_WORKSPACE"
@@ -106,7 +110,7 @@ jobs:
 
   publish:
     needs: native
-    if: github.ref == 'refs/heads/feature/prosperoeden-gbaxy-coverflow'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
