@@ -6,7 +6,7 @@ import json
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from fix_opengl_sdk_mirror import SOURCES, switch_source
+from fix_opengl_sdk_mirror import (SOURCES, UI_KIT_OLD, UI_KIT_NEW, UI_KIT_SHA256, switch_source)
 
 
 def run():
@@ -22,6 +22,10 @@ def run():
                 "name": name, "kind": spec["kind"], "url": spec["original"],
                 spec["pin_key"]: spec["pin"],
             })
+        sample["items"].append({"name": "ui-kit", "kind": "files", "files": [
+            {"name": name, "url": UI_KIT_OLD + name, "sha256": pin}
+            for name, pin in UI_KIT_SHA256.items()
+        ]})
         target.write_text(json.dumps(sample), encoding="utf-8")
         assert "redirected" in switch_source(folder)
         result = json.loads(target.read_text())
@@ -30,6 +34,11 @@ def run():
             assert entry["url"] == spec["mirror"]
             assert entry[spec["pin_key"]] == spec["pin"]
         assert result["items"][0] == sample["items"][0]
+        kit = next(x for x in result["items"] if x["name"] == "ui-kit")
+        assert len(kit["files"]) == 10
+        for item in kit["files"]:
+            assert item["url"] == UI_KIT_NEW + item["name"]
+            assert item["sha256"] == UI_KIT_SHA256[item["name"]]
         assert "already pinned" in switch_source(folder)
 
         # A change to any of the three pins must fail closed, with no rewrite.
@@ -45,7 +54,18 @@ def run():
             else:
                 raise AssertionError(f"Changed pin accepted: {bad_name}")
             assert json.loads(target.read_text()) == bad, "Fail-closed mutated the manifest"
-    print("PASS: all three exact-pin mirrors, idempotency and fail-closed guards")
+        bad = json.loads(json.dumps(sample))
+        kit = next(x for x in bad["items"] if x["name"] == "ui-kit")
+        kit["files"][0]["sha256"] = "0" * 64
+        target.write_text(json.dumps(bad), encoding="utf-8")
+        try:
+            switch_source(folder)
+        except ValueError as exc:
+            assert "ui-kit pin changed" in str(exc)
+        else:
+            raise AssertionError("Changed UI-kit hash unexpectedly accepted")
+        assert json.loads(target.read_text()) == bad
+    print("PASS: 3 exact dependency pins + 10 UI-kit file hashes, idempotency, fail-closed guards")
 
 
 if __name__ == "__main__":
