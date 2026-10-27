@@ -63,3 +63,15 @@
 - Adjusted workflow to test the mirror patch and to release only on `main` after successful native compilation/ZIP verification. No Release or TESTBUILDS entry is implied by this patch until a succeeding native build confirms them.
 
 **Next:** Inspect the rerun triggered by merging this fix to `main`: verify it passes `make deps` and proceeds to native compiler and ZIP validation; debug first failed job, and record only real results.
+
+## Additional upstream Git sources recovery — 2026-10-27
+
+GitHub REST also returned 404 for both original `blackbearreloaded/ps5-native-app-boilerplate` and `blackbearreloaded/PS5-Lapy-JB-Daemon` repositories. ProsperoEden pins exact Git objects, not floating branches. Their exact commits were verified accessible in:
+
+- `drakmor/ps5-native-app-boilerplate@dd44bbdc75437332ed22e3ba95126733419ef25a`
+- `Phononenom/PS5-Lapy-JB-Daemon-bbr@57fcc19b7f57e46c823d6f2a6c6233ebf3288079`
+- Original OpenGL SDK `darkxex/ps5-opengl@v1.0.2` asset digest `30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4`
+
+The mirror-switch script now guards **all three original URL + exact digest/commit pairs**, fails atomically if the upstream metadata changes, and does not weaken the original archive SHA checks or git commit identity checks. The SDK and git repos are still trusted/validated only under their original upstream exact pins. A new build is required to verify fetching the mirror at runtime; presence of GitHub commit objects alone is not proof of completed native compilation.
+
+**Next:** Inspect the latest `main` Actions run. Pass criteria are make deps (all dependencies fetched at exact pins), complete native eboot compile, ZIP integrity, GitHub Release asset and generated TESTBUILDS entry. Hardware check and actual screenshot remain outstanding.
