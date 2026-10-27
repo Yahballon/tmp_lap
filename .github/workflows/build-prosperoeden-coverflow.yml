@@ -1,0 +1,164 @@
+name: Build ProsperoEden GBAXY Coverflow
+on:
+  push:
+    branches: [feature/prosperoeden-gbaxy-coverflow]
+    paths:
+      - 'homebrew/prosperoeden-coverflow/**'
+      - '.github/workflows/build-prosperoeden-coverflow.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prosperoeden-gbaxy
+  cancel-in-progress: false
+
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native overlay C++ pose
+        run: |
+          set -euo pipefail
+          python3 -m json.tool homebrew/prosperoeden-coverflow/SOURCE.json >/dev/null
+          python3 -m py_compile homebrew/prosperoeden-coverflow/tools/apply_overlay.py
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror homebrew/prosperoeden-coverflow/tests/native_coverflow_test.cpp -o /tmp/gbaxy-coverflow-test
+          /tmp/gbaxy-coverflow-test
+      - name: Clone pinned upstream and apply complete UI overlay
+        run: |
+          set -euo pipefail
+          git clone https://github.com/Swordpdf/ProsperoEden.git .work/prosperoeden
+          git -C .work/prosperoeden checkout --detach a26ba788222465ec7fb94dc813958fc749734e07
+          python3 homebrew/prosperoeden-coverflow/tools/apply_overlay.py --source .work/prosperoeden
+          test "$(git -C .work/prosperoeden status --porcelain | wc -l)" -eq 5
+          grep -q 'list.coverflow_image' .work/prosperoeden/headless/prosperoeden/pe/ui/library.cpp
+          grep -q 'shape == 8 || shape == 9' .work/prosperoeden/headless/prosperoeden/pe/gfx/gl_batch.cpp
+      - name: Free disk space for RADV and Eden
+        run: |
+          df -h "$GITHUB_WORKSPACE"
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /usr/local/share/boost /opt/hostedtoolcache/CodeQL /opt/hostedtoolcache/go \
+            /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk /opt/hostedtoolcache/PyPy /opt/hostedtoolcache/Ruby
+          df -h "$GITHUB_WORKSPACE"
+      - name: Set native CI build paths
+        run: |
+          mkdir -p "$(dirname "$GITHUB_WORKSPACE")/ci-cache"
+          {
+            echo "CACHE_ROOT=$(dirname "$GITHUB_WORKSPACE")/ci-cache"
+            echo "RADV_NATIVE=$(dirname "$GITHUB_WORKSPACE")/mihawk-vulkan-review/.deps/native"
+            echo "PROSPEROEDEN_DEPS_CACHE=$(dirname "$GITHUB_WORKSPACE")/ci-cache/downloads"
+            echo "CCACHE_DIR=$(dirname "$GITHUB_WORKSPACE")/ci-cache/ccache"
+            echo "XDG_CACHE_HOME=$(dirname "$GITHUB_WORKSPACE")/ci-cache/xdg"
+            echo "JOBS=$(nproc)"
+            echo "RADV_BUILD_JOBS=$(nproc)"
+            echo "SPIRV_TRANSLATOR=$RUNNER_TEMP/spirv-llvm-translator"
+          } >> "$GITHUB_ENV"
+      - name: Install upstream pinned native build toolchain
+        working-directory: .work/prosperoeden
+        run: |
+          set -euo pipefail
+          bash tools/ci/setup-ubuntu-24.04.sh "$SPIRV_TRANSLATOR" 3>> "$GITHUB_ENV"
+          make toolchain
+      - name: Fetch pinned dependencies
+        working-directory: .work/prosperoeden
+        run: make deps
+      - name: Build native eboot and package with Eden CI script
+        working-directory: .work/prosperoeden
+        timeout-minutes: 315
+        run: |
+          set -euo pipefail
+          bash tools/ci/build-release.sh
+      - name: Validate and repackage TESTBUILDS ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 - <<'PY'
+          import glob,hashlib,json,zipfile,shutil
+          matches=glob.glob(".work/prosperoeden/dist/ProsperoEden-v*.zip")
+          assert len(matches)==1, f"Expected one original ZIP: {matches}"
+          original=matches[0]
+          with zipfile.ZipFile(original) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              for n in ("PPSA99008/eboot.bin","PPSA99008/sce_sys/param.json","PPSA99008/sce_sys/icon0.png"):
+                  assert n in names, f"Missing {n}"
+              assert len(z.read("PPSA99008/eboot.bin"))>500000
+              meta=json.loads(z.read("PPSA99008/sce_sys/param.json"))
+              assert meta["titleId"]=="PPSA99008", meta
+              wrong=[i.filename for i in z.infolist() if (i.external_attr>>16)&0o777!=0o777]
+              assert not wrong, f"Permissions: {wrong[:3]}"
+              print(f"Verified PS5 native package with {len(names)} entries")
+          shutil.copyfile(original,"out/PPSA99008.zip")
+          with open("out/PPSA99008.zip","rb") as f:
+              digest=hashlib.file_digest(f,"sha256").hexdigest()
+          open("out/SHA256SUMS","w").write(digest+"  PPSA99008.zip\n")
+          PY
+          (cd out && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ProsperoEden-GBAXY-PS5-Testbuild
+          path: out/
+          retention-days: 14
+          if-no-files-found: error
+
+  publish:
+    needs: native
+    if: github.ref == 'refs/heads/feature/prosperoeden-gbaxy-coverflow'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ProsperoEden-GBAXY-PS5-Testbuild
+          path: out/
+      - name: Publish real PS5 experimental build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          (cd out && sha256sum -c SHA256SUMS)
+          tag=prosperoeden-coverflow-v0.1.0
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Existing immutable release; no clobber"
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99008.zip
+          else
+            gh release create "$tag" out/PPSA99008.zip out/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "ProsperoEden GBAXY Coverflow v0.1.0 — TESTBUILD" \
+              --notes "Experimental PS5 homebrew UI port by YAHBALLON. Native CI and ZIP verified; real PS5 compatibility untested. Back up original Eden saves/settings. Existing PPSA99008 title identity preserved."
+          fi
+
+  catalog:
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Regenerate TESTBUILDS automatically using existing source of truth
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 tools/test-version-catalog.py
+          python3 tools/test-catalog-triggers.py
+          python3 tools/update-version.py
+          python3 -m json.tool version.json >/dev/null
+          if [[ -z "$(git status --porcelain -- version.json)" ]]; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore: auto-sync ProsperoEden TESTBUILDS catalog [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            git push origin HEAD:main && exit 0
+            sleep 3
+          done
+          exit 1

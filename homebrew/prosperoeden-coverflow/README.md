@@ -1,34 +1,38 @@
-# ProsperoEden × GBAXY Coverflow
+# ProsperoEden × PS5GBAX Coverflow
 
-**Native PS5 homebrew UI integration — by YAHBALLON**
+**Native PS5 homebrew UI port · by YAHBALLON · experimental v0.1.0**
 
-This is a source-stage port of the [PS5GBAX](https://github.com/Yahballon/PS5GBAX) coverflow layout concept into [Swordpdf/ProsperoEden](https://github.com/Swordpdf/ProsperoEden). **Not yet a compiled app**, and not yet published to TESTBUILDS. The upstream ProsperoEden repository grants this GitHub connection read-only access.
+This adapts the [PS5GBAX](https://github.com/Yahballon/PS5GBAX) Coverflow to the native [ProsperoEden](https://github.com/Swordpdf/ProsperoEden) launcher. It deliberately preserves the real Eden emulation engine and runtime, saves, controller service and title identity **PPSA99008**.
 
-## Technical baseline
+## What is implemented in source
 
-- ProsperoEden main tree examined at `a26ba788222465ec7fb94dc813958fc749734e07`.
-- PS5GBAX source examined at `197c62e08cd709299785fa07c8c0addbb844c51d`.
-- ProsperoEden uses C++ OpenGL 2D DrawList and GlBatch for its launcher; PS5GBAX uses Vulkan/3D cover case transforms. The correct approach is native geometry adaptation, **not** wholesale copying of Vulkan renderer.
-- The portable GBAXY-inspired pose model is in [coverflow_layout.hpp](coverflow_layout.hpp). Cases get fractional scrolling, larger center, scaled/angled sides, dimming and hover. No copyrighted game covers are included.
-- Original ProsperoEden's Title ID `PPSA99008` and existing save data paths must be preserved.
+- Animated large centered game case and receding, yawed side cases, dimming and floor reflections. The existing C++ OpenGL batch renderer adds a projected-image quad; it does not require a Vulkan renderer rewrite.
+- Uses ProsperoEden's existing texture cache. Renders only the eleven nearest games. Empty libraries and missing art retain the existing fallback.
+- Left/Right scroll one game, Up/Down jump five. Cross still launches/downloads, Triangle opens game settings, Square toggles mods/queues downloads, Circle goes back, and L1/R1 switches sections.
+- The original top-navigation grid remains available. Existing details pane, remote progress, game saves and emulation functionality were not rewritten.
 
-## Files to integrate in the pinned ProsperoEden clone
+## Build and release workflow
 
-- `headless/prosperoeden/pe/ui/library.cpp`: replace non-top-navigation four-column library with coverflow; use `pose(index, grid_x_.value / kCellPitchX, time_)` to animate cases. Keep the detail pane, cover cache, remote download status and all original game actions.
-- `headless/prosperoeden/pe/ui/launcher.hpp`: optionally use existing `grid_x_` spring; the selected item index should be the target for fractional animation, not selected column.
-- `headless/prosperoeden/pe/gfx/draw_list.{hpp,cpp}` and `pe/gfx/gl_batch.cpp`: add a perspective-cover draw shape to the existing GL batch; preserve shaders used by other views. The layout model provides signed yaw from -0.82 to +0.82.
-- Keep the existing top-navigation theme layout unchanged.
-- Reuse `Textures::cover()` and `pump()`, which already provide async artwork and GPU cache eviction.
+[Native PS5 build workflow](../../.github/workflows/build-prosperoeden-coverflow.yml) checks out a pinned ProsperoEden revision, applies all five changed UI and GL files, runs geometry checks, installs ProsperoEden's actual Ubuntu CI SDK, compiles its original package, verifies eboot.bin, icon and metadata, and only if successful publishes an immutable GitHub Release with PPSA99008.zip. It then runs the repository's existing TESTBUILDS catalog generator; version.json is never hand-edited.
 
-Recommended controller mapping: Left/Right one case, Up/Down jump five, Cross play, Triangle settings, Square existing mods/download action, Circle back.
+Original sources and revisions are recorded in [SOURCE.json](SOURCE.json).
 
-## Test the geometry
+**Until an actual GitHub Actions run succeeds, this is source work, not a downloadable PS5 installer.** Console rendering and game launch are not verified by CI. No console screenshot is available yet. Back up saves before installing a build sharing the upstream title ID.
 
-```sh
-g++ -std=c++17 -O2 -Wall -Wextra -Werror homebrew/prosperoeden-coverflow/tests/coverflow_geometry_test.cpp -o /tmp/coverflow-test
-/tmp/coverflow-test
-```
+## Run locally
 
-Native PS5 compilation still requires ProsperoEden's pinned SDK and dependencies under Ubuntu 26.04/WSL (`make` from the upstream checkout). The current integration needs source-file implementation beyond the portable geometry header before building an installable ZIP. **No screenshot, successful PS5 build, or release has been verified.**
+Clone ProsperoEden and check out commit a26ba788222465ec7fb94dc813958fc749734e07. Then, from your tmp_lap checkout, run:
 
-Credits: ProsperoEden contributors and PS5GBAX contributors. GPL-3.0-or-later. See [MILESTONES.md](MILESTONES.md) for handoff and next engineering action.
+~~~sh
+python3 homebrew/prosperoeden-coverflow/tools/apply_overlay.py --source /path/to/ProsperoEden
+g++ -std=c++17 -O2 -Wall -Wextra -Werror homebrew/prosperoeden-coverflow/tests/native_coverflow_test.cpp -o /tmp/eden-coverflow-test
+/tmp/eden-coverflow-test
+~~~
+
+On the supported Ubuntu native build host, from the patched ProsperoEden checkout run make. The overlay application refuses unexpected upstream revisions and dirty trees.
+
+## Licensing, visuals, roadmap
+
+GBAXY's Vulkan scene is not copied byte-for-byte: this is a 2.5D approximation in ProsperoEden's independent OpenGL UI. The exact native 3D case mesh and real PS5 screenshot are not yet available. Credits: ProsperoEden, its upstream dependencies and PS5GBAX contributors; GPL-3.0-or-later. Preserve upstream LICENSE and THIRD_PARTY_NOTICES.
+
+[Milestones and next-agent handoff](MILESTONES.md).

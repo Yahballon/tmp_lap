@@ -1,32 +1,43 @@
-# ProsperoEden GBAXY Coverflow — Milestones & Handoff
+# ProsperoEden GBAXY Coverflow — Milestones and Handoff
 
-Updated: 2026-10-27 UTC
-Branch: `Yahballon/tmp_lap:feature/prosperoeden-gbaxy-coverflow`
-Upstream source: `Swordpdf/ProsperoEden@a26ba788222465ec7fb94dc813958fc749734e07`
-Design donor: `Yahballon/PS5GBAX@197c62e08cd709299785fa07c8c0addbb844c51d`
-Title ID: `PPSA99008` (existing, retain)
-Release: NONE; hardware-tested: NO; screenshot: NOT CAPTURED
+**Updated:** 2026-10-27 UTC
+**Source:** Yahballon/tmp_lap, feature/prosperoeden-gbaxy-coverflow
+**Upstream:** Swordpdf/ProsperoEden @ a26ba788222465ec7fb94dc813958fc749734e07 (read-only permissions)
+**PS5GBAX donor:** Yahballon/PS5GBAX @ 197c62e08cd709299785fa07c8c0addbb844c51d
+**Title ID:** PPSA99008 (preserved), development variant 0.1.0
+**Console test:** NOT PERFORMED. **Screenshot:** NOT CAPTURED.
 
-## Status
+## Evidence-based milestone matrix
 
-| Milestone | Evidence | Status |
+| ID | Scope | Status |
 | --- | --- | --- |
-| Architecture review | Inspected both repos' current source, OpenGL vs Vulkan rendering, library scanning and controls | VERIFIED |
-| Geometry model | `coverflow_layout.hpp` added with deterministic position/scale/yaw | IMPLEMENTED / UNVERIFIED |
-| Geometry regression | `tests/coverflow_geometry_test.cpp` | PREPARED / NOT RUN |
-| Native Eden library integration | `library.cpp` source still needs applying | NOT STARTED |
-| New GL shape / shader case | `gl_batch.cpp` source still needs applying | NOT STARTED |
-| PS5 build + packaging | No full emulator SDK / workflow result | NOT STARTED |
-| Real console test + TESTBUILDS | No verified build artifact | NOT STARTED |
+| M0 | Inspect current Eden native OpenGL launcher, donor Vulkan coverflow, upstream licensing and build | VERIFIED SOURCE |
+| M1 | GBAXY pose math in coverflow.hpp, large centre, receding cases, fractional spring scroll | IMPLEMENTED, UNVERIFIED |
+| M2 | Update library.cpp navigation, native OpenGL DrawList/GlBatch shader and game case reflection | IMPLEMENTED, UNVERIFIED |
+| M3 | Preserve top-nav grid, game launch, source downloads, settings, save identity | SOURCE PRESERVED, DEVICE UNVERIFIED |
+| M4 | Reproducible PS5 CI compile and package | WORKFLOW PREPARED, NOT VERIFIED |
+| M5 | Verified actual Release and automatic TESTBUILDS entry | CONDITIONAL WORKFLOW PREPARED, NO RELEASE YET |
+| M6 | Real PS5 startup, rendering, input, game launch and screenshot | NOT STARTED |
 
-## Observations and boundaries
+## Change log — 2026-10-27
 
-The upstream native launcher lives under `headless/prosperoeden/pe/ui/`; `library.cpp` currently draws the default four-column library plus an independent `top_nav` grid, and uses an existing animated spring, `grid_x_`. It already supports asynchronous game covers via `Textures`, remote downloads, game details, saves, and settings. PS5GBAX's donor coverflow pose is in `ps5/frontend/fe_coverflow_layout.h`, a Vulkan 3D scene that cannot be directly copied into ProsperoEden's instanced OpenGL 2D UI.
+- Inspected the donor PS5GBAX/ps5/frontend/fe_coverflow_layout.h and the ProsperoEden main-branch launcher renderer.
+- Overlay now replaces the non-top-nav branch of headless/prosperoeden/pe/ui/library.cpp and keeps the current top-nav theme and game's details intact.
+- Added headless/prosperoeden/pe/ui/coverflow.hpp with constant-time pose evaluation and bounded eleven-case UI rendering.
+- Extended headless/prosperoeden/pe/gfx/draw_list.hpp, draw_list.cpp, and gl_batch.cpp with shader shape 9 for perspective-angled artwork; no changes made to the gameplay GPU backend.
+- Added an overlay installer, pinned SHA manifest, CPU geometry test and native CI pipeline that clones upstream, applies sources, builds via original upstream CI, verifies ZIP, conditionally publishes a real test release and regenerates TESTBUILDS manifest via the existing generator.
+- Full native CI run and hardware screenshot were not yet verified while authoring this handoff; publication MUST NOT be claimed without evidence.
 
-GitHub connection cannot push to Swordpdf/ProsperoEden. This work belongs in the user's writable experimental branch, **not in the upstream main branch**. No hand-edited TESTBUILDS `version.json`; its GitHub Action is the source of truth.
+## Regressions and risks
+
+- The 2.5D OpenGL projection may need adjustments on actual PS5. Test large libraries, zero games, missing/wide artwork, rapid left/right input, L1/R1 navigation and remote progress.
+- Verify cover cache, image aspect ratio, anti-aliased clipping and shader source compatibility with the PS5 OpenGL backend.
+- Preserve original Title ID PPSA99008, saves, emulator, download service, features and packages; back up data for experimental test releases.
+- Original Swordpdf/ProsperoEden has no write permission in the connected account, so work is distributed through the Yahballon/tmp_lap overlay.
+- Existing CI/main checkout catalog logic accepts only a real PPSA99008.zip GitHub Release in the matching namespace; never fake version.json.
 
 ## NEXT ACTION FOR THE NEXT AGENT
 
-**First:** take this geometry model and implement an OpenGL projected-image draw mode in ProsperoEden's `DrawList` / `GlBatch`, replacing the non-`top_nav` part of `Launcher::draw_library` while leaving top-nav and emulator behavior untouched. Verify the C++ host geometry test, then build the patched upstream with `make` on Ubuntu 26.04. After native ZIP validation, use a real PS5 to test movement, selection, downloads and game launch. No release claim before this succeeds.
+**First:** inspect the Build ProsperoEden GBAXY Coverflow Actions run on feature/prosperoeden-gbaxy-coverflow. If it fails, read the first failing compiler/configuration line and fix the source or CI before resuming. If it builds, validate release asset/checksum and catalog entry, then test the actual PS5 launcher UI and game launch. Document console screenshots and log evidence before marking M6 verified.
 
-Regression focus: Title ID `PPSA99008`, saves, remote downloads, quick selection changes, cover cache, missing artwork, settings, and launch transitions.
+**Do not change:** upstream emulator core, saved-game paths, PPSA99008, licensing, working top-nav theme or generated version.json manually.
