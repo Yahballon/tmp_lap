@@ -41,3 +41,15 @@
 **First:** inspect the Build ProsperoEden GBAXY Coverflow Actions run on feature/prosperoeden-gbaxy-coverflow. If it fails, read the first failing compiler/configuration line and fix the source or CI before resuming. If it builds, validate release asset/checksum and catalog entry, then test the actual PS5 launcher UI and game launch. Document console screenshots and log evidence before marking M6 verified.
 
 **Do not change:** upstream emulator core, saved-game paths, PPSA99008, licensing, working top-nav theme or generated version.json manually.
+
+## Verified host CI checkpoint — 2026-10-27
+
+- Feature branch source commit: e7671479e61d3d560bb6a627605542ef22018c58.
+- PR #275 merged to main: https://github.com/Yahballon/tmp_lap/pull/275 (merge commit 735b832a9ef5729044896ba8ec1c073f96fb79df).
+- Host-only C++ coverflow geometry test **PASSED** in GitHub Actions step Verify native overlay C++ pose.
+- Pinned upstream clone, application of all five changed UI/GPU files and source assertions **PASSED** in GitHub Actions step Clone pinned upstream and apply complete UI overlay.
+- Evidence: https://github.com/Yahballon/tmp_lap/actions/runs/40561099313, job 122390014116.
+- Native PS5 toolchain build and package steps were still in progress/unverified at this checkpoint. **No PS5 build success or Release is claimed.**
+- The pull-request TESTBUILDS catalog validation also passed: https://github.com/Yahballon/tmp_lap/actions/runs/40561104802.
+
+**NEXT ACTION UPDATE:** Inspect the native compiler and package-verification steps in run 40561099313. Publish status only after workflow confirms success, then validate the real release and auto-generated manifest. Real PS5 game launch and coverflow render remain untested.
