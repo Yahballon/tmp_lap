@@ -18,5 +18,13 @@ int main() {
                r=pose(4.0f,3.0f,0.0f);
     assert(m.w>l.w && m.w>r.w && l.x<m.x && r.x>m.x);
     assert(l.yaw>0.0f && r.yaw<0.0f && std::fabs(m.yaw)<0.0001f);
+    // Side cases remain inside the library viewport and retain square art.
+    for (int i=-3; i<=3; ++i)
+    {
+        const auto p=pose(10.0f+static_cast<float>(i),10.0f,0.0f);
+        assert(p.w==p.h);
+        assert(p.x>=180.0f);
+        assert(p.x+p.w<=1300.0f);
+    }
     std::cout<<"GBAXY coverflow geometry OK\n";
 }
