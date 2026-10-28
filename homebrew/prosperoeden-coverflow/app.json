@@ -1,9 +1,9 @@
 {
   "name": "ProsperoEden GBAXY Coverflow",
   "slug": "prosperoeden-coverflow",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "titleId": "PPSA99008",
-  "releaseTag": "prosperoeden-coverflow-v0.1.0",
+  "releaseTag": "prosperoeden-coverflow-v0.1.1",
   "developer": "YAHBALLON",
   "upstream": "Swordpdf/ProsperoEden",
   "build": "upstream-native"
