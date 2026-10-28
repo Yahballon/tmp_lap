@@ -629,30 +629,43 @@ void Launcher::draw_library(Canvas &c)
                 const Rect r{p.x, p.y, p.w, p.h};
                 const float alpha = p.opacity * (item.remote ? 0.78f : 1.0f);
                 const Color tint{p.brightness, p.brightness, p.brightness, alpha};
-                list.shadow({r.x + 13.0f, r.y + 20.0f, r.w - 26.0f, r.h - 10.0f},
-                            t.radius_card, 30.0f, t.base.with_alpha(0.46f * alpha));
-                list.bordered_rect(r, t.radius_card, t.row.with_alpha(0.90f * alpha),
-                                   2.0f, t.panel_edge.with_alpha(0.80f));
+                // Side artwork and its frame must use the SAME projected bounds.
+                // The previous unwarped full-size border was visible behind the
+                // narrower texture (the large outline boxes in the console photo).
+                const bool center_case = distance < 0.55f;
+                if (center_case)
+                {
+                    list.shadow({r.x + 13.0f, r.y + 20.0f, r.w - 26.0f, r.h - 10.0f},
+                                t.radius_card, 30.0f, t.base.with_alpha(0.46f * alpha));
+                    list.bordered_rect(r, t.radius_card, t.row.with_alpha(0.90f * alpha),
+                                       2.0f, t.panel_edge.with_alpha(0.80f));
+                }
+                // Switch cover assets are generally square in this library.
+                // Do not squeeze full-square art into a fixed portrait aspect.
+                // A small balanced inset lets the art breathe at either side.
+                const float pad = center_case ? 4.0f : 3.0f;
+                const Rect art{r.x + pad, r.y + pad, r.w - pad * 2.0f, r.h - pad * 2.0f};
                 const Cover picture = item.cover.empty() ? Cover{} : c.textures.cover(item.cover, p.w);
                 if (picture.texture != 0)
                 {
-                    list.coverflow_image(picture.texture, r, {0.0f, 0.0f, 1.0f, 1.0f},
-                                         t.radius_card, p.yaw, tint);
-                    // Floor reflection uses the SAME cover texture and no extra decoding.
-                    const Rect reflected{r.x, 702.0f, r.w, std::min(r.h * 0.34f, 122.0f)};
+                    list.coverflow_image(picture.texture, art, {0.0f, 0.0f, 1.0f, 1.0f},
+                                         t.radius_card * 0.80f, p.yaw, tint);
+                    // Reflection follows the projected artwork rather than the
+                    // original unwarped rectangle; no extra texture upload.
+                    const Rect reflected{art.x, 702.0f, art.w, std::min(art.h * 0.30f, 112.0f)};
                     list.coverflow_image(picture.texture, reflected,
-                                         {0.0f, 1.0f, 1.0f, -1.0f}, t.radius_card * 0.6f,
+                                         {0.0f, 1.0f, 1.0f, -1.0f}, t.radius_card * 0.48f,
                                          p.yaw, Color{p.brightness, p.brightness, p.brightness,
-                                                      alpha * 0.14f});
+                                                      alpha * 0.12f});
                     list.gradient_rect(reflected, 0.0f,
-                                       t.base.with_alpha(0.04f), t.base.with_alpha(0.80f));
+                                       t.base.with_alpha(0.06f), t.base.with_alpha(0.83f));
                 }
                 else if (item.remote)
-                    remote_cover(c, item.cover, r, t.radius_card, 0.35f);
+                    remote_cover(c, item.cover, art, t.radius_card * 0.80f, 0.35f);
                 else
-                    cover(c, item.cover, r, t.radius_card, 0.35f);
+                    cover(c, item.cover, art, t.radius_card * 0.80f, 0.35f);
                 const float focus = rail_focus_ ? 0.0f : tween::clamp01(1.0f - distance);
-                if (i == library_.selected && focus > 0.0f)
+                if (center_case && i == library_.selected && focus > 0.0f)
                     focus_ring(c, r, t.radius_card, focus);
                 // Preserve download progress information on game cases.
                 const Download *download = item.remote ? download_of(item.key) : nullptr;
