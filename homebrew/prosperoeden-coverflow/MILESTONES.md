@@ -83,3 +83,15 @@ The mirror-switch script now guards **all three original URL + exact digest/comm
 - Expanded regression tests: all ten names, SHA-256 pins, idempotency and fail-closed behavior on any unexpected change. This patch does not alter Eden gameplay or package identity. A CI compile and device validation remain required.
 
 **Next action:** review the new main branch run, confirm `make deps` completes, then tackle first native compiler/linker issue. Do not claim Release or TESTBUILDS availability without an actual verified asset.
+
+## v0.1.1 side cover framing repair — 2026-10-28
+
+- User provided actual PS5 photo of v0.1.0 coverflow: selected centre case looked correct, but left/right side artwork was visibly misaligned with the underlying large square frames, with edges clipping on the right side.
+- Root cause: side cases have a perspective-compressed texture quad but unwarped `bordered_rect` and shadow covering the full square case. Side positions also advanced 138 px per case, pushing covers beyond the library viewport.
+- Fixed: only the central card draws the full flat highlight frame; side covers draw their artwork in the same projected geometry, with a balanced 3px inset. Changed yaw 0.82 -> 0.62, first-side spread 335 -> 305, tail spread 138 -> 68 with bounded tail, side scale 0.94 -> 0.84 to keep neighbours within the visible panel. The centre case remains 384px, retaining the successful v0.1.0 appearance.
+- Original cover images stay square. A fixed portrait aspect of 0.7, previously suggested before inspecting source, would be incorrect for the pictured Switch game artwork and is intentionally not used.
+- Floor reflections track the projected inner artwork. Focus ring appears only on the dominant centre case, preventing large flat borders on angled sides. Missing covers and remote download progress retain the original fallbacks.
+- Updated app.json and build workflow's immutable GitHub Release tag to `prosperoeden-coverflow-v0.1.1` so TESTBUILDS auto-generator can pick up the new build rather than silently reusing v0.1.0.
+- Added host regression for square case geometry and visible left/right bounds. A passing GitHub native build and PS5 screenshot of the new version are still required for validation.
+
+**NEXT AGENT:** inspect native workflow for v0.1.1, confirm CI ZIP and release; user should install with TESTBUILD and take PS5 screenshot. Do not assert the real PS5 visual issue is definitively fixed before their test.
