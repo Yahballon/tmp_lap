@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "c6a7c88e03da01ca5acd17c3d336a95b132af943a3879e28aadcb574b5aff253",
+  "version": "0fd5d9896bc4596d24c473fe3da8271629efb652399e0d49178772777647d05b",
   "repository": "Yahballon/tmp_lap",
   "app_count": 31,
   "apps": [
@@ -8,14 +8,14 @@
       "name": "ProsperoEden GBAXY Coverflow",
       "slug": "prosperoeden-coverflow",
       "title_id": "PPSA99008",
-      "version": "0.1.1",
-      "tag": "prosperoeden-coverflow-v0.1.1",
+      "version": "0.1.2",
+      "tag": "prosperoeden-coverflow-v0.1.2",
       "zip_name": "PPSA99008.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/prosperoeden-coverflow-v0.1.1/PPSA99008.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/prosperoeden-coverflow-v0.1.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/prosperoeden-coverflow-v0.1.2/PPSA99008.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/prosperoeden-coverflow-v0.1.2",
       "source": "homebrew/prosperoeden-coverflow",
-      "size_bytes": 42651131,
-      "published_at": "2026-10-28T06:52:28Z"
+      "size_bytes": 42652073,
+      "published_at": "2026-10-28T08:39:57Z"
     },
     {
       "name": "ZQuest Classic PS5",
