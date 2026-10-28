@@ -95,3 +95,12 @@ The mirror-switch script now guards **all three original URL + exact digest/comm
 - Added host regression for square case geometry and visible left/right bounds. A passing GitHub native build and PS5 screenshot of the new version are still required for validation.
 
 **NEXT AGENT:** inspect native workflow for v0.1.1, confirm CI ZIP and release; user should install with TESTBUILD and take PS5 screenshot. Do not assert the real PS5 visual issue is definitively fixed before their test.
+
+## v0.1.2 full-width library (2026-10-28)
+
+- User console screenshot and request: remove the entire right game details box and put play, game settings and selected game metadata at the bottom of the Library.
+- Non-top-nav Library now uses full-width coverflow with center at x=960, clip at x=1830, full-width reflection/floor line. Removed right-side cover banner, settings text, and duplicated play buttons.
+- Compact bottom-center metadata uses real game format, size, available language, docked/handheld, and filename, without invented per-game resolution or frame-rate values.
+- Bottom input footer keeps Cross play, Triangle game settings, Square mods, Circle back, and L1/R1 sections. Download-source games retain appropriate action hints and queued error status.
+- Native launch animation uses new x=960 coverflow center. Existing top-nav grid and all input actions remain intact.
+- Version 0.1.2 with immutable Release tag and auto catalog update. **Validate GitHub native CI before declaring usable; user hardware smoke test still needed.**
