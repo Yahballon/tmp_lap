@@ -125,14 +125,14 @@ jobs:
         run: |
           set -euo pipefail
           (cd out && sha256sum -c SHA256SUMS)
-          tag=prosperoeden-coverflow-v0.1.1
+          tag=prosperoeden-coverflow-v0.1.2
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "::notice::Existing immutable release; no clobber"
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99008.zip
           else
             gh release create "$tag" out/PPSA99008.zip out/SHA256SUMS \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "ProsperoEden GBAXY Coverflow v0.1.1 — TESTBUILD" \
+              --title "ProsperoEden GBAXY Coverflow v0.1.2 — TESTBUILD" \
               --notes "Experimental PS5 homebrew UI port by YAHBALLON. Native CI and ZIP verified; real PS5 compatibility untested. Back up original Eden saves/settings. Existing PPSA99008 title identity preserved."
           fi
 
