@@ -610,15 +610,15 @@ void Launcher::draw_library(Canvas &c)
         // Fractional spring-driven navigation; load only the visible eleven cases.
         const float scroll = std::clamp(grid_x_.value / kCellPitchX, 0.0f, static_cast<float>(count - 1));
         const int middle = static_cast<int>(std::round(scroll));
-        const int first = std::max(0, middle - 5);
-        const int last = std::min(count - 1, middle + 5);
+        const int first = std::max(0, middle - 3);
+        const int last = std::min(count - 1, middle + 3);
         list.push_clip({left - 28.0f, 170.0f, kDetail.x - left + 5.0f, 690.0f});
         list.gradient_rect({left - 12.0f, 696.0f, kDetail.x - left, 165.0f},
                            0.0f, t.base.with_alpha(0.06f), t.base.with_alpha(0.80f));
         list.line(left + 22.0f, 695.0f, kDetail.x - 22.0f, 695.0f,
                   1.0f, t.accent_pale.with_alpha(0.24f));
         // Far cases first: the selected large box appears in front.
-        for (int layer = 5; layer >= 0; --layer)
+        for (int layer = 3; layer >= 0; --layer)
             for (int i = first; i <= last; ++i)
             {
                 const float distance = std::fabs(static_cast<float>(i) - scroll);
