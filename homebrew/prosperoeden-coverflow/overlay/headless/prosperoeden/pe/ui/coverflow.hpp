@@ -19,7 +19,7 @@ inline Pose pose(float index, float scroll, float time,
     const float outer = std::max(0.54f, 0.84f - 0.10f * tail);
     const float scale = 1.28f + (outer - 1.28f) * side;
     const float extent = 300.0f * scale;
-    const float travel = side * (305.0f + 68.0f * tail);
+    const float travel = side * (305.0f + 62.0f * tail);
     const float hover = (1.0f - side) * (5.0f + 2.5f * std::sin(time * 1.1f));
     return {center_x + sign * travel - extent * 0.5f,
             floor_y - extent - hover,
