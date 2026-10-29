@@ -1,4 +1,4 @@
-name: Build ProsperoEden GBAXY Coverflow
+name: Build SwitchXYZ PS5
 on:
   push:
     branches: [main, feature/prosperoeden-gbaxy-coverflow]
@@ -33,7 +33,7 @@ jobs:
           git clone https://github.com/Swordpdf/ProsperoEden.git .work/prosperoeden
           git -C .work/prosperoeden checkout --detach a26ba788222465ec7fb94dc813958fc749734e07
           python3 homebrew/prosperoeden-coverflow/tools/apply_overlay.py --source .work/prosperoeden
-          test "$(git -C .work/prosperoeden status --porcelain | wc -l)" -eq 5
+          test "$(git -C .work/prosperoeden status --porcelain | wc -l)" -eq 8
           grep -q 'list.coverflow_image' .work/prosperoeden/headless/prosperoeden/pe/ui/library.cpp
           grep -q 'shape == 8 || shape == 9' .work/prosperoeden/headless/prosperoeden/pe/gfx/gl_batch.cpp
       - name: Restore exact-pinned OpenGL SDK and native helper mirrors
@@ -103,7 +103,7 @@ jobs:
           (cd out && sha256sum -c SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
-          name: ProsperoEden-GBAXY-PS5-Testbuild
+          name: SwitchXYZ-PS5-Testbuild
           path: out/
           retention-days: 14
           if-no-files-found: error
@@ -117,7 +117,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: ProsperoEden-GBAXY-PS5-Testbuild
+          name: SwitchXYZ-PS5-Testbuild
           path: out/
       - name: Publish real PS5 experimental build
         env:
@@ -125,14 +125,14 @@ jobs:
         run: |
           set -euo pipefail
           (cd out && sha256sum -c SHA256SUMS)
-          tag=prosperoeden-coverflow-v0.1.2
+          tag=prosperoeden-coverflow-v0.1.3
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "::notice::Existing immutable release; no clobber"
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99008.zip
           else
             gh release create "$tag" out/PPSA99008.zip out/SHA256SUMS \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "ProsperoEden GBAXY Coverflow v0.1.2 — TESTBUILD" \
+              --title "SwitchXYZ v0.1.3 by YAHBALLON — TESTBUILD" \
               --notes "Experimental PS5 homebrew UI port by YAHBALLON. Native CI and ZIP verified; real PS5 compatibility untested. Back up original Eden saves/settings. Existing PPSA99008 title identity preserved."
           fi
 
@@ -159,7 +159,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add version.json
-          git commit -m "chore: auto-sync ProsperoEden TESTBUILDS catalog [skip ci]"
+          git commit -m "chore: auto-sync SwitchXYZ TESTBUILDS catalog [skip ci]"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             git push origin HEAD:main && exit 0

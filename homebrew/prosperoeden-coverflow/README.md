@@ -1,19 +1,19 @@
-# ProsperoEden × PS5GBAX Coverflow
+# SwitchXYZ by YAHBALLON
 
 **Native PS5 homebrew UI port · by YAHBALLON · experimental v0.1.0**
 
-This adapts the [PS5GBAX](https://github.com/Yahballon/PS5GBAX) Coverflow to the native [ProsperoEden](https://github.com/Swordpdf/ProsperoEden) launcher. It deliberately preserves the real Eden emulation engine and runtime, saves, controller service and title identity **PPSA99008**.
+**SwitchXYZ** is a Switch-inspired PS5 homebrew front end. It opens directly on the full-screen coverflow instead of the last-played home screen. It uses a light palette with red focus highlights and retains library, launch and game settings functionality.\n\nThis adapts the [PS5GBAX](https://github.com/Yahballon/PS5GBAX) Coverflow to the native [ProsperoEden](https://github.com/Swordpdf/ProsperoEden) launcher. It deliberately preserves the real Eden emulation engine and runtime, saves, controller service and title identity **PPSA99008**.
 
 ## What is implemented in source
 
 - Animated large centered game case and receding, yawed side cases, dimming and floor reflections. The existing C++ OpenGL batch renderer adds a projected-image quad; it does not require a Vulkan renderer rewrite.
-- Uses ProsperoEden's existing texture cache. Renders only the eleven nearest games. Empty libraries and missing art retain the existing fallback.
+- Uses ProsperoEden's existing texture cache. Renders only the seven nearest games. Empty libraries and missing art retain the existing fallback.
 - Left/Right scroll one game, Up/Down jump five. Cross still launches/downloads, Triangle opens game settings, Square toggles mods/queues downloads, Circle goes back, and L1/R1 switches sections.
 - The original top-navigation grid remains available. Existing details pane, remote progress, game saves and emulation functionality were not rewritten.
 
 ## Build and release workflow
 
-[Native PS5 build workflow](../../.github/workflows/build-prosperoeden-coverflow.yml) checks out a pinned ProsperoEden revision, applies all five changed UI and GL files, runs geometry checks, installs ProsperoEden's actual Ubuntu CI SDK, compiles its original package, verifies eboot.bin, icon and metadata, and only if successful publishes an immutable GitHub Release with PPSA99008.zip. It then runs the repository's existing TESTBUILDS catalog generator; version.json is never hand-edited.
+[Native PS5 build workflow](../../.github/workflows/build-prosperoeden-coverflow.yml) checks out a pinned ProsperoEden revision, applies all eight changed UI and GL files, runs geometry checks, installs ProsperoEden's actual Ubuntu CI SDK, compiles its original package, verifies eboot.bin, icon and metadata, and only if successful publishes an immutable GitHub Release with PPSA99008.zip. It then runs the repository's existing TESTBUILDS catalog generator; version.json is never hand-edited.
 
 Original sources and revisions are recorded in [SOURCE.json](SOURCE.json).
 
