@@ -33,7 +33,7 @@ jobs:
           git clone https://github.com/Swordpdf/ProsperoEden.git .work/prosperoeden
           git -C .work/prosperoeden checkout --detach a26ba788222465ec7fb94dc813958fc749734e07
           python3 homebrew/prosperoeden-coverflow/tools/apply_overlay.py --source .work/prosperoeden
-          test "$(git -C .work/prosperoeden status --porcelain | wc -l)" -eq 7
+          test "$(git -C .work/prosperoeden status --porcelain | wc -l)" -eq 8
           grep -q 'list.coverflow_image' .work/prosperoeden/headless/prosperoeden/pe/ui/library.cpp
           grep -q 'shape == 8 || shape == 9' .work/prosperoeden/headless/prosperoeden/pe/gfx/gl_batch.cpp
       - name: Restore exact-pinned OpenGL SDK and native helper mirrors
