@@ -112,3 +112,10 @@ The mirror-switch script now guards **all three original URL + exact digest/comm
 - Native overlay includes `launcher.cpp` and `theme.cpp` in addition to prior five files; manifest validation and workflow tracked-change count updated from five to seven.
 - New immutable release tag `prosperoeden-coverflow-v0.1.3`, automatically synchronized to TESTBUILDS after a successful native build.
 - Needs successful native CI build and actual on-device validation; remember that using the original Title ID `PPSA99008` can replace the stock Eden app.
+
+## v0.1.3 naming correction — 2026-10-29
+
+- App display name changed to **SwitchXYZ by YAHBALLON** (previously ProsperoEden GBAXY Coverflow).
+- Boot title and rail branding now read SWITCHXYZ. Source and credits still acknowledge the ProsperoEden upstream emulator.
+- Internal directory/slug and original title ID PPSA99008 deliberately unchanged for TESTBUILDS compatibility. This is a renamed edition, not an additional separately installable title.
+- Native overlay expanded to eight paths; workflow source-count validation updated accordingly.
