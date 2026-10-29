@@ -15,6 +15,8 @@ MANIFEST = json.loads((ROOT / "SOURCE.json").read_text(encoding="utf-8"))
 OVERLAY = ROOT / "overlay"
 EXPECTED = {
     "headless/prosperoeden/pe/ui/library.cpp",
+    "headless/prosperoeden/pe/ui/launcher.cpp",
+    "headless/prosperoeden/pe/ui/theme.cpp",
     "headless/prosperoeden/pe/ui/coverflow.hpp",
     "headless/prosperoeden/pe/gfx/draw_list.hpp",
     "headless/prosperoeden/pe/gfx/draw_list.cpp",
