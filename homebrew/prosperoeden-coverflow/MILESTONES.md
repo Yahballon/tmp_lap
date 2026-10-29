@@ -104,3 +104,11 @@ The mirror-switch script now guards **all three original URL + exact digest/comm
 - Bottom input footer keeps Cross play, Triangle game settings, Square mods, Circle back, and L1/R1 sections. Download-source games retain appropriate action hints and queued error status.
 - Native launch animation uses new x=960 coverflow center. Existing top-nav grid and all input actions remain intact.
 - Version 0.1.2 with immutable Release tag and auto catalog update. **Validate GitHub native CI before declaring usable; user hardware smoke test still needed.**
+
+## v0.1.3 Switch Light & Library-first boot — 2026-10-29
+
+- New built-in `switchlight` light theme: soft neutral surfaces, dark text, red/coral highlight and selection glow; preserves the original bundled artwork and native renderer. Does not use Nintendo icons or trademarks.
+- The launcher constructor selects `switchlight`, starts on `Screen::library` instead of `Screen::home`, and activates Library in the section rail. The last-played Home screen remains accessible through navigation.
+- Native overlay includes `launcher.cpp` and `theme.cpp` in addition to prior five files; manifest validation and workflow tracked-change count updated from five to seven.
+- New immutable release tag `prosperoeden-coverflow-v0.1.3`, automatically synchronized to TESTBUILDS after a successful native build.
+- Needs successful native CI build and actual on-device validation; remember that using the original Title ID `PPSA99008` can replace the stock Eden app.
