@@ -127,6 +127,21 @@ jobs:
       - name: Cross-compile real RandomX static library
         run: |
           python3 homebrew/ps5-randomx/scripts/compile_randomx.py app /tmp/randomx
+      - name: Verify JIT assembly templates live in readable data
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          obj=Path('app/build/randomx/jit_compiler_x86_readable.S.o')
+          assert obj.is_file(),obj
+          out=subprocess.check_output(['llvm-readelf-18','-SW',str(obj)],text=True)
+          row=next((l for l in out.splitlines() if '.rodata.rxjit' in l),None)
+          assert row is not None, "missing readable JIT template section"
+          assert ' AX ' not in row, f"template segment must not be executable: {row}"
+          symbols=subprocess.check_output(['llvm-nm-18','-g',str(obj)],text=True)
+          assert 'rxblob_randomx_program_prologue' in symbols
+          print("PASS: JIT template symbols in non-executable .rodata.rxjit",row)
+          PY
       - name: Prepare POSIX compatibility archive
         run: |
           mkdir -p app/build/jb-json
