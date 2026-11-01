@@ -18,6 +18,9 @@ assert (sdk / "target" / "include").exists(), "PS5 SDK was not initialized"
 assert (upstream / "src" / "randomx.h").exists(), "RandomX checkout is missing"
 # Add per-stage breadcrumbs to the pinned RandomX JIT internals for this PS5 build.
 subprocess.run([sys.executable, str(Path(__file__).with_name("instrument_jit.py")), str(upstream)], check=True)
+# PS5 native .text is execute-only. Make a readable mirror of the RandomX JIT
+# assembly templates; keep original static code available for normal execution.
+subprocess.run([sys.executable, str(Path(__file__).with_name("make_readable_asm.py")), str(upstream)], check=True)
 sources = """
 aes_hash.cpp argon2_ref.c argon2_ssse3.c argon2_avx2.c
 bytecode_machine.cpp cpu.cpp dataset.cpp soft_aes.cpp virtual_memory.c
@@ -26,7 +29,7 @@ instruction.cpp randomx.cpp superscalar.cpp vm_compiled.cpp
 vm_interpreted_light.cpp argon2_core.c blake2_generator.cpp
 instructions_portable.cpp reciprocal.c virtual_machine.cpp
 vm_compiled_light.cpp blake2/blake2b.c jit_compiler_x86.cpp
-jit_compiler_x86_static.S
+jit_compiler_x86_static.S jit_compiler_x86_readable.S
 """.split()
 env = os.environ.copy()
 env["PS5_PAYLOAD_SDK"] = str(sdk)
