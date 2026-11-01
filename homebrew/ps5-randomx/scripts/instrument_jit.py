@@ -63,8 +63,8 @@ patch("virtual_memory.c", [
      'void* allocMemoryPages(size_t bytes) {\n'
      '\trx_ps5_jit_stage("page_alloc_enter", (unsigned long long)bytes);\n'
      '\tvoid* mem;'),
-    ('\tif (mem == MAP_FAILED)\n\t\tmem = NULL;',
-     '\tif (mem == MAP_FAILED) {\n'
+    ('\tmem = mmap(NULL, bytes, PAGE_READWRITE | RESERVED_FLAGS | PEXTRA, MAP_ANONYMOUS | MAP_PRIVATE | MEXTRA, -1, 0);\n\tif (mem == MAP_FAILED)\n\t\tmem = NULL;',
+     '\tmem = mmap(NULL, bytes, PAGE_READWRITE | RESERVED_FLAGS | PEXTRA, MAP_ANONYMOUS | MAP_PRIVATE | MEXTRA, -1, 0);\n\tif (mem == MAP_FAILED) {\n'
      '\t\trx_ps5_jit_stage("page_alloc_failed_errno", (unsigned long long)errno);\n'
      '\t\tmem = NULL;\n\t}\n'
      '\trx_ps5_jit_stage("page_alloc_return", mem != NULL);')
