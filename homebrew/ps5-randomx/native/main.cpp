@@ -7,6 +7,7 @@
 #include "platform/ps5/system.hpp"
 #include "core/input.hpp"
 #include "randomx.h"
+#include "auto_suite.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -77,7 +78,7 @@ void report(Bench* b,int outcome) {
   const double elapsed=double(b->elapsed_us.load())/1000000.0;
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
-  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.2.0\n");
+  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.3.0\n");
   std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=off threads=%d profile=%d\n",
                b->full_mem?"full-memory-interpreter":"light-interpreter",
                b->hardware_aes?"hardware":"software",b->thread_count,b->profile_id);
@@ -254,6 +255,24 @@ void reap(Bench& b){
     b.join_needed=false;
   }
 }
+void writeAutoSummary(const rxbench::AutoSuite& suite) {
+  mkdir(kDataDir,0777);
+  FILE* f=std::fopen(kReport,"a");
+  if(!f)return;
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.3.0\\n");
+  std::fprintf(f,"auto_total=%d completed_tests=%d duration_each=%d include_full=%d\\n",
+               suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
+  for(int i=0;i<suite.recorded;i++){
+    const rxbench::AutoResult& r=suite.results[i];
+    std::fprintf(f,"test_%d profile=%d name=%s elapsed_seconds=%.3f hashes=%llu hashrate_hps=%.4f outcome=%d\\n",
+                 i+1,r.profile,kProfiles[r.profile].label,double(r.elapsed_us)/1000000.0,
+                 (unsigned long long)r.hashes,r.hps,r.outcome);
+  }
+  std::fprintf(f,"auto_status=%s\\n\\n",suite.cancelled?"interrupted":
+               suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?
+               "completed":"failed");
+  std::fclose(f);
+}
 Color color(unsigned hex,float a=1.f){return Color::rgb(hex,a);}
 void tx(DrawList& d,const Font& f,unsigned a,const std::string& s,float x,float y,float size,Color c=color(0xf2f7ff),Align align=Align::left){
   d.text(f,a,s,x,y,size,c,align);
@@ -274,10 +293,32 @@ int main(){
   Font font; if(!font.load(fontData))hui::sys::park();
   const unsigned atlas=renderer.batch().create_font_texture(font);
   hui::ps5::Pad pad;pad.open();
-  Bench b;int duration_index=1,profile_index=1;constexpr int durations[]={10,30,60};
+  Bench b;rxbench::AutoSuite suite;
+  // 0 = AUTO LIGHT (default); 1 = AUTO ALL (opt-in >2 GiB RAM);
+  // 2..6 = individual existing profiles, in their original order.
+  int duration_index=1,mode_index=0;
+  constexpr int durations[]={10,30,60};
+  constexpr int kModeCount=kProfileCount+2;
   unsigned prior=0;bool exit_requested=false;bool export_hint=false;
   for(;;){
     reap(b);
+    // Complete the current run, save its measurements and immediately begin
+    // the next profile. This runs on the UI thread, after worker join.
+    const int finished_state=b.stage.load();
+    if(suite.active&&!b.join_needed&&
+       (finished_state==Completed||finished_state==Stopped||finished_state==Failed)){
+      const bool next=suite.record(finished_state,finished_state==Completed,
+                                  b.hashes.load(),b.elapsed_us.load());
+      if(next){
+        if(!start(b,suite.duration,suite.step)) {
+          suite.cancel();
+          suite.active=false;suite.done=true;
+          writeAutoSummary(suite);
+        }
+      }else {
+        writeAutoSummary(suite);
+      }
+    }
     std::array<hui::PadSample,64> samples{};
     const size_t count=pad.read(samples);
     unsigned buttons=0;
@@ -293,16 +334,33 @@ int main(){
     const auto key=[&](unsigned bit){return (pressed&bit)!=0;};
     const int state=b.stage.load();
     const bool busy=state==Preparing||state==Hashing;
-    if(!busy){
+    if(!busy && !suite.active){
       if(key(hui::pad_bits::kLeft))duration_index=(duration_index+2)%3;
       if(key(hui::pad_bits::kRight))duration_index=(duration_index+1)%3;
-      if(key(hui::pad_bits::kUp)||key(hui::pad_bits::kL1))profile_index=(profile_index+kProfileCount-1)%kProfileCount;
-      if(key(hui::pad_bits::kDown)||key(hui::pad_bits::kR1))profile_index=(profile_index+1)%kProfileCount;
-      if(key(hui::pad_bits::kCross)){export_hint=false;start(b,durations[duration_index],profile_index);}
-      if(key(hui::pad_bits::kTriangle)){b.hashes.store(0);b.elapsed_us.store(0);b.last_hash[0]=0;b.stage.store(Ready);export_hint=false;}
+      if(key(hui::pad_bits::kUp)||key(hui::pad_bits::kL1))mode_index=(mode_index+kModeCount-1)%kModeCount;
+      if(key(hui::pad_bits::kDown)||key(hui::pad_bits::kR1))mode_index=(mode_index+1)%kModeCount;
+      if(key(hui::pad_bits::kCross)){
+        export_hint=false;
+        if(mode_index<2){
+          suite.begin(mode_index==1,durations[duration_index]);
+          if(!start(b,suite.duration,0)){
+            suite.cancel();suite.active=false;suite.done=true;
+            writeAutoSummary(suite);
+          }
+        }else {
+          suite.done=false;
+          start(b,durations[duration_index],mode_index-2);
+        }
+      }
+      if(key(hui::pad_bits::kTriangle)){
+        suite.done=false;suite.recorded=0;
+        b.hashes.store(0);b.elapsed_us.store(0);b.last_hash[0]=0;
+        b.stage.store(Ready);export_hint=false;
+      }
       if(key(hui::pad_bits::kCircle))exit_requested=true;
       if(key(hui::pad_bits::kSquare))export_hint=true;
     }else if(key(hui::pad_bits::kCircle)||key(hui::pad_bits::kOptions)){
+      suite.cancel();
       b.stop.store(true);
     }
     if(exit_requested && !b.join_needed)break;
@@ -316,7 +374,15 @@ int main(){
     const float progress=preparing_dataset?
       std::clamp(float(double(b.dataset_ready.load())/double(b.dataset_total.load())),0.f,1.f):
       std::clamp(float(seconds/double(b.seconds)),0.f,1.f);
-    const Profile& selected=kProfiles[busy?b.profile_id:profile_index];
+    const bool show_auto=suite.active||(mode_index<2);
+    const bool chosen_auto=mode_index<2;
+    const int shown_profile=(busy||suite.active)?b.profile_id:
+                             (chosen_auto?0:mode_index-2);
+    const Profile& selected=kProfiles[shown_profile];
+    const char* auto_title=(mode_index==1?"AUTO ALL 5 (FULL RAM)":"AUTO 4 LIGHT MODES");
+    const std::string shown_mode=suite.active?
+      ("AUTO STEP "+std::to_string(suite.step+1)+"/"+std::to_string(suite.total)+": "+selected.label):
+      (chosen_auto?std::string(auto_title):std::string(selected.label));
     char rate[80],time[80],total[80];
     std::snprintf(rate,sizeof(rate),"%.2f H/s",hps);
     std::snprintf(time,sizeof(time),"%.1f / %d sec",seconds,b.seconds);
@@ -331,10 +397,12 @@ int main(){
     tx(d,font,atlas,"v0.3.0",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
-    tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":statusName(state),
+    tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
+       suite.active?"AUTO BENCHMARK RUNNING":
+       suite.done?"AUTO BENCHMARK FINISHED":statusName(state),
        97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
-    tx(d,font,atlas,std::string(selected.label)+"  /  NO JIT  /  "+(selected.full_mem?"FULL MEM":"LIGHT MODE"),103,455,23,color(0xaac6e8));
+    tx(d,font,atlas,shown_mode+"  /  NO JIT",103,455,23,color(0xaac6e8));
     d.rounded_rect({101,500,1100,19},9,color(0x193550));
     d.rounded_rect({101,500,1100*progress,19},9,color(0x27d9be));
     tx(d,font,atlas,preparing_dataset?("Dataset prepared: "+std::to_string(int(progress*100.f))+"%"):std::string(time),
@@ -344,27 +412,54 @@ int main(){
     tx(d,font,atlas,"Algorithm",1305,331,21,color(0x90a7c9));
     tx(d,font,atlas,"RandomX v1.2.1",1808,331,23,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Mode",1305,385,21,color(0x90a7c9));
-    tx(d,font,atlas,selected.full_mem?"FULL / INTERPRETED":"LIGHT / INTERPRETED",1808,385,22,color(0xf1f8ff),Align::right);
+    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"AUTO SEQUENTIAL":
+       selected.full_mem?"FULL / INTERPRETED":"LIGHT / INTERPRETED",
+       1808,385,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"CPU workers",1305,433,21,color(0x90a7c9));
-    tx(d,font,atlas,std::to_string(selected.threads)+" / "+(selected.request_aes?"HW AES":"SOFT AES"),1808,433,22,color(0xf1f8ff),Align::right);
+    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"1 / 1 / 2 / 4":
+       std::to_string(selected.threads)+" / "+(selected.request_aes?"HW AES":"SOFT AES"),
+       1808,433,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Run duration",1305,478,21,color(0x90a7c9));
     tx(d,font,atlas,std::to_string(durations[duration_index])+" seconds",1808,478,26,color(0x4af0bf),Align::right);
     tx(d,font,atlas,selected.full_mem?"Dataset RAM":"Cache RAM",1305,531,21,color(0x90a7c9));
-    tx(d,font,atlas,selected.full_mem?"about 2.08 GiB":"about 256 MiB",1808,531,22,color(0xf1f8ff),Align::right);
+    tx(d,font,atlas,(suite.active&&suite.with_full)||(!suite.active&&mode_index==1)?
+       "UP TO 2.08 GiB":"about 256 MiB",1808,531,22,color(0xf1f8ff),Align::right);
     panel(d,60,615,1795,345);
-    tx(d,font,atlas,"RESULTS & LOGGING",96,674,28,color(0x8fc8fb));
-    tx(d,font,atlas,"Hashes computed",97,744,22,color(0x94acd0));
-    tx(d,font,atlas,total,686,744,26, color(0xf1f8ff),Align::right);
-    tx(d,font,atlas,"Last digest",96,807,22,color(0x94acd0));
-    tx(d,font,atlas,b.last_hash[0]?std::string(b.last_hash):"Not available until the run ends",680,853,20,color(0xcbe1ff));
-    const std::string message=(state==Failed?std::string(b.error):std::string(b.report_status));
-    tx(d,font,atlas,message,100,926,19,color(state==Failed?0xff6f7e:0x80dbb7));
+    tx(d,font,atlas,suite.active||suite.done?"AUTO TEST RESULTS":"RESULTS & LOGGING",
+       96,674,28,color(0x8fc8fb));
+    if(suite.active||suite.done){
+      for(int i=0;i<suite.recorded;i++){
+        const rxbench::AutoResult& r=suite.results[i];
+        char hps_label[56];
+        std::snprintf(hps_label,sizeof(hps_label),"%.2f H/s",r.hps);
+        const float y=722.f+42.f*float(i);
+        tx(d,font,atlas,kProfiles[r.profile].label,100,y,20,color(0xb6d5f6));
+        tx(d,font,atlas,hps_label,980,y,24,
+           color(r.outcome==Completed?0x68edc1:0xffc370),Align::right);
+      }
+      if(suite.active)
+        tx(d,font,atlas,"Current: "+std::to_string(suite.step+1)+"/"+
+           std::to_string(suite.total)+"  |  "+std::to_string(hashes)+" hashes",103,926,
+           20,color(0x8fd7fd));
+      else tx(d,font,atlas,"AUTO TEST COMPLETE. Results saved to benchmark.log",103,926,
+                   20,color(0x68edc1));
+    }else{
+      tx(d,font,atlas,"Hashes computed",97,744,22,color(0x94acd0));
+      tx(d,font,atlas,total,686,744,26,color(0xf1f8ff),Align::right);
+      tx(d,font,atlas,"Last digest",96,807,22,color(0x94acd0));
+      tx(d,font,atlas,b.last_hash[0]?std::string(b.last_hash):
+         "Not available until the run ends",680,853,20,color(0xcbe1ff));
+      const std::string message=(state==Failed?std::string(b.error):std::string(b.report_status));
+      tx(d,font,atlas,message,100,926,19,color(state==Failed?0xff6f7e:0x80dbb7));
+    }
     tx(d,font,atlas,"BENCHMARK ONLY. NO COIN, NETWORK OR REWARD.",1278,744,21,color(0xffd283));
-    tx(d,font,atlas,selected.full_mem?"FULL MEMORY MAY EXCEED CONSOLE APP RAM. NO JIT.":"NEXT: Compare single-thread AES then optional FULL MEM.",
+    tx(d,font,atlas,(mode_index==1||selected.full_mem)?
+       "FULL MEMORY IS OPT-IN: >2 GiB RAM REQUIRED.":
+       "AUTO LIGHT RUNS FOUR PROFILES. NO MANUAL SWITCHING.",
        1278,799,18,color(0xb6cde8));
     tx(d,font,atlas,export_hint?"Report is automatically written after each run.":"/data/ps5-randomx/benchmark.log",1278,878,18,color(0x96b4d6));
     d.rounded_rect({0,1007,1920,73},0,color(0x07162b));
-    tx(d,font,atlas,"X START   UP/DOWN or L1/R1 PROFILE   LEFT/RIGHT TIME   O STOP/EXIT   TRIANGLE RESET   SQUARE LOG",57,1054,20);
+    tx(d,font,atlas,"X AUTO START   UP/DOWN CHOOSE AUTO OR SINGLE   LEFT/RIGHT TIME   O STOP/EXIT   TRIANGLE RESET",57,1054,20);
     renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
     hui::sys::hide_splash_screen();hui::sys::sleep_us(16000);
   }
