@@ -1,0 +1,94 @@
+name: Build ScummVM PS5 (dedicated native core)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/scummvm-ps5/**'
+      - '.github/workflows/build-scummvm-ps5.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/scummvm-ps5/**'
+      - '.github/workflows/build-scummvm-ps5.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scummvm-ps5-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-scummvm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 crossbuild prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             git ca-certificates curl wget tar unzip zip rsync make ninja-build             build-essential clang-18 lld-18 llvm-18 llvm-18-dev llvm-18-tools             libclang-18-dev libllvmspirvlib-18-dev llvm-spirv-18             cmake pkg-config meson glslang-tools             python3 python3-dev python3-pil python3-mako python3-numpy             python3-markupsafe python3-jsonschema python3-yaml             libssl-dev libzstd-dev zstd bison flex libclc-18             libgl1-mesa-dev libx11-dev libzip-dev
+          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
+      - name: Run strict port source checks
+        run: |
+          python3 homebrew/scummvm-ps5/tests/test_source.py
+          python3 -m py_compile homebrew/scummvm-ps5/scripts/prepare.py homebrew/scummvm-ps5/scripts/package.py
+          python3 -m json.tool homebrew/scummvm-ps5/app.json >/dev/null
+      - name: Check out pinned PS5 frontend, RADV, and Mesa forks
+        run: |
+          set -euo pipefail
+          mkdir -p .work
+          git clone --filter=blob:none https://github.com/mihawk-99/PS5_RetroArch.git .work/PS5_RetroArch
+          git -C .work/PS5_RetroArch checkout --detach 7268510b12fe7461342e0cc4497c87a0910c1055
+          git clone --filter=blob:none https://github.com/mihawk-99/PS5_Vulkan.git .work/PS5_Vulkan
+          git clone --filter=blob:none https://github.com/mihawk-99/PS5_Mesa.git .work/PS5_Mesa
+          git -C .work/PS5_Mesa checkout --detach 1ba9874f478657ccf6da72ce55f0260164cc0bd0
+          python3 homebrew/scummvm-ps5/scripts/prepare.py --source .work/PS5_RetroArch
+          grep -Fx 'core_names=(scummvm)' .work/PS5_RetroArch/tools/build-title.sh
+      - name: Prepare PS5 SDK and RADV toolchain
+        timeout-minutes: 255
+        run: |
+          set -euo pipefail
+          cd .work/PS5_RetroArch
+          bash tools/setup-native-dependencies.sh
+          cd ../PS5_Vulkan
+          bash tools/setup-native-dependencies.sh
+          PS5_MESA_FORK="$GITHUB_WORKSPACE/.work/PS5_Mesa" bash tools/build-radv.sh release
+      - name: Compile ScummVM-only signed PS5 app
+        timeout-minutes: 90
+        env:
+          PS5_VULKAN_DIR: ${{ github.workspace }}/.work/PS5_Vulkan
+          PS5_FRONTENDS: ''
+          JOBS: '4'
+        run: |
+          set -euo pipefail
+          cd .work/PS5_RetroArch
+          bash tools/build-title.sh
+          test -s dist/PPSA99053/cores/scummvm_libretro.so
+          test "$(find dist/PPSA99053/cores -maxdepth 1 -name '*_libretro.so' | wc -l)" -eq 1
+      - name: Validate signed SELF, source attribution, icon and ZIP
+        run: |
+          set -euo pipefail
+          python3 homebrew/scummvm-ps5/scripts/package.py .work/PS5_RetroArch/dist
+          python3 - <<'PY'
+          from PIL import Image, ImageChops
+          from pathlib import Path
+          source=Path("homebrew/scummvm-ps5/assets/icon-source.webp")
+          built=Path(".work/PS5_RetroArch/dist/PPSA99053/sce_sys/icon0.png")
+          assert built.exists()
+          expected=Image.open(source).convert("RGB").resize((512,512),Image.Resampling.LANCZOS)
+          actual=Image.open(built).convert("RGB")
+          assert actual.size==(512,512) and ImageChops.difference(actual,expected).getbbox() is None
+          print("PASS: original launcher icon integrated in PS5 title")
+          PY
+          (cd .work/PS5_RetroArch/dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ScummVM-PS5-v0.1.0-PPSA99053-UNVERIFIED
+          path: |
+            .work/PS5_RetroArch/dist/PPSA99053.zip
+            .work/PS5_RetroArch/dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+# Deliberately no automatic release or catalog mutation:
+# hardware smoke test and validated compilation are needed first.
