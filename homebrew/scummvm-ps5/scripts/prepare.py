@@ -41,7 +41,7 @@ def patch(source: pathlib.Path):
     generator = source / "tools/generate-core-metadata.py"
     metadata_source = generator.read_text()
     begin = metadata_source.index("CORES = [")
-    end = metadata_source.index("\\nif os.environ.get('PS5_WITH_SWANSTATION')", begin)
+    end = metadata_source.index("\nif os.environ.get('PS5_WITH_SWANSTATION')", begin)
     old_block = metadata_source[begin:end]
     scummvm_line = next(
         (line for line in old_block.splitlines()
@@ -51,7 +51,7 @@ def patch(source: pathlib.Path):
     if scummvm_line is None:
         raise RuntimeError("Pinned upstream ScummVM metadata definition missing")
     metadata_source = (
-        metadata_source[:begin] + "CORES = [\\n" + scummvm_line + "\\n]"
+        metadata_source[:begin] + "CORES = [\n" + scummvm_line + "\n]"
         + metadata_source[end:]
     )
     # Workflows do not turn on the donor's optional additional core flags.
