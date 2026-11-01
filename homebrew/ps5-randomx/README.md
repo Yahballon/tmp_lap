@@ -12,7 +12,17 @@ This app measures actual RandomX proof-of-work hashing on homebrew PS5s. It does
 
 Four hardware-AES workers achieve ~3.95x total throughput, but this **does not establish the speedup from AES alone**; compare 1T with and without hardware AES.
 
-## v0.4.4: Nonexecuting JIT source page diagnostics
+## v0.4.4: Execute-only text fix and nonexecuting diagnostics
+
+The PS5 native executable's `.text` segment is **execute-only**, not readable. v0.4.3 reproducibly crashed reading the first byte of RandomX's static JIT template at `0x420640`; its mapped destination at `0x200110000` was writable.
+
+The build now copies the same RandomX assembly template definitions into **non-executable read-only `.rodata.rxjit`** under private `rxblob_` names, and points the JIT compiler to those readable templates instead of reading the executable text segment. The original executable assembler is still present. The native CI checks that the separate source section is non-executable and contains the prologue symbol. **This fix has not yet been validated on real PS5 hardware**.
+
+New manual profile **JIT SAFE DIAGNOSTICS** (profile index 9, at the end of the selector) sequentially tests 77,824-byte writable memory then requests read-only permissions on the relocated static template page. It never reads or executes template instructions or creates a JIT VM. Send the fresh `jit_trace.log` containing `source_mprotect_read_rc` and `source_mprotect_read_errno`.
+
+If this succeeds, the separate **JIT VM INIT ONLY** profile is the next experiment. It can still crash if the runtime restricts JIT allocation or code execution. **Do not test SECURE JIT hashing yet**. Default AUTO 4 remains interpreter-only.
+
+## Earlier diagnostics
 
 Three v0.4.3 PS5 traces have the same culprit: the 77,824-byte JIT destination mapping **can be written**, while reading byte 0 at the static assembler prologue source address `0x420640` crashes. This can mean the static section is absent, non-readable or incorrectly relocated; an RX mapping request alone cannot distinguish every case.
 
