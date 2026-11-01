@@ -34,7 +34,7 @@ def patch(source: pathlib.Path):
     if updated.count(anchor) != 1:
         raise RuntimeError("Pinned upstream Vulkan branch check changed")
     updated = updated.replace(anchor,
-        'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi\\n' + anchor, 1)
+        'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi\n' + anchor, 1)
     build.write_text(updated)
     param = source / "sce_sys/param.json"
     metadata = json.loads(param.read_text())
