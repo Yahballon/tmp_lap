@@ -53,12 +53,17 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror homebrew/ps5-randomx/tests/test_auto_suite.cpp -Ihomebrew/ps5-randomx/native -o /tmp/rx-auto-test
           /tmp/rx-auto-test
+      - name: Test W^X mapping preflight (host only)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror homebrew/ps5-randomx/tests/test_jit_probe.cpp -Ihomebrew/ps5-randomx/native -o /tmp/rx-jit-probe
+          /tmp/rx-jit-probe
       - name: Prepare native PS5 framework and identity
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/ps5-randomx/native/main.cpp app/src/main.cpp
           cp homebrew/ps5-randomx/native/auto_suite.hpp app/src/auto_suite.hpp
+          cp homebrew/ps5-randomx/native/jit_probe.hpp app/src/jit_probe.hpp
           cp /tmp/randomx/src/randomx.h app/src/randomx.h
           python3 homebrew/ps5-randomx/assets/generate_icon.py app/sce_sys/icon0.png
           mkdir -p app/assets/licenses
@@ -143,7 +148,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-RandomX-v0.3.0-PPSA99795
+          name: PS5-RandomX-v0.4.0-PPSA99795
           path: app/dist/PPSA99795.zip
           if-no-files-found: error
       - name: Publish release for TESTBUILD catalog
@@ -151,8 +156,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-randomx-v0.3.0 >/dev/null 2>&1; then
+          if gh release view ps5-randomx-v0.4.0 >/dev/null 2>&1; then
             echo 'Release exists; refusing to replace asset'
             exit 1
           fi
-          gh release create ps5-randomx-v0.3.0 app/dist/PPSA99795.zip --target "$GITHUB_SHA" --title 'PS5 RandomX Benchmark by YAHBALLON v0.3.0' --notes-file homebrew/ps5-randomx/RELEASE_NOTES.md
+          gh release create ps5-randomx-v0.4.0 app/dist/PPSA99795.zip --target "$GITHUB_SHA" --title 'PS5 RandomX Benchmark by YAHBALLON v0.4.0' --notes-file homebrew/ps5-randomx/RELEASE_NOTES.md

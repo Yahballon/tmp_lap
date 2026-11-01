@@ -1,31 +1,17 @@
-# PS5 RandomX Benchmark by YAHBALLON v0.3.0
+# PS5 RandomX Benchmark by YAHBALLON v0.4.0
 
-## PS5 hardware results already confirmed
-- v0.1.0: **1.9862 H/s** (1 thread, software AES, light interpreter).
-- v0.2.0: **7.8487 H/s** (4 threads, hardware AES, light interpreter, 236 hashes/30.069 sec).
-- About **3.95x total throughput**, primarily attributable to 4 independent CPU workers. **The independent hardware-AES speedup is unmeasured**; compare the 1-thread software and hardware profiles.
+## First experimental JIT compatibility tests
+The v0.3.0 PS5 AUTO run measured **2.04 / 2.04 / 4.07 / 8.09 H/s** (1T software, 1T hardware, 2T hardware, 4T hardware; light interpreter). The 4-thread result is not a JIT score.
 
-## New default: One-click AUTO TEST
-- **AUTO 4 LIGHT MODES** is preselected on launch; press **X** once to run 1T software AES, 1T hardware AES, 2T hardware AES and 4T hardware AES automatically.
-- Each profile runs for the chosen 10/30/60 seconds. The app shows each completed score and an automatic combined summary at the end.
-- **AUTO ALL 5 (FULL RAM)** is separately selectable and adds experimental >2 GiB Full Memory mode. It is intentionally **not** included in the default auto test.
-- O/Options cancels the **whole sequence**, not just the current profile. Any failed profile ends the sequence.
-- Every individual run and the final `PS5 RANDOMX AUTO TEST` summary append to `/data/ps5-randomx/benchmark.log`.
-- The automatic sequence is validated by a new host-side test in CI.
+This release adds **two OPTIONAL manual profiles** after the five existing profiles:
 
-## Experimental addition: full RandomX memory
-- Fifth profile, **1 THREAD / FULL MEMORY**, manually selectable with Up/Down or L1/R1.
-- RandomX allocates **about 2.08 GiB** for its dataset, plus a **256 MiB** cache during initialization. It may be unavailable on consoles with restrictive homebrew memory budgets.
-- Single threaded, hardware AES when supported, **JIT disabled**.
-- Dataset created through cancellable chunks from the same RandomX key; all items are initialized before benchmarking.
-- Shows preparation progress; measures H/s only after initialization. The report also includes dataset byte count and initialization duration.
-- Memory allocation failure results in an error instead of falling back silently. Other existing profiles remain unchanged.
-- `Circle` or `Options` cancels a running preparation or hash benchmark. Initialization of the currently active chunk must complete before cancellation takes effect.
-- Existing hardware-AES 1/2/4 worker profiles and the 1-thread software baseline are preserved.
+1. **JIT MEMORY PERMISSIONS** (safe first test). Attempts a 16 KiB RW `mmap`, transitions the same page to RX with `mprotect`, transitions back to RW, then unmaps. **Never executes the mapped page or grants RWX permissions.** Prints `jit_probe_*` diagnostic fields and errno/stage if denied.
+2. **1 THREAD / SECURE JIT** (experimental execution). Runs the same W^X preflight, checks RandomX JIT and hardware-AES flags, then creates an **opt-in RandomX v1.2.1 JIT Light VM with `RANDOMX_FLAG_SECURE`**. Before measuring H/s, compares one generated JIT hash against the reference interpreter hash. Fails the test on mismatch instead of silently using the interpreter.
 
-## Important caveats
-- The full-memory profile is **opt-in**, may use substantial RAM and could be rejected or terminated by the console. Do not run it alongside memory-heavy applications.
-- Full-memory **without JIT** is not equivalent to a production RandomX miner, so it may not be significantly faster than light mode.
-- No mining payouts, wallet, P2P connectivity or coin issuance.
+**Important:** This is a PS5 homebrew experiment. The W^X mapping test is necessary but *not proof* that JIT code execution works. PS5 sandbox/HEN security could deny permissions or crash the native process. No circumvention of kernel permissions is included. Only attempt JIT execution after the W^X probe reports success.
 
-Release: `ps5-randomx-v0.3.0`. Title ID: `PPSA99795`. Log: `/data/ps5-randomx/benchmark.log`.
+The default **AUTO 4 LIGHT** and optional **AUTO ALL 5** sequences remain **JIT-free** and unchanged. JIT tests require deliberate menu navigation.
+
+Logging: `/data/ps5-randomx/benchmark.log`; the first stage records mapping/protection results without executing JIT code.
+
+No network, payout, blockchain or mining is performed.
