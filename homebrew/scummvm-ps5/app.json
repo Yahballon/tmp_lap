@@ -1,0 +1,14 @@
+{
+  "name": "ScummVM PS5",
+  "slug": "scummvm-ps5",
+  "version": "0.1.0",
+  "titleId": "PPSA99053",
+  "contentId": "UP9000-PPSA99053_00-SCUMMVMPS5000001",
+  "contentVersion": "01.000.001",
+  "releaseTag": "scummvm-ps5-v0.1.0",
+  "developer": "YAHBALLON",
+  "engine": "mihawk-99/PS5_ScummVM",
+  "coreCommit": "967fd9757170b14c28590837186b31cc7d5cc46c",
+  "frontend": "Dedicated PS5 RetroArch with ScummVM core (not native standalone ScummVM UI)",
+  "sourceCommit": "7268510b12fe7461342e0cc4497c87a0910c1055"
+}
