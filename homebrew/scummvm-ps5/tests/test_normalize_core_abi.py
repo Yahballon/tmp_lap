@@ -14,7 +14,7 @@ spec.loader.exec_module(core)
 
 def fake_elf(osabi=0, align=0x4000, machine=62):
     elf = bytearray(128)
-    elf[:8] = b"\\x7fELF\\x02\\x01\\x01" + bytes((osabi,))
+    elf[:8] = b"\x7fELF\x02\x01\x01" + bytes((osabi,))
     struct.pack_into("<HH", elf, 16, 3, machine)
     struct.pack_into("<Q", elf, 32, 64)
     struct.pack_into("<HH", elf, 54, 56, 1)
@@ -23,7 +23,7 @@ def fake_elf(osabi=0, align=0x4000, machine=62):
 
 with tempfile.TemporaryDirectory() as tmp:
     target = pathlib.Path(tmp) / "test_libretro.so"
-    with patch.object(core.subprocess, "check_output", return_value=" (NEEDED) Shared library: [libkernel_web.sprx]\\n"):
+    with patch.object(core.subprocess, "check_output", return_value=" (NEEDED) Shared library: [libkernel_web.sprx]\n"):
         target.write_bytes(fake_elf())
         assert core.normalize(target) == "normalized"
         assert target.read_bytes()[7] == 9
@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory() as tmp:
         except RuntimeError:
             assert target.read_bytes() == bad
     target.write_bytes(fake_elf())
-    with patch.object(core.subprocess, "check_output", return_value=" (NEEDED) Shared library: [libc.so.6]\\n"):
+    with patch.object(core.subprocess, "check_output", return_value=" (NEEDED) Shared library: [libc.so.6]\n"):
         try:
             core.normalize(target)
             raise AssertionError("host dependencies accepted")
