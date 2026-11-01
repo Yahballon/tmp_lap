@@ -42,24 +42,44 @@ jobs:
           git -C .work/PS5_RetroArch checkout --detach 7268510b12fe7461342e0cc4497c87a0910c1055
           git clone --filter=blob:none https://github.com/mihawk-99/PS5_Vulkan.git .work/PS5_Vulkan
           git clone --filter=blob:none https://github.com/mihawk-99/PS5_Mesa.git .work/PS5_Mesa
+          git clone --filter=blob:none https://github.com/mihawk-99/PS5_PayloadSDK.git .work/PS5_PayloadSDK
+          git -C .work/PS5_PayloadSDK cat-file -e b5efad528e0ac1b8289f39d72a0e890ff68ff0a6^{commit}
+          git -C .work/PS5_PayloadSDK cat-file -e b83202be73e930050e00de0f1b4d9ec46c0391bf^{commit}
           git -C .work/PS5_Mesa checkout --detach 1ba9874f478657ccf6da72ce55f0260164cc0bd0
           python3 homebrew/scummvm-ps5/scripts/prepare.py --source .work/PS5_RetroArch
           grep -Fx 'core_names=(scummvm)' .work/PS5_RetroArch/tools/build-title.sh
-      - name: Prepare PS5 SDK and RADV toolchain
+      - name: Prepare PS5 SDK, link tools and pinned RADV
         timeout-minutes: 255
+        env:
+          PS5_PAYLOAD_SDK_FORK: ${{ github.workspace }}/.work/PS5_PayloadSDK
+          PS5_MESA_FORK: ${{ github.workspace }}/.work/PS5_Mesa
+          BUILD_JOBS: '4'
         run: |
           set -euo pipefail
+          # Both donor projects pin different known SDK commits from the same fork.
           cd .work/PS5_RetroArch
           bash tools/setup-native-dependencies.sh
           cd ../PS5_Vulkan
           bash tools/setup-native-dependencies.sh
-          PS5_MESA_FORK="$GITHUB_WORKSPACE/.work/PS5_Mesa" bash tools/build-radv.sh release
+          # The title driver/linker preflight also needs ps5vk archive, libc.prx
+          # and the native packaging tools, even when the final display uses RADV.
+          if ! make USE_CCACHE=0 BUILD_JOBS=4 > "$RUNNER_TEMP/vulkan-prepare.log" 2>&1; then
+            if [[ ! -s runtime/libc.prx || ! -x build/host/ps5-native-tool ]]; then
+              tail -n 130 "$RUNNER_TEMP/vulkan-prepare.log" >&2
+              exit 1
+            fi
+            echo "::notice::Optional Vulkan demo application failed after base tools were prepared"
+          fi
+          tail -n 10 "$RUNNER_TEMP/vulkan-prepare.log"
+          bash tools/build-radv.sh release
+          test -s .deps/native/radv-release/lib/libvulkan_radeon.ps5.a
       - name: Compile ScummVM-only signed PS5 app
         timeout-minutes: 90
         env:
           PS5_VULKAN_DIR: ${{ github.workspace }}/.work/PS5_Vulkan
           PS5_FRONTENDS: ''
           JOBS: '4'
+          PS5_PAYLOAD_SDK_FORK: ${{ github.workspace }}/.work/PS5_PayloadSDK
         run: |
           set -euo pipefail
           cd .work/PS5_RetroArch
