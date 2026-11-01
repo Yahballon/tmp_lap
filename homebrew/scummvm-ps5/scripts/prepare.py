@@ -36,6 +36,16 @@ def patch(source: pathlib.Path):
     updated = updated.replace(anchor,
         'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi\n' + anchor, 1)
     build.write_text(updated)
+    # RetroArch 1.22.2 keeps retroarch.h at repository root; the
+    # donor's fetch helper checked a nonexistent libretro-common path.
+    # Keep all other upstream pin and file checks intact.
+    fetcher = source / "tools/fetch-retroarch.sh"
+    fetch_content = fetcher.read_text()
+    wrong_header = "libretro-common/include/retroarch.h"
+    right_header = "libretro-common/include/libretro.h"
+    if fetch_content.count(wrong_header) != 1:
+        raise RuntimeError("Pinned upstream RetroArch fetch-file check changed")
+    fetcher.write_text(fetch_content.replace(wrong_header, right_header))
     # Dedicated build only stages ScummVM, so the WebUI core-option
     # generator must not request 31 missing other cores' source trees.
     generator = source / "tools/generate-core-metadata.py"
