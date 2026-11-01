@@ -1,0 +1,131 @@
+name: Build PS5 RandomX Benchmark
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/ps5-randomx/**'
+      - '.github/workflows/build-ps5-randomx.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'homebrew/ps5-randomx/**'
+      - '.github/workflows/build-ps5-randomx.yml'
+permissions:
+  contents: write
+jobs:
+  ps5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PS5 compiler and asset tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 lld-18 llvm-18 ninja-build make git cmake g++ curl unzip tar python3 python3-pil pkg-config ca-certificates
+      - name: Validate metadata, title ID and upstream pin
+        run: |
+          python3 -m json.tool homebrew/ps5-randomx/app.json >/dev/null
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          data=json.loads(Path('homebrew/ps5-randomx/app.json').read_text())
+          assert data['titleId']=='PPSA99795'
+          assert data['contentId']=='UP9000-PPSA99795_00-PS5RANDOMXBENCH01'
+          others=list(Path('homebrew').glob('*/app.json'))
+          for p in others:
+              if p==Path('homebrew/ps5-randomx/app.json'):continue
+              j=json.loads(p.read_text())
+              assert j.get('titleId')!='PPSA99795', p
+          print("Independent Title ID checked across app.json files")
+          PY
+      - name: Checkout pinned upstream RandomX (BSD-3-Clause)
+        run: |
+          git clone --depth=1 --branch v1.2.1 https://github.com/tevador/RandomX.git /tmp/randomx
+          test "$(git -C /tmp/randomx rev-parse HEAD)" = "102f8acf90a7649ada410de5499a7ec62e49e1da"
+          test -f /tmp/randomx/LICENSE
+      - name: Host-side RandomX known API smoke
+        run: |
+          cmake -S /tmp/randomx -B /tmp/randomx-host -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/randomx-host --target randomx -j4
+          g++ -std=c++17 -O2 homebrew/ps5-randomx/tests/rx_smoke.cpp -I/tmp/randomx/src /tmp/randomx-host/librandomx.a -lpthread -o /tmp/rx-smoke
+          /tmp/rx-smoke
+      - name: Prepare native PS5 framework and identity
+        run: |
+          git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
+          cp -a /tmp/devbridge/templates/simple-calc ./app
+          cp homebrew/ps5-randomx/native/main.cpp app/src/main.cpp
+          cp /tmp/randomx/src/randomx.h app/src/randomx.h
+          python3 homebrew/ps5-randomx/assets/generate_icon.py app/sce_sys/icon0.png
+          mkdir -p app/assets/licenses
+          cp /tmp/randomx/LICENSE app/assets/licenses/RandomX-BSD-3-Clause.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          info=json.loads(Path('homebrew/ps5-randomx/app.json').read_text())
+          p=Path('app/sce_sys/param.json')
+          j=json.loads(p.read_text())
+          j.update(titleId=info['titleId'],conceptId=info['titleId'][4:],
+                   contentId=info['contentId'],contentVersion=info['contentVersion'])
+          j['localizedParameters']['en-US']['titleName']='PS5 RandomX Benchmark'
+          p.write_text(json.dumps(j,indent=2)+'\n')
+          PY
+      - name: Prepare PS5 OpenGL SDK
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+        run: bash tools/prepare-opengl.sh
+      - name: Cross-compile real RandomX static library
+        run: |
+          python3 homebrew/ps5-randomx/scripts/compile_randomx.py app /tmp/randomx
+      - name: Prepare POSIX compatibility archive
+        run: |
+          mkdir -p app/build/jb-json
+          cp app/.deps/native/ps5-payload-sdk/target/lib/libc.a app/build/jb-json/libjb-posix.a
+          llvm-objcopy-18 --redefine-sym=openlog=jb_sdk_openlog --redefine-sym=closelog=jb_sdk_closelog --redefine-sym=mkstemp=jb_sdk_mkstemp --redefine-sym=mkstemps=jb_sdk_mkstemps --redefine-sym=getpwuid_r=jb_sdk_getpwuid_r app/build/jb-json/libjb-posix.a
+      - name: Cross-compile native executable and package
+        working-directory: app
+        env:
+          USE_CCACHE: '0'
+          BUILD_JOBS: '4'
+          PS5_CLANG: clang-18
+          APP_STATIC_ARCHIVES: build/randomx/librandomx.a
+        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+      - name: Verify installable output
+        run: |
+          python3 - <<'PY'
+          import json,struct,zipfile
+          from pathlib import Path
+          from PIL import Image
+          root=Path('app/dist/PPSA99795')
+          binary=(root/'eboot.bin').read_bytes()
+          assert len(binary)>1000 and binary[:4]==struct.pack('<I',0x1d3d154f)
+          assert b'PS5 RANDOMX BENCHMARK' in binary
+          j=json.loads((root/'sce_sys/param.json').read_text())
+          assert j['titleId']=='PPSA99795'
+          assert j['contentId']=='UP9000-PPSA99795_00-PS5RANDOMXBENCH01'
+          assert Image.open(root/'sce_sys/icon0.png').size==(512,512)
+          expected=['eboot.bin','sce_sys/param.json','sce_sys/icon0.png','sce_module/libc.prx',
+                    'assets/fonts/inter-semibold.huifont','assets/licenses/RandomX-BSD-3-Clause.txt']
+          for f in expected:assert (root/f).is_file(),f
+          with zipfile.ZipFile('app/dist/PPSA99795.zip') as z:
+              assert z.testzip() is None
+              for f in expected:assert 'PPSA99795/'+f in z.namelist(),f
+          print('Native PS5 RandomX package verified')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PS5-RandomX-v0.1.0-PPSA99795
+          path: app/dist/PPSA99795.zip
+          if-no-files-found: error
+      - name: Publish release for TESTBUILD catalog
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view ps5-randomx-v0.1.0 >/dev/null 2>&1; then
+            echo 'Release exists; refusing to replace asset'
+            exit 1
+          fi
+          gh release create ps5-randomx-v0.1.0 app/dist/PPSA99795.zip --target "$GITHUB_SHA" --title 'PS5 RandomX Benchmark by YAHBALLON v0.1.0' --notes-file homebrew/ps5-randomx/RELEASE_NOTES.md
