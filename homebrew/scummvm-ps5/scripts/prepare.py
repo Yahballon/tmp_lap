@@ -26,6 +26,15 @@ def patch(source: pathlib.Path):
     updated = updated.replace("if [[ ${PS5_WITH_SWANSTATION:-0} == 1 ]]; then", "if false; then")
     updated = updated.replace("if [[ ${PS5_WITH_MELONDSDS:-0} == 1 ]]; then", "if false; then")
     updated = updated.replace("if [[ ${PS5_WITH_RPCS3:-0} == 1 ]]; then", "if false; then")
+    # The upstream title checks ps5vk-only archives before it branches to RADV.
+    # A clean, RADV-only CI title never builds the unused demo ps5vk driver;
+    # reset the unused archive list before the common missing-file check.
+    # RADV is still linked and checked using its own validated archive below.
+    anchor = "vulkan_missing=()"
+    if updated.count(anchor) != 1:
+        raise RuntimeError("Pinned upstream Vulkan branch check changed")
+    updated = updated.replace(anchor,
+        'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi\\n' + anchor, 1)
     build.write_text(updated)
     param = source / "sce_sys/param.json"
     metadata = json.loads(param.read_text())

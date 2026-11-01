@@ -46,6 +46,14 @@
 - Updated the existing catalog generator's explicit prerelease allowlist, catalog workflow_run subscription and host tests. `version.json` itself remains generated; no fake entry is inserted.
 - Publication not verified: wait for successful PR native compile and merge. Only then can the publisher run and catalog discover a real artifact.
 
+## Second native CI failure and RADV-only fix — 2026-11-01
+
+- Run [41290073628](https://github.com/Yahballon/tmp_lap/actions/runs/41290073628), job 124799350506: both pinned payload SDKs and zlib compiled successfully after earlier fix.
+- The donor's optional PS5_Vulkan demo `make` failed with `undefined symbol: ps5_fp_ieee`, but the required native linker and libc.prx existed; that demo failure is not evidence that RADV or ScummVM failed.
+- The real blocking error occurred in RADV setup: `Meson version is 1.3.2 but project requires >= 1.4.0`. The CI workflow now creates a venv with pinned Meson 1.9.2 before RADV compilation.
+- Patched the temporary donor build-title.sh to skip checking legacy ps5vk-only archives when the chosen driver is RADV; the actual RADV archive is still independently linked and verified. Prevents a predictable unnecessary demo dependency from blocking ScummVM.
+- These fixes are **committed but NOT CI-verified** at this checkpoint; observe the next run's logs and do not claim a PS5 binary yet.
+
 ## Risks and unverified behavior
 
 - Upstream build is large (RADV/toolchain/WebUI) and may exceed GitHub runner resources. Check first failure, do not downgrade or mask it.
