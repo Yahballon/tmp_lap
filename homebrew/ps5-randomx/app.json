@@ -1,0 +1,15 @@
+{
+  "name": "PS5 RandomX Benchmark",
+  "slug": "ps5-randomx",
+  "author": "YAHBALLON",
+  "version": "0.1.0",
+  "titleId": "PPSA99795",
+  "contentId": "UP9000-PPSA99795_00-PS5RANDOMXBENCH1",
+  "contentVersion": "01.000.001",
+  "algorithm": "RandomX",
+  "mode": "light-interpreter",
+  "upstream": "tevador/RandomX v1.2.1",
+  "releaseTag": "ps5-randomx-v0.1.0",
+  "category": "tool",
+  "miningEnabled": false
+}

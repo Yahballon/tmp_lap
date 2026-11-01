@@ -24,6 +24,7 @@ on:
     # workflows, so workflow_run completion is the reliable instant trigger.
     workflows:
       - Build PS5 Crypto Tracker
+      - Build PS5 RandomX Benchmark
       - Validate Godot PS5 Engine Foundation
       - Godot PS5 Native Engine Link Retry
       - Publish Godot PS5 GPU TESTBUILD
