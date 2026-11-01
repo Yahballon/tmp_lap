@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.4
+// PS5 RANDOMX BENCHMARK by YAHBALLON v0.5.0
 // Real RandomX v1.2.1, optional full-memory mode, interpreter; NOT a miner.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -31,7 +31,7 @@ static std::atomic<int> g_rx_jit_trace_profile{-1};
 static std::atomic<uint64_t> g_rx_jit_trace_session{0};
 extern "C" void rx_ps5_jit_pointer(const char* stage, unsigned long long address) {
   const int p=g_rx_jit_trace_profile.load();
-  if(p!=6 && p!=7)return;
+  if(p!=6 && p!=7 && p!=10 && p!=11)return;
   rxbench::jit_trace_pointer(stage,p,g_rx_jit_trace_session.load(),address);
 }
 // Probe the address through the OS, never by dereferencing it.
@@ -66,7 +66,7 @@ extern "C" int rx_ps5_jit_readable_source(const char* stage,
 }
 extern "C" void rx_ps5_jit_stage(const char* stage, unsigned long long value) {
   const int p=g_rx_jit_trace_profile.load();
-  if(p!=6 && p!=7)return;
+  if(p!=6 && p!=7 && p!=10 && p!=11)return;
   const int clipped=value>0x7fffffffULL ? 0x7fffffff : int(value);
   rxbench::jit_trace(stage,p,g_rx_jit_trace_session.load(),clipped);
 }
@@ -97,7 +97,9 @@ constexpr Profile kProfiles[]={
   {"JIT VM INIT ONLY",0,true,false,false,false,true}, // No JIT hashes
   {"1 THREAD / SECURE JIT",1,true,false,true,false}, // Opt-in; may crash
   {"JIT 78 KiB BUFFER PROBE",0,false,false,false,false,false,true},
-  {"JIT SAFE DIAGNOSTICS",0,false,false,false,false,false,false,true}
+  {"JIT SAFE DIAGNOSTICS",0,false,false,false,false,false,false,true},
+  {"2 THREADS / SECURE JIT",2,true,false,true,false},
+  {"4 THREADS / SECURE JIT",4,true,false,true,false}
 };
 constexpr int kProfileCount=sizeof(kProfiles)/sizeof(kProfiles[0]);
 struct Bench;
@@ -148,7 +150,7 @@ void report(Bench* b,int outcome) {
   const double elapsed=double(b->elapsed_us.load())/1000000.0;
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
-  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.4\n");
+  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.5.0\n");
   std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=%s threads=%d profile=%d\n",
                b->probe_only?"jit-wx-probe":b->buffer_probe_only?"jit-buffer-write-probe":b->source_probe_only?"jit-safe-diagnostics":b->jit_init_only?"jit-vm-init-only":b->jit_requested?"light-secure-jit":
                b->full_mem?"full-memory-interpreter":"light-interpreter",
@@ -216,7 +218,7 @@ void* runWorker(void* context) {
       randomx_destroy_vm(reference);
       jitTrace(b,"after_reference_vm_destroy");
     }
-    b->jit_vector_ok.store(vector_ok);
+    if(!vector_ok)b->jit_vector_ok.store(false); // any mismatch latches failure
     if(!vector_ok)std::snprintf(b->error,sizeof(b->error),
                                 "JIT digest differs from interpreter or VM unavailable");
   }
@@ -399,6 +401,8 @@ void* runBench(void* context) {
       finish(b,Stopped);return nullptr;
     }
   }
+  // Each JIT worker must pass against the interpreter, fail-closed across threads.
+  b->jit_vector_ok.store(b->jit_requested);
   int launched=0;
   bool failed=false;
   for(int i=0;i<b->thread_count;i++) {
@@ -445,7 +449,7 @@ bool start(Bench& b,int seconds,int profile_id){
   b.thread_count=kProfiles[profile_id].threads;
   b.hardware_aes=false;b.jit_requested=false;b.probe_only=false;b.jit_init_only=false;b.buffer_probe_only=false;b.source_probe_only=false;
   b.session=uint64_t(hui::sys::monotonic_us());
-  g_rx_jit_trace_profile.store((profile_id==6||profile_id==7||profile_id==9)?profile_id:-1);
+  g_rx_jit_trace_profile.store((profile_id==6||profile_id==7||profile_id==10||profile_id==11)?profile_id:-1);
   g_rx_jit_trace_session.store(b.session);
   b.jit_probe=rxbench::JitProbe{};b.jit_vector_ok.store(false);
   b.hashes.store(0);b.elapsed_us.store(0);b.start_us.store(0);
@@ -473,8 +477,10 @@ void writeAutoSummary(const rxbench::AutoSuite& suite) {
   mkdir(kDataDir,0777);
   FILE* f=std::fopen(kReport,"a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.4.4\n");
-  std::fprintf(f,"auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.5.0\n");
+  std::fprintf(f,"auto_kind=%s auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
+               suite.kind==rxbench::AutoSuite::SecureJit3?"secure-jit":
+               suite.with_full?"light-full":"light",
                suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
   for(int i=0;i<suite.recorded;i++){
     const rxbench::AutoResult& r=suite.results[i];
@@ -508,11 +514,12 @@ int main(){
   const unsigned atlas=renderer.batch().create_font_texture(font);
   hui::ps5::Pad pad;pad.open();
   Bench b;rxbench::AutoSuite suite;
-  // 0 = AUTO LIGHT (default); 1 = AUTO ALL (opt-in >2 GiB RAM);
-  // 2+ = manual profiles; all JIT modes remain opt-in.
+  // 0 = AUTO LIGHT (default), 1 = AUTO FULL (>2GiB RAM),
+  // 2 = AUTO SECURE JIT 1/2/4, explicitly opt-in.
+  // Remaining modes are individual profiles.
   int duration_index=1,mode_index=0;
   constexpr int durations[]={10,30,60};
-  constexpr int kModeCount=kProfileCount+2;
+  constexpr int kModeCount=kProfileCount+3;
   unsigned prior=0;bool exit_requested=false;bool export_hint=false;
   for(;;){
     reap(b);
@@ -524,7 +531,7 @@ int main(){
       const bool next=suite.record(finished_state,finished_state==Completed,
                                   b.hashes.load(),b.elapsed_us.load());
       if(next){
-        if(!start(b,suite.duration,suite.step)) {
+        if(!start(b,suite.duration,suite.current_profile())) {
           suite.cancel();
           suite.active=false;suite.done=true;
           writeAutoSummary(suite);
@@ -555,15 +562,16 @@ int main(){
       if(key(hui::pad_bits::kDown)||key(hui::pad_bits::kR1))mode_index=(mode_index+1)%kModeCount;
       if(key(hui::pad_bits::kCross)){
         export_hint=false;
-        if(mode_index<2){
-          suite.begin(mode_index==1,durations[duration_index]);
-          if(!start(b,suite.duration,0)){
+        if(mode_index<3){
+          if(mode_index==2)suite.begin_jit(durations[duration_index]);
+          else suite.begin(mode_index==1,durations[duration_index]);
+          if(!start(b,suite.duration,suite.current_profile())){
             suite.cancel();suite.active=false;suite.done=true;
             writeAutoSummary(suite);
           }
         }else {
           suite.done=false;
-          start(b,durations[duration_index],mode_index-2);
+          start(b,durations[duration_index],mode_index-3);
         }
       }
       if(key(hui::pad_bits::kTriangle)){
@@ -588,11 +596,12 @@ int main(){
     const float progress=preparing_dataset?
       std::clamp(float(double(b.dataset_ready.load())/double(b.dataset_total.load())),0.f,1.f):
       std::clamp(float(seconds/double(b.seconds)),0.f,1.f);
-    const bool chosen_auto=mode_index<2;
+    const bool chosen_auto=mode_index<3;
     const int shown_profile=(busy||suite.active)?b.profile_id:
-                             (chosen_auto?0:mode_index-2);
+                             (chosen_auto?(mode_index==2?7:0):mode_index-3);
     const Profile& selected=kProfiles[shown_profile];
-    const char* auto_title=(mode_index==1?"AUTO ALL 5 (FULL RAM)":"AUTO 4 LIGHT MODES");
+    const char* auto_title=mode_index==2?"AUTO 3 SECURE JIT":
+                           mode_index==1?"AUTO ALL 5 (FULL RAM)":"AUTO 4 LIGHT MODES";
     const std::string shown_mode=suite.active?
       ("AUTO STEP "+std::to_string(suite.step+1)+"/"+std::to_string(suite.total)+": "+selected.label):
       (chosen_auto?std::string(auto_title):std::string(selected.label));
@@ -611,7 +620,7 @@ int main(){
     d.rounded_rect({39,24,52,52},13,color(0x0761cc));
     tx(d,font,atlas,"RX",65,60,27,color(0xffffff),Align::center);
     tx(d,font,atlas,"PS5 RANDOMX BENCHMARK  by YAHBALLON",113,61,33);
-    tx(d,font,atlas,"v0.4.4",1879,60,24,color(0xc9e4ff),Align::right);
+    tx(d,font,atlas,"v0.5.0",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
     tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
@@ -619,7 +628,7 @@ int main(){
        suite.done?(suite.cancelled?"AUTO TEST CANCELLED":suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?"AUTO TEST COMPLETE":"AUTO TEST FAILED"):statusName(state),
        97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
-    tx(d,font,atlas,shown_mode+(selected.jit?" / SECURE JIT":selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
+    tx(d,font,atlas,shown_mode+((selected.jit||mode_index==2)?" / SECURE JIT":selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
     d.rounded_rect({101,500,1100,19},9,color(0x193550));
     d.rounded_rect({101,500,1100*progress,19},9,color(0x27d9be));
     tx(d,font,atlas,preparing_dataset?("Dataset prepared: "+std::to_string(int(progress*100.f))+"%"):std::string(time),
@@ -629,12 +638,12 @@ int main(){
     tx(d,font,atlas,"Algorithm",1305,331,21,color(0x90a7c9));
     tx(d,font,atlas,"RandomX v1.2.1",1808,331,23,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Mode",1305,385,21,color(0x90a7c9));
-    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"AUTO SEQUENTIAL":
+    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?(mode_index==2?"AUTO SECURE JIT":"AUTO SEQUENTIAL"):
        selected.probe_only?"MEMORY W^X PROBE":selected.buffer_probe_only?"78 KiB WRITE PROBE":selected.source_probe_only?"SAFE JIT DIAGNOSTICS":selected.jit_init_only?"JIT VM INIT ONLY":selected.jit?"LIGHT / SECURE JIT":
        selected.full_mem?"FULL / INTERPRETED":"LIGHT / INTERPRETED",
        1808,385,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"CPU workers",1305,433,21,color(0x90a7c9));
-    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"1 / 1 / 2 / 4":
+    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?(mode_index==2?"1 / 2 / 4":"1 / 1 / 2 / 4"):
        selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?"NOT REQUIRED":
        std::to_string(selected.threads)+" / "+(selected.request_aes?"HW AES":"SOFT AES"),
        1808,433,22,color(0xf1f8ff),Align::right);
@@ -676,6 +685,7 @@ int main(){
     tx(d,font,atlas,"BENCHMARK ONLY. NO COIN, NETWORK OR REWARD.",1278,744,21,color(0xffd283));
     tx(d,font,atlas,(mode_index==1||selected.full_mem)?
        "FULL MEMORY IS OPT-IN: >2 GiB RAM REQUIRED.":
+       mode_index==2?"AUTO JIT RUNS 1/2/4 THREADS; MAY RUN HOT.":
        selected.jit?"JIT EXPERIMENTAL: W^X PREFLIGHT REQUIRED; MAY CRASH.":
        selected.probe_only?"W^X PROBE DOES NOT EXECUTE DYNAMIC CODE.":
        selected.buffer_probe_only?"BUFFER PROBE WRITES KNOWN DATA ONLY; NO JIT.":
@@ -684,7 +694,7 @@ int main(){
        "AUTO LIGHT RUNS FOUR PROFILES. NO MANUAL SWITCHING.",
        1278,799,18,color(0xb6cde8));
     tx(d,font,atlas,export_hint?"Every run writes a report. JIT stages write jit_trace.log.":
-       (selected.jit||selected.jit_init_only||selected.probe_only)?
+       (selected.jit||mode_index==2||selected.jit_init_only||selected.probe_only)?
        "/data/ps5-randomx/jit_trace.log":"/data/ps5-randomx/benchmark.log",1278,878,18,color(0x96b4d6));
     d.rounded_rect({0,1007,1920,73},0,color(0x07162b));
     tx(d,font,atlas,"X AUTO START   UP/DOWN CHOOSE AUTO OR SINGLE   LEFT/RIGHT TIME   O STOP/EXIT   TRIANGLE RESET",57,1054,20);

@@ -12,7 +12,7 @@ inline void jit_trace(const char* stage, int profile, std::uint64_t session, int
   mkdir("/data/ps5-randomx",0777);
   FILE* f=std::fopen("/data/ps5-randomx/jit_trace.log","a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX JIT TRACE v0.4.4 session=%llu profile=%d stage=%s value=%d\n",
+  std::fprintf(f,"PS5 RANDOMX JIT TRACE v0.5.0 session=%llu profile=%d stage=%s value=%d\n",
                (unsigned long long)session,profile,stage,value);
   std::fflush(f);
   std::fclose(f);
@@ -22,7 +22,7 @@ inline void jit_trace_pointer(const char* stage, int profile, std::uint64_t sess
   mkdir("/data/ps5-randomx",0777);
   FILE* f=std::fopen("/data/ps5-randomx/jit_trace.log","a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX JIT TRACE v0.4.4 session=%llu profile=%d stage=%s ptr=0x%016llx\n",
+  std::fprintf(f,"PS5 RANDOMX JIT TRACE v0.5.0 session=%llu profile=%d stage=%s ptr=0x%016llx\n",
                (unsigned long long)session,profile,stage,(unsigned long long)address);
   std::fflush(f);
   std::fclose(f);
