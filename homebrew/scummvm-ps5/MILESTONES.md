@@ -69,6 +69,13 @@
 - To avoid guessing at compiler flags, the workflow now runs RetroArch configure and `make info` as a **fail-fast preflight before RADV** and prints the underlying `configure.log` plus `config.log` on error. A failure-only artifact preserves the logs for inspection.
 - **No native PS5 binary, signed ZIP, or TESTBUILD release confirmed.** Next: read the new configure log from Actions, identify the first actual failure, and patch only that cause.
 
+## Root cause confirmed: cross-compile Vulkan detection — 2026-11-01
+
+- Run [41311488818](https://github.com/Yahballon/tmp_lap/actions/runs/41311488818) failed at the early frontend preflight. Real RetroArch configure error: `Forced to build with library -lvulkan, but cannot locate. Exiting ...`; its check is `Checking function vkCreateInstance in -lvulkan ... no`. All other unavailable optional host libraries shown in config.log were not fatal.
+- **Fix committed / native verification pending:** Generate a minimal PS5-architecture `libvulkan.a` in `build/configure-vulkan-probe/` for RetroArch's configure test only. Patched temporary donor `retroarch-sources.sh` so only `./configure` receives its `LDFLAGS=-L.../configure-vulkan-probe`; actual title linking remains against the genuine PS5 RADV static driver. No probe objects are shipped in `PPSA99053.zip`.
+- Run diagnosis artifact: [ScummVM-PS5-CI-DIAGNOSTICS](https://github.com/Yahballon/tmp_lap/actions/runs/41311488818/artifacts/13085655625).
+- Required next gate: confirm configure now passes and PS5 ScummVM core compiles; inspect subsequent native link/package failures as needed.
+
 ## Risks and unverified behavior
 
 - Upstream build is large (RADV/toolchain/WebUI) and may exceed GitHub runner resources. Check first failure, do not downgrade or mask it.

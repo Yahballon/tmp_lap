@@ -46,6 +46,20 @@ def patch(source: pathlib.Path):
     if fetch_content.count(wrong_header) != 1:
         raise RuntimeError("Pinned upstream RetroArch fetch-file check changed")
     fetcher.write_text(fetch_content.replace(wrong_header, right_header))
+    # RetroArch's configure requires linking -lvulkan even in a PS5 crossbuild.
+    # The actual application links RADV statically, so only the *configure*
+    # subprocess gets a link-only probe archive, never the native title link.
+    sources_script = source / "tools/retroarch-sources.sh"
+    sources_text = sources_script.read_text()
+    configure_line = '        ./configure "${configure_flags[@]}" >"$work/configure.log" 2>&1'
+    if sources_text.count(configure_line) != 1:
+        raise RuntimeError("Pinned RetroArch configure call has changed")
+    sources_text = sources_text.replace(
+        configure_line,
+        '        LDFLAGS="-L$root/build/configure-vulkan-probe${LDFLAGS:+ $LDFLAGS}" '
+        + './configure "${configure_flags[@]}" >"$work/configure.log" 2>&1',
+    )
+    sources_script.write_text(sources_text)
     # Dedicated build only stages ScummVM, so the WebUI core-option
     # generator must not request 31 missing other cores' source trees.
     generator = source / "tools/generate-core-metadata.py"
