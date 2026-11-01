@@ -1,47 +1,49 @@
 # PS5 RandomX Benchmark by YAHBALLON
 
-**v0.2.0 | Title ID: PPSA99795 | Native PS5 homebrew | Experimental**
+**v0.3.0 | PS5 Title ID: PPSA99795 | Real RandomX 1.2.1**
 
-A native console performance test using **real RandomX v1.2.1** with the same algorithm implementation used in the v0.1.0 successful test.
+This app measures actual RandomX proof-of-work hashing on homebrew PS5s. It does **not** mine a coin, join a network, or earn currency.
 
-## Confirmed first hardware result (v0.1.0)
-- Single worker, RandomX Light, interpreter, software AES, no JIT, ~256 MiB cache.
-- 30 s: 60 hashes in 30.234 s = **1.9845 H/s**.
-- 60 s: 120 hashes in 60.416 s = **1.9862 H/s**.
-- The two numbers agree to within ~0.1%. They are **not** representative of Full Memory / JIT mining.
+## Console benchmark results (user-provided)
+| Version | Mode | Hashrate |
+| --- | --- | --- |
+| v0.1.0 | 1T software AES, light/interpreter | 1.9862 H/s (60s) |
+| v0.2.0 | 4T hardware AES, light/interpreter | 7.8487 H/s (30s) |
 
-## v0.2.0 test matrix
-- **1 thread / software AES**: regression baseline.
-- **1 thread / hardware AES**: direct AES benefit.
-- **2 threads / hardware AES**: scaling check.
-- **4 threads / hardware AES**: scaling check with modest CPU usage.
+Four hardware-AES workers achieve ~3.95x total throughput, but this **does not establish the speedup from AES alone**; compare 1T with and without hardware AES.
 
-All profiles use the **same shared, read-only RandomX light cache** (~256 MiB), but each worker has its own VM/scratchpad. Hardware AES is enabled **only when RandomX reports CPU support**. Fast memory mode (>2 GiB dataset), JIT, huge pages and network/mining features are still disabled.
+## Profiles (Up/Down or L1/R1)
+1. 1 thread / software AES / light
+2. 1 thread / hardware AES / light
+3. 2 threads / hardware AES / light
+4. 4 threads / hardware AES / light
+5. **1 thread / full memory / hardware AES / no JIT (new, experimental)**
 
-## Controller
-- **X**: Start selected test.
-- **Up / Down or L1 / R1**: Choose the CPU profile.
-- **Left / Right**: Choose a 10-, 30- or 60-second run.
-- **O**: Stop the active run / exit when idle.
-- **Triangle**: Clear displayed results.
-- **Square**: Show the automatic log location.
+The first four profiles share one 256 MiB cache; each worker has its own interpreter VM and scratchpad.
 
-## Benchmark timing and reporting
-- Cache and per-VM initialization happen in background before the worker start barrier. They do **not** count toward the H/s measurement.
-- Each worker stops after reaching the selected monotonic deadline; the final hash may finish after the selected duration.
-- The displayed rate is total successful hashes divided by actual wall-clock seconds from release to final thread join, not the sum of each worker's CPU time.
-- Results appended to `/data/ps5-randomx/benchmark.log` include selected profile, actual AES mode, worker count, hashes for each thread, last digest, duration, stop status, and errors.
-- For comparable tests, run all four profiles at 30 or 60 seconds, then let the PS5 cool between repeated tests.
+The fifth profile allocates the full **~2.08 GiB** dataset and needs the **~256 MiB** cache during setup, plus program overhead. This **may exceed the available memory of a native PS5 homebrew title**. It is never selected automatically. Failed allocation is reported; a platform-level out-of-memory kill may still occur. Data is generated in bounded chunks so preparation progress can be shown and most cancellation requests can be honored.
 
-## Source + release
-- Source: `homebrew/ps5-randomx/native/main.cpp`.
-- Pin: `tevador/RandomX` v1.2.1 / `102f8acf90a7649ada410de5499a7ec62e49e1da`, BSD-3-Clause.
-- Workflow: `.github/workflows/build-ps5-randomx.yml`.
-- Installer: `PPSA99795.zip`; tag `ps5-randomx-v0.2.0`.
-- `version.json` is generated **only** by the repository's catalog GitHub Action.
-- No cryptocurrency network, wallet, payout or mining is launched.
+## Controls
+- **X**: start the current test.
+- **Up/Down** or **L1/R1**: change profile (including opt-in full memory).
+- **Left/Right**: choose 10/30/60 seconds.
+- **O**: cancel benchmark or preparation; exit when idle.
+- **Options**: cancel while running.
+- **Triangle**: clear result display.
+- **Square**: show the automatic report location.
 
-The actual performance and runtime stability of the new profiles must be verified on a real console before considering them proven.
+## Log and interpretation
+Results append to `/data/ps5-randomx/benchmark.log` and include actual mode, AES flag, thread count, requested vs measured time, total/per-thread hashes, dataset bytes, initialization seconds, last hash and status. Initial cache/dataset preparation is excluded from H/s but separately logged for the full memory profile.
+
+Hashing stays in interpreter mode and **JIT remains off**, because executable memory mapping on a jailbroken PS5 needs independent validation before any production mining attempt. Full memory alone should not be taken as a prediction of optimized JIT throughput.
+
+## Release
+- Repo source: `homebrew/ps5-randomx/native/main.cpp`.
+- Native workflow: `.github/workflows/build-ps5-randomx.yml`.
+- RandomX pinned to upstream v1.2.1 (`102f8acf90a7649ada410de5499a7ec62e49e1da`).
+- Release tag: `ps5-randomx-v0.3.0`.
+- Installer: `PPSA99795.zip`.
+- TESTBUILD `version.json` is **automatically generated by GitHub Actions**, never edited manually.
 
 ## Licensing
-Homebrew glue: GPL-3.0-or-later. RandomX: upstream BSD 3-Clause, included in the package.
+Homebrew integration: GPL-3.0-or-later. RandomX upstream BSD-3-Clause included with build output.
