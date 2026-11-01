@@ -12,6 +12,13 @@ This app measures actual RandomX proof-of-work hashing on homebrew PS5s. It does
 
 Four hardware-AES workers achieve ~3.95x total throughput, but this **does not establish the speedup from AES alone**; compare 1T with and without hardware AES.
 
+## Automatic benchmark (default screen selection)
+**Press X once** on **AUTO 4 LIGHT MODES**, the default selection on app startup. The app automatically runs the four light profiles in sequence, each for the chosen 10/30/60-second duration, shows live phase progress, saves every measurement, and writes a combined **PS5 RANDOMX AUTO TEST** summary to `/data/ps5-randomx/benchmark.log`. No manual profile switching or restart needed.
+
+**AUTO ALL 5 (FULL RAM)** adds the fifth full-memory mode only if explicitly chosen. It may require more than 2 GiB RAM and take substantial setup time or fail on console. The default auto-test does **not** allocate the 2-GiB dataset.
+
+Up/Down or L1/R1 switches between AUTO 4, AUTO ALL 5, and individual test modes. O cancels the entire automatic sequence; a failed step stops the sequence instead of hiding the error. The combined summary shows every successful and interrupted step.
+
 ## Profiles (Up/Down or L1/R1)
 1. 1 thread / software AES / light
 2. 1 thread / hardware AES / light
