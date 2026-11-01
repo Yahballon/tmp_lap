@@ -23,7 +23,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 using namespace hui::gfx;
-extern "C" const unsigned char randomx_program_prologue[];
+extern "C" const unsigned char rxblob_randomx_program_prologue[];
 
 // Hook provided for the instrumented pinned upstream RandomX archive.
 // Keep the JIT diagnostics disabled for the stable AUTO/interpreter modes.
@@ -36,7 +36,9 @@ extern "C" void rx_ps5_jit_pointer(const char* stage, unsigned long long address
 }
 // Probe the address through the OS, never by dereferencing it.
 // On denied/absent mapping the caller logs failure and refuses JIT initialization.
-// This requests RX (not RWX). Passing does not guarantee actual text readability.
+// PS5 native code pages are X-only. These template bytes live in a separate
+// read-only data segment, copied at build time from the SAME upstream assembly.
+// This requests read-only (not executable) and does not execute template data.
 extern "C" int rx_ps5_jit_readable_source(const char* stage,
                                            unsigned long long address,
                                            unsigned long long length) {
@@ -56,10 +58,10 @@ extern "C" int rx_ps5_jit_readable_source(const char* stage,
   rxbench::jit_trace_pointer("source_page_aligned",p,session,aligned);
   errno=0;
   int rc=mprotect(reinterpret_cast<void*>(static_cast<uintptr_t>(aligned)),
-                  static_cast<size_t>(end-aligned),PROT_READ|PROT_EXEC);
+                  static_cast<size_t>(end-aligned),PROT_READ);
   const int saved=rc==0?0:errno;
-  rxbench::jit_trace("source_mprotect_rx_rc",p,session,rc);
-  rxbench::jit_trace("source_mprotect_rx_errno",p,session,saved);
+  rxbench::jit_trace("source_mprotect_read_rc",p,session,rc);
+  rxbench::jit_trace("source_mprotect_read_errno",p,session,saved);
   return rc==0;
 }
 extern "C" void rx_ps5_jit_stage(const char* stage, unsigned long long value) {
@@ -317,12 +319,12 @@ void* runBench(void* context) {
       if(b->source_probe_only){
         jitTrace(b,"before_static_asm_permission_check");
         const bool ok=rx_ps5_jit_readable_source(
-          "static_prologue_page",
-          static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(randomx_program_prologue)),256);
+          "rodata_prologue_page",
+          static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(rxblob_randomx_program_prologue)),256);
         jitTrace(b,"after_static_asm_permission_check",ok?1:0);
         if(!ok){
           std::snprintf(b->error,sizeof(b->error),
-                        "Static RandomX .text page not RX-mappable. See jit_trace.log");
+                        "Static RandomX .rodata blob not readable. See jit_trace.log");
           finish(b,Failed);return nullptr;
         }
       }
