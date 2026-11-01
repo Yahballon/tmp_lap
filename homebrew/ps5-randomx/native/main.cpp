@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 RANDOMX BENCHMARK by YAHBALLON v0.2.0
-// Real RandomX v1.2.1, light mode, interpreter; NOT a cryptocurrency miner.
+// PS5 RANDOMX BENCHMARK by YAHBALLON v0.3.0
+// Real RandomX v1.2.1, optional full-memory mode, interpreter; NOT a miner.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -27,17 +27,21 @@ struct Profile {
   const char* label;
   int threads;
   bool request_aes;
+  bool full_mem;
 };
 constexpr Profile kProfiles[]={
-  {"1 THREAD / SOFTWARE AES",1,false},
-  {"1 THREAD / HARDWARE AES",1,true},
-  {"2 THREADS / HARDWARE AES",2,true},
-  {"4 THREADS / HARDWARE AES",4,true}
+  {"1 THREAD / SOFTWARE AES",1,false,false},
+  {"1 THREAD / HARDWARE AES",1,true,false},
+  {"2 THREADS / HARDWARE AES",2,true,false},
+  {"4 THREADS / HARDWARE AES",4,true,false},
+  {"1 THREAD / FULL MEMORY",1,true,true} // Opt-in: >2 GiB RAM, no JIT
 };
+constexpr int kProfileCount=sizeof(kProfiles)/sizeof(kProfiles[0]);
 struct Bench;
 struct Worker {
   Bench* bench=nullptr;
   randomx_cache* cache=nullptr;
+  randomx_dataset* dataset=nullptr;
   int id=0;
   bool initialized=false;
   uint64_t hashes=0;
@@ -48,8 +52,9 @@ struct Bench {
   std::atomic<bool> stop{false}, go{false};
   std::atomic<int> ready{0};
   std::atomic<uint64_t> hashes{0}, elapsed_us{0}, start_us{0};
+  std::atomic<uint64_t> dataset_ready{0}, dataset_total{0}, prep_us{0};
   int seconds=30, profile_id=0, thread_count=1;
-  bool hardware_aes=false;
+  bool hardware_aes=false, full_mem=false;
   pthread_t thread{}, worker_threads[4]{};
   Worker workers[4]{};
   bool join_needed=false;
@@ -73,8 +78,13 @@ void report(Bench* b,int outcome) {
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
   std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.2.0\n");
-  std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=light-interpreter aes=%s jit=off threads=%d profile=%d\n",
+  std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=off threads=%d profile=%d\n",
+               b->full_mem?"full-memory-interpreter":"light-interpreter",
                b->hardware_aes?"hardware":"software",b->thread_count,b->profile_id);
+  std::fprintf(f,"dataset_bytes=%llu dataset_init_seconds=%.3f\n",
+               (unsigned long long)(b->full_mem?
+                 b->dataset_total.load()*uint64_t(RANDOMX_DATASET_ITEM_SIZE):0ULL),
+               double(b->prep_us.load())/1000000.0);
   std::fprintf(f,"requested_seconds=%d elapsed_seconds=%.3f hashes=%llu hashrate_hps=%.4f\n",
                b->seconds,elapsed,(unsigned long long)total,hps);
   for(int i=0;i<b->thread_count;i++)
@@ -95,8 +105,10 @@ void finish(Bench* b,int outcome) {
 void* runWorker(void* context) {
   Worker* w=static_cast<Worker*>(context);
   Bench* b=w->bench;
-  const randomx_flags flags=b->hardware_aes?RANDOMX_FLAG_HARD_AES:RANDOMX_FLAG_DEFAULT;
-  randomx_vm* vm=randomx_create_vm(flags,w->cache,nullptr);
+  randomx_flags flags=b->hardware_aes?RANDOMX_FLAG_HARD_AES:RANDOMX_FLAG_DEFAULT;
+  if(b->full_mem)flags|=RANDOMX_FLAG_FULL_MEM;
+  randomx_vm* vm=randomx_create_vm(flags,b->full_mem?nullptr:w->cache,
+                                 b->full_mem?w->dataset:nullptr);
   w->initialized=(vm!=nullptr);
   b->ready.fetch_add(1);
   if(!vm)return nullptr;
@@ -133,6 +145,7 @@ void* runBench(void* context) {
     finish(b,Failed);return nullptr;
   }
   b->hardware_aes=kProfiles[b->profile_id].request_aes;
+  b->full_mem=kProfiles[b->profile_id].full_mem;
   b->thread_count=kProfiles[b->profile_id].threads;
   // The large RandomX cache is initialized once, then shared read-only.
   randomx_cache* cache=randomx_alloc_cache(RANDOMX_FLAG_DEFAULT);
@@ -145,11 +158,42 @@ void* runBench(void* context) {
     randomx_release_cache(cache);
     finish(b,Stopped);return nullptr;
   }
+  randomx_dataset* dataset=nullptr;
+  if(b->full_mem) {
+    // Allocates ~2,080 MiB. The console can refuse this; never auto-start it.
+    // Keep the cache available throughout initialization then share the
+    // immutable finished dataset with all VMs.
+    std::snprintf(b->report_status,sizeof(b->report_status),
+                  "Allocating RandomX full dataset (~2.08 GiB)...");
+    dataset=randomx_alloc_dataset(RANDOMX_FLAG_DEFAULT);
+    if(!dataset){
+      std::snprintf(b->error,sizeof(b->error),
+                    "Not enough memory for full dataset (~2.08 GiB)");
+      randomx_release_cache(cache);
+      finish(b,Failed);return nullptr;
+    }
+    const uint64_t t0=uint64_t(hui::sys::monotonic_us());
+    const unsigned long count=randomx_dataset_item_count();
+    b->dataset_total.store(count);
+    constexpr unsigned long kChunk=32768UL;
+    for(unsigned long offset=0;offset<count&&!b->stop.load();) {
+      const unsigned long n=std::min(kChunk,count-offset);
+      randomx_init_dataset(dataset,cache,offset,n);
+      offset+=n;
+      b->dataset_ready.store(offset);
+    }
+    b->prep_us.store(uint64_t(hui::sys::monotonic_us())-t0);
+    if(b->stop.load()){
+      randomx_release_dataset(dataset);
+      randomx_release_cache(cache);
+      finish(b,Stopped);return nullptr;
+    }
+  }
   int launched=0;
   bool failed=false;
   for(int i=0;i<b->thread_count;i++) {
     Worker& w=b->workers[i];
-    w.bench=b;w.cache=cache;w.id=i;w.hashes=0;
+    w.bench=b;w.cache=cache;w.dataset=dataset;w.id=i;w.hashes=0;
     w.initialized=false;w.digest[0]=0;
     if(pthread_create(&b->worker_threads[i],nullptr,runWorker,&w)!=0) {
       std::snprintf(b->error,sizeof(b->error),
@@ -180,6 +224,7 @@ void* runBench(void* context) {
   }
   if(b->workers[0].digest[0])
     std::memcpy(b->last_hash,b->workers[0].digest,sizeof(b->last_hash));
+  if(dataset)randomx_release_dataset(dataset);
   randomx_release_cache(cache);
   finish(b,failed?Failed:b->stop.load()?Stopped:Completed);
   return nullptr;
@@ -191,6 +236,7 @@ bool start(Bench& b,int seconds,int profile_id){
   b.hardware_aes=false;
   b.hashes.store(0);b.elapsed_us.store(0);b.start_us.store(0);
   b.ready.store(0);b.go.store(false);b.stop.store(false);
+  b.dataset_ready.store(0);b.dataset_total.store(0);b.prep_us.store(0);
   b.error[0]=0;b.last_hash[0]=0;
   for(auto& w:b.workers){w.hashes=0;w.digest[0]=0;}
   std::snprintf(b.report_status,sizeof(b.report_status),"Initializing RandomX cache...");
@@ -250,8 +296,8 @@ int main(){
     if(!busy){
       if(key(hui::pad_bits::kLeft))duration_index=(duration_index+2)%3;
       if(key(hui::pad_bits::kRight))duration_index=(duration_index+1)%3;
-      if(key(hui::pad_bits::kUp)||key(hui::pad_bits::kL1))profile_index=(profile_index+3)%4;
-      if(key(hui::pad_bits::kDown)||key(hui::pad_bits::kR1))profile_index=(profile_index+1)%4;
+      if(key(hui::pad_bits::kUp)||key(hui::pad_bits::kL1))profile_index=(profile_index+kProfileCount-1)%kProfileCount;
+      if(key(hui::pad_bits::kDown)||key(hui::pad_bits::kR1))profile_index=(profile_index+1)%kProfileCount;
       if(key(hui::pad_bits::kCross)){export_hint=false;start(b,durations[duration_index],profile_index);}
       if(key(hui::pad_bits::kTriangle)){b.hashes.store(0);b.elapsed_us.store(0);b.last_hash[0]=0;b.stage.store(Ready);export_hint=false;}
       if(key(hui::pad_bits::kCircle))exit_requested=true;
@@ -266,7 +312,10 @@ int main(){
        uint64_t(hui::sys::monotonic_us())-b.start_us.load():b.elapsed_us.load();
     const double hps=elapsed>0?double(hashes)*1000000.0/double(elapsed):0.0;
     const double seconds=double(elapsed)/1000000.0;
-    const float progress=std::clamp(float(seconds/double(b.seconds)),0.f,1.f);
+    const bool preparing_dataset=state==Preparing&&b.dataset_total.load()>0;
+    const float progress=preparing_dataset?
+      std::clamp(float(double(b.dataset_ready.load())/double(b.dataset_total.load())),0.f,1.f):
+      std::clamp(float(seconds/double(b.seconds)),0.f,1.f);
     const Profile& selected=kProfiles[busy?b.profile_id:profile_index];
     char rate[80],time[80],total[80];
     std::snprintf(rate,sizeof(rate),"%.2f H/s",hps);
@@ -279,27 +328,29 @@ int main(){
     d.rounded_rect({39,24,52,52},13,color(0x0761cc));
     tx(d,font,atlas,"RX",65,60,27,color(0xffffff),Align::center);
     tx(d,font,atlas,"PS5 RANDOMX BENCHMARK  by YAHBALLON",113,61,33);
-    tx(d,font,atlas,"v0.2.0",1879,60,24,color(0xc9e4ff),Align::right);
+    tx(d,font,atlas,"v0.3.0",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
-    tx(d,font,atlas,statusName(state),97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
+    tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":statusName(state),
+       97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
-    tx(d,font,atlas,std::string(selected.label)+"  /  NO JIT  /  LIGHT MODE",103,455,23,color(0xaac6e8));
+    tx(d,font,atlas,std::string(selected.label)+"  /  NO JIT  /  "+(selected.full_mem?"FULL MEM":"LIGHT MODE"),103,455,23,color(0xaac6e8));
     d.rounded_rect({101,500,1100,19},9,color(0x193550));
     d.rounded_rect({101,500,1100*progress,19},9,color(0x27d9be));
-    tx(d,font,atlas,time,102,554,23,color(0xd8e9ff));
+    tx(d,font,atlas,preparing_dataset?("Dataset prepared: "+std::to_string(int(progress*100.f))+"%"):std::string(time),
+       102,554,23,color(0xd8e9ff));
     panel(d,1273,190,582,400);
     tx(d,font,atlas,"CONFIGURATION",1305,263,28,color(0x8fc8fb));
     tx(d,font,atlas,"Algorithm",1305,331,21,color(0x90a7c9));
     tx(d,font,atlas,"RandomX v1.2.1",1808,331,23,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Mode",1305,385,21,color(0x90a7c9));
-    tx(d,font,atlas,"LIGHT / INTERPRETED",1808,385,22,color(0xf1f8ff),Align::right);
+    tx(d,font,atlas,selected.full_mem?"FULL / INTERPRETED":"LIGHT / INTERPRETED",1808,385,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"CPU workers",1305,433,21,color(0x90a7c9));
     tx(d,font,atlas,std::to_string(selected.threads)+" / "+(selected.request_aes?"HW AES":"SOFT AES"),1808,433,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Run duration",1305,478,21,color(0x90a7c9));
     tx(d,font,atlas,std::to_string(durations[duration_index])+" seconds",1808,478,26,color(0x4af0bf),Align::right);
-    tx(d,font,atlas,"Cache RAM",1305,531,21,color(0x90a7c9));
-    tx(d,font,atlas,"about 256 MiB",1808,531,22,color(0xf1f8ff),Align::right);
+    tx(d,font,atlas,selected.full_mem?"Dataset RAM":"Cache RAM",1305,531,21,color(0x90a7c9));
+    tx(d,font,atlas,selected.full_mem?"about 2.08 GiB":"about 256 MiB",1808,531,22,color(0xf1f8ff),Align::right);
     panel(d,60,615,1795,345);
     tx(d,font,atlas,"RESULTS & LOGGING",96,674,28,color(0x8fc8fb));
     tx(d,font,atlas,"Hashes computed",97,744,22,color(0x94acd0));
@@ -309,7 +360,8 @@ int main(){
     const std::string message=(state==Failed?std::string(b.error):std::string(b.report_status));
     tx(d,font,atlas,message,100,926,19,color(state==Failed?0xff6f7e:0x80dbb7));
     tx(d,font,atlas,"BENCHMARK ONLY. NO COIN, NETWORK OR REWARD.",1278,744,21,color(0xffd283));
-    tx(d,font,atlas,"NEXT: Fast memory mode / JIT only after PS5 checks.",1278,799,18,color(0xb6cde8));
+    tx(d,font,atlas,selected.full_mem?"FULL MEMORY MAY EXCEED CONSOLE APP RAM. NO JIT.":"NEXT: Compare single-thread AES then optional FULL MEM.",
+       1278,799,18,color(0xb6cde8));
     tx(d,font,atlas,export_hint?"Report is automatically written after each run.":"/data/ps5-randomx/benchmark.log",1278,878,18,color(0x96b4d6));
     d.rounded_rect({0,1007,1920,73},0,color(0x07162b));
     tx(d,font,atlas,"X START   UP/DOWN or L1/R1 PROFILE   LEFT/RIGHT TIME   O STOP/EXIT   TRIANGLE RESET   SQUARE LOG",57,1054,20);
