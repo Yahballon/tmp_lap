@@ -50,23 +50,6 @@ struct Bench;
 struct Worker {
   Bench* bench=nullptr;
   randomx_cache* cache=nullptr;
-  if(b->jit_init_only) {
-    // Deliberately no generated-code execution or hash calculation.
-    jitTrace(b,"before_init_only_vm_create");
-    randomx_vm* vm=randomx_create_vm(RANDOMX_FLAG_JIT|RANDOMX_FLAG_SECURE|
-                                     RANDOMX_FLAG_HARD_AES,cache,nullptr);
-    jitTrace(b,"after_init_only_vm_create",vm?1:0);
-    if(!vm){
-      std::snprintf(b->error,sizeof(b->error),"RandomX JIT VM allocation rejected");
-      randomx_release_cache(cache);
-      finish(b,Failed);return nullptr;
-    }
-    jitTrace(b,"before_init_only_vm_destroy");
-    randomx_destroy_vm(vm);
-    jitTrace(b,"after_init_only_vm_destroy");
-    randomx_release_cache(cache);
-    finish(b,Completed);return nullptr;
-  }
   randomx_dataset* dataset=nullptr;
   int id=0;
   bool initialized=false;
@@ -266,6 +249,23 @@ void* runBench(void* context) {
   if(b->stop.load()) {
     randomx_release_cache(cache);
     finish(b,Stopped);return nullptr;
+  }
+  if(b->jit_init_only) {
+    // Deliberately no generated-code execution or hash calculation.
+    jitTrace(b,"before_init_only_vm_create");
+    randomx_vm* vm=randomx_create_vm(RANDOMX_FLAG_JIT|RANDOMX_FLAG_SECURE|
+                                     RANDOMX_FLAG_HARD_AES,cache,nullptr);
+    jitTrace(b,"after_init_only_vm_create",vm?1:0);
+    if(!vm){
+      std::snprintf(b->error,sizeof(b->error),"RandomX JIT VM allocation rejected");
+      randomx_release_cache(cache);
+      finish(b,Failed);return nullptr;
+    }
+    jitTrace(b,"before_init_only_vm_destroy");
+    randomx_destroy_vm(vm);
+    jitTrace(b,"after_init_only_vm_destroy");
+    randomx_release_cache(cache);
+    finish(b,Completed);return nullptr;
   }
   randomx_dataset* dataset=nullptr;
   if(b->full_mem) {
