@@ -84,6 +84,18 @@ jobs:
           j['localizedParameters']['en-US']['titleName']='PS5 RandomX Benchmark'
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
+      - name: Use verified upstream GitHub mirror for pinned zlib 1.3.2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/tools/setup-native-dependencies.sh')
+          s=p.read_text()
+          original='zlib_url="https://zlib.net/fossils/zlib-$zlib_version.tar.gz"'
+          alternate='zlib_url="https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz"'
+          assert original in s, 'Native dependency bootstrap template changed'
+          assert 'bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16' in s
+          p.write_text(s.replace(original,alternate))
+          PY
       - name: Pin working PS5 OpenGL SDK release v1.0.2
         run: |
           python3 - <<'PY'
