@@ -16,6 +16,8 @@ sdk = app / ".deps" / "native" / "ps5-payload-sdk"
 wrapper = app / "tooling" / "prospero-clang18"
 assert (sdk / "target" / "include").exists(), "PS5 SDK was not initialized"
 assert (upstream / "src" / "randomx.h").exists(), "RandomX checkout is missing"
+# Add per-stage breadcrumbs to the pinned RandomX JIT internals for this PS5 build.
+subprocess.run([sys.executable, str(Path(__file__).with_name("instrument_jit.py")), str(upstream)], check=True)
 sources = """
 aes_hash.cpp argon2_ref.c argon2_ssse3.c argon2_avx2.c
 bytecode_machine.cpp cpu.cpp dataset.cpp soft_aes.cpp virtual_memory.c
