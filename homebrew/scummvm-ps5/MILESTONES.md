@@ -5,7 +5,7 @@
 **Upstream frontend:** mihawk-99/PS5_RetroArch @ 7268510b12fe7461342e0cc4497c87a0910c1055
 **Upstream engine:** mihawk-99/PS5_ScummVM @ 967fd9757170b14c28590837186b31cc7d5cc46c
 **Version / candidate Title ID:** v0.1.0 / PPSA99053, no global reservation
-**Release / TESTBUILD:** NONE; generated version.json not touched; CI run 41289470054 FAILED at SDK bootstrap
+**Release / TESTBUILD:** NONE; generated version.json untouched; latest completed native run 41290409229 FAILED due missing RetroArch vendor checkout
 **Console test:** NOT PERFORMED; **Screenshot:** NOT CAPTURED
 
 > **CURRENT STATE:** ScummVM PS5 upstream core and PS5 RetroArch sources inspected. A dedicated, ScummVM-only build overlay and CI are prepared for actual native build. No dedicated-title PS5 execution has been observed.
@@ -16,7 +16,7 @@
 | --- | --- | --- | --- |
 | M0 | Identify usable PS5 ScummVM core | Source verified | PS5_ScummVM fork and PS5_RetroArch's build-scummvm.sh pinned commits |
 | M1 | Dedicated unique-ID ScummVM-only frontend and icon | IMPLEMENTED / UNVERIFIED | scripts/prepare.py plus source artwork; CI pending |
-| M2 | Genuine PS5 compilation and signed ZIP | FAILED AT SDK BOOTSTRAP | Run [41289470054](https://github.com/Yahballon/tmp_lap/actions/runs/41289470054); SDK fork checkout fix committed on feature branch |
+| M2 | Genuine PS5 compilation and signed ZIP | WORKFLOW FIXES / NATIVE UNVERIFIED | Run [41290409229](https://github.com/Yahballon/tmp_lap/actions/runs/41290409229) built RADV; title failed at missing RetroArch frontend sources, patch committed |
 | M3 | Publish eligible real release and auto-generated TESTBUILDS entry | NOT STARTED | no verified PPSA99053.zip GitHub release |
 | M4 | Confirm ScummVM UI, virtual mouse, audio, saves and game data on PS5 | NOT STARTED | user PS5 hardware test needed |
 
@@ -53,6 +53,15 @@
 - The real blocking error occurred in RADV setup: `Meson version is 1.3.2 but project requires >= 1.4.0`. The CI workflow now creates a venv with pinned Meson 1.9.2 before RADV compilation.
 - Patched the temporary donor build-title.sh to skip checking legacy ps5vk-only archives when the chosen driver is RADV; the actual RADV archive is still independently linked and verified. Prevents a predictable unnecessary demo dependency from blocking ScummVM.
 - These fixes are **committed but NOT CI-verified** at this checkpoint; observe the next run's logs and do not claim a PS5 binary yet.
+
+## Native CI evidence — RetroArch stage, 2026-11-01
+
+- Run [41290409229](https://github.com/Yahballon/tmp_lap/actions/runs/41290409229), job 124800344057, completed **failure** at Compile ScummVM-only signed PS5 app. Both pinned SDKs, Meson 1.9.2 and actual RADV release archive completed successfully.
+- Exact failing error: `error: run tools/fetch-retroarch.sh first` in the original PS5_RetroArch frontend build; not a ScummVM core compiler error.
+- Fixed by invoking donor's `tools/fetch-retroarch.sh` with immutable upstream 1.22.2 pin and `--verify`, setting `PS5_PAYLOAD_SDK` explicitly to the matching frontend SDK, and restricting `generate-core-metadata.py` to the single included ScummVM core.
+- Extended the donor manifest integrity checks from FCEUmm-only to ScummVM-only in the temporary checkout; the workflow now executes manifest verification before packaging.
+- Added the pinned `PS5_MihawkGen` source checkout plus immutable LLVM licence text required by the donor's legal-notices packaging phase.
+- **These changes have not been verified by a complete native build.** Monitor the latest feature branch CI run. No signed ZIP/Release/hardware test may be claimed until the corresponding evidence exists.
 
 ## Risks and unverified behavior
 

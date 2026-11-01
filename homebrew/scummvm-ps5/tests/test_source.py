@@ -7,6 +7,8 @@ assert metadata["titleId"] == "PPSA99053"
 assert len(metadata["contentId"].split("_00-")[1]) == 16
 p = (root / "scripts/prepare.py").read_text()
 assert "core_names=(scummvm)" in p
+assert "manifest_check.write_text" in p
+assert "generator.write_text" in p
 assert 'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi' in p
 assert "967fd9757170b14c28590837186b31cc7d5cc46c" in json.dumps(metadata)
 assert (root / "assets/icon-source.webp").stat().st_size > 1000

@@ -56,6 +56,17 @@ def patch(source: pathlib.Path):
     )
     # Workflows do not turn on the donor's optional additional core flags.
     generator.write_text(metadata_source)
+    # Original check-manifest.sh assumes FCEUmm is present in every title.
+    # This dedicated title ships only the ABI-checked ScummVM core.
+    manifest_check = source / "tools/check-manifest.sh"
+    manifest_content = manifest_check.read_text()
+    if manifest_content.count("fceumm_libretro") < 3:
+        raise RuntimeError("Pinned upstream FCEUmm verification anchors changed")
+    manifest_content = (
+        manifest_content.replace("fceumm_libretro", "scummvm_libretro")
+        .replace("FCEUmm", "ScummVM")
+    )
+    manifest_check.write_text(manifest_content)
     param = source / "sce_sys/param.json"
     metadata = json.loads(param.read_text())
     if metadata.get("titleId") != "PPSA99169":

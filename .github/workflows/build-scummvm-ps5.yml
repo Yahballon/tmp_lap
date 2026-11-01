@@ -43,6 +43,10 @@ jobs:
           git clone --filter=blob:none https://github.com/mihawk-99/PS5_Vulkan.git .work/PS5_Vulkan
           git clone --filter=blob:none https://github.com/mihawk-99/PS5_Mesa.git .work/PS5_Mesa
           git clone --filter=blob:none https://github.com/mihawk-99/PS5_PayloadSDK.git .work/PS5_PayloadSDK
+          # Licence provenance requires the pinned MihawkGen sibling even though
+          # no frame generation model is shipped in this minimal title.
+          git clone --filter=blob:none https://github.com/mihawk-99/PS5_MihawkGen.git .work/PS5_MihawkGen
+          git -C .work/PS5_MihawkGen checkout --detach c57232a9f16bcb6df5fe07c9bb631518f2b1cc0e
           git -C .work/PS5_PayloadSDK cat-file -e b5efad528e0ac1b8289f39d72a0e890ff68ff0a6^{commit}
           git -C .work/PS5_PayloadSDK cat-file -e b83202be73e930050e00de0f1b4d9ec46c0391bf^{commit}
           git -C .work/PS5_Mesa checkout --detach 1ba9874f478657ccf6da72ce55f0260164cc0bd0
@@ -93,7 +97,16 @@ jobs:
           # checkout; a freshly cloned PS5_RetroArch has no vendor/retroarch.
           bash tools/fetch-retroarch.sh
           bash tools/fetch-retroarch.sh --verify
+          # The original legal-notices audit also stages the LLVM runtime
+          # licence. Fetch only that file at an immutable PS5_LLVM commit.
+          mkdir -p .deps/llvm-project/llvm
+          curl --fail --location --retry 3 --silent --show-error \
+            https://raw.githubusercontent.com/mihawk-99/PS5_LLVM/be5b58f51c93c67947b7e18cd45c2f9913f2c311/llvm/LICENSE.TXT \
+            -o .deps/llvm-project/llvm/LICENSE.TXT
+          test -s .deps/llvm-project/llvm/LICENSE.TXT
           bash tools/build-title.sh
+          # Actual compiled content must match the package manifest.
+          bash tools/check-manifest.sh
           test -s dist/PPSA99053/cores/scummvm_libretro.so
           test "$(find dist/PPSA99053/cores -maxdepth 1 -name '*_libretro.so' | wc -l)" -eq 1
       - name: Validate signed SELF, source attribution, icon and ZIP
