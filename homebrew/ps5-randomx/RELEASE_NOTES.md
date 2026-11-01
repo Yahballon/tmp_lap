@@ -5,6 +5,14 @@
 - v0.2.0: **7.8487 H/s** (4 threads, hardware AES, light interpreter, 236 hashes/30.069 sec).
 - About **3.95x total throughput**, primarily attributable to 4 independent CPU workers. **The independent hardware-AES speedup is unmeasured**; compare the 1-thread software and hardware profiles.
 
+## New default: One-click AUTO TEST
+- **AUTO 4 LIGHT MODES** is preselected on launch; press **X** once to run 1T software AES, 1T hardware AES, 2T hardware AES and 4T hardware AES automatically.
+- Each profile runs for the chosen 10/30/60 seconds. The app shows each completed score and an automatic combined summary at the end.
+- **AUTO ALL 5 (FULL RAM)** is separately selectable and adds experimental >2 GiB Full Memory mode. It is intentionally **not** included in the default auto test.
+- O/Options cancels the **whole sequence**, not just the current profile. Any failed profile ends the sequence.
+- Every individual run and the final `PS5 RANDOMX AUTO TEST` summary append to `/data/ps5-randomx/benchmark.log`.
+- The automatic sequence is validated by a new host-side test in CI.
+
 ## Experimental addition: full RandomX memory
 - Fifth profile, **1 THREAD / FULL MEMORY**, manually selectable with Up/Down or L1/R1.
 - RandomX allocates **about 2.08 GiB** for its dataset, plus a **256 MiB** cache during initialization. It may be unavailable on consoles with restrictive homebrew memory budgets.
