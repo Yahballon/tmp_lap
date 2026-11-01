@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.1
+// PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.2
 // Real RandomX v1.2.1, optional full-memory mode, interpreter; NOT a miner.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -20,6 +20,17 @@
 #include <pthread.h>
 #include <sys/stat.h>
 using namespace hui::gfx;
+
+// Hook provided for the instrumented pinned upstream RandomX archive.
+// Keep the JIT diagnostics disabled for the stable AUTO/interpreter modes.
+static std::atomic<int> g_rx_jit_trace_profile{-1};
+static std::atomic<uint64_t> g_rx_jit_trace_session{0};
+extern "C" void rx_ps5_jit_stage(const char* stage, unsigned long long value) {
+  const int p=g_rx_jit_trace_profile.load();
+  if(p!=6 && p!=7)return;
+  const int clipped=value>0x7fffffffULL ? 0x7fffffff : int(value);
+  rxbench::jit_trace(stage,p,g_rx_jit_trace_session.load(),clipped);
+}
 
 namespace {
 constexpr const char* kDataDir = "/data/ps5-randomx";
@@ -94,7 +105,7 @@ void report(Bench* b,int outcome) {
   const double elapsed=double(b->elapsed_us.load())/1000000.0;
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
-  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.1\n");
+  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.2\n");
   std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=%s threads=%d profile=%d\n",
                b->probe_only?"jit-wx-probe":b->jit_init_only?"jit-vm-init-only":b->jit_requested?"light-secure-jit":
                b->full_mem?"full-memory-interpreter":"light-interpreter",
@@ -344,6 +355,8 @@ bool start(Bench& b,int seconds,int profile_id){
   b.thread_count=kProfiles[profile_id].threads;
   b.hardware_aes=false;b.jit_requested=false;b.probe_only=false;b.jit_init_only=false;
   b.session=uint64_t(hui::sys::monotonic_us());
+  g_rx_jit_trace_profile.store((profile_id==6||profile_id==7)?profile_id:-1);
+  g_rx_jit_trace_session.store(b.session);
   b.jit_probe=rxbench::JitProbe{};b.jit_vector_ok.store(false);
   b.hashes.store(0);b.elapsed_us.store(0);b.start_us.store(0);
   b.ready.store(0);b.go.store(false);b.stop.store(false);
@@ -370,7 +383,7 @@ void writeAutoSummary(const rxbench::AutoSuite& suite) {
   mkdir(kDataDir,0777);
   FILE* f=std::fopen(kReport,"a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.4.1\n");
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.4.2\n");
   std::fprintf(f,"auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
                suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
   for(int i=0;i<suite.recorded;i++){
@@ -508,7 +521,7 @@ int main(){
     d.rounded_rect({39,24,52,52},13,color(0x0761cc));
     tx(d,font,atlas,"RX",65,60,27,color(0xffffff),Align::center);
     tx(d,font,atlas,"PS5 RANDOMX BENCHMARK  by YAHBALLON",113,61,33);
-    tx(d,font,atlas,"v0.4.1",1879,60,24,color(0xc9e4ff),Align::right);
+    tx(d,font,atlas,"v0.4.2",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
     tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
