@@ -165,7 +165,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-RandomX-v0.4.1-PPSA99795
+          name: PS5-RandomX-v0.4.2-PPSA99795
           path: app/dist/PPSA99795.zip
           if-no-files-found: error
       - name: Publish release for TESTBUILD catalog
@@ -173,8 +173,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-randomx-v0.4.1 >/dev/null 2>&1; then
+          if gh release view ps5-randomx-v0.4.2 >/dev/null 2>&1; then
             echo 'Release exists; refusing to replace asset'
             exit 1
           fi
-          gh release create ps5-randomx-v0.4.1 app/dist/PPSA99795.zip --target "$GITHUB_SHA" --title 'PS5 RandomX Benchmark by YAHBALLON v0.4.1' --notes-file homebrew/ps5-randomx/RELEASE_NOTES.md
+          gh release create ps5-randomx-v0.4.2 app/dist/PPSA99795.zip --target "$GITHUB_SHA" --title 'PS5 RandomX Benchmark by YAHBALLON v0.4.2' --notes-file homebrew/ps5-randomx/RELEASE_NOTES.md
