@@ -30,7 +30,7 @@ jobs:
           import json
           data=json.loads(Path('homebrew/ps5-randomx/app.json').read_text())
           assert data['titleId']=='PPSA99795'
-          assert data['contentId']=='UP9000-PPSA99795_00-PS5RANDOMXBENCH01'
+          assert data['contentId']=='UP9000-PPSA99795_00-PS5RANDOMXBENCH1'
           others=list(Path('homebrew').glob('*/app.json'))
           for p in others:
               if p==Path('homebrew/ps5-randomx/app.json'):continue
@@ -104,7 +104,7 @@ jobs:
           assert b'PS5 RANDOMX BENCHMARK' in binary
           j=json.loads((root/'sce_sys/param.json').read_text())
           assert j['titleId']=='PPSA99795'
-          assert j['contentId']=='UP9000-PPSA99795_00-PS5RANDOMXBENCH01'
+          assert j['contentId']=='UP9000-PPSA99795_00-PS5RANDOMXBENCH1'
           assert Image.open(root/'sce_sys/icon0.png').size==(512,512)
           expected=['eboot.bin','sce_sys/param.json','sce_sys/icon0.png','sce_module/libc.prx',
                     'assets/fonts/inter-semibold.huifont','assets/licenses/RandomX-BSD-3-Clause.txt']
