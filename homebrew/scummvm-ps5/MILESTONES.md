@@ -5,7 +5,7 @@
 **Upstream frontend:** mihawk-99/PS5_RetroArch @ 7268510b12fe7461342e0cc4497c87a0910c1055
 **Upstream engine:** mihawk-99/PS5_ScummVM @ 967fd9757170b14c28590837186b31cc7d5cc46c
 **Version / candidate Title ID:** v0.1.0 / PPSA99053, no global reservation
-**Release / TESTBUILD:** NONE; generated version.json untouched; latest completed native run 41290409229 FAILED due missing RetroArch vendor checkout
+**Release / TESTBUILD:** NONE; generated version.json untouched; latest completed native run 41319819390 FAILED after ScummVM core ABI PASS
 **Console test:** NOT PERFORMED; **Screenshot:** NOT CAPTURED
 
 > **CURRENT STATE:** ScummVM PS5 upstream core and PS5 RetroArch sources inspected. A dedicated, ScummVM-only build overlay and CI are prepared for actual native build. No dedicated-title PS5 execution has been observed.
@@ -16,7 +16,7 @@
 | --- | --- | --- | --- |
 | M0 | Identify usable PS5 ScummVM core | Source verified | PS5_ScummVM fork and PS5_RetroArch's build-scummvm.sh pinned commits |
 | M1 | Dedicated unique-ID ScummVM-only frontend and icon | IMPLEMENTED / UNVERIFIED | scripts/prepare.py plus source artwork; CI pending |
-| M2 | Genuine PS5 compilation and signed ZIP | WORKFLOW FIXES / NATIVE UNVERIFIED | Run [41290409229](https://github.com/Yahballon/tmp_lap/actions/runs/41290409229) built RADV; title failed at missing RetroArch frontend sources, patch committed |
+| M2 | Genuine PS5 compilation and signed ZIP | CORE ABI PASS / TITLE BUILD FAILED | Run [41319819390](https://github.com/Yahballon/tmp_lap/actions/runs/41319819390) passed ScummVM core ABI then failed on donor Lapy service dependency |
 | M3 | Publish eligible real release and auto-generated TESTBUILDS entry | NOT STARTED | no verified PPSA99053.zip GitHub release |
 | M4 | Confirm ScummVM UI, virtual mouse, audio, saves and game data on PS5 | NOT STARTED | user PS5 hardware test needed |
 
@@ -83,6 +83,12 @@
 - Added a constrained OSABI normalization helper: only accepts ELF64 LE x86_64 ET_DYN, OSABI 0 or 9, required `libkernel_web.sprx` and exclusively allowed PS5 dependencies, and 16 KiB-compatible PT_LOAD segments. If OSABI is 0, changes only `e_ident[EI_OSABI]` to FreeBSD (9); if 9, leaves it unchanged; if any check fails, aborts without modification.
 - Temporary donor `build-scummvm.sh` runs this helper **before** existing `core_fork_stage` and its independent `check-core.py` validation. CI prints ELF before/after and saves binary only on failure. Unit tests cover detection/rejection.
 - **Not yet PS5 verified.** Observe next native Actions run. If the PS5 ELF identity or imports are not valid, the checker will reject, and the real link flags must be fixed.
+
+## New failure and standalone-service isolation — 2026-11-01
+
+- [CI run 41319819390](https://github.com/Yahballon/tmp_lap/actions/runs/41319819390): both PS5 SDKs and RADV prepared; ScummVM 2026.3.0 compiled, normalized OSABI 0 -> 9 after checking architecture, imports and segments; donor's strict `check-core.py` reported **CORE ABI PASS**, 25 Libretro exports and SHA-256 `38e3a3a1acba43de7697738f61958b6040a8b222eae29feeef04bd2a38faebe4`. The launcher progressed to ancillary networking, then failed on missing `.work/prospero-win-main/native/ps5log/ps5log.h` while running `tools/build-lapy.py`.
+- Donor Lapy service is hardcoded for original title **PPSA99169**, not standalone title PPSA99053; donor `platform/lapy/README.txt` explicitly describes offline startup without loader/service. Rather than bundle an unrelated privileged daemon, ScummVM-only `prepare.py` removes donor Lapy build and staging lines in the temporary checkout. It retains full PS5 core ABI, title manifest and license checks. CI and package.py both reject any unexpected `lapy-root-daemon.elf`.
+- **Status: PATCH COMMITTED / BUILD NOT VERIFIED.** The next successful native CI run must validate fake-SELF, core-only contents, icons, licenses and ZIP before prerelease. Console boot has not been tested.
 
 ## Risks and unverified behavior
 

@@ -12,6 +12,8 @@ Experimental v0.1.0 · Candidate title ID **PPSA99053** (not an official reserva
 
 The original generated adventure-compass artwork is stored as `assets/icon-source.webp`; `scripts/prepare.py` converts it into the actual installer's `sce_sys/icon0.png`. No Sony marks, commercial game art, game data, BIOS, or copyrighted game collections are bundled. The icon is original artwork created for this port.
 
+The standalone package deliberately excludes the donor's PPSA99169-only Lapy root daemon. Offline startup is the intended path; no filesystem elevation is claimed.
+
 ## Build and install
 
 The native core's strict PS5 ABI checker is retained; the build overlay verifies OSABI, PS5 imports and segment alignment before an OSABI-only correction, if needed. An invalid ELF is rejected rather than relabeled.\n\nThe monorepo workflow is [build-scummvm-ps5.yml](../../.github/workflows/build-scummvm-ps5.yml). It pins both upstream commits, installs the dependencies used by Mihawk's PS5 RetroArch, builds its existing PS5 Vulkan stack and one ScummVM libretro core, then signs/repackages the real PS5 title to `dist/PPSA99053.zip`. This native build is expensive and has **not yet been verified**.

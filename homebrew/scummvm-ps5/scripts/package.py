@@ -20,6 +20,7 @@ def package(directory: pathlib.Path):
     for mandatory in ("sce_sys/icon0.png", "sce_module/libc.prx", "cores/scummvm_libretro.so", "info/scummvm_libretro.info"):
         assert (app / mandatory).is_file(), mandatory
     assert not list((app / "cores").glob("*_libretro.so")) or [p.name for p in (app / "cores").glob("*_libretro.so")] == ["scummvm_libretro.so"]
+    assert not (app / "lapy-root-daemon.elf").exists(), "Title-bound Lapy root daemon must not ship in ScummVM PS5"
     out = directory / (TITLE + ".zip")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for file in sorted(app.rglob("*")):

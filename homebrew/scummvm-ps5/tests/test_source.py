@@ -11,6 +11,8 @@ assert "configure-vulkan-probe" in p
 assert "tools/scummvm-core-abi.py" in p
 assert (root / "scripts/normalize_core_abi.py").is_file()
 assert "manifest_check.write_text" in p
+assert "lapy_build" in p and "lapy_stage" in p
+assert "donor Lapy service" in p
 assert "generator.write_text" in p
 assert 'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi' in p
 assert "967fd9757170b14c28590837186b31cc7d5cc46c" in json.dumps(metadata)
