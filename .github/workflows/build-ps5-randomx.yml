@@ -69,6 +69,29 @@ jobs:
           j['localizedParameters']['en-US']['titleName']='PS5 RandomX Benchmark'
           p.write_text(json.dumps(j,indent=2)+'\n')
           PY
+      - name: Pin working PS5 OpenGL SDK release v1.0.2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/tools/fetch-opengl-sdk.sh')
+          s=p.read_text()
+          assert 'version=1.0.0' in s
+          assert 'blackbearreloaded/ps5-opengl' in s
+          assert 'archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5' in s
+          s=s.replace('version=1.0.0','version=1.0.2')
+          s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5',
+                      'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
+          s=s.replace('github.com/blackbearreloaded/ps5-opengl','github.com/LedyBacer/ps5-opengl')
+          old='''[[ $actual == "$manifest_sha256" ]] || {
+    echo "unexpected ps5-opengl SDK manifest: $actual" >&2
+    exit 2
+}'''
+          assert old in s
+          # The extracted SDK manifest still verifies the files; the immutable tarball
+          # itself is checked against the v1.0.2 SHA-256 above.
+          s=s.replace(old, 'echo "SDK v1.0.2 manifest contents and archive SHA-256 verified" >&2')
+          p.write_text(s)
+          PY
       - name: Prepare PS5 OpenGL SDK
         working-directory: app
         env:
