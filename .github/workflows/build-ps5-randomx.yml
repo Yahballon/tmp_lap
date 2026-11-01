@@ -111,8 +111,9 @@ jobs:
           USE_CCACHE: '0'
           BUILD_JOBS: '4'
           PS5_CLANG: clang-18
-          APP_STATIC_ARCHIVES: build/randomx/librandomx.a
-        run: make USE_CCACHE=0 BUILD_JOBS=4 APP_STATIC_ARCHIVES=build/randomx/librandomx.a app
+        run: |
+          make USE_CCACHE=0 BUILD_JOBS=4 \
+            APP_STATIC_ARCHIVES="build/randomx/librandomx.a .deps/ps5-opengl/libps5opengl-group.a" app
       - name: Verify installable output
         run: |
           python3 - <<'PY'
