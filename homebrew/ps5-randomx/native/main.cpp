@@ -259,16 +259,16 @@ void writeAutoSummary(const rxbench::AutoSuite& suite) {
   mkdir(kDataDir,0777);
   FILE* f=std::fopen(kReport,"a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.3.0\\n");
-  std::fprintf(f,"auto_total=%d completed_tests=%d duration_each=%d include_full=%d\\n",
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.3.0\n");
+  std::fprintf(f,"auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
                suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
   for(int i=0;i<suite.recorded;i++){
     const rxbench::AutoResult& r=suite.results[i];
-    std::fprintf(f,"test_%d profile=%d name=%s elapsed_seconds=%.3f hashes=%llu hashrate_hps=%.4f outcome=%d\\n",
+    std::fprintf(f,"test_%d profile=%d name=%s elapsed_seconds=%.3f hashes=%llu hashrate_hps=%.4f outcome=%d\n",
                  i+1,r.profile,kProfiles[r.profile].label,double(r.elapsed_us)/1000000.0,
                  (unsigned long long)r.hashes,r.hps,r.outcome);
   }
-  std::fprintf(f,"auto_status=%s\\n\\n",suite.cancelled?"interrupted":
+  std::fprintf(f,"auto_status=%s\n\n",suite.cancelled?"interrupted":
                suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?
                "completed":"failed");
   std::fclose(f);
@@ -374,7 +374,6 @@ int main(){
     const float progress=preparing_dataset?
       std::clamp(float(double(b.dataset_ready.load())/double(b.dataset_total.load())),0.f,1.f):
       std::clamp(float(seconds/double(b.seconds)),0.f,1.f);
-    const bool show_auto=suite.active||(mode_index<2);
     const bool chosen_auto=mode_index<2;
     const int shown_profile=(busy||suite.active)?b.profile_id:
                              (chosen_auto?0:mode_index-2);
@@ -399,7 +398,7 @@ int main(){
     panel(d,60,190,1190,400);
     tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
        suite.active?"AUTO BENCHMARK RUNNING":
-       suite.done?"AUTO BENCHMARK FINISHED":statusName(state),
+       suite.done?(suite.cancelled?"AUTO TEST CANCELLED":suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?"AUTO TEST COMPLETE":"AUTO TEST FAILED"):statusName(state),
        97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
     tx(d,font,atlas,shown_mode+"  /  NO JIT",103,455,23,color(0xaac6e8));
@@ -441,7 +440,9 @@ int main(){
         tx(d,font,atlas,"Current: "+std::to_string(suite.step+1)+"/"+
            std::to_string(suite.total)+"  |  "+std::to_string(hashes)+" hashes",103,926,
            20,color(0x8fd7fd));
-      else tx(d,font,atlas,"AUTO TEST COMPLETE. Results saved to benchmark.log",103,926,
+      else tx(d,font,atlas,suite.cancelled?"AUTO TEST CANCELLED - See benchmark.log":
+        suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?
+        "AUTO TEST COMPLETE - See benchmark.log":"AUTO TEST FAILED - See benchmark.log",103,926,
                    20,color(0x68edc1));
     }else{
       tx(d,font,atlas,"Hashes computed",97,744,22,color(0x94acd0));
