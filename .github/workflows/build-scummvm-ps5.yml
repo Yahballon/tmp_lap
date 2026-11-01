@@ -85,9 +85,14 @@ jobs:
           PS5_FRONTENDS: ''
           JOBS: '4'
           PS5_PAYLOAD_SDK_FORK: ${{ github.workspace }}/.work/PS5_PayloadSDK
+          PS5_PAYLOAD_SDK: ${{ github.workspace }}/.work/PS5_RetroArch/.deps/native/ps5-payload-sdk
         run: |
           set -euo pipefail
           cd .work/PS5_RetroArch
+          # The frontend's source is an independent pinned RetroArch 1.22.2
+          # checkout; a freshly cloned PS5_RetroArch has no vendor/retroarch.
+          bash tools/fetch-retroarch.sh
+          bash tools/fetch-retroarch.sh --verify
           bash tools/build-title.sh
           test -s dist/PPSA99053/cores/scummvm_libretro.so
           test "$(find dist/PPSA99053/cores -maxdepth 1 -name '*_libretro.so' | wc -l)" -eq 1
