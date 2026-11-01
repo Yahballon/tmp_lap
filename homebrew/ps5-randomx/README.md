@@ -1,6 +1,6 @@
 # PS5 RandomX Benchmark by YAHBALLON
 
-**v0.4.4 | PS5 Title ID: PPSA99795 | Real RandomX 1.2.1**
+**v0.5.0 | PS5 Title ID: PPSA99795 | Real RandomX 1.2.1**
 
 This app measures actual RandomX proof-of-work hashing on homebrew PS5s. It does **not** mine a coin, join a network, or earn currency.
 
@@ -12,7 +12,17 @@ This app measures actual RandomX proof-of-work hashing on homebrew PS5s. It does
 
 Four hardware-AES workers achieve ~3.95x total throughput, but this **does not establish the speedup from AES alone**; compare 1T with and without hardware AES.
 
-## v0.4.4: Execute-only text fix and nonexecuting diagnostics
+## AUTO 3 SECURE JIT benchmark (v0.5.0)
+
+**PS5 measurement from v0.4.4:** Secure JIT, **1 CPU thread**, 30.011 s, 1,166 hashes, **38.8520 H/s**, correct against interpreter (`jit_vector_ok=1`) and `status=completed`. This is the only confirmed native JIT thread count so far.
+
+**New automatic test:** From the default `AUTO 4 LIGHT MODES` selection, press **Down twice** to choose **AUTO 3 SECURE JIT**, then **X**. It runs **1T Secure JIT → 2T Secure JIT → 4T Secure JIT** automatically, with 10/30/60 s duration set using Left/Right. The mode is deliberately **opt-in**; normal launch still selects interpreter AUTO4, and AUTO FULL remains separate. Existing five individual non-JIT profiles and all earlier diagnostic modes remain available (manual profiles start after the three AUTO selections).
+
+Every JIT worker must pass an output comparison with the independent interpreter before timing. Any worker mismatch or allocation failure aborts that profile and stops the suite; no silent fallback to interpreter. Circle or Options cancels the entire remaining sequence. Each run reports to `/data/ps5-randomx/benchmark.log` plus a combined `auto_kind=secure-jit` summary; `jit_trace.log` retains the per-stage debugging breadcrumbs.
+
+**Warning:** The console has not yet demonstrated stable 2T or 4T secure-JIT runs. CPU temperatures, homebrew runtime stability and actual scaling must be tested; multi-thread results must not be inferred from the 1-thread score. This is a benchmark only, without blockchain, mining or rewards.
+
+## v0.5.0: Execute-only text fix and nonexecuting diagnostics
 
 The PS5 native executable's `.text` segment is **execute-only**, not readable. v0.4.3 reproducibly crashed reading the first byte of RandomX's static JIT template at `0x420640`; its mapped destination at `0x200110000` was writable.
 
@@ -30,7 +40,7 @@ New optional manual profile **JIT SAFE DIAGNOSTICS** (profile index 9, last mode
 
 Inspect `/data/ps5-randomx/jit_trace.log` for `source_mprotect_rx_rc` and `source_mprotect_rx_errno`. If this diagnostic passes, do **not** infer RandomX JIT is now safe; first investigate code-section mapping/relocation. Only experimental JIT VM INIT mode attempts a source read, and it still may crash if permissions checks are insufficient.
 
-## JIT prologue crash narrowed in v0.4.4
+## JIT prologue crash narrowed in v0.5.0
 
 Two real-console v0.4.2 JIT-VM attempts returned a 77,824-byte RW mapping, then crashed **at the first 256-byte code-prologue copy**. Source and destination access are not yet distinguished. This release adds an end-of-menu **JIT 78 KiB BUFFER PROBE** (profile #8), which only maps, writes and verifies a 77,824-byte buffer with ordinary stack data—**no JIT, no assembly prologue read, no generated code**. The JIT constructor now records the full 64-bit code-buffer and prologue-source pointers and performs a bytewise prologue copy with 32-byte progress checkpoints.
 
@@ -38,8 +48,8 @@ Two real-console v0.4.2 JIT-VM attempts returned a 77,824-byte RW mapping, then 
 
 The stable AUTO4 interpreter-only benchmark still works. JIT success is not established.
 
-## Crash isolation in v0.4.4
-**v0.4.4 update:** Multiple console traces now confirm a failure *inside* `randomx_create_vm` when constructing the JIT VM, before any hash is attempted. This release instruments the pinned RandomX JIT VM constructor and its real executable buffer mapping/copy, writing `rx_*`, `jit_*` and `page_*` stages to the same trace log. The W^X probe alone is insufficient. A crash during the new test is still possible; install only on a console suitable for homebrew testing.
+## Crash isolation in v0.5.0
+**v0.5.0 update:** Multiple console traces now confirm a failure *inside* `randomx_create_vm` when constructing the JIT VM, before any hash is attempted. This release instruments the pinned RandomX JIT VM constructor and its real executable buffer mapping/copy, writing `rx_*`, `jit_*` and `page_*` stages to the same trace log. The W^X probe alone is insufficient. A crash during the new test is still possible; install only on a console suitable for homebrew testing.
 
 
 A console report confirmed that **JIT MEMORY PERMISSIONS repeatedly completed successfully** (mmap RW, mprotect RX, mprotect RW, munmap; errno 0). A later native crash occurred with no JIT-execution result in benchmark.log, so the failing JIT stage is **not yet known**.
@@ -56,7 +66,7 @@ After a crash, reopen via TESTBUILD and retrieve **both** `benchmark.log` and `j
 
 The normal **AUTO 4 LIGHT** and **AUTO ALL 5** remain untouched and cannot start JIT execution.
 
-## JIT compatibility experiments (v0.4.4, opt-in)
+## JIT compatibility experiments (v0.5.0, opt-in)
 After the original five individual modes there are **two new experimental profiles** (choose via Up/Down or L1/R1):
 
 - **JIT MEMORY PERMISSIONS** — the recommended first test. Maps one 16 KiB page RW, changes protections to RX then RW, and unmaps it. **Does not execute JIT or grant RWX.** Results are logged as `jit_probe_*`, including errno and failure stage.
@@ -103,7 +113,7 @@ Hashing stays in interpreter mode and **JIT remains off**, because executable me
 - Repo source: `homebrew/ps5-randomx/native/main.cpp`.
 - Native workflow: `.github/workflows/build-ps5-randomx.yml`.
 - RandomX pinned to upstream v1.2.1 (`102f8acf90a7649ada410de5499a7ec62e49e1da`).
-- Release tag: `ps5-randomx-v0.4.4`.
+- Release tag: `ps5-randomx-v0.5.0`.
 - Installer: `PPSA99795.zip`.
 - TESTBUILD `version.json` is **automatically generated by GitHub Actions**, never edited manually.
 
