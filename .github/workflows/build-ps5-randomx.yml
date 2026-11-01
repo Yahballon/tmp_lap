@@ -49,11 +49,16 @@ jobs:
           cmake --build /tmp/randomx-host --target randomx -j4
           g++ -std=c++17 -O2 homebrew/ps5-randomx/tests/rx_smoke.cpp -I/tmp/randomx/src /tmp/randomx-host/librandomx.a -lpthread -o /tmp/rx-smoke
           /tmp/rx-smoke
+      - name: Test automatic benchmark scheduling
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror homebrew/ps5-randomx/tests/test_auto_suite.cpp -Ihomebrew/ps5-randomx/native -o /tmp/rx-auto-test
+          /tmp/rx-auto-test
       - name: Prepare native PS5 framework and identity
         run: |
           git clone --depth=1 https://github.com/Yahballon/PS5-DevBridge.git /tmp/devbridge
           cp -a /tmp/devbridge/templates/simple-calc ./app
           cp homebrew/ps5-randomx/native/main.cpp app/src/main.cpp
+          cp homebrew/ps5-randomx/native/auto_suite.hpp app/src/auto_suite.hpp
           cp /tmp/randomx/src/randomx.h app/src/randomx.h
           python3 homebrew/ps5-randomx/assets/generate_icon.py app/sce_sys/icon0.png
           mkdir -p app/assets/licenses
