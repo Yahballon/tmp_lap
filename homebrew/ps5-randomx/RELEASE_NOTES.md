@@ -1,20 +1,23 @@
-# PS5 RandomX Benchmark by YAHBALLON v0.2.0
+# PS5 RandomX Benchmark by YAHBALLON v0.3.0
 
-The first PS5 hardware report confirms **1.9845 H/s (30 s)** and **1.9862 H/s (60 s)** using RandomX Light mode, software AES, no JIT, one CPU worker. This release tests the next bottlenecks directly on the console.
+## PS5 hardware results already confirmed
+- v0.1.0: **1.9862 H/s** (1 thread, software AES, light interpreter).
+- v0.2.0: **7.8487 H/s** (4 threads, hardware AES, light interpreter, 236 hashes/30.069 sec).
+- About **3.95x total throughput**, primarily attributable to 4 independent CPU workers. **The independent hardware-AES speedup is unmeasured**; compare the 1-thread software and hardware profiles.
 
-## Changes
-- Four real RandomX test profiles: 1 thread/software AES, and 1/2/4 threads/hardware AES.
-- One shared 256 MiB light-mode cache; one independent VM and 2 MiB scratchpad per CPU worker.
-- Runtime CPU AES capability check before any hardware-AES VM executes.
-- Controller navigation: **Up/Down or L1/R1** chooses profile; Left/Right chooses duration; X starts; O cancels.
-- Shared start barrier so measured H/s excludes cache/VM initialization; monotonic elapsed includes the last in-flight hash.
-- Diagnostic log now writes **AES mode, thread count, profile, per-worker hash counts, elapsed, last digest and failure reason**.
-- Stable Title ID `PPSA99795`; installer `PPSA99795.zip` for TESTBUILD.
-- Fast mode (>2 GiB dataset), JIT, huge pages and real mining are intentionally **not enabled** until their safety and stability have been tested.
+## Experimental addition: full RandomX memory
+- Fifth profile, **1 THREAD / FULL MEMORY**, manually selectable with Up/Down or L1/R1.
+- RandomX allocates **about 2.08 GiB** for its dataset, plus a **256 MiB** cache during initialization. It may be unavailable on consoles with restrictive homebrew memory budgets.
+- Single threaded, hardware AES when supported, **JIT disabled**.
+- Dataset created through cancellable chunks from the same RandomX key; all items are initialized before benchmarking.
+- Shows preparation progress; measures H/s only after initialization. The report also includes dataset byte count and initialization duration.
+- Memory allocation failure results in an error instead of falling back silently. Other existing profiles remain unchanged.
+- `Circle` or `Options` cancels a running preparation or hash benchmark. Initialization of the currently active chunk must complete before cancellation takes effect.
+- Existing hardware-AES 1/2/4 worker profiles and the 1-thread software baseline are preserved.
 
-## Recommended PS5 tests
-Run 30 or 60 seconds on these profiles in order: **1T software**, **1T hardware**, **2T hardware**, **4T hardware**. Do not assume linear speedup; thermal behavior, scheduling, cache contention and interpreter work can limit scaling.
+## Important caveats
+- The full-memory profile is **opt-in**, may use substantial RAM and could be rejected or terminated by the console. Do not run it alongside memory-heavy applications.
+- Full-memory **without JIT** is not equivalent to a production RandomX miner, so it may not be significantly faster than light mode.
+- No mining payouts, wallet, P2P connectivity or coin issuance.
 
-Use the automatic log `/data/ps5-randomx/benchmark.log` to share all four results.
-
-This remains a benchmark, **not a wallet, blockchain, miner or coin launch**.
+Release: `ps5-randomx-v0.3.0`. Title ID: `PPSA99795`. Log: `/data/ps5-randomx/benchmark.log`.
