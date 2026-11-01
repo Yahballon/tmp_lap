@@ -76,6 +76,14 @@
 - Run diagnosis artifact: [ScummVM-PS5-CI-DIAGNOSTICS](https://github.com/Yahballon/tmp_lap/actions/runs/41311488818/artifacts/13085655625).
 - Required next gate: confirm configure now passes and PS5 ScummVM core compiles; inspect subsequent native link/package failures as needed.
 
+## ScummVM core ELF ABI normalization — 2026-11-01
+
+- Run [41311904239](https://github.com/Yahballon/tmp_lap/actions/runs/41311904239) now PASSED frontend configure, PS5 SDK/RADV and compiled/linked `scummvm_libretro.so` from PS5_ScummVM commit 967fd975.
+- Next failure was **donor core ABI check**: `expected ELF64 little-endian FreeBSD/PS5 ABI, not a host library` immediately after `Linking scummvm_libretro.so...`. This is specifically the 8-byte ELF identification preflight; the full ABI checks never got to run, so exact OSABI is not yet established.
+- Added a constrained OSABI normalization helper: only accepts ELF64 LE x86_64 ET_DYN, OSABI 0 or 9, required `libkernel_web.sprx` and exclusively allowed PS5 dependencies, and 16 KiB-compatible PT_LOAD segments. If OSABI is 0, changes only `e_ident[EI_OSABI]` to FreeBSD (9); if 9, leaves it unchanged; if any check fails, aborts without modification.
+- Temporary donor `build-scummvm.sh` runs this helper **before** existing `core_fork_stage` and its independent `check-core.py` validation. CI prints ELF before/after and saves binary only on failure. Unit tests cover detection/rejection.
+- **Not yet PS5 verified.** Observe next native Actions run. If the PS5 ELF identity or imports are not valid, the checker will reject, and the real link flags must be fixed.
+
 ## Risks and unverified behavior
 
 - Upstream build is large (RADV/toolchain/WebUI) and may exceed GitHub runner resources. Check first failure, do not downgrade or mask it.

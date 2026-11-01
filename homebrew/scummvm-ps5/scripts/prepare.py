@@ -91,6 +91,26 @@ def patch(source: pathlib.Path):
         .replace("FCEUmm", "ScummVM")
     )
     manifest_check.write_text(manifest_content)
+    # LLD's ScummVM output may have SYSV ELFOSABI (0) although the PS5
+    # linker/sections/imports are correct. Validate and normalize this single
+    # identification byte BEFORE donor core_fork_stage runs strict ABI checks.
+    import shutil
+    helper = source / "tools/scummvm-core-abi.py"
+    shutil.copyfile(ROOT / "scripts/normalize_core_abi.py", helper)
+    core_builder = source / "tools/build-scummvm.sh"
+    builder_text = core_builder.read_text()
+    stage_marker = 'core_fork_stage "$source_dir/backends/platform/libretro/scummvm_libretro.so"'
+    if builder_text.count(stage_marker) != 1:
+        raise RuntimeError("Pinned ScummVM core staging call changed")
+    builder_text = builder_text.replace(stage_marker,
+        'echo "==> [scummvm] ELF header before OSABI check"\\n'
+        'readelf -h "$source_dir/backends/platform/libretro/scummvm_libretro.so" | head -n 20\\n'
+        'python3 "$root/tools/scummvm-core-abi.py" '
+        '"$source_dir/backends/platform/libretro/scummvm_libretro.so"\\n'
+        'echo "==> [scummvm] ELF header after OSABI check"\\n'
+        'readelf -h "$source_dir/backends/platform/libretro/scummvm_libretro.so" | head -n 20\\n'
+        + stage_marker, 1)
+    core_builder.write_text(builder_text)
     param = source / "sce_sys/param.json"
     metadata = json.loads(param.read_text())
     if metadata.get("titleId") != "PPSA99169":

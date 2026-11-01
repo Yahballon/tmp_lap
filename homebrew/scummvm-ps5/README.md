@@ -14,7 +14,7 @@ The original generated adventure-compass artwork is stored as `assets/icon-sourc
 
 ## Build and install
 
-The monorepo workflow is [build-scummvm-ps5.yml](../../.github/workflows/build-scummvm-ps5.yml). It pins both upstream commits, installs the dependencies used by Mihawk's PS5 RetroArch, builds its existing PS5 Vulkan stack and one ScummVM libretro core, then signs/repackages the real PS5 title to `dist/PPSA99053.zip`. This native build is expensive and has **not yet been verified**.
+The native core's strict PS5 ABI checker is retained; the build overlay verifies OSABI, PS5 imports and segment alignment before an OSABI-only correction, if needed. An invalid ELF is rejected rather than relabeled.\n\nThe monorepo workflow is [build-scummvm-ps5.yml](../../.github/workflows/build-scummvm-ps5.yml). It pins both upstream commits, installs the dependencies used by Mihawk's PS5 RetroArch, builds its existing PS5 Vulkan stack and one ScummVM libretro core, then signs/repackages the real PS5 title to `dist/PPSA99053.zip`. This native build is expensive and has **not yet been verified**.
 
 ```bash
 python3 homebrew/scummvm-ps5/scripts/prepare.py --source /path/to/PS5_RetroArch

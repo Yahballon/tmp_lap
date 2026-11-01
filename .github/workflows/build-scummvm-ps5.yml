@@ -32,7 +32,8 @@ jobs:
       - name: Run strict port source checks
         run: |
           python3 homebrew/scummvm-ps5/tests/test_source.py
-          python3 -m py_compile homebrew/scummvm-ps5/scripts/prepare.py homebrew/scummvm-ps5/scripts/package.py
+          python3 homebrew/scummvm-ps5/tests/test_normalize_core_abi.py
+          python3 -m py_compile homebrew/scummvm-ps5/scripts/normalize_core_abi.py homebrew/scummvm-ps5/scripts/prepare.py homebrew/scummvm-ps5/scripts/package.py
           python3 -m json.tool homebrew/scummvm-ps5/app.json >/dev/null
       - name: Check out pinned PS5 frontend, RADV, and Mesa forks
         run: |
@@ -161,7 +162,8 @@ jobs:
             .work/PS5_RetroArch/build/ra-conf/config.log \
             .work/PS5_RetroArch/build/ra-conf/info.log \
             .work/PS5_RetroArch/build/ra-conf/config.mk \
-            .work/PS5_RetroArch/build/cores/scummvm/build.json; do
+            .work/PS5_RetroArch/build/cores/scummvm/build.json \
+            .work/PS5_RetroArch/.deps/scummvm-src/backends/platform/libretro/scummvm_libretro.so; do
             if [[ -f "$rel" ]]; then
               cp "$rel" "scummvm-ci-diagnostics/$(basename "$rel")"
             fi
