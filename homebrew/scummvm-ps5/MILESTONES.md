@@ -88,6 +88,7 @@
 
 - [CI run 41319819390](https://github.com/Yahballon/tmp_lap/actions/runs/41319819390): both PS5 SDKs and RADV prepared; ScummVM 2026.3.0 compiled, normalized OSABI 0 -> 9 after checking architecture, imports and segments; donor's strict `check-core.py` reported **CORE ABI PASS**, 25 Libretro exports and SHA-256 `38e3a3a1acba43de7697738f61958b6040a8b222eae29feeef04bd2a38faebe4`. The launcher progressed to ancillary networking, then failed on missing `.work/prospero-win-main/native/ps5log/ps5log.h` while running `tools/build-lapy.py`.
 - Donor Lapy service is hardcoded for original title **PPSA99169**, not standalone title PPSA99053; donor `platform/lapy/README.txt` explicitly describes offline startup without loader/service. Rather than bundle an unrelated privileged daemon, ScummVM-only `prepare.py` removes donor Lapy build and staging lines in the temporary checkout. It retains full PS5 core ABI, title manifest and license checks. CI and package.py both reject any unexpected `lapy-root-daemon.elf`.
+- Also removed the donor Lapy executable from its inlined Python title build-identity digest input. Otherwise the build would have failed later even though compiling and staging the daemon were disabled.
 - **Status: PATCH COMMITTED / BUILD NOT VERIFIED.** The next successful native CI run must validate fake-SELF, core-only contents, icons, licenses and ZIP before prerelease. Console boot has not been tested.
 
 ## Risks and unverified behavior
