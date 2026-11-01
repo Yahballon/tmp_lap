@@ -59,6 +59,7 @@ on:
       - Import PS5NESX Sources
       - Build PS5NESX Native
       - Build NESYX Native
+      - Build ScummVM PS5 (dedicated native core)
     types: [completed]
   schedule:
     - cron: '17 * * * *'

@@ -110,5 +110,44 @@ jobs:
             .work/PS5_RetroArch/dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
-# Deliberately no automatic release or catalog mutation:
-# hardware smoke test and validated compilation are needed first.
+
+  publish:
+    needs: native-scummvm
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ScummVM-PS5-v0.1.0-PPSA99053-UNVERIFIED
+          path: out
+      - name: Verify signed TESTBUILD artifact and publish immutable prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd out
+          sha256sum -c SHA256SUMS
+          python3 - <<'PY'
+          import json, struct, zipfile
+          with zipfile.ZipFile("PPSA99053.zip") as z:
+              assert z.testzip() is None
+              p="PPSA99053/"
+              assert z.read(p+"eboot.bin")[:4] == struct.pack("<I",0x1D3D154F)
+              assert json.loads(z.read(p+"sce_sys/param.json"))["titleId"] == "PPSA99053"
+              assert len(z.read(p+"sce_sys/icon0.png"))>1024
+              assert len(z.read(p+"cores/scummvm_libretro.so"))>100000
+          print("PASS: TESTBUILD zip signed and structurally valid")
+          PY
+          tag=scummvm-ps5-v0.1.0
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Existing tag cannot be overwritten"
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx PPSA99053.zip
+          else
+            gh release create "$tag" PPSA99053.zip SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+              --title "ScummVM PS5 v0.1.0 by YAHBALLON (TESTBUILD)" \
+              --notes "Experimental PS5 ScummVM core-only RetroArch frontend. Signed PS5 ZIP and SHA-256 verified in CI. Hardware boot, game compatibility, controls, sound and saving are NOT YET VERIFIED on a user's console. Bring your own legally obtained game data. GPL component notices retained."
+          fi
+

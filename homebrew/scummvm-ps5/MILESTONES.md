@@ -40,6 +40,12 @@
 - Fixed the workflow to clone `mihawk-99/PS5_PayloadSDK`, verify donor-required commits `b5efad5...` and `b83202b...`, pass fork explicitly to bootstrap scripts and prepare native link tooling before RADV. The two projects pin separate SDK revisions; no hash checks disabled.
 - **Fix status:** COMMITTED / UNVERIFIED. Inspect next CI run for result.
 
+## Release/TESTBUILD handoff — 2026-11-01
+
+- Added a `publish` GitHub Actions job gated by successful native build on `main`. It downloads the actual verified signed ZIP and checksum, checks contents and publishes `scummvm-ps5-v0.1.0` as an experimental GitHub prerelease. PRs do NOT release.
+- Updated the existing catalog generator's explicit prerelease allowlist, catalog workflow_run subscription and host tests. `version.json` itself remains generated; no fake entry is inserted.
+- Publication not verified: wait for successful PR native compile and merge. Only then can the publisher run and catalog discover a real artifact.
+
 ## Risks and unverified behavior
 
 - Upstream build is large (RADV/toolchain/WebUI) and may exceed GitHub runner resources. Check first failure, do not downgrade or mask it.
