@@ -36,6 +36,26 @@ def patch(source: pathlib.Path):
     updated = updated.replace(anchor,
         'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi\n' + anchor, 1)
     build.write_text(updated)
+    # Dedicated build only stages ScummVM, so the WebUI core-option
+    # generator must not request 31 missing other cores' source trees.
+    generator = source / "tools/generate-core-metadata.py"
+    metadata_source = generator.read_text()
+    begin = metadata_source.index("CORES = [")
+    end = metadata_source.index("\\nif os.environ.get('PS5_WITH_SWANSTATION')", begin)
+    old_block = metadata_source[begin:end]
+    scummvm_line = next(
+        (line for line in old_block.splitlines()
+         if line.lstrip().startswith("('scummvm', 'ScummVM',")),
+        None,
+    )
+    if scummvm_line is None:
+        raise RuntimeError("Pinned upstream ScummVM metadata definition missing")
+    metadata_source = (
+        metadata_source[:begin] + "CORES = [\\n" + scummvm_line + "\\n]"
+        + metadata_source[end:]
+    )
+    # Workflows do not turn on the donor's optional additional core flags.
+    generator.write_text(metadata_source)
     param = source / "sce_sys/param.json"
     metadata = json.loads(param.read_text())
     if metadata.get("titleId") != "PPSA99169":
