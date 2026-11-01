@@ -29,7 +29,7 @@ def normalize(path: pathlib.Path) -> str:
     if osabi not in (0, 9):
         raise RuntimeError(f"unexpected ELF OSABI={osabi}; refusing modification")
     dyn = subprocess.check_output(["readelf", "-dW", str(path)], text=True)
-    needed = re.findall(r"\\(NEEDED\\).*?\\[([^\\]]+)\\]", dyn)
+    needed = re.findall(r"\(NEEDED\).*?\[([^\]]+)\]", dyn)
     if "libkernel_web.sprx" not in needed or set(needed) - ALLOWED:
         raise RuntimeError(f"not a PS5-target core; linked dependencies: {needed}")
     phoff = struct.unpack_from("<Q", raw, 32)[0]
