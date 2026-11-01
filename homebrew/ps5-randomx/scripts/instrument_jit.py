@@ -40,7 +40,7 @@ patch("randomx.cpp", [
 
 patch("jit_compiler_x86.cpp", [
     ('#include "jit_compiler_x86.hpp"',
-     '#include "jit_compiler_x86.hpp"\nextern "C" void rx_ps5_jit_stage(const char*, unsigned long long);'),
+     '#include "jit_compiler_x86.hpp"\nextern "C" void rx_ps5_jit_stage(const char*, unsigned long long);\nextern "C" void rx_ps5_jit_pointer(const char*, unsigned long long);'),
     ('JitCompilerX86::JitCompilerX86() {\n\t\tcode = (uint8_t*)allocMemoryPages(CodeSize);',
      'JitCompilerX86::JitCompilerX86() {\n'
      '\t\trx_ps5_jit_stage("jit_ctor_enter", 0);\n'
@@ -49,7 +49,20 @@ patch("jit_compiler_x86.cpp", [
      '\t\trx_ps5_jit_stage("jit_after_code_mmap", code != nullptr);'),
     ('\t\tmemcpy(code, codePrologue, prologueSize);\n\t\tmemcpy(code + epilogueOffset, codeEpilogue, epilogueSize);',
      '\t\trx_ps5_jit_stage("jit_before_prologue_copy", (unsigned long long)prologueSize);\n'
-     '\t\tmemcpy(code, codePrologue, prologueSize);\n'
+     '\t\trx_ps5_jit_pointer("jit_dest_addr", (unsigned long long)(uintptr_t)code);\n'
+     '\t\trx_ps5_jit_pointer("jit_source_addr", (unsigned long long)(uintptr_t)codePrologue);\n'
+     '\t\trx_ps5_jit_stage("jit_before_dest_write", 0);\n'
+     '\t\tcode[0] = 0x90;\n'
+     '\t\trx_ps5_jit_stage("jit_after_dest_write", 1);\n'
+     '\t\trx_ps5_jit_stage("jit_before_source_read", 0);\n'
+     '\t\tvolatile uint8_t first = codePrologue[0];\n'
+     '\t\trx_ps5_jit_stage("jit_after_source_read", first);\n'
+     '\t\t// Volatile bytewise copy avoids a platform-optimized memcpy when\n'
+     '\t\t// reading a static assembly text region. Result bytes are identical.\n'
+     '\t\tfor (int i = 0; i < prologueSize; ++i) {\n'
+     '\t\t\t((volatile uint8_t*)code)[i] = ((const volatile uint8_t*)codePrologue)[i];\n'
+     '\t\t\tif ((i & 31) == 31) rx_ps5_jit_stage("jit_prologue_copied_bytes", i + 1);\n'
+     '\t\t}\n'
      '\t\trx_ps5_jit_stage("jit_after_prologue_copy", 1);\n'
      '\t\trx_ps5_jit_stage("jit_before_epilogue_copy", (unsigned long long)epilogueSize);\n'
      '\t\tmemcpy(code + epilogueOffset, codeEpilogue, epilogueSize);\n'

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.2
+// PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.3
 // Real RandomX v1.2.1, optional full-memory mode, interpreter; NOT a miner.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -16,6 +16,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cerrno>
+#include <sys/mman.h>
 #include <string>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -25,6 +27,11 @@ using namespace hui::gfx;
 // Keep the JIT diagnostics disabled for the stable AUTO/interpreter modes.
 static std::atomic<int> g_rx_jit_trace_profile{-1};
 static std::atomic<uint64_t> g_rx_jit_trace_session{0};
+extern "C" void rx_ps5_jit_pointer(const char* stage, unsigned long long address) {
+  const int p=g_rx_jit_trace_profile.load();
+  if(p!=6 && p!=7)return;
+  rxbench::jit_trace_pointer(stage,p,g_rx_jit_trace_session.load(),address);
+}
 extern "C" void rx_ps5_jit_stage(const char* stage, unsigned long long value) {
   const int p=g_rx_jit_trace_profile.load();
   if(p!=6 && p!=7)return;
@@ -45,6 +52,7 @@ struct Profile {
   bool jit=false;
   bool probe_only=false;
   bool jit_init_only=false;
+  bool buffer_probe_only=false;
 };
 constexpr Profile kProfiles[]={
   {"1 THREAD / SOFTWARE AES",1,false,false},
@@ -54,7 +62,8 @@ constexpr Profile kProfiles[]={
   {"1 THREAD / FULL MEMORY",1,true,true}, // Opt-in: >2 GiB RAM, no JIT
   {"JIT MEMORY PERMISSIONS",0,false,false,false,true}, // No code executed
   {"JIT VM INIT ONLY",0,true,false,false,false,true}, // No JIT hashes
-  {"1 THREAD / SECURE JIT",1,true,false,true,false} // Opt-in; may crash
+  {"1 THREAD / SECURE JIT",1,true,false,true,false}, // Opt-in; may crash
+  {"JIT 78 KiB BUFFER PROBE",0,false,false,false,false,false,true}
 };
 constexpr int kProfileCount=sizeof(kProfiles)/sizeof(kProfiles[0]);
 struct Bench;
@@ -74,7 +83,7 @@ struct Bench {
   std::atomic<uint64_t> hashes{0}, elapsed_us{0}, start_us{0};
   std::atomic<uint64_t> dataset_ready{0}, dataset_total{0}, prep_us{0};
   int seconds=30, profile_id=0, thread_count=1;
-  bool hardware_aes=false, full_mem=false, jit_requested=false, probe_only=false, jit_init_only=false;
+  bool hardware_aes=false, full_mem=false, jit_requested=false, probe_only=false, jit_init_only=false, buffer_probe_only=false;
   uint64_t session=0;
   rxbench::JitProbe jit_probe{};
   std::atomic<bool> jit_vector_ok{false};
@@ -95,7 +104,7 @@ std::string readFile(const char* path) {
 }
 void jitTrace(Bench* b,const char* stage,int value=0) {
   const Profile& p=kProfiles[b->profile_id];
-  if(p.jit||p.probe_only||p.jit_init_only)
+  if(p.jit||p.probe_only||p.jit_init_only||p.buffer_probe_only)
     rxbench::jit_trace(stage,b->profile_id,b->session,value);
 }
 void report(Bench* b,int outcome) {
@@ -105,13 +114,13 @@ void report(Bench* b,int outcome) {
   const double elapsed=double(b->elapsed_us.load())/1000000.0;
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
-  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.2\n");
+  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.3\n");
   std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=%s threads=%d profile=%d\n",
-               b->probe_only?"jit-wx-probe":b->jit_init_only?"jit-vm-init-only":b->jit_requested?"light-secure-jit":
+               b->probe_only?"jit-wx-probe":b->buffer_probe_only?"jit-buffer-write-probe":b->jit_init_only?"jit-vm-init-only":b->jit_requested?"light-secure-jit":
                b->full_mem?"full-memory-interpreter":"light-interpreter",
                b->hardware_aes?"hardware":"software",
                b->jit_requested?"secure-wx":b->jit_init_only?"init-only":"off",b->thread_count,b->profile_id);
-  if(b->probe_only||b->jit_requested||b->jit_init_only)
+  if(b->probe_only||b->jit_requested||b->jit_init_only||b->buffer_probe_only)
     std::fprintf(f,"jit_probe_mapped=%d jit_probe_rx=%d jit_probe_rw_restored=%d jit_probe_unmapped=%d jit_probe_errno=%d jit_probe_failed_at=%s jit_vector_ok=%d\n",
                  b->jit_probe.mapped?1:0,b->jit_probe.rx?1:0,b->jit_probe.rw_restored?1:0,
                  b->jit_probe.unmapped?1:0,b->jit_probe.error,b->jit_probe.failed_at,
@@ -222,10 +231,11 @@ void* runBench(void* context) {
   b->jit_requested=kProfiles[b->profile_id].jit;
   b->probe_only=kProfiles[b->profile_id].probe_only;
   b->jit_init_only=kProfiles[b->profile_id].jit_init_only;
+  b->buffer_probe_only=kProfiles[b->profile_id].buffer_probe_only;
   b->thread_count=kProfiles[b->profile_id].threads;
   // Probe only on explicit profile selection, not during normal AUTO mode.
   // Never executes the temporary page. May fail if PS5 HEN disallows RX rights.
-  if(b->jit_requested||b->probe_only||b->jit_init_only){
+  if(b->jit_requested||b->probe_only||b->jit_init_only||b->buffer_probe_only){
     jitTrace(b,"before_wx_probe");
     std::snprintf(b->report_status,sizeof(b->report_status),"Checking mmap RW -> RX -> RW...");
     b->jit_probe=rxbench::probe_wx_transition();
@@ -238,6 +248,39 @@ void* runBench(void* context) {
     }
     if(b->probe_only){
       std::snprintf(b->report_status,sizeof(b->report_status),"W^X map protection probe passed");
+      finish(b,Completed);return nullptr;
+    }
+    if(b->buffer_probe_only){
+      // Isolate the real 77,824 byte mmap size from static assembler sourcing.
+      // No JIT VM is created, no generated code executes.
+      constexpr size_t kSize=77824;
+      jitTrace(b,"buffer_probe_before_mmap",int(kSize));
+      auto* mem=static_cast<uint8_t*>(mmap(nullptr,kSize,PROT_READ|PROT_WRITE,
+                                            MAP_PRIVATE|MAP_ANONYMOUS,-1,0));
+      const int saved_errno=errno;
+      jitTrace(b,"buffer_probe_after_mmap",mem==MAP_FAILED?0:1);
+      if(mem==MAP_FAILED){
+        std::snprintf(b->error,sizeof(b->error),"78KiB mmap failed, errno=%d",saved_errno);
+        finish(b,Failed);return nullptr;
+      }
+      jitTrace(b,"buffer_probe_before_write");
+      // Initial and final page checks. Log before each risky access.
+      mem[0]=0x52;
+      jitTrace(b,"buffer_probe_first_byte_written",int(mem[0]));
+      mem[kSize-1]=0x58;
+      jitTrace(b,"buffer_probe_last_byte_written",int(mem[kSize-1]));
+      std::array<uint8_t,256> known{};
+      for(size_t i=0;i<known.size();++i)known[i]=uint8_t(i);
+      jitTrace(b,"buffer_probe_before_memcpy");
+      std::memcpy(mem,known.data(),known.size());
+      jitTrace(b,"buffer_probe_after_memcpy");
+      const bool valid=std::memcmp(mem,known.data(),known.size())==0;
+      jitTrace(b,"buffer_probe_verified",valid?1:0);
+      munmap(mem,kSize);
+      if(!valid){
+        std::snprintf(b->error,sizeof(b->error),"78KiB mapping copy verification failed");
+        finish(b,Failed);return nullptr;
+      }
       finish(b,Completed);return nullptr;
     }
     jitTrace(b,"before_jit_flag_check",int(available));
@@ -353,7 +396,7 @@ bool start(Bench& b,int seconds,int profile_id){
   if(b.join_needed)return false;
   b.seconds=seconds;b.profile_id=profile_id;
   b.thread_count=kProfiles[profile_id].threads;
-  b.hardware_aes=false;b.jit_requested=false;b.probe_only=false;b.jit_init_only=false;
+  b.hardware_aes=false;b.jit_requested=false;b.probe_only=false;b.jit_init_only=false;b.buffer_probe_only=false;
   b.session=uint64_t(hui::sys::monotonic_us());
   g_rx_jit_trace_profile.store((profile_id==6||profile_id==7)?profile_id:-1);
   g_rx_jit_trace_session.store(b.session);
@@ -383,7 +426,7 @@ void writeAutoSummary(const rxbench::AutoSuite& suite) {
   mkdir(kDataDir,0777);
   FILE* f=std::fopen(kReport,"a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.4.2\n");
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.4.3\n");
   std::fprintf(f,"auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
                suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
   for(int i=0;i<suite.recorded;i++){
@@ -507,7 +550,7 @@ int main(){
       ("AUTO STEP "+std::to_string(suite.step+1)+"/"+std::to_string(suite.total)+": "+selected.label):
       (chosen_auto?std::string(auto_title):std::string(selected.label));
     char rate[80],time[80],total[80];
-    if(selected.probe_only&&state==Completed)
+    if((selected.probe_only||selected.buffer_probe_only)&&state==Completed)
       std::snprintf(rate,sizeof(rate),"W^X PASS");
     else if(selected.jit_init_only&&state==Completed)
       std::snprintf(rate,sizeof(rate),"VM INIT PASS");
@@ -521,7 +564,7 @@ int main(){
     d.rounded_rect({39,24,52,52},13,color(0x0761cc));
     tx(d,font,atlas,"RX",65,60,27,color(0xffffff),Align::center);
     tx(d,font,atlas,"PS5 RANDOMX BENCHMARK  by YAHBALLON",113,61,33);
-    tx(d,font,atlas,"v0.4.2",1879,60,24,color(0xc9e4ff),Align::right);
+    tx(d,font,atlas,"v0.4.3",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
     tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
@@ -529,7 +572,7 @@ int main(){
        suite.done?(suite.cancelled?"AUTO TEST CANCELLED":suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?"AUTO TEST COMPLETE":"AUTO TEST FAILED"):statusName(state),
        97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
-    tx(d,font,atlas,shown_mode+(selected.jit?" / SECURE JIT":selected.probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
+    tx(d,font,atlas,shown_mode+(selected.jit?" / SECURE JIT":selected.probe_only||selected.buffer_probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
     d.rounded_rect({101,500,1100,19},9,color(0x193550));
     d.rounded_rect({101,500,1100*progress,19},9,color(0x27d9be));
     tx(d,font,atlas,preparing_dataset?("Dataset prepared: "+std::to_string(int(progress*100.f))+"%"):std::string(time),
@@ -540,12 +583,12 @@ int main(){
     tx(d,font,atlas,"RandomX v1.2.1",1808,331,23,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Mode",1305,385,21,color(0x90a7c9));
     tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"AUTO SEQUENTIAL":
-       selected.probe_only?"MEMORY W^X PROBE":selected.jit_init_only?"JIT VM INIT ONLY":selected.jit?"LIGHT / SECURE JIT":
+       selected.probe_only?"MEMORY W^X PROBE":selected.buffer_probe_only?"78 KiB WRITE PROBE":selected.jit_init_only?"JIT VM INIT ONLY":selected.jit?"LIGHT / SECURE JIT":
        selected.full_mem?"FULL / INTERPRETED":"LIGHT / INTERPRETED",
        1808,385,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"CPU workers",1305,433,21,color(0x90a7c9));
     tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"1 / 1 / 2 / 4":
-       selected.probe_only||selected.jit_init_only?"NOT REQUIRED":
+       selected.probe_only||selected.buffer_probe_only||selected.jit_init_only?"NOT REQUIRED":
        std::to_string(selected.threads)+" / "+(selected.request_aes?"HW AES":"SOFT AES"),
        1808,433,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Run duration",1305,478,21,color(0x90a7c9));
@@ -588,6 +631,7 @@ int main(){
        "FULL MEMORY IS OPT-IN: >2 GiB RAM REQUIRED.":
        selected.jit?"JIT EXPERIMENTAL: W^X PREFLIGHT REQUIRED; MAY CRASH.":
        selected.probe_only?"W^X PROBE DOES NOT EXECUTE DYNAMIC CODE.":
+       selected.buffer_probe_only?"BUFFER PROBE WRITES KNOWN DATA ONLY; NO JIT.":
        selected.jit_init_only?"VM INIT DOES NOT EXECUTE GENERATED CODE.":
        "AUTO LIGHT RUNS FOUR PROFILES. NO MANUAL SWITCHING.",
        1278,799,18,color(0xb6cde8));
