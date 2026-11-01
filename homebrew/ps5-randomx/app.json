@@ -2,14 +2,14 @@
   "name": "PS5 RandomX Benchmark",
   "slug": "ps5-randomx",
   "author": "YAHBALLON",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "titleId": "PPSA99795",
   "contentId": "UP9000-PPSA99795_00-PS5RANDOMXBENCH1",
-  "contentVersion": "01.000.002",
+  "contentVersion": "01.000.003",
   "algorithm": "RandomX",
-  "mode": "light-interpreter, software AES / hardware AES, 1-4 threads",
+  "mode": "RandomX light 1-4 threads AES or opt-in full memory 1 thread no JIT",
   "upstream": "tevador/RandomX v1.2.1",
-  "releaseTag": "ps5-randomx-v0.2.0",
+  "releaseTag": "ps5-randomx-v0.3.0",
   "category": "tool",
   "miningEnabled": false
 }
