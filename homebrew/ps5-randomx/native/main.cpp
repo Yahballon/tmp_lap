@@ -370,7 +370,7 @@ void writeAutoSummary(const rxbench::AutoSuite& suite) {
   mkdir(kDataDir,0777);
   FILE* f=std::fopen(kReport,"a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.3.0\n");
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.4.1\n");
   std::fprintf(f,"auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
                suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
   for(int i=0;i<suite.recorded;i++){
@@ -578,7 +578,9 @@ int main(){
        selected.jit_init_only?"VM INIT DOES NOT EXECUTE GENERATED CODE.":
        "AUTO LIGHT RUNS FOUR PROFILES. NO MANUAL SWITCHING.",
        1278,799,18,color(0xb6cde8));
-    tx(d,font,atlas,export_hint?"Report is automatically written after each run.":"/data/ps5-randomx/benchmark.log",1278,878,18,color(0x96b4d6));
+    tx(d,font,atlas,export_hint?"Every run writes a report. JIT stages write jit_trace.log.":
+       (selected.jit||selected.jit_init_only||selected.probe_only)?
+       "/data/ps5-randomx/jit_trace.log":"/data/ps5-randomx/benchmark.log",1278,878,18,color(0x96b4d6));
     d.rounded_rect({0,1007,1920,73},0,color(0x07162b));
     tx(d,font,atlas,"X AUTO START   UP/DOWN CHOOSE AUTO OR SINGLE   LEFT/RIGHT TIME   O STOP/EXIT   TRIANGLE RESET",57,1054,20);
     renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
