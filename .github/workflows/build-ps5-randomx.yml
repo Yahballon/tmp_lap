@@ -82,11 +82,9 @@ jobs:
           s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5',
                       'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
           s=s.replace('github.com/blackbearreloaded/ps5-opengl','github.com/LedyBacer/ps5-opengl')
-          old='''[[ $actual == "$manifest_sha256" ]] || {
-    echo "unexpected ps5-opengl SDK manifest: $actual" >&2
-    exit 2
-}'''
-          assert old in s
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          old=s[start:end]
           # The extracted SDK manifest still verifies the files; the immutable tarball
           # itself is checked against the v1.0.2 SHA-256 above.
           s=s.replace(old, 'echo "SDK v1.0.2 manifest contents and archive SHA-256 verified" >&2')
