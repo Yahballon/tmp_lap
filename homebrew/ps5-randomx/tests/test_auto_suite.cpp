@@ -53,7 +53,24 @@ int main(){
   s.cancel();
   assert(!s.record(4,false,1,1000000));
   assert(s.cancelled && s.recorded==2);
-  // Original 4-stage interpreter plan remains the default after reset.
+  s.begin_all(30);
+  const int expected_all[10]={0,1,2,3,7,10,11,12,13,14};
+  assert(s.kind==rxbench::AutoSuite::All10&&s.total==10);
+  for(int i=0;i<10;i++){
+    assert(s.current_profile()==expected_all[i]);
+    bool next=s.record(3,true,100,30000000);
+    assert(s.results[i].profile==expected_all[i]);
+    if(i<9)assert(next);else assert(!next&&s.done);
+  }
+  s.begin_all(10);
+  for(int i=0;i<7;i++)assert(s.record(3,true,10,1000000));
+  assert(!s.record(5,false,0,0)); // Failed full-memory allocation stops suite
+  assert(s.recorded==8&&s.done&&!s.active);
+  s.begin_all(30);
+  assert(s.record(3,true,10,1000000));
+  s.cancel();
+  assert(!s.record(4,false,0,0)&&s.cancelled);
+  // Original 4-stage interpreter plan remains available after reset.
   s.begin(false,30);
   assert(s.current_profile()==0 && s.kind==rxbench::AutoSuite::Light4);
   std::puts("PASS: AUTO4, AUTO5, JIT 1/2/4 plan, cancellation and failure");
