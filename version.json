@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "8192e6b5f4b4cb9bf66952fb42944bbec064ce2db211b0e9f7882b12844ba427",
+  "version": "325f52bbd3e909d7fe04fd82f09257e03cbb55fe4df844478afd6edde1a495a4",
   "repository": "Yahballon/tmp_lap",
   "app_count": 32,
   "apps": [
@@ -242,14 +242,14 @@
       "name": "PS5 RandomX Benchmark",
       "slug": "ps5-randomx",
       "title_id": "PPSA99795",
-      "version": "0.1.0",
-      "tag": "ps5-randomx-v0.1.0",
+      "version": "0.2.0",
+      "tag": "ps5-randomx-v0.2.0",
       "zip_name": "PPSA99795.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-randomx-v0.1.0/PPSA99795.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-randomx-v0.1.0",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/ps5-randomx-v0.2.0/PPSA99795.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/ps5-randomx-v0.2.0",
       "source": "homebrew/ps5-randomx",
-      "size_bytes": 6111848,
-      "published_at": "2026-11-01T09:00:07Z"
+      "size_bytes": 6113282,
+      "published_at": "2026-11-01T09:18:12Z"
     },
     {
       "name": "Drink Roulette",
