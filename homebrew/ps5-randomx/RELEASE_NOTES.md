@@ -1,18 +1,21 @@
-# PS5 RandomX Benchmark by YAHBALLON v0.4.1
+# PS5 RandomX Benchmark by YAHBALLON v0.4.2
 
-## JIT crash isolation hotfix
+## JIT constructor crash diagnosis
 
-PS5 hardware confirms **JIT W^X permission probes succeeded** (9 successful profile-5 log entries, `jit_probe_errno=0`). A subsequent native crash was reported but the standard benchmark.log did not include an actual JIT hash or failure receipt. **The crash location is not proven**.
+PS5 console reports confirm the **JIT VM INIT ONLY** profile in v0.4.1 repeatedly terminates the process in the `randomx_create_vm` call: all stages through `after_cache_init` succeed, and the last durable log line is `before_init_only_vm_create`. The earlier 16 KiB W^X memory preflight passes. There is **no evidence JIT-generated code has executed successfully**.
 
-Changes:
-- New intermediate **JIT VM INIT ONLY** profile, placed between the W^X probe and the full JIT execution profile.
-- Separately opens and destroys the RandomX Secure JIT VM without calling `randomx_calculate_hash`.
-- Stage-by-stage persistent `/data/ps5-randomx/jit_trace.log`: before/after W^X check, RandomX cache allocation/initialization, JIT VM construction/destruction, interpreter comparison and first JIT hash.
-- Each stage append is flushed and closed before proceeding, helping diagnose crash without a normal benchmark report.
-- Host CI checks a real RandomX secure-JIT digest against the interpreter, in addition to compiling the PS5 executable.
-- Fixed version strings for both regular benchmark receipts and automatic test summaries to `v0.4.1`.
-- The default AUTO 4/5 modes are still **interpreter-only**. No networking or crypto mining.
+This update adds precise, persistent breadcrumbs **inside upstream RandomX 1.2.1 during the PS5 build**, not only around the API call:
+- Enter `randomx_create_vm`; before switch / after constructor; before setCache and scratchpad allocation
+- Enter JIT compiler constructor; code-buffer allocation and resulting mapping status
+- Actual JIT-code-buffer `mmap` and its errno if it fails
+- Before/after copying the JIT prologue and epilogue
+- C++ exception on VM creation
+- Continues logging to `/data/ps5-randomx/jit_trace.log` with the same session ID and profile ID, flushing each marker
 
-**PS5 test order:** First run W^X, next run **JIT VM INIT ONLY** (without any generated hash). Only after these both pass, consider the experimental full JIT profile; it can still crash. If a crash occurs, provide the new `jit_trace.log` to pinpoint the last stage.
+The upstream RandomX code is unchanged semantically: only diagnostic instrumentation is applied to the pinned checkout during native cross-compilation; normal C++ RandomX hashing is unaffected. The standard **AUTO 4 LIGHT** stays the default. **No JIT benchmark is in AUTO**, and a JIT VM creation attempt may still crash.
 
-Title ID: `PPSA99795`. Installer: `PPSA99795.zip`. Release: `ps5-randomx-v0.4.1`.
+After installing, run **JIT VM INIT ONLY** (profile index 6) once on a test console, then retrieve the end of `jit_trace.log` to pinpoint the failing substage. Do NOT run **1 THREAD / SECURE JIT** unless JIT VM initialization is proven safe.
+
+Also preserves real PS5 hashes, native SDK packaging and TESTBUILD's GitHub Actions-generated `version.json`. No wallet, P2P, coin or mining.
+
+Title ID PPSA99795; release tag `ps5-randomx-v0.4.2`.
