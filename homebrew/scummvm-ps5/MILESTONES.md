@@ -63,6 +63,12 @@
 - Added the pinned `PS5_MihawkGen` source checkout plus immutable LLVM licence text required by the donor's legal-notices packaging phase.
 - **These changes have not been verified by a complete native build.** Monitor the latest feature branch CI run. No signed ZIP/Release/hardware test may be claimed until the corresponding evidence exists.
 
+## Failure investigation: RetroArch configure — 2026-11-01
+
+- Latest completed native CI: [41308958226](https://github.com/Yahballon/tmp_lap/actions/runs/41308958226), **failed**. Pinned RetroArch 1.22.2 checkout succeeded; RADV release built. At the frontend build: `error: configure failed; see .../build/ra-conf/configure.log`. Actual compiler/configure error was *not emitted* in GitHub job logs.
+- To avoid guessing at compiler flags, the workflow now runs RetroArch configure and `make info` as a **fail-fast preflight before RADV** and prints the underlying `configure.log` plus `config.log` on error. A failure-only artifact preserves the logs for inspection.
+- **No native PS5 binary, signed ZIP, or TESTBUILD release confirmed.** Next: read the new configure log from Actions, identify the first actual failure, and patch only that cause.
+
 ## Risks and unverified behavior
 
 - Upstream build is large (RADV/toolchain/WebUI) and may exceed GitHub runner resources. Check first failure, do not downgrade or mask it.

@@ -68,6 +68,23 @@ jobs:
           # Both donor projects pin different known SDK commits from the same fork.
           cd .work/PS5_RetroArch
           bash tools/setup-native-dependencies.sh
+          # Fail fast on RetroArch configure BEFORE compiling the multi-minute
+          # RADV archive. Print the otherwise-hidden configure.log.
+          bash tools/fetch-retroarch.sh
+          bash tools/fetch-retroarch.sh --verify
+          if ! PS5_PAYLOAD_SDK="$PWD/.deps/native/ps5-payload-sdk" bash tools/retroarch-sources.sh > "$RUNNER_TEMP/scummvm-retroarch-preflight.log" 2>&1; then
+            echo "::error::RetroArch configure / make info failed"
+            tail -n 120 "$RUNNER_TEMP/scummvm-retroarch-preflight.log" >&2 || true
+            for log in build/ra-conf/configure.log build/ra-conf/config.log build/ra-conf/info.log; do
+              if [[ -f $log ]]; then
+                echo "::group::$(basename "$log")"
+                tail -n 180 "$log" >&2
+                echo "::endgroup::"
+              fi
+            done
+            exit 1
+          fi
+          echo "PASS: RetroArch 1.22.2 configure + make info"
           cd ../PS5_Vulkan
           bash tools/setup-native-dependencies.sh
           # The title driver/linker preflight also needs ps5vk archive, libc.prx
@@ -125,6 +142,30 @@ jobs:
           print("PASS: original launcher icon integrated in PS5 title")
           PY
           (cd .work/PS5_RetroArch/dist && sha256sum -c SHA256SUMS)
+      - name: Preserve RetroArch configuration diagnostics on failure
+        if: failure()
+        run: |
+          mkdir -p scummvm-ci-diagnostics
+          for rel in \
+            .work/PS5_RetroArch/build/ra-conf/configure.log \
+            .work/PS5_RetroArch/build/ra-conf/config.log \
+            .work/PS5_RetroArch/build/ra-conf/info.log \
+            .work/PS5_RetroArch/build/ra-conf/config.mk \
+            .work/PS5_RetroArch/build/cores/scummvm/build.json; do
+            if [[ -f "$rel" ]]; then
+              cp "$rel" "scummvm-ci-diagnostics/$(basename "$rel")"
+            fi
+          done
+          for name in scummvm-retroarch-preflight.log vulkan-prepare.log; do
+            [[ ! -f "$RUNNER_TEMP/$name" ]] || cp "$RUNNER_TEMP/$name" scummvm-ci-diagnostics/
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ScummVM-PS5-CI-DIAGNOSTICS
+          path: scummvm-ci-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
           name: ScummVM-PS5-v0.1.0-PPSA99053-UNVERIFIED
