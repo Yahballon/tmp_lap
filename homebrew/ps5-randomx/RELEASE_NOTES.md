@@ -1,14 +1,19 @@
 # PS5 RandomX Benchmark by YAHBALLON v0.4.4
 
-## PS5 JIT crash: static assembler source, not code destination
+## Root cause: Native PS5 execute-only text segments
 
-In three independent native PS5 v0.4.3 sessions the JIT buffer at `0x0000000200110000` was successfully mapped and written; the source address was `0x0000000000420640`. The last breadcrumb was `jit_before_source_read` each time. The first attempted read of the static x86 RandomX assembler prologue crashes before JIT code is executed.
+Three v0.4.3 hardware traces ended at the first read of the static RandomX x86-64 JIT assembler prologue, address `0x420640`. The 77,824-byte destination buffer at `0x200110000` had been allocated and written successfully. Native PS5 homebrew splits executable text (X-only) and readable data; attempts to **read the embedded machine-code template from executable text** raise a fault. The original RandomX JIT constructor performs exactly this copy.
 
-### Safer diagnostic
-- **JIT SAFE DIAGNOSTICS**, new optional manual mode (profile 9): tests a 77,824-byte RW mapping (first/last page plus 256-byte stack pattern copy), then asks the kernel whether the static assembler source page can be mapped RX with `mprotect`. **It never dereferences that source or executes generated code.**
-- Logs `static_source_addr`, `source_page_aligned`, `source_mprotect_rx_rc` and `source_mprotect_rx_errno` to `/data/ps5-randomx/jit_trace.log`.
-- The existing **JIT VM INIT ONLY** constructor now performs the same preflight and **throws a normal diagnostic exception if the kernel denies RX**, before trying to read assembly bytes. A passing RX permission call is *not* proof that the source is actually readable and an additional crash remains possible.
-- **Do not run JIT VM INIT ONLY or SECURE JIT** before inspecting the safe probe; successful JIT on PS5 is not established.
-- The default AUTO 4 light interpreter benchmark, full-memory option, existing nonexecuting probes, title ID `PPSA99795`, release packaging and auto-generated TESTBUILD index are unchanged.
+### Fix attempt: copy template source to readable data at build time
 
-No kernel bypass, no RWX memory request, no cryptocurrency network, and no mining.
+- Generates **a separate copy** of the exact upstream RandomX x86-64 static assembly templates in a non-executable `.rodata.rxjit` section at build time, under distinct `rxblob_` symbols.
+- Preserves the original executable assembler object and its callable functions.
+- Redirects the JIT compiler's *source template pointers only* to the readable mirror, leaving the algorithm and the generated instructions unchanged.
+- Adds a CI verification that the data copy is a non-executable section with the required symbol.
+- Adds **JIT SAFE DIAGNOSTICS** (profile 9): in one test checks the 77,824-byte writable JIT destination independently, then requests read-only mapping for the template source page. It does not read/execute the static template, nor generate JIT code.
+- On an RX or readable source page permission failure during JIT VM initialization, record an error rather than immediately copying from an inaccessible page.
+- Persistent trace log: `/data/ps5-randomx/jit_trace.log` now reports `source_mprotect_read_rc` / `source_mprotect_read_errno`.
+
+**No JIT on PS5 has yet been proven to work.** Template mirroring solves the documented X-only *source read* issue in principle, but other PS5 JIT compatibility problems may remain. Do not run SECURE JIT hashing until the safe diagnostics and VM-init-only tests succeed.
+
+Default **AUTO 4 LIGHT** interpreter, independent title ID `PPSA99795`, deterministic native build and GitHub Actions-generated TESTBUILD index remain unchanged. No network or mining rewards are enabled.
