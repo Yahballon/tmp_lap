@@ -49,6 +49,12 @@ def patch(source: pathlib.Path):
         raise RuntimeError("Pinned donor Lapy build/staging anchors changed")
     updated = updated.replace(lapy_build, ': # ScummVM offline-only: no donor Lapy service')
     updated = updated.replace(lapy_stage, ': # ScummVM offline-only: do not stage donor title-bound service')
+    # The donor also hashes that executable when computing its build identity.
+    # Removing the file without removing this fingerprint input would fail later.
+    lapy_identity = 'inputs.append(root / "build/lapy/build/owned_root_daemon-service-verified-client/lapy-root-daemon.elf")'
+    if updated.count(lapy_identity) != 1:
+        raise RuntimeError("Pinned donor Lapy build-identity anchor changed")
+    updated = updated.replace(lapy_identity, '# ScummVM offline-only: no Lapy build-identity input')
     build.write_text(updated)
     # RetroArch 1.22.2 keeps retroarch.h at repository root; the
     # donor's fetch helper checked a nonexistent libretro-common path.
