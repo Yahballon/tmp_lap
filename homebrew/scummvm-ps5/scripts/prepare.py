@@ -35,6 +35,20 @@ def patch(source: pathlib.Path):
         raise RuntimeError("Pinned upstream Vulkan branch check changed")
     updated = updated.replace(anchor,
         'if [[ $vulkan_driver == radv ]]; then vulkan_archives=(); fi\n' + anchor, 1)
+    # ScummVM is a local, single-core launcher. Unlike donor title PPSA99169,
+    # title PPSA99053 has no proven/authorized Lapy owned-root service.
+    # The donor documents an offline /app0 startup path when no daemon exists.
+    # Remove ONLY the donor's service build and staging; do not disable
+    # licensing, manifest or integrity checks for the remaining components.
+    lapy_build = (
+        'python3 "$root/tools/build-lapy.py"\n'
+        'lapy_daemon="$root/build/lapy/build/owned_root_daemon-service-verified-client/lapy-root-daemon.elf"'
+    )
+    lapy_stage = 'cp "$lapy_daemon" "$dist/lapy-root-daemon.elf"'
+    if updated.count(lapy_build) != 1 or updated.count(lapy_stage) != 1:
+        raise RuntimeError("Pinned donor Lapy build/staging anchors changed")
+    updated = updated.replace(lapy_build, ': # ScummVM offline-only: no donor Lapy service')
+    updated = updated.replace(lapy_stage, ': # ScummVM offline-only: do not stage donor title-bound service')
     build.write_text(updated)
     # RetroArch 1.22.2 keeps retroarch.h at repository root; the
     # donor's fetch helper checked a nonexistent libretro-common path.
