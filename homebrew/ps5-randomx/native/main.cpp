@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 RANDOMX BENCHMARK by YAHBALLON v0.3.0
+// PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.0
 // Real RandomX v1.2.1, optional full-memory mode, interpreter; NOT a miner.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -8,6 +8,7 @@
 #include "core/input.hpp"
 #include "randomx.h"
 #include "auto_suite.hpp"
+#include "jit_probe.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -29,13 +30,17 @@ struct Profile {
   int threads;
   bool request_aes;
   bool full_mem;
+  bool jit=false;
+  bool probe_only=false;
 };
 constexpr Profile kProfiles[]={
   {"1 THREAD / SOFTWARE AES",1,false,false},
   {"1 THREAD / HARDWARE AES",1,true,false},
   {"2 THREADS / HARDWARE AES",2,true,false},
   {"4 THREADS / HARDWARE AES",4,true,false},
-  {"1 THREAD / FULL MEMORY",1,true,true} // Opt-in: >2 GiB RAM, no JIT
+  {"1 THREAD / FULL MEMORY",1,true,true}, // Opt-in: >2 GiB RAM, no JIT
+  {"JIT MEMORY PERMISSIONS",0,false,false,false,true}, // No executable code
+  {"1 THREAD / SECURE JIT",1,true,false,true,false} // Opt-in, dangerous on unsupported OS
 };
 constexpr int kProfileCount=sizeof(kProfiles)/sizeof(kProfiles[0]);
 struct Bench;
@@ -55,7 +60,9 @@ struct Bench {
   std::atomic<uint64_t> hashes{0}, elapsed_us{0}, start_us{0};
   std::atomic<uint64_t> dataset_ready{0}, dataset_total{0}, prep_us{0};
   int seconds=30, profile_id=0, thread_count=1;
-  bool hardware_aes=false, full_mem=false;
+  bool hardware_aes=false, full_mem=false, jit_requested=false, probe_only=false;
+  rxbench::JitProbe jit_probe{};
+  std::atomic<bool> jit_vector_ok{false};
   pthread_t thread{}, worker_threads[4]{};
   Worker workers[4]{};
   bool join_needed=false;
@@ -78,10 +85,17 @@ void report(Bench* b,int outcome) {
   const double elapsed=double(b->elapsed_us.load())/1000000.0;
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
-  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.3.0\n");
-  std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=off threads=%d profile=%d\n",
+  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.4.0\n");
+  std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=%s threads=%d profile=%d\n",
+               b->probe_only?"jit-wx-probe":b->jit_requested?"light-secure-jit":
                b->full_mem?"full-memory-interpreter":"light-interpreter",
-               b->hardware_aes?"hardware":"software",b->thread_count,b->profile_id);
+               b->hardware_aes?"hardware":"software",
+               b->jit_requested?"secure-wx":"off",b->thread_count,b->profile_id);
+  if(b->probe_only||b->jit_requested)
+    std::fprintf(f,"jit_probe_mapped=%d jit_probe_rx=%d jit_probe_rw_restored=%d jit_probe_unmapped=%d jit_probe_errno=%d jit_probe_failed_at=%s jit_vector_ok=%d\n",
+                 b->jit_probe.mapped?1:0,b->jit_probe.rx?1:0,b->jit_probe.rw_restored?1:0,
+                 b->jit_probe.unmapped?1:0,b->jit_probe.error,b->jit_probe.failed_at,
+                 b->jit_vector_ok.load()?1:0);
   std::fprintf(f,"dataset_bytes=%llu dataset_init_seconds=%.3f\n",
                (unsigned long long)(b->full_mem?
                  b->dataset_total.load()*uint64_t(RANDOMX_DATASET_ITEM_SIZE):0ULL),
@@ -108,9 +122,30 @@ void* runWorker(void* context) {
   Bench* b=w->bench;
   randomx_flags flags=b->hardware_aes?RANDOMX_FLAG_HARD_AES:RANDOMX_FLAG_DEFAULT;
   if(b->full_mem)flags|=RANDOMX_FLAG_FULL_MEM;
+  if(b->jit_requested)flags|=(RANDOMX_FLAG_JIT|RANDOMX_FLAG_SECURE);
   randomx_vm* vm=randomx_create_vm(flags,b->full_mem?nullptr:w->cache,
                                  b->full_mem?w->dataset:nullptr);
-  w->initialized=(vm!=nullptr);
+  // Before the benchmark clock starts, verify JIT output against interpreter.
+  // This is an opt-in execution test only; failure never silently falls back.
+  bool vector_ok=(vm!=nullptr);
+  if(vm&&b->jit_requested){
+    randomx_vm* reference=randomx_create_vm(RANDOMX_FLAG_HARD_AES,w->cache,nullptr);
+    if(!reference)vector_ok=false;
+    else {
+      std::array<uint8_t,64> sample{};
+      std::memcpy(sample.data(),"PS5RandomX-v0.1 PS5Coin independent bench",40);
+      sample[48]=static_cast<uint8_t>(w->id);
+      uint8_t expected[RANDOMX_HASH_SIZE]{},actual[RANDOMX_HASH_SIZE]{};
+      randomx_calculate_hash(reference,sample.data(),sample.size(),expected);
+      randomx_calculate_hash(vm,sample.data(),sample.size(),actual);
+      vector_ok=std::memcmp(expected,actual,RANDOMX_HASH_SIZE)==0;
+      randomx_destroy_vm(reference);
+    }
+    b->jit_vector_ok.store(vector_ok);
+    if(!vector_ok)std::snprintf(b->error,sizeof(b->error),
+                                "JIT digest differs from interpreter or VM unavailable");
+  }
+  w->initialized=vector_ok;
   b->ready.fetch_add(1);
   if(!vm)return nullptr;
   while(!b->go.load()&&!b->stop.load())hui::sys::sleep_us(1000);
@@ -147,7 +182,29 @@ void* runBench(void* context) {
   }
   b->hardware_aes=kProfiles[b->profile_id].request_aes;
   b->full_mem=kProfiles[b->profile_id].full_mem;
+  b->jit_requested=kProfiles[b->profile_id].jit;
+  b->probe_only=kProfiles[b->profile_id].probe_only;
   b->thread_count=kProfiles[b->profile_id].threads;
+  // Probe only on explicit profile selection, not during normal AUTO mode.
+  // Never executes the temporary page. May fail if PS5 HEN disallows RX rights.
+  if(b->jit_requested||b->probe_only){
+    std::snprintf(b->report_status,sizeof(b->report_status),"Checking mmap RW -> RX -> RW...");
+    b->jit_probe=rxbench::probe_wx_transition();
+    if(!b->jit_probe.passed()){
+      std::snprintf(b->error,sizeof(b->error),
+                    "JIT W^X denied at %s (errno %d)",
+                    b->jit_probe.failed_at,b->jit_probe.error);
+      finish(b,Failed);return nullptr;
+    }
+    if(b->probe_only){
+      std::snprintf(b->report_status,sizeof(b->report_status),"W^X map protection probe passed");
+      finish(b,Completed);return nullptr;
+    }
+    if(!(available&RANDOMX_FLAG_JIT)){
+      std::snprintf(b->error,sizeof(b->error),"RandomX library reports JIT not supported");
+      finish(b,Failed);return nullptr;
+    }
+  }
   // The large RandomX cache is initialized once, then shared read-only.
   randomx_cache* cache=randomx_alloc_cache(RANDOMX_FLAG_DEFAULT);
   if(!cache) {
@@ -234,7 +291,8 @@ bool start(Bench& b,int seconds,int profile_id){
   if(b.join_needed)return false;
   b.seconds=seconds;b.profile_id=profile_id;
   b.thread_count=kProfiles[profile_id].threads;
-  b.hardware_aes=false;
+  b.hardware_aes=false;b.jit_requested=false;b.probe_only=false;
+  b.jit_probe=rxbench::JitProbe{};b.jit_vector_ok.store(false);
   b.hashes.store(0);b.elapsed_us.store(0);b.start_us.store(0);
   b.ready.store(0);b.go.store(false);b.stop.store(false);
   b.dataset_ready.store(0);b.dataset_total.store(0);b.prep_us.store(0);
@@ -295,7 +353,7 @@ int main(){
   hui::ps5::Pad pad;pad.open();
   Bench b;rxbench::AutoSuite suite;
   // 0 = AUTO LIGHT (default); 1 = AUTO ALL (opt-in >2 GiB RAM);
-  // 2..6 = individual existing profiles, in their original order.
+  // 2..8 = individual profiles (5 old + opt-in JIT memory and JIT execute).
   int duration_index=1,mode_index=0;
   constexpr int durations[]={10,30,60};
   constexpr int kModeCount=kProfileCount+2;
@@ -383,7 +441,9 @@ int main(){
       ("AUTO STEP "+std::to_string(suite.step+1)+"/"+std::to_string(suite.total)+": "+selected.label):
       (chosen_auto?std::string(auto_title):std::string(selected.label));
     char rate[80],time[80],total[80];
-    std::snprintf(rate,sizeof(rate),"%.2f H/s",hps);
+    if(selected.probe_only&&state==Completed)
+      std::snprintf(rate,sizeof(rate),"W^X PASS");
+    else std::snprintf(rate,sizeof(rate),"%.2f H/s",hps);
     std::snprintf(time,sizeof(time),"%.1f / %d sec",seconds,b.seconds);
     std::snprintf(total,sizeof(total),"%llu",(unsigned long long)hashes);
     DrawList d;
@@ -393,7 +453,7 @@ int main(){
     d.rounded_rect({39,24,52,52},13,color(0x0761cc));
     tx(d,font,atlas,"RX",65,60,27,color(0xffffff),Align::center);
     tx(d,font,atlas,"PS5 RANDOMX BENCHMARK  by YAHBALLON",113,61,33);
-    tx(d,font,atlas,"v0.3.0",1879,60,24,color(0xc9e4ff),Align::right);
+    tx(d,font,atlas,"v0.4.0",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
     tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
@@ -401,7 +461,7 @@ int main(){
        suite.done?(suite.cancelled?"AUTO TEST CANCELLED":suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?"AUTO TEST COMPLETE":"AUTO TEST FAILED"):statusName(state),
        97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
-    tx(d,font,atlas,shown_mode+"  /  NO JIT",103,455,23,color(0xaac6e8));
+    tx(d,font,atlas,shown_mode+(selected.jit?" / SECURE JIT":selected.probe_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
     d.rounded_rect({101,500,1100,19},9,color(0x193550));
     d.rounded_rect({101,500,1100*progress,19},9,color(0x27d9be));
     tx(d,font,atlas,preparing_dataset?("Dataset prepared: "+std::to_string(int(progress*100.f))+"%"):std::string(time),
@@ -412,10 +472,12 @@ int main(){
     tx(d,font,atlas,"RandomX v1.2.1",1808,331,23,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Mode",1305,385,21,color(0x90a7c9));
     tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"AUTO SEQUENTIAL":
+       selected.probe_only?"MEMORY W^X PROBE":selected.jit?"LIGHT / SECURE JIT":
        selected.full_mem?"FULL / INTERPRETED":"LIGHT / INTERPRETED",
        1808,385,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"CPU workers",1305,433,21,color(0x90a7c9));
     tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?"1 / 1 / 2 / 4":
+       selected.probe_only?"NOT REQUIRED":
        std::to_string(selected.threads)+" / "+(selected.request_aes?"HW AES":"SOFT AES"),
        1808,433,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Run duration",1305,478,21,color(0x90a7c9));
@@ -456,6 +518,8 @@ int main(){
     tx(d,font,atlas,"BENCHMARK ONLY. NO COIN, NETWORK OR REWARD.",1278,744,21,color(0xffd283));
     tx(d,font,atlas,(mode_index==1||selected.full_mem)?
        "FULL MEMORY IS OPT-IN: >2 GiB RAM REQUIRED.":
+       selected.jit?"JIT EXPERIMENTAL: W^X PREFLIGHT REQUIRED; MAY CRASH.":
+       selected.probe_only?"W^X PROBE DOES NOT EXECUTE DYNAMIC CODE.":
        "AUTO LIGHT RUNS FOUR PROFILES. NO MANUAL SWITCHING.",
        1278,799,18,color(0xb6cde8));
     tx(d,font,atlas,export_hint?"Report is automatically written after each run.":"/data/ps5-randomx/benchmark.log",1278,878,18,color(0x96b4d6));
