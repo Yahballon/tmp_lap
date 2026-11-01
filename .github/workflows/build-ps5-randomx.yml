@@ -127,6 +127,21 @@ jobs:
       - name: Cross-compile real RandomX static library
         run: |
           python3 homebrew/ps5-randomx/scripts/compile_randomx.py app /tmp/randomx
+      - name: Verify JIT assembly templates live in readable data
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          obj=Path('app/build/randomx/jit_compiler_x86_readable.S.o')
+          assert obj.is_file(),obj
+          out=subprocess.check_output(['llvm-readelf-18','-SW',str(obj)],text=True)
+          row=next((l for l in out.splitlines() if '.rodata.rxjit' in l),None)
+          assert row is not None, "missing readable JIT template section"
+          assert ' AX ' not in row, f"template segment must not be executable: {row}"
+          symbols=subprocess.check_output(['llvm-nm-18','-g',str(obj)],text=True)
+          assert 'rxblob_randomx_program_prologue' in symbols
+          print("PASS: JIT template symbols in non-executable .rodata.rxjit",row)
+          PY
       - name: Prepare POSIX compatibility archive
         run: |
           mkdir -p app/build/jb-json
@@ -165,7 +180,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: PS5-RandomX-v0.4.3-PPSA99795
+          name: PS5-RandomX-v0.4.4-PPSA99795
           path: app/dist/PPSA99795.zip
           if-no-files-found: error
       - name: Publish release for TESTBUILD catalog
@@ -173,8 +188,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view ps5-randomx-v0.4.3 >/dev/null 2>&1; then
+          if gh release view ps5-randomx-v0.4.4 >/dev/null 2>&1; then
             echo 'Release exists; refusing to replace asset'
             exit 1
           fi
-          gh release create ps5-randomx-v0.4.3 app/dist/PPSA99795.zip --target "$GITHUB_SHA" --title 'PS5 RandomX Benchmark by YAHBALLON v0.4.3' --notes-file homebrew/ps5-randomx/RELEASE_NOTES.md
+          gh release create ps5-randomx-v0.4.4 app/dist/PPSA99795.zip --target "$GITHUB_SHA" --title 'PS5 RandomX Benchmark by YAHBALLON v0.4.4' --notes-file homebrew/ps5-randomx/RELEASE_NOTES.md

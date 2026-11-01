@@ -40,7 +40,7 @@ patch("randomx.cpp", [
 
 patch("jit_compiler_x86.cpp", [
     ('#include "jit_compiler_x86.hpp"',
-     '#include "jit_compiler_x86.hpp"\nextern "C" void rx_ps5_jit_stage(const char*, unsigned long long);\nextern "C" void rx_ps5_jit_pointer(const char*, unsigned long long);'),
+     '#include "jit_compiler_x86.hpp"\nextern "C" void rx_ps5_jit_stage(const char*, unsigned long long);\nextern "C" void rx_ps5_jit_pointer(const char*, unsigned long long);\nextern "C" int rx_ps5_jit_readable_source(const char*, unsigned long long, unsigned long long);'),
     ('JitCompilerX86::JitCompilerX86() {\n\t\tcode = (uint8_t*)allocMemoryPages(CodeSize);',
      'JitCompilerX86::JitCompilerX86() {\n'
      '\t\trx_ps5_jit_stage("jit_ctor_enter", 0);\n'
@@ -54,6 +54,14 @@ patch("jit_compiler_x86.cpp", [
      '\t\trx_ps5_jit_stage("jit_before_dest_write", 0);\n'
      '\t\tcode[0] = 0x90;\n'
      '\t\trx_ps5_jit_stage("jit_after_dest_write", 1);\n'
+     '\t\trx_ps5_jit_stage("jit_before_source_page_preflight", 0);\n'
+     '\t\tif (!rx_ps5_jit_readable_source("jit_prologue_preflight",\n'
+     '\t\t    (unsigned long long)(uintptr_t)codePrologue,\n'
+     '\t\t    (unsigned long long)prologueSize)) {\n'
+     '\t\t\trx_ps5_jit_stage("jit_source_protection_denied", 1);\n'
+     '\t\t\tthrow std::runtime_error("PS5 RandomX static asm page not readable");\n'
+     '\t\t}\n'
+     '\t\trx_ps5_jit_stage("jit_source_page_preflight_ok", 1);\n'
      '\t\trx_ps5_jit_stage("jit_before_source_read", 0);\n'
      '\t\tvolatile uint8_t first = codePrologue[0];\n'
      '\t\trx_ps5_jit_stage("jit_after_source_read", first);\n'
