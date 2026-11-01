@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+// Durable breadcrumbs for abrupt native crashes (e.g., SIGSEGV during JIT).
+// Keep file I/O outside hooks/signal handlers. No attempt to bypass memory policy.
+#include <cstdint>
+#include <cstdio>
+#include <sys/stat.h>
+
+namespace rxbench {
+inline void jit_trace(const char* stage, int profile, std::uint64_t session, int value=0) {
+  // Same writable destination already confirmed by benchmark.log on console.
+  mkdir("/data/ps5-randomx",0777);
+  FILE* f=std::fopen("/data/ps5-randomx/jit_trace.log","a");
+  if(!f)return;
+  std::fprintf(f,"PS5 RANDOMX JIT TRACE v0.4.1 session=%llu profile=%d stage=%s value=%d\n",
+               (unsigned long long)session,profile,stage,value);
+  std::fflush(f);
+  std::fclose(f);
+}
+} // namespace rxbench
