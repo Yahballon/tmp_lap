@@ -1,17 +1,18 @@
-# PS5 RandomX Benchmark by YAHBALLON v0.4.0
+# PS5 RandomX Benchmark by YAHBALLON v0.4.1
 
-## First experimental JIT compatibility tests
-The v0.3.0 PS5 AUTO run measured **2.04 / 2.04 / 4.07 / 8.09 H/s** (1T software, 1T hardware, 2T hardware, 4T hardware; light interpreter). The 4-thread result is not a JIT score.
+## JIT crash isolation hotfix
 
-This release adds **two OPTIONAL manual profiles** after the five existing profiles:
+PS5 hardware confirms **JIT W^X permission probes succeeded** (9 successful profile-5 log entries, `jit_probe_errno=0`). A subsequent native crash was reported but the standard benchmark.log did not include an actual JIT hash or failure receipt. **The crash location is not proven**.
 
-1. **JIT MEMORY PERMISSIONS** (safe first test). Attempts a 16 KiB RW `mmap`, transitions the same page to RX with `mprotect`, transitions back to RW, then unmaps. **Never executes the mapped page or grants RWX permissions.** Prints `jit_probe_*` diagnostic fields and errno/stage if denied.
-2. **1 THREAD / SECURE JIT** (experimental execution). Runs the same W^X preflight, checks RandomX JIT and hardware-AES flags, then creates an **opt-in RandomX v1.2.1 JIT Light VM with `RANDOMX_FLAG_SECURE`**. Before measuring H/s, compares one generated JIT hash against the reference interpreter hash. Fails the test on mismatch instead of silently using the interpreter.
+Changes:
+- New intermediate **JIT VM INIT ONLY** profile, placed between the W^X probe and the full JIT execution profile.
+- Separately opens and destroys the RandomX Secure JIT VM without calling `randomx_calculate_hash`.
+- Stage-by-stage persistent `/data/ps5-randomx/jit_trace.log`: before/after W^X check, RandomX cache allocation/initialization, JIT VM construction/destruction, interpreter comparison and first JIT hash.
+- Each stage append is flushed and closed before proceeding, helping diagnose crash without a normal benchmark report.
+- Host CI checks a real RandomX secure-JIT digest against the interpreter, in addition to compiling the PS5 executable.
+- Fixed version strings for both regular benchmark receipts and automatic test summaries to `v0.4.1`.
+- The default AUTO 4/5 modes are still **interpreter-only**. No networking or crypto mining.
 
-**Important:** This is a PS5 homebrew experiment. The W^X mapping test is necessary but *not proof* that JIT code execution works. PS5 sandbox/HEN security could deny permissions or crash the native process. No circumvention of kernel permissions is included. Only attempt JIT execution after the W^X probe reports success.
+**PS5 test order:** First run W^X, next run **JIT VM INIT ONLY** (without any generated hash). Only after these both pass, consider the experimental full JIT profile; it can still crash. If a crash occurs, provide the new `jit_trace.log` to pinpoint the last stage.
 
-The default **AUTO 4 LIGHT** and optional **AUTO ALL 5** sequences remain **JIT-free** and unchanged. JIT tests require deliberate menu navigation.
-
-Logging: `/data/ps5-randomx/benchmark.log`; the first stage records mapping/protection results without executing JIT code.
-
-No network, payout, blockchain or mining is performed.
+Title ID: `PPSA99795`. Installer: `PPSA99795.zip`. Release: `ps5-randomx-v0.4.1`.
