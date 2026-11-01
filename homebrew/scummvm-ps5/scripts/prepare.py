@@ -103,12 +103,12 @@ def patch(source: pathlib.Path):
     if builder_text.count(stage_marker) != 1:
         raise RuntimeError("Pinned ScummVM core staging call changed")
     builder_text = builder_text.replace(stage_marker,
-        'echo "==> [scummvm] ELF header before OSABI check"\\n'
-        'readelf -h "$source_dir/backends/platform/libretro/scummvm_libretro.so" | head -n 20\\n'
+        'echo "==> [scummvm] ELF header before OSABI check"\n'
+        'readelf -h "$source_dir/backends/platform/libretro/scummvm_libretro.so" | head -n 20\n'
         'python3 "$root/tools/scummvm-core-abi.py" '
-        '"$source_dir/backends/platform/libretro/scummvm_libretro.so"\\n'
-        'echo "==> [scummvm] ELF header after OSABI check"\\n'
-        'readelf -h "$source_dir/backends/platform/libretro/scummvm_libretro.so" | head -n 20\\n'
+        '"$source_dir/backends/platform/libretro/scummvm_libretro.so"\n'
+        'echo "==> [scummvm] ELF header after OSABI check"\n'
+        'readelf -h "$source_dir/backends/platform/libretro/scummvm_libretro.so" | head -n 20\n'
         + stage_marker, 1)
     core_builder.write_text(builder_text)
     param = source / "sce_sys/param.json"
