@@ -54,18 +54,18 @@ int main(){
   assert(!s.record(4,false,1,1000000));
   assert(s.cancelled && s.recorded==2);
   s.begin_all(30);
-  const int expected_all[10]={0,1,2,3,7,10,11,12,13,14};
-  assert(s.kind==rxbench::AutoSuite::All10&&s.total==10);
-  for(int i=0;i<10;i++){
+  const int expected_all[7]={0,1,2,3,7,10,11};
+  assert(s.kind==rxbench::AutoSuite::Safe7&&s.total==7&&!s.with_full);
+  for(int i=0;i<7;i++){
     assert(s.current_profile()==expected_all[i]);
     bool next=s.record(3,true,100,30000000);
     assert(s.results[i].profile==expected_all[i]);
-    if(i<9)assert(next);else assert(!next&&s.done);
+    if(i<6)assert(next);else assert(!next&&s.done);
   }
   s.begin_all(10);
-  for(int i=0;i<7;i++)assert(s.record(3,true,10,1000000));
-  assert(!s.record(5,false,0,0)); // Failed full-memory allocation stops suite
-  assert(s.recorded==8&&s.done&&!s.active);
+  for(int i=0;i<3;i++)assert(s.record(3,true,10,1000000));
+  assert(!s.record(5,false,0,0));
+  assert(s.recorded==4&&s.done&&!s.active);
   s.begin_all(30);
   assert(s.record(3,true,10,1000000));
   s.cancel();
