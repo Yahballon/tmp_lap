@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "5ccd6a054635de84ed70c563e37f292e86945f49ca03d292f0862ed314b95e49",
+  "version": "74856f3b3cfe5d6aa374ef966443d1806f0f0eefb467a7f8e237ddb2e1d59314",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 33,
+  "app_count": 34,
   "apps": [
     {
       "name": "SwitchXYZ",
@@ -380,6 +380,19 @@
       "source": "homebrew/payload-launcher",
       "size_bytes": 6258612,
       "published_at": "2026-10-13T07:46:14Z"
+    },
+    {
+      "name": "Standby Clock",
+      "slug": "standby-clock",
+      "title_id": "PPSA99876",
+      "version": "0.1.0",
+      "tag": "standby-clock-v0.1.0",
+      "zip_name": "PPSA99876.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/standby-clock-v0.1.0/PPSA99876.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/standby-clock-v0.1.0",
+      "source": "homebrew/standby-clock",
+      "size_bytes": 6708872,
+      "published_at": "2026-11-02T09:30:31Z"
     },
     {
       "name": "ThemeChanger",
