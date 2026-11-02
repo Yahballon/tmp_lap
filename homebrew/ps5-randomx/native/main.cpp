@@ -712,7 +712,7 @@ int main(){
       std::snprintf(rate,sizeof(rate),"W^X PASS");
     else if(selected.jit_init_only&&state==Completed)
       std::snprintf(rate,sizeof(rate),"VM INIT PASS");
-    else if(selected.ram_probe&&suite.done&&suite.kind==rxbench::AutoSuite::Safe8&&suite.recorded==8)
+    else if(b.ram_probe&&suite.done&&suite.kind==rxbench::AutoSuite::Safe8&&suite.recorded==8)
       std::snprintf(rate,sizeof(rate),"%.2f H/s",suite.results[6].hps);
     else if(selected.ram_probe&&state==Completed)
       std::snprintf(rate,sizeof(rate),"RAM PASS");
@@ -737,7 +737,7 @@ int main(){
        suite.done?(suite.cancelled?"AUTO TEST CANCELLED":suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?"AUTO TEST COMPLETE":"AUTO TEST FAILED"):statusName(state),
        97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
-    tx(d,font,atlas,shown_mode+(selected.ram_probe?" / NO DATASET":(selected.jit||mode_index==3)?" / SECURE JIT":selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
+    tx(d,font,atlas,shown_mode+(mode_index==0?" / JIT + RAM":selected.ram_probe?" / NO DATASET":(selected.jit||mode_index==3)?" / SECURE JIT":selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
     d.rounded_rect({101,500,1100,19},9,color(0x193550));
     d.rounded_rect({101,500,1100*progress,19},9,color(0x27d9be));
     tx(d,font,atlas,preparing_ram?("64 MiB RAM scan: "+std::to_string(int(progress*100.f))+"%"):
