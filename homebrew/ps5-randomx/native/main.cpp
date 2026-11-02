@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.1
+// PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.2
 // Real RandomX v1.2.1, optional full-memory mode, interpreter; NOT a miner.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -86,6 +86,7 @@ struct Profile {
   bool jit_init_only=false;
   bool buffer_probe_only=false;
   bool source_probe_only=false;
+  bool ram_probe=false;
 };
 constexpr Profile kProfiles[]={
   {"1 THREAD / SOFTWARE AES",1,false,false},
@@ -102,7 +103,8 @@ constexpr Profile kProfiles[]={
   {"4 THREADS / SECURE JIT",4,true,false,true,false},
   {"1 THREAD / FULL JIT",1,true,true,true,false},
   {"2 THREADS / FULL JIT",2,true,true,true,false},
-  {"4 THREADS / FULL JIT",4,true,true,true,false}
+  {"4 THREADS / FULL JIT",4,true,true,true,false},
+  {"64 MiB RAM HEALTH CHECK",0,false,false,false,false,false,false,false,true}
 };
 constexpr int kProfileCount=sizeof(kProfiles)/sizeof(kProfiles[0]);
 struct Bench;
@@ -122,7 +124,8 @@ struct Bench {
   std::atomic<uint64_t> hashes{0}, elapsed_us{0}, start_us{0};
   std::atomic<uint64_t> dataset_ready{0}, dataset_total{0}, prep_us{0};
   int seconds=30, profile_id=0, thread_count=1;
-  bool hardware_aes=false, full_mem=false, jit_requested=false, probe_only=false, jit_init_only=false, buffer_probe_only=false, source_probe_only=false;
+  bool hardware_aes=false, full_mem=false, jit_requested=false, probe_only=false, jit_init_only=false, buffer_probe_only=false, source_probe_only=false, ram_probe=false;
+  std::atomic<uint64_t> ram_probe_done{0}, ram_probe_total{0}, ram_probe_checksum{0};
   uint64_t session=0;
   rxbench::JitProbe jit_probe{};
   std::atomic<bool> jit_vector_ok{false};
@@ -153,9 +156,9 @@ void report(Bench* b,int outcome) {
   const double elapsed=double(b->elapsed_us.load())/1000000.0;
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
-  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.1\n");
+  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.2\n");
   std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=%s threads=%d profile=%d\n",
-               b->probe_only?"jit-wx-probe":b->buffer_probe_only?"jit-buffer-write-probe":b->source_probe_only?"jit-safe-diagnostics":b->jit_init_only?"jit-vm-init-only":b->jit_requested?"light-secure-jit":
+               b->ram_probe?"ram-health-check":b->probe_only?"jit-wx-probe":b->buffer_probe_only?"jit-buffer-write-probe":b->source_probe_only?"jit-safe-diagnostics":b->jit_init_only?"jit-vm-init-only":b->jit_requested?"light-secure-jit":
                b->full_mem?"full-memory-interpreter":"light-interpreter",
                b->hardware_aes?"hardware":"software",
                b->jit_requested?"secure-wx":b->jit_init_only?"init-only":"off",b->thread_count,b->profile_id);
@@ -164,6 +167,11 @@ void report(Bench* b,int outcome) {
                  b->jit_probe.mapped?1:0,b->jit_probe.rx?1:0,b->jit_probe.rw_restored?1:0,
                  b->jit_probe.unmapped?1:0,b->jit_probe.error,b->jit_probe.failed_at,
                  b->jit_vector_ok.load()?1:0);
+  if(b->ram_probe)
+    std::fprintf(f,"ram_probe_target_mib=64 ram_probe_checked_bytes=%llu ram_probe_total_progress_bytes=%llu ram_probe_checksum=%llu\n",
+       (unsigned long long)(b->ram_probe_done.load()/2),
+       (unsigned long long)b->ram_probe_total.load(),
+       (unsigned long long)b->ram_probe_checksum.load());
   std::fprintf(f,"dataset_bytes=%llu dataset_init_seconds=%.3f\n",
                (unsigned long long)(b->full_mem?
                  b->dataset_total.load()*uint64_t(RANDOMX_DATASET_ITEM_SIZE):0ULL),
@@ -254,10 +262,87 @@ void* runWorker(void* context) {
   jitTrace(b,"after_worker_vm_destroy");
   return nullptr;
 }
+
+// Isolated low-risk memory health check for future PS5Coin mining.
+// NEVER allocates a RandomX dataset; capped to a single 64 MiB RW mapping.
+// Sleep/check cancellation every 1 MiB; append durable 8 MiB breadcrumbs.
+void runRamProbe(Bench* b) {
+  constexpr size_t kBytes=64ULL*1024*1024;
+  constexpr size_t kStride=4096;
+  constexpr size_t kCheckpoint=8ULL*1024*1024;
+  b->ram_probe_total.store(uint64_t(kBytes)*2);
+  b->ram_probe_done.store(0);
+  b->ram_probe_checksum.store(0);
+  mkdir(kDataDir,0777);
+  FILE* trace=std::fopen("/data/ps5-randomx/memory_probe.log","a");
+  const auto traceMark=[&](const char* stage,size_t n,int code){
+    if(!trace)return;
+    std::fprintf(trace,"PS5COIN MEMORY DIAGNOSTIC by YAHBALLON v0.6.2 session=%llu stage=%s bytes=%llu code=%d\n",
+      (unsigned long long)b->session,stage,(unsigned long long)n,code);
+    std::fflush(trace);
+  };
+  traceMark("begin",kBytes,0);
+  b->start_us.store(uint64_t(hui::sys::monotonic_us()));
+  errno=0;
+  auto* mem=static_cast<uint8_t*>(mmap(nullptr,kBytes,PROT_READ|PROT_WRITE,
+                                      MAP_PRIVATE|MAP_ANONYMOUS,-1,0));
+  const int mmap_errno=errno;
+  if(mem==MAP_FAILED){
+    std::snprintf(b->error,sizeof(b->error),"64 MiB anonymous memory mapping denied (%d)",mmap_errno);
+    traceMark("mmap_failed",0,mmap_errno);
+    b->elapsed_us.store(uint64_t(hui::sys::monotonic_us())-b->start_us.load());
+    if(trace)std::fclose(trace);
+    finish(b,Failed);return;
+  }
+  traceMark("mmap_ok",kBytes,0);
+  bool good=true;
+  size_t written=0,checked=0;
+  uint64_t checksum=0;
+  for(size_t i=0;i<kBytes;i+=kStride){
+    if(b->stop.load()){good=false;break;}
+    const uint8_t mark=uint8_t(((i/kStride)*37U)^0x5aU);
+    mem[i]=mark; mem[i+kStride-1]=uint8_t(mark^0xffU);
+    written=i+kStride;
+    b->ram_probe_done.store(written);
+    if(written%kCheckpoint==0)traceMark("written",written,0);
+    if(written%(1024*1024)==0)hui::sys::sleep_us(1000);
+  }
+  if(good){
+    for(size_t i=0;i<kBytes;i+=kStride){
+      if(b->stop.load()){good=false;break;}
+      const uint8_t mark=uint8_t(((i/kStride)*37U)^0x5aU);
+      if(mem[i]!=mark || mem[i+kStride-1]!=uint8_t(mark^0xffU)){
+        std::snprintf(b->error,sizeof(b->error),"Memory pattern mismatch at %llu",
+                      (unsigned long long)i);
+        good=false;traceMark("verify_error",i,1);break;
+      }
+      checksum+=(unsigned)mem[i]+(unsigned)mem[i+kStride-1];
+      checked=i+kStride;
+      b->ram_probe_done.store(uint64_t(kBytes)+checked);
+      if(checked%kCheckpoint==0)traceMark("verified",checked,0);
+      if(checked%(1024*1024)==0)hui::sys::sleep_us(1000);
+    }
+  }
+  const int unmap_rc=munmap(mem,kBytes);
+  b->ram_probe_checksum.store(checksum);
+  b->elapsed_us.store(uint64_t(hui::sys::monotonic_us())-b->start_us.load());
+  traceMark("released",checked,unmap_rc);
+  if(trace)std::fclose(trace);
+  if(b->stop.load()){finish(b,Stopped);return;}
+  if(!good || unmap_rc!=0){
+    if(!b->error[0])std::snprintf(b->error,sizeof(b->error),"Memory health check incomplete");
+    finish(b,Failed);return;
+  }
+  std::snprintf(b->report_status,sizeof(b->report_status),"64 MiB RAM passed; full memory remains disabled");
+  finish(b,Completed);
+}
+
 void* runBench(void* context) {
   Bench* b=static_cast<Bench*>(context);
   jitTrace(b,"supervisor_enter");
   b->stage.store(Preparing);
+  b->ram_probe=kProfiles[b->profile_id].ram_probe;
+  if(b->ram_probe){ runRamProbe(b); return nullptr; }
   const randomx_flags available=randomx_get_flags();
   if(kProfiles[b->profile_id].request_aes &&
      !(available&RANDOMX_FLAG_HARD_AES)) {
@@ -458,7 +543,8 @@ bool start(Bench& b,int seconds,int profile_id){
   if(b.join_needed)return false;
   b.seconds=seconds;b.profile_id=profile_id;
   b.thread_count=kProfiles[profile_id].threads;
-  b.hardware_aes=false;b.jit_requested=false;b.probe_only=false;b.jit_init_only=false;b.buffer_probe_only=false;b.source_probe_only=false;
+  b.hardware_aes=false;b.jit_requested=false;b.probe_only=false;b.jit_init_only=false;b.buffer_probe_only=false;b.source_probe_only=false;b.ram_probe=(profile_id==15);
+  b.ram_probe_done.store(0);b.ram_probe_total.store(0);b.ram_probe_checksum.store(0);
   b.session=uint64_t(hui::sys::monotonic_us());
   g_rx_jit_trace_profile.store((profile_id==6||profile_id==7||profile_id==10||profile_id==11||profile_id==12||profile_id==13||profile_id==14)?profile_id:-1);
   g_rx_jit_trace_session.store(b.session);
@@ -468,7 +554,7 @@ bool start(Bench& b,int seconds,int profile_id){
   b.dataset_ready.store(0);b.dataset_total.store(0);b.prep_us.store(0);
   b.error[0]=0;b.last_hash[0]=0;
   for(auto& w:b.workers){w.hashes=0;w.digest[0]=0;}
-  std::snprintf(b.report_status,sizeof(b.report_status),"Initializing RandomX cache...");
+  std::snprintf(b.report_status,sizeof(b.report_status),b.ram_probe?"Testing 64 MiB memory...":"Initializing RandomX cache...");
   jitTrace(&b,"ui_start_selected_mode");
   b.stage.store(Preparing);
   if(pthread_create(&b.thread,nullptr,runBench,&b)!=0){
@@ -488,9 +574,9 @@ void writeAutoSummary(const rxbench::AutoSuite& suite) {
   mkdir(kDataDir,0777);
   FILE* f=std::fopen(kReport,"a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.6.1\n");
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.6.2\n");
   std::fprintf(f,"auto_kind=%s auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
-               suite.kind==rxbench::AutoSuite::Safe7?"safe7-light-jit":
+               suite.kind==rxbench::AutoSuite::Safe8?"safe8-light-jit-ram":
                suite.kind==rxbench::AutoSuite::SecureJit3?"secure-jit":
                suite.with_full?"light-full":"light",
                suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
@@ -605,14 +691,17 @@ int main(){
     const double hps=elapsed>0?double(hashes)*1000000.0/double(elapsed):0.0;
     const double seconds=double(elapsed)/1000000.0;
     const bool preparing_dataset=state==Preparing&&b.dataset_total.load()>0;
-    const float progress=preparing_dataset?
+    const bool preparing_ram=state==Preparing&&b.ram_probe&&b.ram_probe_total.load()>0;
+    const float progress=preparing_ram?
+      std::clamp(float(double(b.ram_probe_done.load())/double(b.ram_probe_total.load())),0.f,1.f):
+      preparing_dataset?
       std::clamp(float(double(b.dataset_ready.load())/double(b.dataset_total.load())),0.f,1.f):
       std::clamp(float(seconds/double(b.seconds)),0.f,1.f);
     const bool chosen_auto=mode_index<4;
     const int shown_profile=(busy||suite.active)?b.profile_id:
                              (chosen_auto?(mode_index==3?7:0):mode_index-4);
     const Profile& selected=kProfiles[shown_profile];
-    const char* auto_title=mode_index==0?"AUTO SAFE 7 - ONE CLICK":
+    const char* auto_title=mode_index==0?"AUTO SAFE 8 - ONE CLICK":
                            mode_index==3?"AUTO 3 SECURE JIT":
                            mode_index==2?"AUTO ALL 5 (FULL RAM)":"AUTO 4 LIGHT MODES";
     const std::string shown_mode=suite.active?
@@ -623,6 +712,12 @@ int main(){
       std::snprintf(rate,sizeof(rate),"W^X PASS");
     else if(selected.jit_init_only&&state==Completed)
       std::snprintf(rate,sizeof(rate),"VM INIT PASS");
+    else if(selected.ram_probe&&suite.done&&suite.kind==rxbench::AutoSuite::Safe8&&suite.recorded==8)
+      std::snprintf(rate,sizeof(rate),"%.2f H/s",suite.results[6].hps);
+    else if(selected.ram_probe&&state==Completed)
+      std::snprintf(rate,sizeof(rate),"RAM PASS");
+    else if(selected.ram_probe)
+      std::snprintf(rate,sizeof(rate),"RAM TEST");
     else std::snprintf(rate,sizeof(rate),"%.2f H/s",hps);
     std::snprintf(time,sizeof(time),"%.1f / %d sec",seconds,b.seconds);
     std::snprintf(total,sizeof(total),"%llu",(unsigned long long)hashes);
@@ -633,18 +728,20 @@ int main(){
     d.rounded_rect({39,24,52,52},13,color(0x0761cc));
     tx(d,font,atlas,"RX",65,60,27,color(0xffffff),Align::center);
     tx(d,font,atlas,"PS5 RANDOMX BENCHMARK  by YAHBALLON",113,61,33);
-    tx(d,font,atlas,"v0.6.1",1879,60,24,color(0xc9e4ff),Align::right);
+    tx(d,font,atlas,"v0.6.2",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
-    tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
+    tx(d,font,atlas,preparing_ram?"SAFE MEMORY CHECK":
+       preparing_dataset?"INITIALIZING FULL DATASET":
        suite.active?"AUTO BENCHMARK RUNNING":
        suite.done?(suite.cancelled?"AUTO TEST CANCELLED":suite.recorded==suite.total&&suite.results[suite.recorded-1].outcome==Completed?"AUTO TEST COMPLETE":"AUTO TEST FAILED"):statusName(state),
        97,257,30,color(busy?0x57dcff:state==Failed?0xff6488:0x69efbd));
     tx(d,font,atlas,rate,100,392,88);
-    tx(d,font,atlas,shown_mode+((selected.jit||mode_index==3)?" / SECURE JIT":selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
+    tx(d,font,atlas,shown_mode+(selected.ram_probe?" / NO DATASET":(selected.jit||mode_index==3)?" / SECURE JIT":selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?" / NO CODE EXECUTION":" / NO JIT"),103,455,23,color(0xaac6e8));
     d.rounded_rect({101,500,1100,19},9,color(0x193550));
     d.rounded_rect({101,500,1100*progress,19},9,color(0x27d9be));
-    tx(d,font,atlas,preparing_dataset?("Dataset prepared: "+std::to_string(int(progress*100.f))+"%"):std::string(time),
+    tx(d,font,atlas,preparing_ram?("64 MiB RAM scan: "+std::to_string(int(progress*100.f))+"%"):
+       preparing_dataset?("Dataset prepared: "+std::to_string(int(progress*100.f))+"%"):std::string(time),
        102,554,23,color(0xd8e9ff));
     panel(d,1273,190,582,400);
     tx(d,font,atlas,"CONFIGURATION",1305,263,28,color(0x8fc8fb));
@@ -662,9 +759,9 @@ int main(){
        1808,433,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Run duration",1305,478,21,color(0x90a7c9));
     tx(d,font,atlas,std::to_string(durations[duration_index])+" seconds",1808,478,26,color(0x4af0bf),Align::right);
-    tx(d,font,atlas,selected.full_mem?"Dataset RAM":"Cache RAM",1305,531,21,color(0x90a7c9));
+    tx(d,font,atlas,selected.ram_probe?"Probe RAM":selected.full_mem?"Dataset RAM":"Cache RAM",1305,531,21,color(0x90a7c9));
     tx(d,font,atlas,(suite.active&&suite.with_full)||(!suite.active&&mode_index==2)?
-       "UP TO 2.08 GiB":"about 256 MiB",1808,531,22,color(0xf1f8ff),Align::right);
+       "UP TO 2.08 GiB":selected.ram_probe?"64 MiB max":"about 256 MiB",1808,531,22,color(0xf1f8ff),Align::right);
     panel(d,60,615,1795,345);
     tx(d,font,atlas,suite.active||suite.done?"AUTO TEST RESULTS":"RESULTS & LOGGING",
        96,674,28,color(0x8fc8fb));
@@ -672,7 +769,9 @@ int main(){
       for(int i=0;i<suite.recorded;i++){
         const rxbench::AutoResult& r=suite.results[i];
         char hps_label[56];
-        std::snprintf(hps_label,sizeof(hps_label),"%.2f H/s",r.hps);
+        if(kProfiles[r.profile].ram_probe)
+          std::snprintf(hps_label,sizeof(hps_label),"%s",r.outcome==Completed?"RAM PASS":"RAM FAIL");
+        else std::snprintf(hps_label,sizeof(hps_label),"%.2f H/s",r.hps);
         const int col=(suite.total>5&&i>=5)?1:0;
         const int row=(suite.total>5&&i>=5)?i-5:i;
         const float x=col?625.f:100.f;
@@ -701,13 +800,14 @@ int main(){
     tx(d,font,atlas,"BENCHMARK ONLY. NO COIN, NETWORK OR REWARD.",1278,744,21,color(0xffd283));
     tx(d,font,atlas,(mode_index==2||selected.full_mem)?
        "FULL MEMORY IS OPT-IN: >2 GiB RAM REQUIRED.":
-       mode_index==0?"ONE START: 7 LIGHT TESTS; FULL RAM BLOCKED FOR SAFETY.":
+       mode_index==0?"ONE START: 7 LIGHT TESTS + 64 MiB RAM CHECK.":
        mode_index==3?"AUTO JIT RUNS 1/2/4 THREADS; MAY RUN HOT.":
        selected.jit?"JIT EXPERIMENTAL: W^X PREFLIGHT REQUIRED; MAY CRASH.":
        selected.probe_only?"W^X PROBE DOES NOT EXECUTE DYNAMIC CODE.":
        selected.buffer_probe_only?"BUFFER PROBE WRITES KNOWN DATA ONLY; NO JIT.":
        selected.source_probe_only?"CHECKS 78 KiB BUFFER + ASM PAGE PERMISSIONS.":
        selected.jit_init_only?"VM INIT DOES NOT EXECUTE GENERATED CODE.":
+       selected.ram_probe?"64 MiB WRITE + READ, NO RANDOMX DATASET.":
        "AUTO LIGHT RUNS FOUR PROFILES. NO MANUAL SWITCHING.",
        1278,799,18,color(0xb6cde8));
     tx(d,font,atlas,export_hint?"Every run writes a report. JIT stages write jit_trace.log.":
