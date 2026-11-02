@@ -7,7 +7,7 @@
 **Verified Release:** NONE
 **Hardware target:** Jailbroken PS5; runtime compatibility NOT VERIFIED
 
-> CURRENT STATE: Native C++ realtime clock and controller settings have been authored in a GitHub feature branch. Native cross-compile, ZIP packaging and actual console tests have NOT been verified. Merging to main is required to run the main-branch release workflow.
+> CURRENT STATE: Native C++ realtime clock and controller settings have been authored in a GitHub feature branch. Native cross-compile and ZIP packaging PASSED CI run 41417779557; PS5 console testing is not performed. Merge and release are still needed for TESTBUILD visibility.
 
 ## Milestone matrix
 
@@ -16,8 +16,8 @@
 | M0 | Inspect reference apps/build and collision-check title | tmp_lap native source and app metadata | Completed |
 | M1 | Clock, analog hands, dates and week strip | native/main.cpp and clock_logic.hpp | Implemented / unverified |
 | M2 | Alarm, snooze, settings persistence, theme/brightness | Native source | Implemented / unverified |
-| M3 | Portable unit tests | tests/clock_test.cpp | Implemented; CI pending |
-| M4 | Native PS5 installer | build-standby-clock.yml | Build NOT RUN |
+| M3 | Portable unit tests | run 41417779557 | CI VERIFIED |
+| M4 | Native PS5 installer | run 41417779557, ZIP artifact Standby-Clock-v0.1.0-PPSA99876 (6,608,501 bytes) | CI VERIFIED |
 | M5 | Runtime PS5 screenshot and controller test | Console test needed | NOT STARTED |
 | M6 | TESTBUILD catalog auto-discovery | Existing release parser and workflow_run trigger | Integration prepared; not verified |
 
@@ -33,6 +33,13 @@
 - TESTBUILDS: `tools/update-version.py` generates `version.json` from valid published GitHub Release assets
 
 ## Change log — latest first
+
+### 2026-11-02 — Native PS5 CI success, before merge
+- GitHub Actions [run 41417779557](https://github.com/Yahballon/tmp_lap/actions/runs/41417779557) completed SUCCESS with host tests, SDK preparation, native PS5 compilation, package checks and artifact upload.
+- Actual package: Actions artifact `Standby-Clock-v0.1.0-PPSA99876`, 6,608,501 compressed bytes. This is an Actions artifact, NOT yet a catalog-valid GitHub Release.
+- PS5 hardware: NOT TESTED. Release/tag/catalog still not published at this checkpoint.
+- Next: merge PR #296, verify main-branch build and published `PPSA99876.zip`, check generated `version.json` includes `PPSA99876`.
+
 
 ### 2026-11-02 — Initial CI failure, SDK archive manifest compatibility fix
 - Pull request #296, first Actions run 41417627816: host clock tests PASS; framework staging and generated icon PASS
@@ -53,13 +60,13 @@
 - No hardware-tested baseline exists yet
 
 ## Known bugs / limitations
-- No proven hardware screenshot, no verified install ZIP, no evidence of PS5 launch yet
+- No proven hardware screenshot or evidence of PS5 launch yet. Package structure and native executable were validated in CI, not on console.
 - App cannot trigger a system wake alarm while PS5 sleeps
 - Device clock/local timezone behavior unverified
 
 ## Roadmap — prioritized acceptance tests
 ### P0 — Immediate
-- [ ] Run pull-request CI and inspect actual compiler/linker output; repair errors before merge
+- [x] Run pull-request CI, confirm compile/package success (41417779557)
 ### P1 — TESTBUILD
 - [ ] Merge a passing build, verify release tag and `PPSA99876.zip`, confirm catalog index includes Standby Clock
 ### P2 — Console
@@ -74,7 +81,7 @@
 6. Compare actual 1920x1080 screenshot with user's red-on-black visual reference
 
 ## NEXT ACTION FOR THE NEXT AGENT
-**Do this first:** Review the running pull request check for `Build Standby Clock PS5`, fix the earliest native compile failure (if any), then validate ZIP structure.
+**Do this first:** Merge PR #296 to main; verify main branch release workflow uploads `PPSA99876.zip` and catalog updater adds `PPSA99876` to generated `version.json`.
 **Starting point:** `Yahballon/tmp_lap`, `feature/standby-clock-v0.1.0`.
 **Expected success evidence:** Green Actions job with `PPSA99876.zip` and host tests passing.
 **If it fails:** Use full job step logs; patch only standby-clock app/build unless shared SDK regression is proven.
