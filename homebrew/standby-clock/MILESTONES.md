@@ -2,12 +2,12 @@
 
 **Project:** Yahballon/tmp_lap/homebrew/standby-clock
 **Last updated:** 2026-11-02 UTC
-**Branch:** feature/standby-clock-v0.1.1-weather (from main)
-**Version / Title ID:** 0.1.1 (development) / PPSA99876
-**Verified Release:** [standby-clock-v0.1.0](https://github.com/Yahballon/tmp_lap/releases/tag/standby-clock-v0.1.0) — PPSA99876.zip (6,708,872 bytes)
+**Branch:** main (PR #297 merged)
+**Version / Title ID:** 0.1.1 / PPSA99876
+**Verified Release:** [standby-clock-v0.1.1](https://github.com/Yahballon/tmp_lap/releases/tag/standby-clock-v0.1.1) — PPSA99876.zip (9,188,188 bytes)
 **Hardware target:** Jailbroken PS5; runtime compatibility NOT VERIFIED
 
-> CURRENT STATE: Native PS5 installer compiled and verified in main-branch CI run 41420993845, release published and 34-app TESTBUILD `version.json` updated automatically. PS5 hardware test and genuine screenshot remain pending.
+> CURRENT STATE: Standby Clock v0.1.1 compiled and packaged by main CI run 41423379609; immutable release published and generated 34-app TESTBUILD catalog includes v0.1.1 PPSA99876. New weather/OLED behavior still needs console testing.
 
 ## Milestone matrix
 
@@ -40,8 +40,9 @@
 - Fixed the 12-hour AM/PM suffix under the giant clock by putting it next to the date instead
 - OLED guard: full-screen transform pixel shifts, idle/night dim, 20-second periodic blank display, options to disable
 - Backward-compatible settings v1 migration to v2; ContentVersion 01.000.002, release tag standby-clock-v0.1.1
-- Status: SOURCE IMPLEMENTED, BUILD & HARDWARE TEST PENDING
-- NEXT: inspect PR CI, correct compile/link issues, merge only green; confirm `standby-clock-v0.1.1` release ZIP and auto-generated TESTBUILD catalog
+- Status: CI COMPILATION / PACKAGE / RELEASE VERIFIED; HARDWARE WEATHER AND OLED QA PENDING
+- PR #297 merged in main commit `3a1b9d0bc96b4bea591446a006d5ed8aeac3a449`; build 41423379609 SUCCESS, release asset PPSA99876.zip size 9,188,188 bytes, catalog lists v0.1.1.
+- NEXT: on-console TESTBUILD test. Confirm IP geolocation accurate enough for ISP, HTTPS succeeds, weather refresh and cached/offline states, no AM under numerals, OLED shift/idle/night dim/rest.
 
 
 ### 2026-11-02 — Main release and TESTBUILD catalog verified
@@ -99,8 +100,8 @@
 6. Compare actual 1920x1080 screenshot with user's red-on-black visual reference
 
 ## NEXT ACTION FOR THE NEXT AGENT
-**Do this first:** Run Standby Clock v0.1.0 on the actual PS5 via the refreshed TESTBUILD catalog; capture genuine UI screenshot, test all buttons and alarm/timezone behavior, log any display issues.
-**Starting point:** `Yahballon/tmp_lap`, `main`, merged PR #296, release tag `standby-clock-v0.1.0`.
+**Do this first:** Install Standby Clock v0.1.1 via the TESTBUILD catalog and verify the weather panel, AM placement, and OLED settings on actual console. Capture screenshot and `/data/StandbyClock/clock.log`.
+**Starting point:** `Yahballon/tmp_lap`, `main`, merged PR #297, release tag `standby-clock-v0.1.1`.
 **Expected success evidence:** PS5 screenshot of rendered digital/analog clock and log from `/data/StandbyClock/clock.log`; CI artifact and package already verified.
 **If it fails:** Supply screen/log and inspect runtime font loading, coordinates and clock API; patch only standby-clock app/build.
 **Do not change:** Existing app Title IDs, manually-generated `version.json`, or unrelated homebrew.
