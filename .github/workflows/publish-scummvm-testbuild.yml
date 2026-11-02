@@ -1,0 +1,94 @@
+name: Publish ScummVM PS5 verified TESTBUILD
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-scummvm-testbuild.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: scummvm-ps5-v0.1.0-verified-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve already verified native build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 41357062370 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name 'ScummVM-PS5-v0.1.0-PPSA99053-UNVERIFIED' \
+            --dir out
+          test -s out/PPSA99053.zip
+          test -s out/SHA256SUMS
+      - name: Verify binary identity, checksum and PS5 package integrity
+        run: |
+          set -euo pipefail
+          echo '1e9f5af455d0e74f199dc65e3ca57bf09f9d82a631ff9ab359c8780433b05a01  out/PPSA99053.zip' | sha256sum -c -
+          (cd out && sha256sum -c SHA256SUMS)
+          python3 - <<'PY'
+          import hashlib, json, struct, zipfile
+          from pathlib import Path
+          title = 'PPSA99053'
+          path = Path('out') / (title + '.zip')
+          assert path.stat().st_size == 470720025, 'unexpected ZIP byte count'
+          with zipfile.ZipFile(path) as z:
+              assert z.testzip() is None, 'ZIP integrity error'
+              prefix = title + '/'
+              files = set(z.namelist())
+              required = (
+                  'eboot.bin','sce_sys/param.json','sce_sys/icon0.png',
+                  'sce_module/libc.prx','cores/scummvm_libretro.so',
+                  'info/scummvm_libretro.info','licenses/components.json',
+                  'manifest.sha256'
+              )
+              for name in required:
+                  assert prefix + name in files, 'missing ' + name
+              assert prefix + 'lapy-root-daemon.elf' not in files, 'unwanted Lapy daemon'
+              with z.open(prefix + 'eboot.bin') as fp:
+                  assert fp.read(4) == struct.pack('<I', 0x1D3D154F), 'not PS5 fake-SELF'
+              meta = json.loads(z.read(prefix+'sce_sys/param.json'))
+              assert meta['titleId'] == title
+              assert meta['contentId'] == 'UP9000-PPSA99053_00-SCUMMVMPS5000001'
+              assert len(z.read(prefix+'sce_sys/icon0.png')) > 1024
+              cores = sorted(x for x in files if x.startswith(prefix + 'cores/') and x.endswith('_libretro.so'))
+              assert cores == [prefix+'cores/scummvm_libretro.so'], cores
+              assert z.getinfo(prefix+'cores/scummvm_libretro.so').file_size > 100000
+          print('PASS: exact prebuilt PS5 ZIP verified, safe for experimental TESTBUILD')
+          PY
+      - name: Publish actual GitHub Release asset for the TESTBUILD app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=scummvm-ps5-v0.1.0
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refuse overwrite"
+            actual=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name=="PPSA99053.zip") | .size')
+            test "$actual" = "470720025"
+          else
+            gh release create "$tag" out/PPSA99053.zip out/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "ScummVM PS5 v0.1.0 by YAHBALLON (TESTBUILD)" \
+              --notes "Experimental dedicated PS5 ScummVM Libretro title PPSA99053. Native compilation, 25-export core ABI, 199 native bindings, fake-SELF, installer ZIP, original icon and SHA-256 verified by GitHub Actions #41357062370. Exact ZIP SHA-256: 1e9f5af455d0e74f199dc65e3ca57bf09f9d82a631ff9ab359c8780433b05a01. Console boot, controller virtual mouse, audio, filesystem access and save/load still require PS5 testing. Bring legally obtained game data. No donor Lapy root daemon is included."
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,assets --jq '{tagName,isPrerelease,assets:[.assets[]|{name,size}]}'
+      - name: Trigger the existing generated TESTBUILDS version.json action
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run update-version-catalog.yml --repo "$GITHUB_REPOSITORY" --ref main
+          echo 'Triggered existing TESTBUILDS catalog generator; do not edit version.json by hand.'
