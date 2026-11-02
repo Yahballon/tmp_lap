@@ -34,6 +34,13 @@
 
 ## Change log — latest first
 
+### 2026-11-02 — Initial CI failure, SDK archive manifest compatibility fix
+- Pull request #296, first Actions run 41417627816: host clock tests PASS; framework staging and generated icon PASS
+- Build dependencies FAILED before compilation: `unexpected ps5-opengl SDK manifest: 0d432edc9d648d6e0cccb4d5eb3db8484f10ba4b075b5ccf23edda3251b66360`
+- Updated SDK mirror compatibility handling to match working 4 WINS and Drink Roulette workflows; archive SHA-256 remains pinned. New CI outcome pending
+- Next: inspect rerun for native compiler/linker errors, check zipped installer and only then merge
+
+
 ### 2026-11-02 — Initial native implementation (feature branch)
 - Authored native clock renderer, digital/analog time, calendar, alarm and snooze, themes and settings
 - Added portable tests for leap years, week crossing, alarm and time format
