@@ -1,0 +1,41 @@
+name: PS5Coin RandomX Job Protocol Prototype
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'projects/ps5coin/**'
+      - '.github/workflows/test-ps5coin-job-protocol.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'projects/ps5coin/**'
+      - '.github/workflows/test-ps5coin-job-protocol.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  real-randomx-work-protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ make git python3
+      - name: Get pinned RandomX v1.2.1 (unmodified upstream)
+        run: |
+          git clone --depth=1 --branch v1.2.1 https://github.com/tevador/RandomX.git /tmp/ps5coin-randomx
+          test "$(git -C /tmp/ps5coin-randomx rev-parse HEAD)" = "102f8acf90a7649ada410de5499a7ec62e49e1da"
+      - name: Build shared RandomX library for host-side verification
+        run: |
+          cmake -S /tmp/ps5coin-randomx -B /tmp/ps5coin-randomx-build \
+            -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/ps5coin-randomx-build --target randomx -j4
+          test -s /tmp/ps5coin-randomx-build/librandomx.so
+      - name: Verify accepted and rejected RandomX jobs plus local HTTP API
+        env:
+          RANDOMX_LIB: /tmp/ps5coin-randomx-build/librandomx.so
+        run: |
+          python3 -m unittest discover -v -s projects/ps5coin/testnet/tests -p 'test_*.py'
