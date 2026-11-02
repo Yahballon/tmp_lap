@@ -16,7 +16,7 @@ struct AutoSuite {
  AutoResult results[10]{};
  void begin(bool full,int seconds){begin_kind(full?LightFull5:Light4,seconds);}
  void begin_jit(int seconds){begin_kind(SecureJit3,seconds);}
- void begin_all(int seconds){begin_kind(Safe7,seconds);
+ void begin_all(int seconds){begin_kind(Safe7,seconds);}
  void begin_kind(Kind k,int seconds){
    active=true;done=false;cancelled=false;kind=k;
    with_full=(k==LightFull5);
