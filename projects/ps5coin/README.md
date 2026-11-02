@@ -19,6 +19,12 @@ This is **not** the same as the RandomX benchmark or a token on somebody else's 
 - Full Memory (2,080 MiB dataset + 256 MiB cache + VM scratchpads) caused a **console-wide freeze** and is **currently disabled**. Do not equate Light-JIT measurements with optimized full-memory miner performance.
 - The v0.6.2 safe memory probe tests only 64 MiB to collect allocation/page-touch evidence without using a dataset.
 
+## First working development milestone: RandomX job exchange
+
+A **host-side work-protocol prototype** has now been implemented under [testnet](testnet/README.md). It exposes localhost-only `/job` and `/submit` endpoints and independently verifies full RandomX PoW on submitted 92-byte headers; there is a portable C++17 PS5 nonce/target codec under [miner-ps5/pow_wire.hpp](miner-ps5/pow_wire.hpp).
+
+This is an **interoperability test harness only**. It does not yet have an independent full node, persistent ledger, real currency rewards, wallet, P2P consensus or a PS5-native mining client. It must not be described as a launched testnet or used for funds. Next implementation milestone: integrate this wire format with our proven native PS5 RandomX JIT engine, then demonstrate a nonce mined by PS5 accepted by an independent PC verifier.
+
 ## Codebase choice
 
 1. **Blockchain/full-node starting point:** `monero-project/monero` (research fork), selected because it already integrates RandomX PoW, P2P networking, transaction validation, wallets, block templates and difficulty adjustment. Use a distinct chain identity, genesis block, network UUIDs, address prefixes and testnet ports. Keep upstream licensing.
@@ -40,7 +46,7 @@ This is **not** the same as the RandomX benchmark or a token on somebody else's 
 | --- | --- | --- |
 | B0 | Native RandomX PS5 benchmark | **Done**: Secure JIT, real hashes, 1/2/4 workers |
 | B1 | Console RAM health diagnostics | **v0.6.2 planned**: safe 64 MiB page-touch, reusable results |
-| T0 | Standalone PC testnet full node | Independent genesis, separate network identity, node sync between at least two PCs |
+| T0 | Standalone PC testnet full node | **Protocol PoC created**; real P2P full-node consensus and two-PC sync still outstanding |
 | T1 | PC testnet wallet + transactions | Correct address/key handling, signed transfer, synchronization and reorg tests |
 | T2 | PS5 miner connected to PC node | Receive canonical block template, compute PoW, submit an accepted block; reproducible difficulty checks |
 | T3 | Distributed PS5 + PC testnet | At least two independent nodes and two PS5 miners; no permanent centralized coordinator |
