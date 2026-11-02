@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.0
+// PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.1
 // Real RandomX v1.2.1, optional full-memory mode, interpreter; NOT a miner.
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -153,7 +153,7 @@ void report(Bench* b,int outcome) {
   const double elapsed=double(b->elapsed_us.load())/1000000.0;
   const uint64_t total=b->hashes.load();
   const double hps=elapsed>0?double(total)/elapsed:0.0;
-  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.0\n");
+  std::fprintf(f,"PS5 RANDOMX BENCHMARK by YAHBALLON v0.6.1\n");
   std::fprintf(f,"algorithm=RandomX-v1.2.1 mode=%s aes=%s jit=%s threads=%d profile=%d\n",
                b->probe_only?"jit-wx-probe":b->buffer_probe_only?"jit-buffer-write-probe":b->source_probe_only?"jit-safe-diagnostics":b->jit_init_only?"jit-vm-init-only":b->jit_requested?"light-secure-jit":
                b->full_mem?"full-memory-interpreter":"light-interpreter",
@@ -267,6 +267,14 @@ void* runBench(void* context) {
   }
   b->hardware_aes=kProfiles[b->profile_id].request_aes;
   b->full_mem=kProfiles[b->profile_id].full_mem;
+  // Fail closed: full RandomX dataset freezes some PS5 homebrew consoles
+  // during allocation/init; it is not safe to run until a separate memory
+  // availability and allocation strategy is validated on real hardware.
+  if(b->full_mem){
+    std::snprintf(b->error,sizeof(b->error),
+                  "FULL MEMORY DISABLED: console can freeze during 2.08 GiB init");
+    finish(b,Failed);return nullptr;
+  }
   b->jit_requested=kProfiles[b->profile_id].jit;
   b->probe_only=kProfiles[b->profile_id].probe_only;
   b->jit_init_only=kProfiles[b->profile_id].jit_init_only;
@@ -480,9 +488,9 @@ void writeAutoSummary(const rxbench::AutoSuite& suite) {
   mkdir(kDataDir,0777);
   FILE* f=std::fopen(kReport,"a");
   if(!f)return;
-  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.6.0\n");
+  std::fprintf(f,"PS5 RANDOMX AUTO TEST by YAHBALLON v0.6.1\n");
   std::fprintf(f,"auto_kind=%s auto_total=%d completed_tests=%d duration_each=%d include_full=%d\n",
-               suite.kind==rxbench::AutoSuite::All10?"all10-full-jit":
+               suite.kind==rxbench::AutoSuite::Safe7?"safe7-light-jit":
                suite.kind==rxbench::AutoSuite::SecureJit3?"secure-jit":
                suite.with_full?"light-full":"light",
                suite.total,suite.recorded,suite.duration,suite.with_full?1:0);
@@ -518,7 +526,7 @@ int main(){
   const unsigned atlas=renderer.batch().create_font_texture(font);
   hui::ps5::Pad pad;pad.open();
   Bench b;rxbench::AutoSuite suite;
-  // 0 = one-click ALL 10 (default), 1 = AUTO LIGHT, 2 = AUTO FULL,
+  // 0 = one-click SAFE 7 (default), 1 = AUTO LIGHT, 2 = AUTO FULL (disabled),
   // 3 = AUTO LIGHT JIT. Remaining selections are manual profiles.
   int duration_index=1,mode_index=0;
   constexpr int durations[]={10,30,60};
@@ -604,7 +612,7 @@ int main(){
     const int shown_profile=(busy||suite.active)?b.profile_id:
                              (chosen_auto?(mode_index==3?7:0):mode_index-4);
     const Profile& selected=kProfiles[shown_profile];
-    const char* auto_title=mode_index==0?"AUTO ALL 10 - ONE CLICK":
+    const char* auto_title=mode_index==0?"AUTO SAFE 7 - ONE CLICK":
                            mode_index==3?"AUTO 3 SECURE JIT":
                            mode_index==2?"AUTO ALL 5 (FULL RAM)":"AUTO 4 LIGHT MODES";
     const std::string shown_mode=suite.active?
@@ -625,7 +633,7 @@ int main(){
     d.rounded_rect({39,24,52,52},13,color(0x0761cc));
     tx(d,font,atlas,"RX",65,60,27,color(0xffffff),Align::center);
     tx(d,font,atlas,"PS5 RANDOMX BENCHMARK  by YAHBALLON",113,61,33);
-    tx(d,font,atlas,"v0.6.0",1879,60,24,color(0xc9e4ff),Align::right);
+    tx(d,font,atlas,"v0.6.1",1879,60,24,color(0xc9e4ff),Align::right);
     tx(d,font,atlas,"REAL RANDOMX PROOF-OF-WORK PERFORMANCE TEST",63,165,19,color(0x70bbfd));
     panel(d,60,190,1190,400);
     tx(d,font,atlas,preparing_dataset?"INITIALIZING FULL DATASET":
@@ -648,14 +656,14 @@ int main(){
        selected.full_mem?"FULL / INTERPRETED":"LIGHT / INTERPRETED",
        1808,385,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"CPU workers",1305,433,21,color(0x90a7c9));
-    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?(mode_index==3?"1 / 2 / 4":mode_index==0?"1 / 2 / 4":"1 / 1 / 2 / 4"):
+    tx(d,font,atlas,!busy&&chosen_auto&&!suite.active?(mode_index==3?"1 / 2 / 4":mode_index==0?"1 / 1 / 2 / 4":"1 / 1 / 2 / 4"):
        selected.probe_only||selected.buffer_probe_only||selected.source_probe_only||selected.jit_init_only?"NOT REQUIRED":
        std::to_string(selected.threads)+" / "+(selected.request_aes?"HW AES":"SOFT AES"),
        1808,433,22,color(0xf1f8ff),Align::right);
     tx(d,font,atlas,"Run duration",1305,478,21,color(0x90a7c9));
     tx(d,font,atlas,std::to_string(durations[duration_index])+" seconds",1808,478,26,color(0x4af0bf),Align::right);
     tx(d,font,atlas,selected.full_mem?"Dataset RAM":"Cache RAM",1305,531,21,color(0x90a7c9));
-    tx(d,font,atlas,(suite.active&&suite.with_full)||(!suite.active&&(mode_index==0||mode_index==2))?
+    tx(d,font,atlas,(suite.active&&suite.with_full)||(!suite.active&&mode_index==2)?
        "UP TO 2.08 GiB":"about 256 MiB",1808,531,22,color(0xf1f8ff),Align::right);
     panel(d,60,615,1795,345);
     tx(d,font,atlas,suite.active||suite.done?"AUTO TEST RESULTS":"RESULTS & LOGGING",
@@ -693,7 +701,7 @@ int main(){
     tx(d,font,atlas,"BENCHMARK ONLY. NO COIN, NETWORK OR REWARD.",1278,744,21,color(0xffd283));
     tx(d,font,atlas,(mode_index==2||selected.full_mem)?
        "FULL MEMORY IS OPT-IN: >2 GiB RAM REQUIRED.":
-       mode_index==0?"ONE START: LIGHT + SECURE JIT + FULL JIT (2+ GiB).":
+       mode_index==0?"ONE START: 7 LIGHT TESTS; FULL RAM BLOCKED FOR SAFETY.":
        mode_index==3?"AUTO JIT RUNS 1/2/4 THREADS; MAY RUN HOT.":
        selected.jit?"JIT EXPERIMENTAL: W^X PREFLIGHT REQUIRED; MAY CRASH.":
        selected.probe_only?"W^X PROBE DOES NOT EXECUTE DYNAMIC CODE.":
