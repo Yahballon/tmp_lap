@@ -2,12 +2,12 @@
 
 **Project:** Yahballon/tmp_lap/homebrew/standby-clock
 **Last updated:** 2026-11-02 UTC
-**Branch:** feature/standby-clock-v0.1.0
+**Branch:** main (merged PR #296)
 **Version / Title ID:** 0.1.0 / PPSA99876
-**Verified Release:** NONE
+**Verified Release:** [standby-clock-v0.1.0](https://github.com/Yahballon/tmp_lap/releases/tag/standby-clock-v0.1.0) — PPSA99876.zip (6,708,872 bytes)
 **Hardware target:** Jailbroken PS5; runtime compatibility NOT VERIFIED
 
-> CURRENT STATE: Native C++ realtime clock and controller settings have been authored in a GitHub feature branch. Native cross-compile and ZIP packaging PASSED CI run 41417779557; PS5 console testing is not performed. Merge and release are still needed for TESTBUILD visibility.
+> CURRENT STATE: Native PS5 installer compiled and verified in main-branch CI run 41420993845, release published and 34-app TESTBUILD `version.json` updated automatically. PS5 hardware test and genuine screenshot remain pending.
 
 ## Milestone matrix
 
@@ -19,7 +19,7 @@
 | M3 | Portable unit tests | run 41417779557 | CI VERIFIED |
 | M4 | Native PS5 installer | run 41417779557, ZIP artifact Standby-Clock-v0.1.0-PPSA99876 (6,608,501 bytes) | CI VERIFIED |
 | M5 | Runtime PS5 screenshot and controller test | Console test needed | NOT STARTED |
-| M6 | TESTBUILD catalog auto-discovery | Existing release parser and workflow_run trigger | Integration prepared; not verified |
+| M6 | TESTBUILD catalog auto-discovery | Main `version.json` schema 2, 34 entries including PPSA99876 | VERIFIED IN CATALOG |
 
 ## Architecture and anchors
 
@@ -33,6 +33,14 @@
 - TESTBUILDS: `tools/update-version.py` generates `version.json` from valid published GitHub Release assets
 
 ## Change log — latest first
+
+### 2026-11-02 — Main release and TESTBUILD catalog verified
+- PR #296 merged to main at commit `98e49b2a5fb3bd9d9e4861fbab45682172c3560b`.
+- Main-branch GitHub Actions [41420993845](https://github.com/Yahballon/tmp_lap/actions/runs/41420993845) SUCCESS: native compile, installer ZIP verification, Actions artifact and GitHub Release publish all passed.
+- Immutable release [standby-clock-v0.1.0](https://github.com/Yahballon/tmp_lap/releases/tag/standby-clock-v0.1.0) contains uploaded `PPSA99876.zip` (6,708,872 bytes).
+- Catalog workflow [41421237141](https://github.com/Yahballon/tmp_lap/actions/runs/41421237141) SUCCESS; generated `version.json` schema 2 has 34 apps and valid Standby Clock entry (`PPSA99876`).
+- PS5 hardware test NOT PERFORMED. User should refresh catalog in TESTBUILD and test launch, clock rendering, controls, alarm, and settings.
+
 
 ### 2026-11-02 — Native PS5 CI success, before merge
 - GitHub Actions [run 41417779557](https://github.com/Yahballon/tmp_lap/actions/runs/41417779557) completed SUCCESS with host tests, SDK preparation, native PS5 compilation, package checks and artifact upload.
@@ -68,7 +76,7 @@
 ### P0 — Immediate
 - [x] Run pull-request CI, confirm compile/package success (41417779557)
 ### P1 — TESTBUILD
-- [ ] Merge a passing build, verify release tag and `PPSA99876.zip`, confirm catalog index includes Standby Clock
+- [x] Merge, release `PPSA99876.zip`, verify generated catalog contains Standby Clock
 ### P2 — Console
 - [ ] Run from TESTBUILD, record the on-console UI screenshot, controller behavior, date/time correctness, alarm and exit
 
@@ -81,8 +89,8 @@
 6. Compare actual 1920x1080 screenshot with user's red-on-black visual reference
 
 ## NEXT ACTION FOR THE NEXT AGENT
-**Do this first:** Merge PR #296 to main; verify main branch release workflow uploads `PPSA99876.zip` and catalog updater adds `PPSA99876` to generated `version.json`.
-**Starting point:** `Yahballon/tmp_lap`, `feature/standby-clock-v0.1.0`.
-**Expected success evidence:** Green Actions job with `PPSA99876.zip` and host tests passing.
-**If it fails:** Use full job step logs; patch only standby-clock app/build unless shared SDK regression is proven.
+**Do this first:** Run Standby Clock v0.1.0 on the actual PS5 via the refreshed TESTBUILD catalog; capture genuine UI screenshot, test all buttons and alarm/timezone behavior, log any display issues.
+**Starting point:** `Yahballon/tmp_lap`, `main`, merged PR #296, release tag `standby-clock-v0.1.0`.
+**Expected success evidence:** PS5 screenshot of rendered digital/analog clock and log from `/data/StandbyClock/clock.log`; CI artifact and package already verified.
+**If it fails:** Supply screen/log and inspect runtime font loading, coordinates and clock API; patch only standby-clock app/build.
 **Do not change:** Existing app Title IDs, manually-generated `version.json`, or unrelated homebrew.
