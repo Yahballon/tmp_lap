@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "c3d29caacb16901638ed78c945e24ddefc83a31a4fe3ba7626885a1c6cf14c1f",
+  "version": "9035488e0ccdf3fc63dc5f935d499b885f4b936600e3285bdd70544419611535",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 32,
+  "app_count": 33,
   "apps": [
     {
       "name": "SwitchXYZ",
@@ -16,6 +16,19 @@
       "source": "homebrew/prosperoeden-coverflow",
       "size_bytes": 42652120,
       "published_at": "2026-10-29T07:01:05Z"
+    },
+    {
+      "name": "ScummVM PS5",
+      "slug": "scummvm-ps5",
+      "title_id": "PPSA99053",
+      "version": "0.1.0",
+      "tag": "scummvm-ps5-v0.1.0",
+      "zip_name": "PPSA99053.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/scummvm-ps5-v0.1.0/PPSA99053.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/scummvm-ps5-v0.1.0",
+      "source": "homebrew/scummvm-ps5",
+      "size_bytes": 470720025,
+      "published_at": "2026-11-02T08:15:43Z"
     },
     {
       "name": "ZQuest Classic PS5",
