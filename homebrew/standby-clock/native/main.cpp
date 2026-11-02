@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-// STANDBY CLOCK by YAHBALLON v0.1.0 — native PS5 renderer.
+// STANDBY CLOCK by YAHBALLON v0.1.1 — native PS5 renderer.
 #include "clock_logic.hpp"
+#include "weather_client.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -23,7 +24,7 @@ Color color(unsigned hex,float alpha=1.f){return Color::rgb(hex,alpha);}
 void logline(const char* msg){
  mkdir("/data/StandbyClock",0755);
  if(FILE* f=fopen("/data/StandbyClock/clock.log","ab")){
-  fprintf(f,"[STANDBY CLOCK v0.1.0] %s\n",msg);fclose(f);
+  fprintf(f,"[STANDBY CLOCK v0.1.1] %s\n",msg);fclose(f);
  }
 }
 std::string readfile(const std::string& path,size_t maxBytes=5*1024*1024){
@@ -43,20 +44,24 @@ std::string asset(const char* suffix){
 }
 void save(const Settings& s){
  mkdir("/data/StandbyClock",0755);
- FILE* f=fopen("/data/StandbyClock/settings.tmp","wb");if(!f){logline("SAVE_OPEN_FAILED");return;}
- fprintf(f,"version=1\ntheme=%d\nbrightness=%d\nuse24h=%d\nalarmOn=%d\nalarmHour=%d\nalarmMinute=%d\nutcOffset=%d\npixelDrift=%d\n",
-  s.theme,s.brightness,s.use24h,s.alarmOn,s.alarmHour,s.alarmMinute,s.utcOffset,s.pixelDrift);
- if(fclose(f)!=0 || rename("/data/StandbyClock/settings.tmp","/data/StandbyClock/settings.ini")!=0)
+ FILE* f=fopen("/data/StandbyClock/settings.tmp","wb");
+ if(!f){logline("SAVE_OPEN_FAILED");return;}
+ fprintf(f,"version=2\ntheme=%d\nbrightness=%d\nuse24h=%d\nalarmOn=%d\nalarmHour=%d\nalarmMinute=%d\nutcOffset=%d\npixelDrift=%d\noledGuard=%d\nautoDim=%d\nweatherEnabled=%d\n",
+ s.theme,s.brightness,s.use24h,s.alarmOn,s.alarmHour,s.alarmMinute,s.utcOffset,s.pixelDrift,
+ s.oledGuard,s.autoDim,s.weatherEnabled);
+ if(fclose(f)!=0||rename("/data/StandbyClock/settings.tmp","/data/StandbyClock/settings.ini")!=0)
   logline("SAVE_FAILED");
 }
 void load(Settings& s){
  auto bytes=readfile("/data/StandbyClock/settings.ini",2048);if(bytes.empty())return;
  Settings temp;int version=0;
- if(sscanf(bytes.c_str(),
-    "version=%d\ntheme=%d\nbrightness=%d\nuse24h=%d\nalarmOn=%d\nalarmHour=%d\nalarmMinute=%d\nutcOffset=%d\npixelDrift=%d",
-    &version,&temp.theme,&temp.brightness,&temp.use24h,&temp.alarmOn,
-    &temp.alarmHour,&temp.alarmMinute,&temp.utcOffset,&temp.pixelDrift)==9 && version==1){
-   validate(temp);s=temp;
+ int count=sscanf(bytes.c_str(),
+  "version=%d\ntheme=%d\nbrightness=%d\nuse24h=%d\nalarmOn=%d\nalarmHour=%d\nalarmMinute=%d\nutcOffset=%d\npixelDrift=%d\noledGuard=%d\nautoDim=%d\nweatherEnabled=%d",
+  &version,&temp.theme,&temp.brightness,&temp.use24h,&temp.alarmOn,&temp.alarmHour,
+  &temp.alarmMinute,&temp.utcOffset,&temp.pixelDrift,&temp.oledGuard,&temp.autoDim,&temp.weatherEnabled);
+ // Preserve existing v0.1.0 preferences and enable new optional features.
+ if((version==1&&count>=9)||(version==2&&count==12)){
+  validate(temp);s=temp;
  }else logline("INVALID_SETTINGS_DEFAULTS");
 }
 unsigned palette(int theme){
@@ -106,7 +111,6 @@ void big_time(DrawList& d,const Font& f,unsigned a,const ClockTime& t,const Sett
    d.circle(614,350,31,color(accent));d.circle(614,548,31,color(accent));
   }else text(d,f,a,c,x[i],618,sizes[i],accent);
  }
- if(!s.use24h)text(d,f,a,t.hour<12?"AM":"PM",1081,626,34,accent,Align::right);
 }
 void calendar(DrawList& d,const Font& f,unsigned a,const ClockTime& t,unsigned accent){
  static const char* names[]={"M","T","W","T","F","S","S"};
@@ -128,33 +132,47 @@ void alarm_symbol(DrawList& d,float x,float y,unsigned accent){
  d.line(x-18,y+21,x-27,y+32,4,color(accent));
  d.line(x+18,y+21,x+27,y+32,4,color(accent));
 }
-void home(DrawList& d,const Font& f,unsigned a,const ClockTime& t,const Settings& s,bool alert,float shift){
+void home(DrawList& d,const Font& f,unsigned a,const ClockTime& t,const Settings& s,const weather::Data& w,bool alert){
  unsigned accent=palette(s.theme);
  d.rounded_rect({0,0,1920,1080},0,color(0x000000));
  // Entire content subtly migrates to prevent permanent fixed-position highlights on OLED screens.
  d.push_clip({0,0,1920,1080});
  // Header remains minimal to preserve the visual reference.
- text(d,f,a,"STANDBY CLOCK by YAHBALLON",70+shift,68,30,accent);
- text(d,f,a,"v0.1.0",1847,66,24,accent,Align::right);
+ text(d,f,a,"STANDBY CLOCK by YAHBALLON",70,68,30,accent);
+ text(d,f,a,"v0.1.1",1847,66,24,accent,Align::right);
  d.line(66,94,1853,94,2,color(accent));
  big_time(d,f,a,t,s,accent);
  d.line(1336,140,1336,704,2,color(accent));
  text(d,f,a,weekday_name(t.weekday),1437,204,72,accent);
  char date[40];snprintf(date,sizeof(date),"%s %02d",month_name(t.month),t.day);
  text(d,f,a,date,1438,270,42,accent);
+ // Keep AM/PM away from the giant numerals and bottom of the analog clock.
+ if(!s.use24h)text(d,f,a,t.hour<12?"AM":"PM",1830,272,24,accent,Align::right);
  analog(d,f,a,t,accent);
  d.line(80,766,1835,766,2,color(accent));
  alarm_symbol(d,134,864,accent);
  text(d,f,a,"ALARM",228,833,25,accent);
  text(d,f,a,s.alarmOn?alarm_text(s):"OFF",229,921,55,accent);
  d.line(540,804,540,948,2,color(accent));
- for(int i=0;i<3;i++){
-  float top=838+i*19.f;
-  d.line(631,top,666,top-18,4,color(accent));
-  d.line(666,top-18,702,top,4,color(accent));
+ // Live weather replaces the old Homebrew READY panel. Cloud mark is native geometry.
+ d.circle(642,868,22,color(accent));
+ d.circle(668,856,28,color(accent));
+ d.circle(694,871,20,color(accent));
+ d.rounded_rect({620,868,95,23},10,color(accent));
+ text(d,f,a,"WEATHER",739,839,32,accent);
+ if(!s.weatherEnabled){
+  text(d,f,a,"DISABLED",739,909,22,accent);
+ }else if(w.valid){
+  text(d,f,a,std::to_string(w.temperature)+" C",1176,839,36,accent,Align::right);
+  std::string locality=w.city;
+  if(locality.size()>18)locality=locality.substr(0,18);
+  std::string detail=locality+" / "+w.condition;
+  if(detail.size()>40)detail.resize(40);
+  text(d,f,a,detail,739,902,21,accent);
+  if(w.stale)text(d,f,a,"CACHED",1174,935,17,accent,Align::right);
+ }else{
+  text(d,f,a,w.busy?"LOCATING / LOADING":"WEATHER OFFLINE",739,909,22,accent);
  }
- text(d,f,a,"HOMEBREW",740,837,32,accent);
- text(d,f,a,alert?"ALARM  -  PRESS X TO DISMISS":"by YAHBALLON  /  READY",740,916,22,accent);
  d.line(1214,804,1214,948,2,color(accent));
  calendar(d,f,a,t,accent);
  text(d,f,a,"X SETTINGS     SQUARE ALARM     TRIANGLE THEME     L1/R1 BRIGHTNESS     O EXIT",960,1046,21,accent,Align::center);
@@ -167,8 +185,9 @@ void home(DrawList& d,const Font& f,unsigned a,const ClockTime& t,const Settings
 }
 const char* setting_label(int index){
  static const char* labels[]={"THEME","BRIGHTNESS","TIME FORMAT","ALARM ENABLED",
-   "ALARM HOUR","ALARM MINUTE","TIMEZONE","OLED PIXEL SHIFT","CLOSE SETTINGS"};
- return labels[std::clamp(index,0,8)];
+   "ALARM HOUR","ALARM MINUTE","TIMEZONE","OLED PIXEL SHIFT","OLED PROTECTION",
+   "AUTO DIM / NIGHT","AUTO WEATHER","CLOSE SETTINGS"};
+ return labels[std::clamp(index,0,11)];
 }
 std::string setting_value(int index,const Settings& s){
  switch(index){
@@ -180,6 +199,9 @@ std::string setting_value(int index,const Settings& s){
  case 5:{char b[8];snprintf(b,sizeof(b),"%02d",s.alarmMinute);return b;}
  case 6:return s.utcOffset==99?"SYSTEM LOCAL":"UTC "+std::string(s.utcOffset>=0?"+":"")+std::to_string(s.utcOffset);
  case 7:return s.pixelDrift?"ON":"OFF";
+ case 8:return s.oledGuard?"ON":"OFF";
+ case 9:return s.autoDim?"ON":"OFF";
+ case 10:return s.weatherEnabled?"ON":"OFF";
  default:return "X CONFIRM";
  }
 }
@@ -188,13 +210,13 @@ void settings_screen(DrawList& d,const Font& f,unsigned a,const Settings& s,int 
  d.rounded_rect({0,0,1920,1080},0,color(0x000000));
  text(d,f,a,"STANDBY CLOCK by YAHBALLON",90,87,36,accent);
  text(d,f,a,"SETTINGS",93,179,69,accent);
- text(d,f,a,"v0.1.0",1810,88,25,accent,Align::right);
+ text(d,f,a,"v0.1.1",1810,88,25,accent,Align::right);
  d.line(89,211,1810,211,2,color(accent));
- for(int i=0;i<9;i++){
-  float y=245+i*77.f;
-  if(focus==i)d.bordered_rect({98,y-8,1714,69},13,color(0x1e1212),3,color(accent));
-  text(d,f,a,setting_label(i),125,y+35,26,accent);
-  text(d,f,a,setting_value(i,s),1760,y+35,27,accent,Align::right);
+ for(int i=0;i<12;i++){
+  float y=238+i*61.f;
+  if(focus==i)d.bordered_rect({98,y-8,1714,57},11,color(0x1e1212),3,color(accent));
+  text(d,f,a,setting_label(i),125,y+31,24,accent);
+  text(d,f,a,setting_value(i,s),1760,y+31,24,accent,Align::right);
  }
  text(d,f,a,"D-PAD SELECT / ADJUST     X CHANGE     O SAVE AND RETURN",960,1036,24,accent,Align::center);
 }
@@ -210,6 +232,9 @@ void modify(Settings& s,int index,int sign){
         else if(sign>0){s.utcOffset=s.utcOffset>=14?99:s.utcOffset+1;}
         else{s.utcOffset=s.utcOffset<=-12?99:s.utcOffset-1;}break;
  case 7:s.pixelDrift=!s.pixelDrift;break;
+ case 8:s.oledGuard=!s.oledGuard;break;
+ case 9:s.autoDim=!s.autoDim;break;
+ case 10:s.weatherEnabled=!s.weatherEnabled;break;
  }
  validate(s);
 }
@@ -224,17 +249,25 @@ int main(){
  hui::InputTracker tracker;
  hui::InputSettings ip;ip.repeat_delay_us=330000;ip.repeat_interval_us=115000;tracker.set_settings(ip);
  Settings s;load(s);
+ weather::init();
+ if(s.weatherEnabled)weather::refresh();
  bool settingsOpen=false,alert=false;
  int focus=0,alertDay=-1;
  std::time_t snoozeUntil=0;
  bool priorDue=false;
  uint64_t lastLog=0;
+ const uint64_t bootTick=uint64_t(hui::sys::monotonic_us());
+ uint64_t lastInputTick=bootTick,lastWeatherTick=bootTick;
  for(;;){
   const uint64_t tick=uint64_t(hui::sys::monotonic_us());
   std::array<hui::PadSample,64> samples{};
   const size_t n=pad.read(samples);
   const auto frame=tracker.update(std::span<const hui::PadSample>(samples.data(),n),tick);
   auto press=[&](hui::Action a){return frame.is_pressed(a);};
+  if(frame.pressed!=0||frame.nav!=hui::Direction::none)lastInputTick=tick;
+  if(s.weatherEnabled && tick-lastWeatherTick>=900000000ULL){
+   if(weather::refresh())lastWeatherTick=tick;
+  }
   const std::time_t epoch=std::time(nullptr);
   const ClockTime t=from_timestamp(epoch,s.utcOffset);
   const bool due=alarm_due(s,t);
@@ -247,15 +280,15 @@ int main(){
    if(press(hui::Action::confirm)){alert=false;snoozeUntil=0;logline("ALARM_DISMISS");}
    if(press(hui::Action::back)){alert=false;snoozeUntil=epoch+300;logline("ALARM_SNOOZE");}
   }else if(settingsOpen){
-   if(frame.nav==hui::Direction::up)focus=(focus+8)%9;
-   if(frame.nav==hui::Direction::down)focus=(focus+1)%9;
+   if(frame.nav==hui::Direction::up)focus=(focus+11)%12;
+   if(frame.nav==hui::Direction::down)focus=(focus+1)%12;
    if(frame.nav==hui::Direction::left)modify(s,focus,-1);
    if(frame.nav==hui::Direction::right)modify(s,focus,1);
    if(press(hui::Action::confirm)){
-    if(focus==8){settingsOpen=false;save(s);}
+    if(focus==11){settingsOpen=false;save(s);if(s.weatherEnabled)weather::refresh();}
     else modify(s,focus,1);
    }
-   if(press(hui::Action::back)||press(hui::Action::menu)){settingsOpen=false;save(s);}
+   if(press(hui::Action::back)||press(hui::Action::menu)){settingsOpen=false;save(s);if(s.weatherEnabled)weather::refresh();}
   }else{
    if(press(hui::Action::confirm)||press(hui::Action::menu)){focus=0;settingsOpen=true;}
    if(press(hui::Action::west)){focus=3;settingsOpen=true;}
@@ -267,13 +300,35 @@ int main(){
    }
   }
   DrawList d;
-  if(settingsOpen)settings_screen(d,font,atlas,s,focus);
-  else{
-   float drift=s.pixelDrift?float((epoch/60)%5-2)*1.8f:0.f;
-   home(d,font,atlas,t,s,alert,drift);
+  const uint64_t secondsSinceInput=(tick-lastInputTick)/1000000ULL;
+  // Entire UI shifts as one unit, including analogue dial and footer.
+  float shiftX=0,shiftY=0;
+  if(s.oledGuard&&s.pixelDrift&&!settingsOpen&&!alert){
+   const int phase=int((tick-bootTick)/90000000ULL%8ULL);
+   static constexpr float xs[]={-10,6,12,-4,8,-12,4,0};
+   static constexpr float ys[]={-7,8,-2,10,3,-9,5,0};
+   shiftX=xs[phase];shiftY=ys[phase];
   }
-  // Dimming overlay controls perceived brightness without changing system-wide brightness.
+  // 20 seconds of black display per 30 minutes, unless user is interacting
+  // or alarm is visible. Black rest never puts the console into standby.
+  const bool oledRest=s.oledGuard&&!settingsOpen&&!alert&&secondsSinceInput>90 &&
+     ((tick-bootTick)/1000000ULL%1800ULL)>=1780ULL;
+  if(oledRest)d.rounded_rect({0,0,1920,1080},0,color(0x000000));
+  else if(settingsOpen)settings_screen(d,font,atlas,s,focus);
+  else{
+   d.rounded_rect({0,0,1920,1080},0,color(0x000000));
+   d.push_transform(1.f,0,0,shiftX,shiftY);
+   home(d,font,atlas,t,s,weather::snapshot(),alert);
+   d.pop_transform();
+  }
+  // OLED guard is an in-app safeguard, not the TV's hardware pixel refresh.
   float dim=float(5-s.brightness)*0.16f;
+  if(s.oledGuard&&s.autoDim&&!settingsOpen&&!alert){
+   if(secondsSinceInput>=600)dim+=.36f;
+   else if(secondsSinceInput>=120)dim+=.19f;
+   if(t.hour>=23||t.hour<7)dim+=.14f;
+  }
+  dim=std::clamp(dim,0.f,.83f);
   if(dim>0)d.rounded_rect({0,0,1920,1080},0,color(0x000000,dim));
   renderer.begin();renderer.draw(d);renderer.present(0,display.width(),display.height());display.swap();
   hui::sys::hide_splash_screen();
