@@ -17,6 +17,9 @@ struct Settings {
   int alarmMinute=20;
   int utcOffset=99;       // 99 = device-local, otherwise UTC hours
   int pixelDrift=1;
+  int oledGuard=1;
+  int autoDim=1;
+  int weatherEnabled=1;
 };
 inline void validate(Settings& s) {
   s.theme=std::clamp(s.theme,0,3);
@@ -27,6 +30,9 @@ inline void validate(Settings& s) {
   s.alarmMinute=std::clamp(s.alarmMinute,0,59);
   s.utcOffset=(s.utcOffset==99)?99:std::clamp(s.utcOffset,-12,14);
   s.pixelDrift=(s.pixelDrift!=0);
+  s.oledGuard=(s.oledGuard!=0);
+  s.autoDim=(s.autoDim!=0);
+  s.weatherEnabled=(s.weatherEnabled!=0);
 }
 struct ClockTime {
   int year=2026,month=1,day=1,weekday=4,yday=0,hour=0,minute=0,second=0;

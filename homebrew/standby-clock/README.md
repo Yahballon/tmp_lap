@@ -2,7 +2,7 @@
 
 # STANDBY CLOCK
 
-**Native PS5 Homebrew by YAHBALLON · v0.1.0**
+**Native PS5 Homebrew by YAHBALLON · v0.1.1**
 
 A minimal, television-friendly always-on clock based on a black and red reference design. The clock is **actually drawn every frame** by the native PS5 UI renderer—not a static picture. The display includes a huge digital clock, analog sweep-second hand, date, calendar week, alarm tile and Homebrew status. The application does not control actual PS5 power or suspend functions.
 
@@ -10,7 +10,7 @@ A minimal, television-friendly always-on clock based on a black and red referenc
 
 ## Install / TESTBUILD
 
-Title ID: `PPSA99876` · release tag (when published): `standby-clock-v0.1.0`.
+Title ID: `PPSA99876` · release tag (when published): `standby-clock-v0.1.1`.
 
 After a successful main-branch GitHub Actions build, the verified release asset `PPSA99876.zip` is discovered by the existing `tools/update-version.py` catalog generator and can be loaded in the TESTBUILD app. Do not manually edit `version.json`.
 
@@ -39,3 +39,14 @@ Workflow: [build-standby-clock.yml](../../.github/workflows/build-standby-clock.
 The alarm only triggers while this app is open; no system-wide wake notifications, background operation, automatic standby activation, or alarm audio. The clock is rendered using the framework's bundled Inter font, whose PS5 rendering size must be validated on hardware. This repository includes no Sony proprietary assets.
 
 Development handoff: [MILESTONES.md](MILESTONES.md). MIT app code, subject to separate upstream renderer/SDK licenses.
+
+
+## Live Weather / location privacy
+
+The old `HOMEBREW / READY` tile now shows temperature, the closest rough IP-detected city and conditions. When offline, the last valid forecast is marked **CACHED** (up to 24 hours), otherwise a clear offline indicator is shown. The forecast comes from [Open-Meteo](https://open-meteo.com/); city/coordinates come from [ipapi.co](https://ipapi.co/api/). Location is approximate, not GPS. The PS5 makes outbound HTTPS requests to both providers, exposing its public IP to them. Updates happen off the renderer thread, normally every 15 minutes. Disable in Settings > AUTO WEATHER if desired.
+
+## OLED burn-in mitigation
+
+Settings > OLED PROTECTION enables full-interface pixel shift (eight positions every 90 seconds), idle dimming after 2/10 minutes and a 20-second all-black break every 30 minutes. Night dimming applies at 23:00-07:00 local time. Dimming is suspended for the alarm overlay and Settings. `OLED PIXEL SHIFT` and `AUTO DIM / NIGHT` are individually switchable. These controls don't change TV firmware, panel settings or guarantee against OLED retention.
+
+**v0.1.1:** Fix AM/PM accidentally shown under the big clock; the suffix is beside the date instead. The v0.1.0 preferences file is read and migrated automatically to `version=2` when saved. New weather network code is `native/weather_client.cpp` and `native/weather_model.hpp`. Native compile + actual PS5 test evidence will be recorded in MILESTONES.md.

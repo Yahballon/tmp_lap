@@ -22,6 +22,8 @@ jobs:
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/standby-clock/tests/clock_test.cpp -o /tmp/standby-test
           /tmp/standby-test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic homebrew/standby-clock/tests/weather_test.cpp -o /tmp/standby-weather-test
+          /tmp/standby-weather-test
           python3 -m json.tool homebrew/standby-clock/app.json >/dev/null
       - name: Stage app and image
         run: |
@@ -29,7 +31,16 @@ jobs:
           cp -a /tmp/devbridge/templates/simple-calc ./app
           git clone --depth=1 https://github.com/Yahballon/ps5-homebrew-ui.git /tmp/hui
           for part in gfx ui core audio platform third_party; do cp -a "/tmp/hui/src/$part" app/src/; done
-          cp homebrew/standby-clock/native/main.cpp homebrew/standby-clock/native/clock_logic.hpp app/src/
+          cp homebrew/standby-clock/native/main.cpp homebrew/standby-clock/native/clock_logic.hpp homebrew/standby-clock/native/weather_client.cpp homebrew/standby-clock/native/weather_client.hpp homebrew/standby-clock/native/weather_model.hpp app/src/
+          # Embed OS CA trust roots in the ELF; PS5 /app0 may be inaccessible.
+          mkdir -p app/assets
+          cp /etc/ssl/certs/ca-certificates.crt app/assets/cacert.pem
+          python3 - <<'PY'
+          from pathlib import Path
+          pem=Path('app/assets/cacert.pem').read_text(encoding='ascii')
+          Path('app/src/ca_bundle.inc').write_text(
+            'static constexpr char kCaBundle[] = R"PS5CABUNDLE('+pem+')PS5CABUNDLE";\n')
+          PY
           python3 homebrew/standby-clock/assets/generate_icon.py app/sce_sys/icon0.png
           python3 - <<'PY'
           import json,pathlib
@@ -74,7 +85,7 @@ jobs:
           PS5_CLANG: clang-18
           BUILD_JOBS: '4'
           USE_CCACHE: '0'
-        run: make USE_CCACHE=0 BUILD_JOBS=4 app
+        run: make USE_CCACHE=0 BUILD_JOBS=4 PACBREW_PACKAGES=openssl app
       - name: Verify installable ZIP
         run: |
           python3 - <<'PY'
@@ -88,7 +99,7 @@ jobs:
           assert meta['titleId']=='PPSA99876'
           assert meta['contentId']=='UP9000-PPSA99876_00-STANDBYCLOCK0001'
           assert Image.open(p/'sce_sys/icon0.png').size==(512,512)
-          files=['eboot.bin','sce_sys/icon0.png','sce_sys/param.json','sce_module/libc.prx','assets/fonts/inter-semibold.huifont']
+          files=['eboot.bin','sce_sys/icon0.png','sce_sys/param.json','sce_module/libc.prx','assets/fonts/inter-semibold.huifont','assets/cacert.pem']
           with zipfile.ZipFile('app/dist/PPSA99876.zip') as z:
             assert z.testzip() is None
             for f in files:
@@ -97,7 +108,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: Standby-Clock-v0.1.0-PPSA99876
+          name: Standby-Clock-v0.1.1-PPSA99876
           path: app/dist/PPSA99876.zip
           if-no-files-found: error
       - name: Publish main-branch TESTBUILD
@@ -105,5 +116,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view standby-clock-v0.1.0 >/dev/null 2>&1; then echo 'Existing immutable tag'; exit 1; fi
-          gh release create standby-clock-v0.1.0 app/dist/PPSA99876.zip --target "$GITHUB_SHA" --title 'Standby Clock by YAHBALLON v0.1.0' --notes-file homebrew/standby-clock/RELEASE_NOTES.md
+          if gh release view standby-clock-v0.1.1 >/dev/null 2>&1; then echo 'Existing immutable tag'; exit 1; fi
+          gh release create standby-clock-v0.1.1 app/dist/PPSA99876.zip --target "$GITHUB_SHA" --title 'Standby Clock by YAHBALLON v0.1.1' --notes-file homebrew/standby-clock/RELEASE_NOTES.md

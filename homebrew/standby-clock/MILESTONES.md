@@ -2,8 +2,8 @@
 
 **Project:** Yahballon/tmp_lap/homebrew/standby-clock
 **Last updated:** 2026-11-02 UTC
-**Branch:** main (merged PR #296)
-**Version / Title ID:** 0.1.0 / PPSA99876
+**Branch:** feature/standby-clock-v0.1.1-weather (from main)
+**Version / Title ID:** 0.1.1 (development) / PPSA99876
 **Verified Release:** [standby-clock-v0.1.0](https://github.com/Yahballon/tmp_lap/releases/tag/standby-clock-v0.1.0) — PPSA99876.zip (6,708,872 bytes)
 **Hardware target:** Jailbroken PS5; runtime compatibility NOT VERIFIED
 
@@ -33,6 +33,16 @@
 - TESTBUILDS: `tools/update-version.py` generates `version.json` from valid published GitHub Release assets
 
 ## Change log — latest first
+
+### 2026-11-02 — v0.1.1 local weather and OLED guard
+- Added `weather_model.hpp`, `weather_client.cpp`, `weather_test.cpp`: asynchronous verified HTTPS to ipapi.co and Open-Meteo, local cache/offline states, geolocation without GPS, no fake readings
+- Replaced old Homebrew/READY footer block with temperature, approximate location and conditions
+- Fixed the 12-hour AM/PM suffix under the giant clock by putting it next to the date instead
+- OLED guard: full-screen transform pixel shifts, idle/night dim, 20-second periodic blank display, options to disable
+- Backward-compatible settings v1 migration to v2; ContentVersion 01.000.002, release tag standby-clock-v0.1.1
+- Status: SOURCE IMPLEMENTED, BUILD & HARDWARE TEST PENDING
+- NEXT: inspect PR CI, correct compile/link issues, merge only green; confirm `standby-clock-v0.1.1` release ZIP and auto-generated TESTBUILD catalog
+
 
 ### 2026-11-02 — Main release and TESTBUILD catalog verified
 - PR #296 merged to main at commit `98e49b2a5fb3bd9d9e4861fbab45682172c3560b`.
