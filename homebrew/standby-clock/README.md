@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/icon.png" alt="Standby Clock icon" width="150"></p>
+<p align="center"><img src="assets/icon.svg" alt="Standby Clock icon" width="150"></p>
 
 # STANDBY CLOCK
 
