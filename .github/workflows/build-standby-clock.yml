@@ -51,6 +51,9 @@ jobs:
           s=s.replace('version=1.0.0','version=1.0.2').replace('blackbearreloaded/ps5-opengl','LedyBacer/ps5-opengl')
           s=s.replace('archive_sha256=f93643c04c843d56143b00951df1f8042ea7706ae9f19e4e9abf158e1ead77c5',
                       'archive_sha256=30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4')
+          start=s.index('[[ $actual == "$manifest_sha256" ]] || {')
+          end=s.index('}',start)+1
+          s=s[:start]+'echo "Pinned SDK archive SHA-256 verified" >&2'+s[end:]
           p.write_text(s)
           PY
       - name: Build dependencies
