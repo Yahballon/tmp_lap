@@ -8,6 +8,7 @@
 #include <openssl/pem.h>
 #include <atomic>
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
