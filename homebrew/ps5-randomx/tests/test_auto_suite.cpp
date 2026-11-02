@@ -54,13 +54,13 @@ int main(){
   assert(!s.record(4,false,1,1000000));
   assert(s.cancelled && s.recorded==2);
   s.begin_all(30);
-  const int expected_all[7]={0,1,2,3,7,10,11};
-  assert(s.kind==rxbench::AutoSuite::Safe7&&s.total==7&&!s.with_full);
-  for(int i=0;i<7;i++){
+  const int expected_all[8]={0,1,2,3,7,10,11,15};
+  assert(s.kind==rxbench::AutoSuite::Safe8&&s.total==8&&!s.with_full);
+  for(int i=0;i<8;i++){
     assert(s.current_profile()==expected_all[i]);
     bool next=s.record(3,true,100,30000000);
     assert(s.results[i].profile==expected_all[i]);
-    if(i<6)assert(next);else assert(!next&&s.done);
+    if(i<7)assert(next);else assert(!next&&s.done);
   }
   s.begin_all(10);
   for(int i=0;i<3;i++)assert(s.record(3,true,10,1000000));
@@ -73,5 +73,5 @@ int main(){
   // Original 4-stage interpreter plan remains available after reset.
   s.begin(false,30);
   assert(s.current_profile()==0 && s.kind==rxbench::AutoSuite::Light4);
-  std::puts("PASS: AUTO4, AUTO5, JIT 1/2/4 plan, cancellation and failure");
+  std::puts("PASS: AUTO SAFE8 with final 64 MiB diagnostic; legacy AUTO4/5; JIT; cancel/failure");
 }
