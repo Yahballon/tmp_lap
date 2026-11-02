@@ -34,6 +34,10 @@ jobs:
             -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
           cmake --build /tmp/ps5coin-randomx-build --target randomx -j4
           test -s /tmp/ps5coin-randomx-build/librandomx.so
+      - name: Test portable PS5 mining job header / target codec
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -O2 projects/ps5coin/tests/test_pow_wire.cpp -o /tmp/p5c-wire-test
+          /tmp/p5c-wire-test
       - name: Verify accepted and rejected RandomX jobs plus local HTTP API
         env:
           RANDOMX_LIB: /tmp/ps5coin-randomx-build/librandomx.so
