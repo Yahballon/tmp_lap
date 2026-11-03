@@ -45,7 +45,7 @@ From an existing local clone of Yahballon/tmp_lap:
 
 The **expected** native output after a successful build is dist/PPSA99920, with eboot.bin, sce_sys/param.json, sce_sys/icon0.png, sce_module/libc.prx, fonts, native dependencies and androidflow.flag. A ZIP of only this source folder is **not** installable. Check output and required dependencies before creating a test release.
 
-The [overlay validation workflow](../../.github/workflows/check-androidflow.yml) checks the original code patch and host-side geometry. It does not compile or release PS5 binaries and cannot make AndroidFlow appear in TESTBUILD by itself. The generated central version.json is intentionally left untouched until there is a verified installable ZIP in a real GitHub Release.
+The [overlay validation workflow](../../.github/workflows/check-androidflow.yml) passed in run 41590133362 (host math and pinned source patch). A separate [native PS5 build workflow](../../.github/workflows/build-androidflow.yml) now attempts the full pinned Hydroid/RADV/Dynarmic/NDK/FFmpeg toolchain, independently validates the signed PPSA99920 installation ZIP and publishes an immutable release only after a passing main-branch build. The native build has not yet been observed passing. The generated central version.json is intentionally left untouched until there is a verified installable ZIP in a real GitHub Release.
 
 ## Visuals & attribution
 

@@ -1,8 +1,12 @@
 name: Build AndroidFlow PS5 (Hydroid ARM64)
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'homebrew/androidflow/**'
+      - '.github/workflows/build-androidflow.yml'
   push:
-    branches: [main, feature/androidflow-hydroid-coverflow]
+    branches: [main]
     paths:
       - 'homebrew/androidflow/**'
       - '.github/workflows/build-androidflow.yml'
