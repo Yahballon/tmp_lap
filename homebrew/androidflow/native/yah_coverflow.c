@@ -100,7 +100,7 @@ static void draw_frame(double t){
   ui_text(UI_TEXT_TITLE,109,85,"ANDROID FLOW",UI_RGBA(242,249,255,1),UI_ALIGN_LEFT);
   ui_text(UI_TEXT_SMALL,111,144,"by YAHBALLON   /   Powered by Hydroid",
           UI_RGBA(146,179,195,1),UI_ALIGN_LEFT);
-  ui_text(UI_TEXT_LABEL,1816,105,"v0.1.2",UI_RGBA(148,173,185,1),UI_ALIGN_RIGHT);
+  ui_text(UI_TEXT_LABEL,1816,105,"v0.1.3",UI_RGBA(148,173,185,1),UI_ALIGN_RIGHT);
   ui_rect_gradient(0,808,UI_W,272,0,UI_RGBA(12,21,37,.4f),
                    UI_RGBA(6,10,21,1));
   if(!count){

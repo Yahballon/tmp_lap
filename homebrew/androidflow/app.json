@@ -1,11 +1,11 @@
 {
   "name": "AndroidFlow",
   "slug": "androidflow",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "titleId": "PPSA99920",
   "contentId": "UP9000-PPSA99920_00-ANDROIDFLOW00001",
-  "contentVersion": "01.000.002",
-  "releaseTag": "androidflow-v0.1.2",
+  "contentVersion": "01.000.003",
+  "releaseTag": "androidflow-v0.1.3",
   "developer": "YAHBALLON",
   "upstreamHydroid": "d8371afd75e3da6ab888d467d1e6bb00c32d2beb"
 }

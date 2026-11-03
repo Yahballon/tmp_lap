@@ -3,7 +3,7 @@
 **Project:** Yahballon/tmp_lap/homebrew/androidflow
 **Last updated (UTC):** 2026-11-03
 **Active branch:** feature/androidflow-hydroid-coverflow (commit history in PR)
-**Current version / Title ID:** cursor/crash diagnostic v0.1.2 / PPSA99920 (local conflict check only, not globally reserved)
+**Current version / Title ID:** persistent crash diagnostics v0.1.3 / PPSA99920 (local conflict check only, not globally reserved)
 **Hydroid source pin:** d8371afd75e3da6ab888d467d1e6bb00c32d2beb
 **Verified native PR build:** GitHub Actions 41596070059 (successful); **Published Release:** not yet; **PS5 hardware:** untested
 **Hardware:** PS5 test not performed.
@@ -32,6 +32,18 @@
 - Logs: /data/homebrew/PPSA99920/android.log; Hydroid can also expose its optional live log port 9025.
 
 ## Change Log — Latest First
+
+### 2026-11-03 — v0.1.3: make logs accessible even with read-only /app0
+
+- User could not find /data/homebrew/PPSA99920/android.log after a crash in Fruity Game.
+- Verified Hydroid opens only /app0/android.log and does not check whether fopen() returns NULL. On some loaders /app0 is not writable, so no local file is ever produced.
+- AndroidFlow now creates /data/AndroidFlow/logs/android.log with explicit directory creation; falls back to /app0/android.log if necessary. A message in the live TCP 9025 stream reports the actual active logging path or failed write.
+- Native crash trace now writes /data/AndroidFlow/logs/crash.txt directly, with fallback to /app0/trace.txt. Crash handlers still cannot guarantee capture after a full system freeze.
+- Flush Godot DOWN/UP logs before and after JNI dispatch and just before traced scene frames; preserves useful last lines on abrupt exits.
+- Console test and v0.1.3 native build not yet verified. The original crash root cause is still unknown without the new log.
+- Do not change user saves/APKs, or the GitHub Actions-generated version.json.
+
+
 
 ### 2026-11-03 — v0.1.2 Fruity Game cursor trails and Play crash diagnostics
 
