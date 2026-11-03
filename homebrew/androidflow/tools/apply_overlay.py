@@ -61,7 +61,24 @@ def main():
                         "game_file yah_coverflow net_shim", build_file)
     build = replace_one(build, 'mkdir -p "$app/assets" "$app/game" && cp -r',
                         'mkdir -p "$app/assets" "$app/game" && printf "AndroidFlow v0.1.0\\n" > "$app/androidflow.flag" && cp -r', build_file)
+    # Repair native zlib layout and missing PS5_Vulkan CMake environment overrides.
+    build = replace_one(build,
+        "zlib=${ZLIB_DIR:-$vk/.deps/native/zlib/zlib-1.3.2}",
+        "zlib=${ZLIB_DIR:-$vk/.deps/native/zlib/root/usr}", build_file)
+    build = replace_one(build, '-I"$zlib"', '-I"$zlib/include"', build_file)
+    build = replace_one(build, '"$zlib/libz.a"', '"$zlib/lib/libz.a"', build_file)
     build_file.write_text(build)
+    toolchain = src / "title/toolchain/ps5.cmake"
+    tool = toolchain.read_text()
+    tool = replace_one(tool,
+        'set(_vk "$ENV{HOME}/ps5/PS5_Vulkan")',
+        'if(DEFINED ENV{PS5_VULKAN})\n  set(_vk "$ENV{PS5_VULKAN}")\nelse()\n  set(_vk "$ENV{HOME}/ps5/PS5_Vulkan")\nendif()', toolchain)
+    tool = replace_one(tool,
+        'set(_sdk "${_vk}/.deps/native/ps5-payload-sdk")',
+        'if(DEFINED ENV{PS5_PAYLOAD_SDK})\n  set(_sdk "$ENV{PS5_PAYLOAD_SDK}")\nelse()\n  set(_sdk "${_vk}/.deps/native/ps5-payload-sdk")\nendif()', toolchain)
+    toolchain.write_text(tool)
+    # Hydroid calls title/isolate-radv.py but does not ship that file.
+    shutil.copyfile(root / "tools/isolate_radv.py", src / "title/isolate-radv.py")
     meta = json.loads(param.read_text())
     meta.update(titleId=TITLE_ID, conceptId=TITLE_ID[4:],
                 contentId="UP9000-PPSA99920_00-ANDROIDFLOW00001",
