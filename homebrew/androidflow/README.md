@@ -4,7 +4,7 @@
 
 ![AndroidFlow illustrated concept logo](assets/logo.svg)
 
-> **AndroidFlow v0.1.3 — Persistent crash logs (experimental).** v0.1.2 is released but console diagnostics can be missing when the /app0 directory is not writable. v0.1.3 fixes file logging; requires a successful new native build and hardware test. Previously: v0.1.1 displays Fruity Game on PS5 but leaves cursor trails and crashes when Play is clicked. Changes below require real console validation.
+> **AndroidFlow v0.1.4 — Fruity Game ARM64 longjmp compatibility fix (experimental).** The full PS5 v0.1.3 log proves that the game aborts at Hydroid's unsupported host longjmp. v0.1.4 enables the existing native ARM64 jump handler specifically for Fruity Game; success after the scene transition still needs a real PS5 retest. Previously: v0.1.2 is released but console diagnostics can be missing when the /app0 directory is not writable. v0.1.3 fixes file logging; requires a successful new native build and hardware test. Previously: v0.1.1 displays Fruity Game on PS5 but leaves cursor trails and crashes when Play is clicked. Changes below require real console validation.
 
 AndroidFlow uses [Hydroid](https://github.com/ZiZc3/Hydroid)'s ARM64 Android game runtime, built-in APK metadata/icon extraction and per-game saves. The visual browsing style is adapted from the GPL GBAXY coverflow layout in [PS5GBAX](https://github.com/Yahballon/PS5GBAX). All game assets come from user-owned Android packages; none are distributed with AndroidFlow.
 
@@ -32,6 +32,18 @@ The current library scans up to 64 files across:
     /data/AndroidFlow/apks/
 
 USB permissions and paths depend on your jailbreak and loader. Scanning is synchronous in this version. Returning from an Android game to choose a different one requires restarting the launcher.
+
+### Fruity Game crash analysis — v0.1.4
+
+PS5 console log from v0.1.3 shows:
+
+    setjmp(0x1026bfae88, ...) -> 0
+    longjmp(1): not supported for ARM64 code, stopping
+    CRASH signal 6
+
+Hydroid has ARM64-native setjmp/longjmp routines in `src/arm_imports.c`, already used by Candy Crush, but not previously enabled for `page.codeberg.marshreaper.fruitygame`. The default host `linux_abi.c:l_longjmp()` intentionally aborts. AndroidFlow v0.1.4 whitelists this one package, preserving all other APK behavior. The existing guest routines save/restore x19–x30, SP and d8–d15 in the game's ARM jump buffer.
+
+The new `/data/AndroidFlow/logs/android.log` should show `androidflow: ARM64-native setjmp enabled for Fruity Game` and `androidflow: ARM64-native longjmp enabled for Fruity Game` during library loading. This verifies the correct import path. It does **not** prove the game will run successfully without a console test: there may be other unsupported APIs or faults.
 
 ### Logs and reproducing a Godot crash
 

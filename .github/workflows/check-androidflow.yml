@@ -58,6 +58,10 @@ jobs:
           grep -q 'persistent log file' .work/hydroid/src/app_main.c
           grep -q '/data/AndroidFlow/logs/crash.txt' .work/hydroid/src/arm_cpu.cpp
           grep -q 'before risky JNI call' .work/hydroid/src/godot_host.c
+          grep -q 'com.king.candycrushsaga,page.codeberg.marshreaper.fruitygame' .work/hydroid/src/arm_imports.c
+          grep -q 'androidflow: ARM64-native' .work/hydroid/src/arm_imports.c
+          grep -Fq 'if (is_longjmp(name)) return &code[84];' .work/hydroid/src/arm_imports.c
+          python3 -m py_compile homebrew/androidflow/tools/patch_arm_jmp.py
           python3 -m py_compile homebrew/androidflow/tools/patch_persistent_logs.py
           python3 -m unittest discover -s homebrew/androidflow/tests -p 'test_*.py' -v
           grep -q 'fix_dynarmic_log.py' .work/hydroid/third_party/build-dynarmic.sh
