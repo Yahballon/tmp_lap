@@ -3,7 +3,7 @@
 **Project:** Yahballon/tmp_lap/homebrew/androidflow
 **Last updated (UTC):** 2026-11-03
 **Active branch:** feature/androidflow-hydroid-coverflow (commit history in PR)
-**Current version / Title ID:** source prototype v0.1.0 / PPSA99920 (local conflict check only, not globally reserved)
+**Current version / Title ID:** Godot input patch v0.1.1 / PPSA99920 (local conflict check only, not globally reserved)
 **Hydroid source pin:** d8371afd75e3da6ab888d467d1e6bb00c32d2beb
 **Verified native PR build:** GitHub Actions 41596070059 (successful); **Published Release:** not yet; **PS5 hardware:** untested
 **Hardware:** PS5 test not performed.
@@ -32,6 +32,16 @@
 - Logs: /data/homebrew/PPSA99920/android.log; Hydroid can also expose its optional live log port 9025.
 
 ## Change Log — Latest First
+
+### 2026-11-03 — v0.1.1 Godot touchscreen fix for Fruity Game
+
+- PS5 user reported Fruity Game rendered its menu in AndroidFlow v0.1.0, but Start could not be clicked.
+- Audited pinned Hydroid `godot_host.c`: key and joystick events forwarded, touch events not handled. The Godot path in `app_main.c` did not set `pad_touch_events=1`.
+- Added `tools/patch_godot_input.py` and native `yah_godot_cursor.h`: Godot 3.2 and 3.5 JNI touch dispatch, real touchpad press/move/release, DualSense right-stick cursor, Cross click/drag and overlay pointer reuse.
+- Added C host cursor regression tests and native Godot syntax smoke checks. Version bumped to 0.1.1; Title ID unchanged.
+- **On-console confirmation of Godot touch Start: PENDING**. Do not claim input works until user tests the PS5 install.
+
+
 
 ### 2026-11-03 — Full native PS5 build and package validation passed
 
