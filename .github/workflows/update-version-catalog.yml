@@ -25,6 +25,7 @@ on:
     workflows:
       - Build PS5 Crypto Tracker
       - Build PS5 RandomX Benchmark
+      - Build AndroidFlow PS5 (Hydroid ARM64)
       - Validate Godot PS5 Engine Foundation
       - Godot PS5 Native Engine Link Retry
       - Publish Godot PS5 GPU TESTBUILD
