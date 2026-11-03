@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "version": "c8300a1ae131532f4f1b14140a65f01181911f88287ebb461af9b055f8909591",
+  "version": "0300fb4239ee78d1938b56c4b1e55b871b1e6fae0a7d9098fd0ae64a621ddcdf",
   "repository": "Yahballon/tmp_lap",
   "app_count": 35,
   "apps": [
@@ -424,14 +424,14 @@
       "name": "AndroidFlow",
       "slug": "androidflow",
       "title_id": "PPSA99920",
-      "version": "0.1.1",
-      "tag": "androidflow-v0.1.1",
+      "version": "0.1.2",
+      "tag": "androidflow-v0.1.2",
       "zip_name": "PPSA99920.zip",
-      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/androidflow-v0.1.1/PPSA99920.zip",
-      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/androidflow-v0.1.1",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/androidflow-v0.1.2/PPSA99920.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/androidflow-v0.1.2",
       "source": "homebrew/androidflow",
-      "size_bytes": 32558799,
-      "published_at": "2026-11-03T08:48:35Z"
+      "size_bytes": 32559604,
+      "published_at": "2026-11-03T09:37:02Z"
     },
     {
       "name": "PSJukebox",
