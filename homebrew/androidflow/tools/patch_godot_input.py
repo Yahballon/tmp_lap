@@ -94,6 +94,7 @@ static void godot_touch_send(int action, int x, int y) {
     y = (int)yah_pointer_clamp(y, 0, 1079);
     if (godot_touch_sent < 32)
         droid_log("androidflow: touch JNI BEFORE action=%d x=%d y=%d", action, x, y);
+    if (action == 0 || action == 1) droid_log_flush(); // before risky JNI call
     // Exactly one active finger; UP includes its last location. JNI has arrays
     // of [pointer_id,x,y], and the array handle is bridged to ARM by FalsoJNI.
     if (lib.touch_modern) {
@@ -111,6 +112,7 @@ static void godot_touch_send(int action, int x, int y) {
         lib.touch_legacy(env, clazz, action, 0, 1, positions);
         jni->DeleteLocalRef(&jni, positions);
     }
+    if (action == 0 || action == 1) droid_log_flush(); // JNI call returned
     if (action == 1) godot_trace_frames = 120;
     if (godot_touch_sent++ < 32)
         droid_log("androidflow: Godot touch %s at %d,%d (%s)", action == 0 ? "DOWN" :
@@ -244,7 +246,10 @@ def patch(root: Path, assets: Path) -> None:
         '        double t0 = now_ms();\n        lib.step(env, clazz);\n        double t1 = now_ms();',
         '        godot_clear_previous_cursor();\n'
         '        int trace = godot_trace_frames > 0 && godot_trace_frames % 12 == 0;\n'
-        '        if (trace) droid_log("androidflow: scene BEFORE step=%llu", (unsigned long long)frame);\n'
+        '        if (trace) {\n'
+'            droid_log("androidflow: scene BEFORE step=%llu", (unsigned long long)frame);\n'
+'            droid_log_flush();\n'
+'        }\n'
         '        double t0 = now_ms();\n'
         '        lib.step(env, clazz);\n'
         '        double t1 = now_ms();\n'

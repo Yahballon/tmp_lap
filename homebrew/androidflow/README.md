@@ -4,7 +4,7 @@
 
 ![AndroidFlow illustrated concept logo](assets/logo.svg)
 
-> **AndroidFlow v0.1.2 — Fruity Game cursor/Play crash regression build.** v0.1.1 displays Fruity Game on PS5 but leaves cursor trails and crashes when Play is clicked. Changes below require real console validation.
+> **AndroidFlow v0.1.3 — Persistent crash logs (experimental).** v0.1.2 is released but console diagnostics can be missing when the /app0 directory is not writable. v0.1.3 fixes file logging; requires a successful new native build and hardware test. Previously: v0.1.1 displays Fruity Game on PS5 but leaves cursor trails and crashes when Play is clicked. Changes below require real console validation.
 
 AndroidFlow uses [Hydroid](https://github.com/ZiZc3/Hydroid)'s ARM64 Android game runtime, built-in APK metadata/icon extraction and per-game saves. The visual browsing style is adapted from the GPL GBAXY coverflow layout in [PS5GBAX](https://github.com/Yahballon/PS5GBAX). All game assets come from user-owned Android packages; none are distributed with AndroidFlow.
 
@@ -16,7 +16,7 @@ AndroidFlow uses [Hydroid](https://github.com/ZiZc3/Hydroid)'s ARM64 Android gam
 - D-pad/left-stick browse, L1/R1 jump by five, Cross start, Triangle library rescan, Circle exit.
 - Distinct experimental Title ID PPSA99920 with its own persistent library/cache root.
 
-### In-game Godot 3 touch controls (v0.1.2)
+### In-game Godot 3 touch controls (v0.1.3)
 
 - **Right stick** moves the native cursor; **Cross (✕)** taps/holds at that position. Hold Cross while moving to drag. Cross no longer also sends Enter+gamepad A while cursor mode is on.
 - **DualSense touchpad:** touch or swipe to emulate the Android touchscreen at the equivalent location. Lift the finger to release.
@@ -32,6 +32,18 @@ The current library scans up to 64 files across:
     /data/AndroidFlow/apks/
 
 USB permissions and paths depend on your jailbreak and loader. Scanning is synchronous in this version. Returning from an Android game to choose a different one requires restarting the launcher.
+
+### Logs and reproducing a Godot crash
+
+AndroidFlow v0.1.3 first creates **/data/AndroidFlow/logs/android.log**, a persistent FTP-visible log independent of a possibly read-only /app0 mount. A native fault writes **/data/AndroidFlow/logs/crash.txt** directly. These paths use /data and normally survive restarting AndroidFlow. If /data is not writable it falls back to upstream /app0/android.log and /app0/trace.txt.
+
+For an immediate workaround in old versions, stream Hydroid logs to a Windows PC via its built-in TCP log server:
+
+    python3 live_log.py --host YOUR_PS5_IP --all
+
+The script is from Hydroid's tools/live_log.py; run it while the app is open. Logs get saved locally under logs/live-YYYYMMDD-HHMMSS.log. The console log file **may be absent** in v0.1.0–v0.1.2; do not assume a copy exists. If both /data and /app0 fail to open writable logs, the app prints an error through TCP 9025.
+
+In v0.1.3 Godot touch DOWN/UP flushes diagnostic lines before/after JNI dispatch, so a process crash is more likely to leave useful evidence. The crash at Fruity Game PLAY has not been conclusively diagnosed or fixed by this logging change.
 
 ## Compatibility reality
 
