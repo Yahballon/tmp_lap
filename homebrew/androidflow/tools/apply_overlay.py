@@ -77,6 +77,19 @@ def main():
         'set(_sdk "${_vk}/.deps/native/ps5-payload-sdk")',
         'if(DEFINED ENV{PS5_PAYLOAD_SDK})\n  set(_sdk "$ENV{PS5_PAYLOAD_SDK}")\nelse()\n  set(_sdk "${_vk}/.deps/native/ps5-payload-sdk")\nendif()', toolchain)
     toolchain.write_text(tool)
+    # Hydroid hides Dynarmic compiler errors behind "ninja | tail -5".
+    dyn_file = src / "third_party/build-dynarmic.sh"
+    dyn = dyn_file.read_text()
+    dyn = replace_one(dyn,
+        'ninja -C "$out" dynarmic 2>&1 | tail -5',
+        'if ! ninja -C "$out" -j4 -k0 dynarmic > "$out/dynarmic-build.log" 2>&1; then\n'
+        '    echo "Dynarmic failed; first compiler diagnostics:" >&2\n'
+        '    grep -n -B 6 -A 12 -E "FAILED:|error:|fatal error:|undefined reference|Killed" "$out/dynarmic-build.log" | head -n 180 >&2 || true\n'
+        '    tail -n 65 "$out/dynarmic-build.log" >&2\n'
+        '    exit 1\n'
+        'fi\n'
+        'tail -n 8 "$out/dynarmic-build.log"', dyn_file)
+    dyn_file.write_text(dyn)
     # Hydroid calls title/isolate-radv.py but does not ship that file.
     shutil.copyfile(root / "tools/isolate_radv.py", src / "title/isolate-radv.py")
     meta = json.loads(param.read_text())

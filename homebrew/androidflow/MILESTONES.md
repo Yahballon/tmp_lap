@@ -33,6 +33,16 @@
 
 ## Change Log — Latest First
 
+### 2026-11-03 — Native Dynarmic JIT error isolated
+
+- Run 41593133790 passed FFmpeg with NASM, full SDK/OpenGL/NDK, then built RADV (release).
+- Native Hydroid step failed while compiling Dynarmic at 227/229 objects; upstream `third_party/build-dynarmic.sh` truncated the log to only five lines, omitting the actual compiler error.
+- Fix: patch pinned Dynarmic build script to preserve complete `dynarmic-build.log`, emit meaningful compiler excerpts and upload it as a GitHub artifact.
+- Move Dynarmic into an independently named early CI step after PS5 SDK initialization, before FFmpeg and RADV builds, to reduce iteration cost.
+- A native PS5 ELF and installer ZIP are still not verified.
+
+
+
 ### 2026-11-03 — Fix missing NASM in FFmpeg configure
 
 - Workflow run 41592508086 successfully passed the PS5 cross-link preflight added in the preceding commit, plus Vulkan SDK setup, OpenGL SDK and NDK r27c.

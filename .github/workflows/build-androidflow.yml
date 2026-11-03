@@ -146,6 +146,22 @@ jobs:
           rm .work/android-ndk-r27c-linux.zip
           test -x .work/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
           grep -F 'Pkg.Revision = 27.2.12479018' .work/android-ndk-r27c/source.properties
+      - name: Precompile PS5 Dynarmic JIT with full diagnostics
+        timeout-minutes: 70
+        run: |
+          set -euo pipefail
+          bash .work/Hydroid/third_party/fetch-boost.sh "$BOOST_DIR"
+          bash .work/Hydroid/third_party/build-dynarmic.sh
+          test -s "$DYNARMIC_OUT/src/dynarmic/libdynarmic.a"
+      - name: Upload Dynarmic compiler diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AndroidFlow-Dynarmic-failure
+          path: |
+            .work/dynarmic-out/dynarmic-build.log
+            .work/dynarmic-out/configure.log
+          if-no-files-found: ignore
       - name: Build native PS5 FFmpeg dependencies
         timeout-minutes: 65
         run: bash homebrew/androidflow/tools/build_ffmpeg.sh
