@@ -1,0 +1,48 @@
+name: AndroidFlow Hydroid overlay checks
+on:
+  push:
+    branches: [main, feature/androidflow-hydroid-coverflow]
+    paths:
+      - 'homebrew/androidflow/**'
+      - '.github/workflows/check-androidflow.yml'
+  pull_request:
+    paths:
+      - 'homebrew/androidflow/**'
+      - '.github/workflows/check-androidflow.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  overlay-host-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test GBAXY Coverflow pose math and wraparound
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -pedantic homebrew/androidflow/tests/coverflow_test.c -lm -o /tmp/androidflow-test
+          /tmp/androidflow-test
+      - name: Prepare icon image
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-pil
+          python3 homebrew/androidflow/assets/generate_icon.py /tmp/androidflow-icon.png
+          python3 - <<'PY'
+          from PIL import Image
+          assert Image.open('/tmp/androidflow-icon.png').size == (512, 512)
+          PY
+      - name: Patch pinned upstream Hydroid sources
+        run: |
+          set -euo pipefail
+          git clone https://github.com/ZiZc3/Hydroid.git .work/hydroid
+          git -C .work/hydroid checkout --detach d8371afd75e3da6ab888d467d1e6bb00c32d2beb
+          python3 homebrew/androidflow/tools/apply_overlay.py --source .work/hydroid
+          grep -q 'yah_coverflow_pick' .work/hydroid/src/app_main.c
+          grep -q 'game_file yah_coverflow net_shim' .work/hydroid/title/build-title.sh
+          grep -q 'androidflow.flag' .work/hydroid/title/build-title.sh
+          python3 -m json.tool .work/hydroid/title/sce_sys/param.json >/dev/null
+          test -s .work/hydroid/title/sce_sys/icon0.png
+      - name: Clear scope notice
+        run: |
+          echo 'This workflow verifies the overlay, C math and icon only. No PS5 eboot.bin or installable TESTBUILD ZIP is generated.'
