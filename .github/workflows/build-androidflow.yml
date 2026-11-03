@@ -32,13 +32,15 @@ jobs:
             libclang-18-dev libllvmspirvlib-18-dev llvm-spirv-18 \
             cmake ninja-build make pkg-config glslang-tools \
             python3 python3-venv python3-pil python3-mako python3-numpy \
-            python3-markupsafe python3-packaging python3-yaml zstd bison flex \
+            python3-markupsafe python3-packaging python3-yaml zstd bison flex nasm \
             libzstd-dev libssl-dev libzip-dev libclc-18 libgl1-mesa-dev ccache
           python3 -m venv --system-site-packages "$RUNNER_TEMP/androidflow-tools"
           "$RUNNER_TEMP/androidflow-tools/bin/python" -m pip install meson==1.9.2
           echo "$RUNNER_TEMP/androidflow-tools/bin" >> "$GITHUB_PATH"
           echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
           pkg-config --exists LLVMSPIRVLib
+          command -v nasm
+          nasm -v
       - name: Configure deterministic build paths
         run: |
           mkdir -p .work

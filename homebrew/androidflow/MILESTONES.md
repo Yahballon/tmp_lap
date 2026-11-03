@@ -33,6 +33,15 @@
 
 ## Change Log — Latest First
 
+### 2026-11-03 — Fix missing NASM in FFmpeg configure
+
+- Workflow run 41592508086 successfully passed the PS5 cross-link preflight added in the preceding commit, plus Vulkan SDK setup, OpenGL SDK and NDK r27c.
+- FFmpeg configure progressed through compiler/CPU checks but then failed with `nasm: command not found`. This is the exact reported error from `ffbuild/config.log` (artifact 13211440825).
+- Fix: install NASM on the GitHub runner; validate its presence/version in the initial dependency step and before configure. Preserve FFmpeg x86 optimized assembly instead of disabling it.
+- Remaining native PS5 ELF/ZIP and hardware tests unverified.
+
+
+
 ### 2026-11-03 — FFmpeg configure failure (native run 41590906971)
 
 - **Confirmed:** PS5 SDK, native signer, RADV release, OpenGL SDK and Android NDK r27c all succeeded in workflow run 41590906971.

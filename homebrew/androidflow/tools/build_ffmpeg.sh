@@ -6,6 +6,8 @@ src=${FFMPEG_SRC:-"$root/.work/FFmpeg"}
 out=${FFMPEG_BUILD:-"$root/.work/ffmpeg-build"}
 prefix=${FFMPEG_PREFIX:-"$root/.work/ffmpeg-ps5"}
 test -f "$src/configure" || { echo "Missing pinned FFmpeg source in $src" >&2; exit 2; }
+command -v nasm >/dev/null || { echo "FFmpeg optimized x86 decoders require NASM; install nasm" >&2; exit 2; }
+nasm -v
 mkdir -p "$out"
 cd "$out"
 # The previous build only printed "C compiler test failed". On failure keep
