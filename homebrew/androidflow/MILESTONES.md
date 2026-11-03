@@ -3,7 +3,7 @@
 **Project:** Yahballon/tmp_lap/homebrew/androidflow
 **Last updated (UTC):** 2026-11-03
 **Active branch:** feature/androidflow-hydroid-coverflow (commit history in PR)
-**Current version / Title ID:** Godot input patch v0.1.1 / PPSA99920 (local conflict check only, not globally reserved)
+**Current version / Title ID:** cursor/crash diagnostic v0.1.2 / PPSA99920 (local conflict check only, not globally reserved)
 **Hydroid source pin:** d8371afd75e3da6ab888d467d1e6bb00c32d2beb
 **Verified native PR build:** GitHub Actions 41596070059 (successful); **Published Release:** not yet; **PS5 hardware:** untested
 **Hardware:** PS5 test not performed.
@@ -32,6 +32,17 @@
 - Logs: /data/homebrew/PPSA99920/android.log; Hydroid can also expose its optional live log port 9025.
 
 ## Change Log — Latest First
+
+### 2026-11-03 — v0.1.2 Fruity Game cursor trails and Play crash diagnostics
+
+- Confirmed PS5 screenshot: Fruity Game renders 60 FPS; tens of ghost cursor arrows remain across portrait menu and black bars. The visible rendering artifact indicates pointer overlay pixels are retained between swaps.
+- User reports the AndroidFlow process crashes when Play is clicked. Crash origin remains **UNVERIFIED** until the actual console android.log is obtained.
+- Scope-limited Godot pre-frame default-framebuffer color clear with explicit restore of scissor, framebuffer bindings, color mask and clear color. Intended to remove persistent overlay cursor pixels, without touching other engines.
+- Fixed input duplication: in touch-cursor mode Cross now generates one touch action only, not simultaneous joypad A and keyboard Enter; R3 toggles cursor/gamepad mode.
+- Bounded JNI entry and 120-frame post-touch scene tracing added to distinguish input/JNI failure from game-scene crash.
+- Native rebuild and actual PS5 repeat test are pending. Preserve v0.1.1 release and all saves; Title ID is still PPSA99920.
+
+
 
 ### 2026-11-03 — v0.1.1 Godot touchscreen fix for Fruity Game
 
