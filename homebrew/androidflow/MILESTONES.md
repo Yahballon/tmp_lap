@@ -33,6 +33,14 @@
 
 ## Change Log — Latest First
 
+### 2026-11-03 — First native CI failure diagnosed and official zlib mirror retry
+
+- Build run 41590333355 reached native PS5 SDK setup; pinned Hydroid clone, the source overlay, geometry test and SDK fork checkout succeeded.
+- Failure: tools/setup-native-dependencies.sh attempted to download zlib 1.3.2 from a GitHub release mirror and wget exited 8 (HTTP failure); no PS5 ELF was built.
+- Fix: pre-download zlib from official zlib.net with retries and strict checksum bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16. Keep fallback URLs only if the same checksum validates.
+- Added early native C frontend syntax check and Python tool syntax checks to the smoke workflow.
+- Hardware: NOT TESTED. Native rebuild result pending.
+
 ### 2026-11-03 — Add complete native build attempt and catalog integration
 
 - Confirmed overlay smoke check CI run 41590133362: PASS. It did NOT compile the PS5 title.
@@ -77,7 +85,7 @@ Read README.md for pinned clone/patch instructions. Native builder must provide 
 
 ## NEXT ACTION FOR THE NEXT AGENT
 
-**Do this first:** Inspect the Build AndroidFlow PS5 (Hydroid ARM64) GitHub Actions job for PR #298 and fix the first native compilation/link error; keep M2 overlay validation (run 41590133362) passing.
+**Do this first:** Inspect the new native Build AndroidFlow PS5 run after the zlib download repair; the prior run 41590333355 failed before the compiler at zlib setup (wget exit 8). If native setup passes, advance to RADV, Android NDK, FFmpeg and Hydroid compile.
 
 **Starting point:** Yahballon/tmp_lap feature/androidflow-hydroid-coverflow, homebrew/androidflow/, Hydroid SHA d8371afd75e3da6ab888d467d1e6bb00c32d2beb.
 

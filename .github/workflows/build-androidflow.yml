@@ -96,7 +96,22 @@ jobs:
         run: |
           set -euo pipefail
           cd .work/PS5_Vulkan
-          sed -i 's@https://zlib.net/fossils/zlib-@https://github.com/madler/zlib/releases/download/v@' tools/setup-native-dependencies.sh
+          # The previous GitHub release mirror returned HTTP 404 (run 41590333355).
+          # Pre-fetch the official release tarball and check the upstream hash
+          # before allowing the pinned PS5_Vulkan SDK setup to use it.
+          zlib_archive="$PWD/.deps/native/zlib/zlib-1.3.2.tar.gz"
+          mkdir -p "$(dirname "$zlib_archive")"
+          found=0
+          for url in             https://zlib.net/zlib-1.3.2.tar.gz             https://www.zlib.net/fossils/zlib-1.3.2.tar.gz             https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz; do
+            if curl -fL --retry 3 --retry-all-errors --retry-delay 3 --connect-timeout 20               --max-time 180 "$url" -o "$zlib_archive.download" &&
+              printf '%s  %s\n' bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16 "$zlib_archive.download" | sha256sum -c -; then
+              mv "$zlib_archive.download" "$zlib_archive"
+              found=1
+              break
+            fi
+          done
+          test "$found" -eq 1
+          rm -f "$zlib_archive.download"
           bash tools/setup-native-dependencies.sh
           bash tools/rebuild-libc.sh
           zlib_archive="$PWD/.deps/native/zlib/root/usr/lib/libz.a"

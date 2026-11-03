@@ -43,6 +43,8 @@ jobs:
           grep -q 'androidflow.flag' .work/hydroid/title/build-title.sh
           python3 -m json.tool .work/hydroid/title/sce_sys/param.json >/dev/null
           test -s .work/hydroid/title/sce_sys/icon0.png
+          gcc -std=gnu11 -Wall -Wextra -Werror -fsyntax-only -I .work/hydroid/src             .work/hydroid/src/yah_coverflow.c
+          python3 -m py_compile homebrew/androidflow/tools/apply_overlay.py             homebrew/androidflow/tools/isolate_radv.py             homebrew/androidflow/tools/package_native.py
       - name: Clear scope notice
         run: |
           echo 'This workflow verifies the overlay, C math and icon only. No PS5 eboot.bin or installable TESTBUILD ZIP is generated.'
