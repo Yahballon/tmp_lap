@@ -91,7 +91,7 @@ jobs:
           test -s .work/Hydroid/title/isolate-radv.py
           grep -q yah_coverflow .work/Hydroid/src/app_main.c
           python3 -m json.tool .work/Hydroid/title/sce_sys/param.json >/dev/null
-      - name: Compile PS5 native SDK and isolated RADV graphics
+      - name: Compile PS5 SDK runtime and signed ELF packager
         timeout-minutes: 280
         run: |
           set -euo pipefail
@@ -124,8 +124,7 @@ jobs:
             "$zlib_archive" -o build/host/ps5-native-tool
           test -x build/host/ps5-native-tool
           test -s runtime/libc.prx
-          bash tools/build-radv.sh release
-          test -s .deps/native/radv-release/lib/libvulkan_radeon.ps5.a
+          echo 'PS5 runtime, SDK and signed executable packager ready'
       - name: Fetch verified OpenGL SDK
         run: |
           set -euo pipefail
@@ -148,6 +147,22 @@ jobs:
       - name: Build native PS5 FFmpeg dependencies
         timeout-minutes: 65
         run: bash homebrew/androidflow/tools/build_ffmpeg.sh
+      - name: Upload FFmpeg configure diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AndroidFlow-FFmpeg-config-failure
+          path: |
+            .work/ffmpeg-build/ffbuild/config.log
+            .work/ffmpeg-build/config.log
+          if-no-files-found: ignore
+      - name: Build and verify PS5 native RADV release
+        timeout-minutes: 250
+        run: |
+          set -euo pipefail
+          cd .work/PS5_Vulkan
+          bash tools/build-radv.sh release
+          test -s .deps/native/radv-release/lib/libvulkan_radeon.ps5.a
       - name: Cross-compile and sign actual AndroidFlow PS5 executable
         timeout-minutes: 75
         working-directory: .work/Hydroid

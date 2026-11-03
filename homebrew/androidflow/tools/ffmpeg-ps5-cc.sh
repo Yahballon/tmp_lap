@@ -12,6 +12,9 @@ for arg in "$@"; do
  esac
 done
 if "$link"; then
+  # Follow the working ProsperoEden PS5 FFmpeg linker recipe; the target
+  # toolchain's bin directory supplies the linker and PS5-only tools.
+  export PATH="$PS5_PAYLOAD_SDK/bin:$PATH"
   args+=(-nostdlib -Wl,-e,main -Wl,--no-undefined
     -L "$PS5_PAYLOAD_SDK/target/lib" -lSceLibcInternal -lkernel -lc -lSceNet)
 fi

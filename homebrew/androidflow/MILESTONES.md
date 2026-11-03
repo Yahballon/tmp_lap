@@ -33,6 +33,15 @@
 
 ## Change Log — Latest First
 
+### 2026-11-03 — FFmpeg configure failure (native run 41590906971)
+
+- **Confirmed:** PS5 SDK, native signer, RADV release, OpenGL SDK and Android NDK r27c all succeeded in workflow run 41590906971.
+- **Failed:** `Build native PS5 FFmpeg dependencies`: FFmpeg reported `bash .../ffmpeg-ps5-cc.sh is unable to create an executable file`; no FFmpeg native libraries or PS5 AndroidFlow ELF produced.
+- **Fix attempt:** align the linker search PATH with the known ProsperoEden PS5 FFmpeg wrapper; execute a standalone PS5 cross-link probe; print and upload FFmpeg `config.log` on failure.
+- **CI optimization:** FFmpeg compile now runs before the long RADV build, so an FFmpeg failure is diagnosed without recompiling the graphics stack first.
+- **Validation:** This fix requires a new CI run; does not imply native success or actual console gameplay.
+
+
 ### 2026-11-03 — First native CI failure diagnosed and official zlib mirror retry
 
 - Build run 41590333355 reached native PS5 SDK setup; pinned Hydroid clone, the source overlay, geometry test and SDK fork checkout succeeded.

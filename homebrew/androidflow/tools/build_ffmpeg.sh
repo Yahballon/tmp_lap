@@ -8,6 +8,26 @@ prefix=${FFMPEG_PREFIX:-"$root/.work/ffmpeg-ps5"}
 test -f "$src/configure" || { echo "Missing pinned FFmpeg source in $src" >&2; exit 2; }
 mkdir -p "$out"
 cd "$out"
+# The previous build only printed "C compiler test failed". On failure keep
+# the real compiler/linker diagnostic visible in Actions and as an artifact.
+on_exit() {
+  rc=$?
+  if (( rc != 0 )); then
+    echo "=== AndroidFlow FFmpeg cross-build failed (exit $rc) ===" >&2
+    for diagnostic in "$out/ffbuild/config.log" "$out/config.log"; do
+      if [[ -f "$diagnostic" ]]; then
+        echo "=== $diagnostic (last 160 lines) ===" >&2
+        tail -n 160 "$diagnostic" >&2
+      fi
+    done
+  fi
+}
+trap on_exit EXIT
+printf 'int main(void) { return 0; }\n' > "$out/compiler-check.c"
+echo "Checking PS5 target linker before FFmpeg configure"
+bash "$root/tools/ffmpeg-ps5-cc.sh" -v "$out/compiler-check.c" -o "$out/compiler-check.elf"
+test -s "$out/compiler-check.elf"
+echo "PS5 cross-link probe passed"
 bash "$src/configure" --prefix="$prefix" \
   --enable-cross-compile --arch=x86_64 --target-os=freebsd \
   --cc="bash $root/tools/ffmpeg-ps5-cc.sh" --ld="bash $root/tools/ffmpeg-ps5-cc.sh" \
