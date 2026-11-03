@@ -3,10 +3,10 @@
 **Project:** Yahballon/tmp_lap/homebrew/androidflow
 **Last updated (UTC):** 2026-11-03
 **Active branch:** feature/androidflow-hydroid-coverflow (commit history in PR)
-**Current version / Title ID:** persistent crash diagnostics v0.1.3 / PPSA99920 (local conflict check only, not globally reserved)
+**Current version / Title ID:** targeted longjmp fix v0.1.4 / PPSA99920 (local conflict check only, not globally reserved)
 **Hydroid source pin:** d8371afd75e3da6ab888d467d1e6bb00c32d2beb
-**Verified native PR build:** GitHub Actions 41596070059 (successful); **Published Release:** not yet; **PS5 hardware:** untested
-**Hardware:** PS5 test not performed.
+**Latest published:** v0.1.3; **v0.1.4:** experimental build pending; **PS5 hardware:** Fruity Game v0.1.3 crash confirmed.
+**Hardware:** Fruity Game reached Godot main loop and 59.9 FPS, then aborted on unsupported ARM64 longjmp in v0.1.3.
 
 > CURRENT STATE: AndroidFlow's Hydroid source patch and new Coverflow frontend are committed. Host overlay and full native CI passed. GitHub Actions run 41596070059 successfully cross-compiled Hydroid, Dynarmic, FFmpeg and RADV, signed eboot.bin, validated and uploaded PPSA99920.zip. No PS5 hardware test performed.
 
@@ -32,6 +32,16 @@
 - Logs: /data/homebrew/PPSA99920/android.log; Hydroid can also expose its optional live log port 9025.
 
 ## Change Log — Latest First
+
+### 2026-11-03 — v0.1.4: Fruity Game ARM64 longjmp abort fixed in source
+
+- Full PS5 crash report from AndroidFlow v0.1.3: `libgodot_android.so` / Godot 3.5.3 starts, loads game assets, receives touch events, runs 59.9 FPS, then calls guest `setjmp` / `longjmp` at frame approximately 951. The host fallback logs `longjmp(1): not supported for ARM64 code, stopping` and aborts with signal 6.
+- Confirmed source root cause: Hydroid `arm_imports.c` contains ARM64-native guest routines, but `ARM_JMP_GAMES` whitelisted only `com.king.candycrushsaga`. Fruity Game uses `page.codeberg.marshreaper.fruitygame`.
+- Added `tools/patch_arm_jmp.py`, using the existing guest ARM64 instruction stubs (words 70/84), enabling them only for Fruity Game without changing Dynarmic, host ABI or other package behavior. Import selection is logged.
+- Added source guards, Python unit tests, CI check and v0.1.4 package metadata. Title ID PPSA99920, saves and user APK paths unchanged.
+- Real on-console success past the crash and native v0.1.4 Build **not yet verified**.
+
+
 
 ### 2026-11-03 — v0.1.3: make logs accessible even with read-only /app0
 
