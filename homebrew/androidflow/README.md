@@ -4,7 +4,7 @@
 
 ![AndroidFlow illustrated concept logo](assets/logo.svg)
 
-> **Experimental source prototype. Not a PS5 TESTBUILD release.** The source implements a coverflow picker and hooks into Hydroid, but needs a full PS5 native build and console validation.
+> **AndroidFlow v0.1.1 — Godot touch input test build.** The v0.1.0 native PS5 package built successfully. The v0.1.1 Godot touchscreen/controller change still requires a fresh native PS5 build and on-console test.
 
 AndroidFlow uses [Hydroid](https://github.com/ZiZc3/Hydroid)'s ARM64 Android game runtime, built-in APK metadata/icon extraction and per-game saves. The visual browsing style is adapted from the GPL GBAXY coverflow layout in [PS5GBAX](https://github.com/Yahballon/PS5GBAX). All game assets come from user-owned Android packages; none are distributed with AndroidFlow.
 
@@ -15,6 +15,14 @@ AndroidFlow uses [Hydroid](https://github.com/ZiZc3/Hydroid)'s ARM64 Android gam
 - A single title can select among multiple packages and feed the chosen path to Hydroid's existing run_apk function.
 - D-pad/left-stick browse, L1/R1 jump by five, Cross start, Triangle library rescan, Circle exit.
 - Distinct experimental Title ID PPSA99920 with its own persistent library/cache root.
+
+### In-game Godot 3 touch controls (v0.1.1)
+
+- **Right stick** moves Hydroid's existing on-screen mouse cursor; **Cross (✕)** taps/holds at that position. Hold Cross while moving the cursor for a drag.
+- **DualSense touchpad:** touch or swipe to emulate the Android touchscreen at the equivalent location. Lift the finger to release.
+- The existing **D-pad / left stick / standard gamepad button mapping** is preserved. Hold **Options** for Hydroid's Quick Menu.
+- Godot 3.2 old JNI `touch(int[])` and Godot 3.5 modern JNI `touch(float[])` both have dedicated bridges. No screen-size stretching beyond Hydroid's current 1920x1080 viewport support.
+- First validation game: Fruity Game (ARM64 Godot 3). Display rendering was reported working on the console, but pressing Start did not work in v0.1.0; v0.1.1 fixes the missing touch event routing. **Not yet console-confirmed.**
 
 The current library scans up to 64 files across:
 
@@ -45,7 +53,7 @@ From an existing local clone of Yahballon/tmp_lap:
 
 The **expected** native output after a successful build is dist/PPSA99920, with eboot.bin, sce_sys/param.json, sce_sys/icon0.png, sce_module/libc.prx, fonts, native dependencies and androidflow.flag. A ZIP of only this source folder is **not** installable. Check output and required dependencies before creating a test release.
 
-The [overlay validation workflow](../../.github/workflows/check-androidflow.yml) passed in run 41590133362 (host math and pinned source patch). A separate [native PS5 build workflow](../../.github/workflows/build-androidflow.yml) now attempts the full pinned Hydroid/RADV/Dynarmic/NDK/FFmpeg toolchain, independently validates the signed PPSA99920 installation ZIP and publishes an immutable release only after a passing main-branch build. The native build has not yet been observed passing. The generated central version.json is intentionally left untouched until there is a verified installable ZIP in a real GitHub Release.
+The [overlay validation workflow](../../.github/workflows/check-androidflow.yml) passed in run 41590133362 (host math and pinned source patch). A separate [native PS5 build workflow](../../.github/workflows/build-androidflow.yml) now attempts the full pinned Hydroid/RADV/Dynarmic/NDK/FFmpeg toolchain, independently validates the signed PPSA99920 installation ZIP and publishes an immutable release only after a passing main-branch build. The initial v0.1.0 native build passed (GitHub Actions 41596070059). The updated v0.1.1 input bridge needs its own validation. The generated central version.json is intentionally left untouched until there is a verified installable ZIP in a real GitHub Release.
 
 ## Visuals & attribution
 

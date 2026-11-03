@@ -44,9 +44,17 @@ jobs:
           python3 -m json.tool .work/hydroid/title/sce_sys/param.json >/dev/null
           test -s .work/hydroid/title/sce_sys/icon0.png
           gcc -std=gnu11 -Wall -Wextra -Werror -fsyntax-only -I .work/hydroid/src             .work/hydroid/src/yah_coverflow.c
+          gcc -std=gnu11 -Wall -Wextra -Werror -fsyntax-only \
+            -I .work/hydroid/src -I .work/hydroid/third_party/FalsoJNI \
+            .work/hydroid/src/godot_host.c
+          gcc -std=c11 -Wall -Wextra -Werror homebrew/androidflow/tests/godot_touch_cursor_test.c \
+            -lm -o /tmp/androidflow-godot-cursor-test
+          /tmp/androidflow-godot-cursor-test
+          grep -q 'pad_touch_events = 1; // AndroidFlow' .work/hydroid/src/app_main.c
+          grep -q 'Godot touchscreen' .work/hydroid/src/godot_host.c
           python3 -m unittest discover -s homebrew/androidflow/tests -p 'test_*.py' -v
           grep -q 'fix_dynarmic_log.py' .work/hydroid/third_party/build-dynarmic.sh
-          python3 -m py_compile homebrew/androidflow/tools/fix_dynarmic_log.py
+          python3 -m py_compile homebrew/androidflow/tools/fix_dynarmic_log.py homebrew/androidflow/tools/patch_godot_input.py
           python3 -m py_compile homebrew/androidflow/tools/apply_overlay.py             homebrew/androidflow/tools/isolate_radv.py             homebrew/androidflow/tools/package_native.py
       - name: Clear scope notice
         run: |
