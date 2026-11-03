@@ -52,6 +52,9 @@ jobs:
           /tmp/androidflow-godot-cursor-test
           grep -q 'pad_touch_events = 1; // AndroidFlow' .work/hydroid/src/app_main.c
           grep -q 'Godot touchscreen' .work/hydroid/src/godot_host.c
+          grep -q 'godot_clear_previous_cursor();' .work/hydroid/src/godot_host.c
+          grep -q 'avoid triple Play click' .work/hydroid/src/godot_host.c
+          grep -q 'scene BEFORE step' .work/hydroid/src/godot_host.c
           python3 -m unittest discover -s homebrew/androidflow/tests -p 'test_*.py' -v
           grep -q 'fix_dynarmic_log.py' .work/hydroid/third_party/build-dynarmic.sh
           python3 -m py_compile homebrew/androidflow/tools/fix_dynarmic_log.py homebrew/androidflow/tools/patch_godot_input.py

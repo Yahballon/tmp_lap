@@ -195,7 +195,7 @@ jobs:
           (cd dist && sha256sum -c SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
-          name: AndroidFlow-PS5-PPSA99920-v0.1.1-TESTBUILD
+          name: AndroidFlow-PS5-PPSA99920-v0.1.2-TESTBUILD
           path: |
             dist/PPSA99920.zip
             dist/SHA256SUMS
@@ -207,11 +207,11 @@ jobs:
         run: |
           set -euo pipefail
           (cd dist && sha256sum -c SHA256SUMS)
-          if gh release view androidflow-v0.1.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          if gh release view androidflow-v0.1.2 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "::error::Immutable tag already exists"
             exit 1
           fi
-          gh release create androidflow-v0.1.1 dist/PPSA99920.zip dist/SHA256SUMS \
+          gh release create androidflow-v0.1.2 dist/PPSA99920.zip dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "AndroidFlow by YAHBALLON v0.1.1 — PS5 TESTBUILD" \
+            --title "AndroidFlow by YAHBALLON v0.1.2 — PS5 TESTBUILD" \
             --notes "Signed native PS5 build and ZIP verified in GitHub Actions. NOT YET REAL-CONSOLE-TESTED. Uses Hydroid GPL-3.0 with adapted GBAXY coverflow; no Android APKs included. ARM64 compatibility depends on supported Hydroid engines."

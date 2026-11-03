@@ -4,7 +4,7 @@
 
 ![AndroidFlow illustrated concept logo](assets/logo.svg)
 
-> **AndroidFlow v0.1.1 — Godot touch input test build.** The v0.1.0 native PS5 package built successfully. The v0.1.1 Godot touchscreen/controller change still requires a fresh native PS5 build and on-console test.
+> **AndroidFlow v0.1.2 — Fruity Game cursor/Play crash regression build.** v0.1.1 displays Fruity Game on PS5 but leaves cursor trails and crashes when Play is clicked. Changes below require real console validation.
 
 AndroidFlow uses [Hydroid](https://github.com/ZiZc3/Hydroid)'s ARM64 Android game runtime, built-in APK metadata/icon extraction and per-game saves. The visual browsing style is adapted from the GPL GBAXY coverflow layout in [PS5GBAX](https://github.com/Yahballon/PS5GBAX). All game assets come from user-owned Android packages; none are distributed with AndroidFlow.
 
@@ -16,13 +16,13 @@ AndroidFlow uses [Hydroid](https://github.com/ZiZc3/Hydroid)'s ARM64 Android gam
 - D-pad/left-stick browse, L1/R1 jump by five, Cross start, Triangle library rescan, Circle exit.
 - Distinct experimental Title ID PPSA99920 with its own persistent library/cache root.
 
-### In-game Godot 3 touch controls (v0.1.1)
+### In-game Godot 3 touch controls (v0.1.2)
 
-- **Right stick** moves Hydroid's existing on-screen mouse cursor; **Cross (✕)** taps/holds at that position. Hold Cross while moving the cursor for a drag.
+- **Right stick** moves the native cursor; **Cross (✕)** taps/holds at that position. Hold Cross while moving to drag. Cross no longer also sends Enter+gamepad A while cursor mode is on.
 - **DualSense touchpad:** touch or swipe to emulate the Android touchscreen at the equivalent location. Lift the finger to release.
-- The existing **D-pad / left stick / standard gamepad button mapping** is preserved. Hold **Options** for Hydroid's Quick Menu.
+- **R3** toggles between touch-cursor mode (default) and native gamepad mode; only in gamepad mode does Cross forward normal Godot gamepad A/Enter. Hold **Options** for Hydroid's Quick Menu.
 - Godot 3.2 old JNI `touch(int[])` and Godot 3.5 modern JNI `touch(float[])` both have dedicated bridges. No screen-size stretching beyond Hydroid's current 1920x1080 viewport support.
-- First validation game: Fruity Game (ARM64 Godot 3). Display rendering was reported working on the console, but pressing Start did not work in v0.1.0; v0.1.1 fixes the missing touch event routing. **Not yet console-confirmed.**
+- **PS5 report:** Fruity Game v0.1.1 renders at 60 FPS, but clicking Play crashes and cursor movement leaves trails. v0.1.2 adds a state-preserving full-frame clear to remove old cursor overlays, prevents duplicate Cross activation and traces the first frames after releasing touch. **The Play crash is not confirmed fixed without a console log and retest.**
 
 The current library scans up to 64 files across:
 

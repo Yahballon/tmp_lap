@@ -60,7 +60,7 @@ def main():
     build = replace_one(build, "game_file net_shim",
                         "game_file yah_coverflow net_shim", build_file)
     build = replace_one(build, 'mkdir -p "$app/assets" "$app/game" && cp -r',
-                        'mkdir -p "$app/assets" "$app/game" && printf "AndroidFlow v0.1.1\\n" > "$app/androidflow.flag" && cp -r', build_file)
+                        'mkdir -p "$app/assets" "$app/game" && printf "AndroidFlow v0.1.2\\n" > "$app/androidflow.flag" && cp -r', build_file)
     # Repair native zlib layout and missing PS5_Vulkan CMake environment overrides.
     build = replace_one(build,
         "zlib=${ZLIB_DIR:-$vk/.deps/native/zlib/zlib-1.3.2}",
@@ -106,7 +106,7 @@ def main():
     meta = json.loads(param.read_text())
     meta.update(titleId=TITLE_ID, conceptId=TITLE_ID[4:],
                 contentId="UP9000-PPSA99920_00-ANDROIDFLOW00001",
-                contentVersion="01.000.001")
+                contentVersion="01.000.002")
     meta["localizedParameters"]["en-US"]["titleName"] = "AndroidFlow"
     param.write_text(json.dumps(meta, indent=2) + "\n")
     for name in ("yah_coverflow.c", "yah_coverflow.h", "yah_coverflow_math.h"):
