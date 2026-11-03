@@ -1,0 +1,165 @@
+name: Build AndroidFlow PS5 (Hydroid ARM64)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feature/androidflow-hydroid-coverflow]
+    paths:
+      - 'homebrew/androidflow/**'
+      - '.github/workflows/build-androidflow.yml'
+permissions:
+  contents: write
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk and install PS5 native host dependencies
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE"
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL \
+            /opt/hostedtoolcache/go
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git ca-certificates curl wget tar unzip zip rsync xz-utils \
+            clang-18 lld-18 llvm-18 llvm-18-dev llvm-18-tools \
+            libclang-18-dev libllvmspirvlib-18-dev llvm-spirv-18 \
+            cmake ninja-build make pkg-config glslang-tools \
+            python3 python3-venv python3-pil python3-mako python3-numpy \
+            python3-markupsafe python3-packaging python3-yaml zstd bison flex \
+            libzstd-dev libssl-dev libzip-dev libclc-18 libgl1-mesa-dev ccache
+          python3 -m venv --system-site-packages "$RUNNER_TEMP/androidflow-tools"
+          "$RUNNER_TEMP/androidflow-tools/bin/python" -m pip install meson==1.9.2
+          echo "$RUNNER_TEMP/androidflow-tools/bin" >> "$GITHUB_PATH"
+          echo '/usr/lib/llvm-18/bin' >> "$GITHUB_PATH"
+          pkg-config --exists LLVMSPIRVLib
+      - name: Configure deterministic build paths
+        run: |
+          mkdir -p .work
+          {
+            echo "PS5_VULKAN=$GITHUB_WORKSPACE/.work/PS5_Vulkan"
+            echo "PS5_PAYLOAD_SDK=$GITHUB_WORKSPACE/.work/PS5_Vulkan/.deps/native/ps5-payload-sdk"
+            echo "PS5_PAYLOAD_SDK_FORK=$GITHUB_WORKSPACE/.work/PS5_PayloadSDK"
+            echo "PS5_MESA_FORK=$GITHUB_WORKSPACE/.work/PS5_Mesa"
+            echo "PS5_MESA_REVISION=7b59ef27c1b09b9671bc4153c41940c3155c3af2"
+            echo "PS5_OPENGL_PREFIX=$GITHUB_WORKSPACE/.work/ps5-opengl-sdk-1.0.2/sdk"
+            echo "DYNARMIC_SRC=$GITHUB_WORKSPACE/.work/dynarmic"
+            echo "DYNARMIC_OUT=$GITHUB_WORKSPACE/.work/dynarmic-out"
+            echo "BOOST_DIR=$GITHUB_WORKSPACE/.work/boost"
+            echo "ASTC_SRC=$GITHUB_WORKSPACE/.work/astc-encoder"
+            echo "ASTC_PS5_OUT=$GITHUB_WORKSPACE/.work/astc-out"
+            echo "MBEDTLS_SRC=$GITHUB_WORKSPACE/.work/mbedtls"
+            echo "MBEDTLS_OUT=$GITHUB_WORKSPACE/.work/mbedtls-out"
+            echo "ANDROID_NDK=$GITHUB_WORKSPACE/.work/android-ndk-r27c"
+            echo "ANDROID_WORK=$GITHUB_WORKSPACE/.work/hydroid-obj"
+            echo "FFMPEG_SRC=$GITHUB_WORKSPACE/.work/FFmpeg"
+            echo "FFMPEG_BUILD=$GITHUB_WORKSPACE/.work/ffmpeg-build"
+            echo "FFMPEG_PREFIX=$GITHUB_WORKSPACE/.work/ffmpeg-ps5"
+            echo "RADV_ISOLATED=$GITHUB_WORKSPACE/.work/radv-isolated"
+            echo "PS5_CLANG=clang-18"
+            echo "BUILD_JOBS=4"
+            echo "ANGLE=0"
+          } >> "$GITHUB_ENV"
+      - name: Clone pinned Vulkan / RADV / Hydroid / FFmpeg / Dynarmic sources
+        run: |
+          set -euo pipefail
+          git clone -q https://github.com/mihawk-99/PS5_Vulkan.git .work/PS5_Vulkan
+          git -C .work/PS5_Vulkan checkout -q --detach 5b5e4fc2d80fdb67a4f61ba9e6a8a424026bb8a5
+          git clone -q https://github.com/mihawk-99/PS5_Mesa.git .work/PS5_Mesa
+          git -C .work/PS5_Mesa checkout -q --detach 7b59ef27c1b09b9671bc4153c41940c3155c3af2
+          git clone -q https://github.com/mihawk-99/PS5_PayloadSDK.git .work/PS5_PayloadSDK
+          git -C .work/PS5_PayloadSDK checkout -q --detach b83202be73e930050e00de0f1b4d9ec46c0391bf
+          git clone -q https://github.com/suyu-emu/dynarmic.git .work/dynarmic
+          git -C .work/dynarmic checkout -q --detach a2ef15df6d833ab7bc66131a90350637f26dd2d4
+          git -C .work/dynarmic submodule update --init --recursive
+          git clone -q https://github.com/FFmpeg/FFmpeg.git .work/FFmpeg
+          git -C .work/FFmpeg checkout -q --detach c7b5f1537d9c52efa50fd10d106ca015ddde1818
+          git clone -q https://github.com/ZiZc3/Hydroid.git .work/Hydroid
+          git -C .work/Hydroid checkout -q --detach d8371afd75e3da6ab888d467d1e6bb00c32d2beb
+      - name: Apply real native launcher overlay and validate metadata
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -pedantic homebrew/androidflow/tests/coverflow_test.c -lm -o /tmp/androidflow-test
+          /tmp/androidflow-test
+          python3 homebrew/androidflow/tools/apply_overlay.py --source .work/Hydroid
+          test -s .work/Hydroid/title/isolate-radv.py
+          grep -q yah_coverflow .work/Hydroid/src/app_main.c
+          python3 -m json.tool .work/Hydroid/title/sce_sys/param.json >/dev/null
+      - name: Compile PS5 native SDK and isolated RADV graphics
+        timeout-minutes: 280
+        run: |
+          set -euo pipefail
+          cd .work/PS5_Vulkan
+          sed -i 's@https://zlib.net/fossils/zlib-@https://github.com/madler/zlib/releases/download/v@' tools/setup-native-dependencies.sh
+          bash tools/setup-native-dependencies.sh
+          bash tools/rebuild-libc.sh
+          zlib_archive="$PWD/.deps/native/zlib/root/usr/lib/libz.a"
+          test -s "$zlib_archive"
+          mkdir -p build/host
+          clang++-18 -std=c++20 -O2 -Wall -Wextra -Werror \
+            -I "$PWD/.deps/native/zlib/root/usr/include" \
+            tooling/native/native_app_builder.cpp tooling/native/self_container.cpp \
+            tooling/native/elf_object.cpp tooling/native/sce_module_writer.cpp \
+            "$zlib_archive" -o build/host/ps5-native-tool
+          test -x build/host/ps5-native-tool
+          test -s runtime/libc.prx
+          bash tools/build-radv.sh release
+          test -s .deps/native/radv-release/lib/libvulkan_radeon.ps5.a
+      - name: Fetch verified OpenGL SDK
+        run: |
+          set -euo pipefail
+          archive=.work/ps5-opengl-sdk-1.0.2.tar.gz
+          curl -fL --retry 5 --retry-all-errors --retry-delay 5 \
+            https://github.com/LedyBacer/ps5-opengl/releases/download/v1.0.2/ps5-opengl-sdk-1.0.2.tar.gz -o "$archive"
+          printf '%s  %s\n' 30d8e51dd062739b629346102be5932728ba714bc50b1bdcdf08306c8843d9a4 "$archive" | sha256sum -c -
+          tar -xzf "$archive" -C .work/
+          test -s .work/ps5-opengl-sdk-1.0.2/sdk/lib/libPS5OpenGL.a
+      - name: Get Android NDK r27c
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 5 \
+            https://dl.google.com/android/repository/android-ndk-r27c-linux.zip \
+            -o .work/android-ndk-r27c-linux.zip
+          unzip -q .work/android-ndk-r27c-linux.zip -d .work/
+          rm .work/android-ndk-r27c-linux.zip
+          test -x .work/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
+          grep -F 'Pkg.Revision = 27.2.12479018' .work/android-ndk-r27c/source.properties
+      - name: Build native PS5 FFmpeg dependencies
+        timeout-minutes: 65
+        run: bash homebrew/androidflow/tools/build_ffmpeg.sh
+      - name: Cross-compile and sign actual AndroidFlow PS5 executable
+        timeout-minutes: 75
+        working-directory: .work/Hydroid
+        run: |
+          set -euo pipefail
+          bash third_party/fetch-boost.sh "$BOOST_DIR"
+          bash title/build-title.sh
+          test -s dist/PPSA99920/eboot.bin
+      - name: Verify final signed PS5 installation ZIP and checksums
+        run: |
+          python3 homebrew/androidflow/tools/package_native.py .work/Hydroid/dist/PPSA99920 dist/PPSA99920.zip
+          (cd dist && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AndroidFlow-PS5-PPSA99920-v0.1.0-TESTBUILD
+          path: |
+            dist/PPSA99920.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+      - name: Publish TESTBUILD release from verified native build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c SHA256SUMS)
+          if gh release view androidflow-v0.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Immutable tag already exists"
+            exit 1
+          fi
+          gh release create androidflow-v0.1.0 dist/PPSA99920.zip dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "AndroidFlow by YAHBALLON v0.1.0 — PS5 TESTBUILD" \
+            --notes "Signed native PS5 build and ZIP verified in GitHub Actions. NOT YET REAL-CONSOLE-TESTED. Uses Hydroid GPL-3.0 with adapted GBAXY coverflow; no Android APKs included. ARM64 compatibility depends on supported Hydroid engines."
