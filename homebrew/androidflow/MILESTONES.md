@@ -5,10 +5,10 @@
 **Active branch:** feature/androidflow-hydroid-coverflow (commit history in PR)
 **Current version / Title ID:** source prototype v0.1.0 / PPSA99920 (local conflict check only, not globally reserved)
 **Hydroid source pin:** d8371afd75e3da6ab888d467d1e6bb00c32d2beb
-**Verified GitHub Release / TESTBUILD:** NONE
+**Verified native PR build:** GitHub Actions 41596070059 (successful); **Published Release:** not yet; **PS5 hardware:** untested
 **Hardware:** PS5 test not performed.
 
-> CURRENT STATE: AndroidFlow's Hydroid source patch and new Coverflow frontend are committed. Host overlay workflow #41590133362 passed geometry, icon and pinned Hydroid patch checks. Full native build CI is now defined but no signed PS5 executable, ZIP, screenshot or Android game execution has been verified.
+> CURRENT STATE: AndroidFlow's Hydroid source patch and new Coverflow frontend are committed. Host overlay and full native CI passed. GitHub Actions run 41596070059 successfully cross-compiled Hydroid, Dynarmic, FFmpeg and RADV, signed eboot.bin, validated and uploaded PPSA99920.zip. No PS5 hardware test performed.
 
 ## Milestone Matrix
 
@@ -17,9 +17,9 @@
 | M0 | Source reconnaissance and licenses | Hydroid README/BUILD/PORTING, game_file and app_main; GBAXY fe_coverflow_layout.h read — DONE |
 | M1 | Native Coverflow scanner UI and select-to-run patch | native/yah_coverflow.c/h, tools/apply_overlay.py — IMPLEMENTED, UNVERIFIED |
 | M2 | Host geometry test and upstream patch validation | GitHub Actions run 41590133362 — CI VERIFIED |
-| M3 | Native cross-compiled eboot.bin and ZIP | build-androidflow.yml + tools/package_native.py implemented; CI run and signed package not yet verified |
+| M3 | Native cross-compiled eboot.bin and ZIP | PASS — GitHub Actions run 41596070059; artifact 13212299750, native zip and SHA256SUMS verified |
 | M4 | Real PS5 APK launch with screenshot/log | NOT TESTED |
-| M5 | TESTBUILD GitHub release and generated version.json catalog update | NOT STARTED |
+| M5 | TESTBUILD GitHub release and generated version.json catalog update | PR build artifact exists; main-branch release and generated catalog pending |
 
 ## Current Architecture & Technical Anchors
 
@@ -32,6 +32,15 @@
 - Logs: /data/homebrew/PPSA99920/android.log; Hydroid can also expose its optional live log port 9025.
 
 ## Change Log — Latest First
+
+### 2026-11-03 — Full native PS5 build and package validation passed
+
+- CI build **41596070059** completed successfully on commit `e4c69293583b6a23c52e50841368f11efbcd6635`.
+- Real Dynarmic JIT, PS5 FFmpeg, Vulkan RADV and patched Hydroid compiled; PS5 native eboot.bin signed and verified.
+- Generated valid `PPSA99920.zip` and `SHA256SUMS`; GitHub artifact **13212299750** uploaded. This is a real PS5 package, not a source-only ZIP.
+- Real console launch, APK runtime compatibility and coverflow UI remain **UNTESTED**. GitHub release and catalog are pending main-branch publication.
+
+
 
 ### 2026-11-03 — Fix actual Dynarmic C++ compile errors from run 41595021651
 
