@@ -90,6 +90,14 @@ def main():
         'fi\n'
         'tail -n 8 "$out/dynarmic-build.log"', dyn_file)
     dyn_file.write_text(dyn)
+    # Patch missing C ABI declaration for droid_log in Dynarmic C++ source.
+    dyn = dyn_file.read_text()
+    dyn = replace_one(dyn,
+        'python3 "$here/patches/dynarmic-ps5.py" "$src"',
+        'python3 "$here/patches/dynarmic-ps5.py" "$src"\n'
+        'python3 "$repo/title/fix_dynarmic_log.py" "$src"', dyn_file)
+    dyn_file.write_text(dyn)
+    shutil.copyfile(root / "tools/fix_dynarmic_log.py", src / "title/fix_dynarmic_log.py")
     # Hydroid calls title/isolate-radv.py but does not ship that file.
     shutil.copyfile(root / "tools/isolate_radv.py", src / "title/isolate-radv.py")
     meta = json.loads(param.read_text())

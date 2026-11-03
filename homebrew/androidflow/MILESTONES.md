@@ -33,6 +33,16 @@
 
 ## Change Log — Latest First
 
+### 2026-11-03 — Fix actual Dynarmic C++ compile errors from run 41595021651
+
+- Full Dynarmic log points to `src/dynarmic/backend/x64/a64_interface.cpp` lines 407 and 412, where `droid_log` is called but never declared in that C++ translation unit.
+- Fix: insert `extern "C" void droid_log(const char *fmt, ...);` before the `Dynarmic::A64` namespace after the pinned upstream PS5 patch has run.
+- Implemented in `tools/fix_dynarmic_log.py`, invoked by patched `third_party/build-dynarmic.sh`. This preserves the real shared JIT cache and workshop logging; it does not disable them.
+- Added fixture tests for single insertion, repeat safety and upstream namespace drift, plus smoke workflow assertions.
+- Full native cross-build and PS5 gameplay **not yet verified**; rerun pending.
+
+
+
 ### 2026-11-03 — Native Dynarmic JIT error isolated
 
 - Run 41593133790 passed FFmpeg with NASM, full SDK/OpenGL/NDK, then built RADV (release).
