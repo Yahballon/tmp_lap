@@ -1,8 +1,8 @@
 {
   "schema": 2,
-  "version": "734ac590858d159c7d3ea3d96d7ea4704e39e69942e378be55cb1e054fb56076",
+  "version": "7945dc0c8340282d47525e958ab9844723b61317730fde421df76e3753aded12",
   "repository": "Yahballon/tmp_lap",
-  "app_count": 34,
+  "app_count": 35,
   "apps": [
     {
       "name": "SwitchXYZ",
@@ -419,6 +419,19 @@
       "source": "homebrew/ps5-mesenx",
       "size_bytes": 7580391,
       "published_at": "2026-10-16T14:38:18Z"
+    },
+    {
+      "name": "AndroidFlow",
+      "slug": "androidflow",
+      "title_id": "PPSA99920",
+      "version": "0.1.0",
+      "tag": "androidflow-v0.1.0",
+      "zip_name": "PPSA99920.zip",
+      "zip_url": "https://github.com/Yahballon/tmp_lap/releases/download/androidflow-v0.1.0/PPSA99920.zip",
+      "release_url": "https://github.com/Yahballon/tmp_lap/releases/tag/androidflow-v0.1.0",
+      "source": "homebrew/androidflow",
+      "size_bytes": 32558070,
+      "published_at": "2026-11-03T08:01:18Z"
     },
     {
       "name": "PSJukebox",
